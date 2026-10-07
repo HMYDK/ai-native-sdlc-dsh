@@ -67,6 +67,11 @@ Author: <谁>. Status: draft | accepted | rejected.
 7. **DSH 没有网络出口管控**。沙箱只管文件效果。不要声称本仓库能限制网络。
 8. **DSH 没有不可覆盖的管理层**。任何控制都能被能改 `~/.dsh/` 的人关闭，
    合规边界必须落在 host 层（文件属主/MDM/独立进程身份）。
+9. **Skill 目录新增后，进行中的会话不一定能看到**（实测：本仓库建成当天，`.dsh/skills/`
+   已存在且 frontmatter 合规，但当前会话报 `skill "…" is unknown or no longer available`）。
+   怀疑是会话启动时已定型的目录快照；`watch` 逻辑只监听既存根的**直接子项**，
+   不会为「根目录后来才出现」重建快照。**新建 Skill 后在下一轮新会话验证**，
+   不要在当前会话里反复断言它不存在。
 
 ## 改动本仓库时的约定
 
@@ -81,6 +86,9 @@ Author: <谁>. Status: draft | accepted | rejected.
 ## 当前状态
 
 - [x] 仓库骨架、制品目录、门禁脚本、技能
+- [x] 门禁脚本逻辑自测（`.claude/hooks/verify-gates.sh`，24/24 通过）
 - [ ] 插件挂载（见 `PLUGIN-SETUP.md`，待人工执行）
-- [ ] 门禁 deny/ask 行为的实测验证
+- [ ] 门禁 deny/ask 端到端实测（依赖上一条）
+- [ ] 确认 `matcher` 匹配语义（文档只给了 schema，未给匹配例子）
+- [ ] 确认桌面 App 是否把 shell 环境传给钩子进程（决定 `RELEASE_APPROVAL` 怎么注入）
 - [ ] 阶段 06 无人闭环（需先决定 Host 常驻还是外部 cron）
