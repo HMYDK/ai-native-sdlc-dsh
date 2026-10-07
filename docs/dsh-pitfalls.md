@@ -157,6 +157,45 @@ printf '%s' 'git push origin main' | base64 -D | sh    # 不会被拦
 | 子代理后端 | 6 种：in-process `spawn` / `fork` / ACP / Codex / Claude Code / SDK |
 | 编排 token 计费 | **无**。引擎限制并发与子级数量，但不统计跨子级 token |
 
+## 11.1 写文件的正确姿势（漏了就会被沙箱拒绝，而且很难看出原因）
+
+**症状**：`cannot write "<绝对路径>": file access denied under workspace-write mode`。
+最迷惑的地方是——**内置 `write` 工具能写同一个路径**，环境策略甚至是
+`danger-full-access`。所以看起来不像权限问题，像代码 bug。
+
+**根因**：官方 fs 工具的写入做两件事，自己写插件时很容易只做一半：
+
+```js
+// 官方 dsh-tool-fs 的写法
+const policy = await sandboxPolicy.resolve({ session });   // ① 解析本次调用的策略
+const target = await ctx.fs.resolve(path, {
+  cwd: policy?.workspaceRoot ?? sessionCwd(exec),          // ② cwd 必须显式传
+  signal: exec.signal,
+});
+await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ 策略必须传
+```
+
+漏掉 ② 或 ③ 的后果：`fs.resolve` 落到**部署的 fallback 根**（`process.cwd()`，
+即 App 的工作目录，不是你的仓库），于是"写自己仓库里的文件"被判越界。
+
+**API 细节**（文档里查不到，只能读类型定义）：
+- 服务名是 **`ctx.sandboxPolicy`**（策略），不是 `ctx.sandbox`（那是执行器
+  `SandboxProvider`）。前者的 `resolve({ session })` 从会话推导出
+  `{ mode, workspaceRoot }`——**会话的 cwd 就是它的 workspace-write 边界**。
+- 必须**显式 import 这两个包的类型**，否则 declaration merging 不生效，
+  tsc 会报 `Property 'sandboxPolicy' does not exist on type 'Context'`。
+  纯类型 import 也要真写出来。
+- `inject` 里要加 `'sandboxPolicy'`。
+
+⚠️ **这个坑我在两个包里各踩了一次**——修了 `sdlc-task` 却没检查
+`sdlc-verify` 有没有同样的调用方式。教训：**修一类问题时，要 grep 全部同类调用点**，
+不要只修眼前那个。
+
+⚠️ 还有一层更隐蔽的：**测试桩忽略参数 = 测试对这类问题失明**。
+`sdlc-verify` 的 `fs` 桩原本写成 `resolve(p, _o)`、`writeText(target, content)`，
+把 cwd 和 policy 直接丢掉，所以这个 bug 在冒烟测试里**不可能被发现**。
+现在两个包的桩都记录并断言这两个参数。
+
 ## 12.1 补充：`plugin_manager` 的禁用/启用**也**不会重载模块
 
 我在第 12 条里写了"重启 App"，但后来又试了看起来更轻的办法——用
