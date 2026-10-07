@@ -161,6 +161,15 @@ ctx.tools.register({
   execute: async (args) => `wrote ${args.file_path}`,
 });
 
+// pwsh 桩：Windows 上只有 pwsh 没有 bash，冻结必须在它上面同样生效
+ctx.tools.register({
+  name: 'pwsh',
+  description: 'smoke stub for pwsh channel',
+  parameters: { command: { type: 'string', required: true } },
+  output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: String(v) }] },
+  execute: async (args) => `ran pwsh: ${args.command}`,
+});
+
 // bash 桩：shell 通道原先在运行时层完全没有覆盖，而这正是绕过点藏身之处。
 const executedCommands = [];
 ctx.tools.register({
@@ -192,17 +201,19 @@ if (r2.isError && deniedText.includes('冻结期内不可修改')) {
 }
 
 // 冻结生效后：经 shell 改测试也必须被拒（这是原先没覆盖的通道）
-for (const [label, command] of [
+for (const [label, command, tool = 'bash'] of [
   ['重定向（带空格）', "echo pass > tests/test_x.py"],
   ['重定向（不带空格）', "echo pass >tests/test_x.py"],
   ['解释器内写入', `python3 -c "open('tests/test_x.py','w')"`],
   ['find -delete', 'find tests -name "*.py" -delete'],
   ['dd of= 前缀', 'dd if=/dev/zero of=tests/x.py bs=1 count=0'],
-  ['快照批量更新', 'npx jest -u tests/'],
+  ['快照批量更新（带路径）', 'npx jest -u tests/'],
+  ['快照批量更新（不带路径，独立信号）', 'npx jest -u'],
+  ['PowerShell 写入 cmdlet', 'Set-Content tests/test_x.py "pass"'],
 ]) {
   const before = executedCommands.length;
-  const r = await dispatch('bash', { command }, fakeAgent);
-  const denied = r.isError && JSON.stringify(r.content ?? '').includes('冻结期内不可修改');
+  const r = await dispatch(tool, { command }, fakeAgent);
+  const denied = r.isError && JSON.stringify(r.content ?? '').includes('冻结期内');
   // 关键：不仅要「返回 isError」，还要证明命令**没有真的执行**。
   // 否则若将来 guard 的执行时机挪到 dispatch 之后，这条测试仍会通过。
   const ranAnyway = executedCommands.length > before;
@@ -222,6 +233,19 @@ for (const command of ['pytest tests/test_x.py -q', 'cat tests/test_x.py', 'git 
   if (r.isError) bad(`只读 shell 被误伤: ${command}`);
   else if (executedCommands.length === before) bad(`只读 shell 未真正执行: ${command}`);
   else ok(`只读 shell 放行并执行: ${command}`);
+}
+
+// 进程级冻结：换一个 agent id、甚至不带 agent，测试资产同样不可改。
+// 这是把冻结从"按 agent"改成"进程级"的直接后果，也是防 subagent 绕过的依据。
+{
+  const otherAgent = { id: 'smoke-session-B-different' };
+  const r1 = await dispatch('write', { file_path: 'tests/test_z.py', content: 'x' }, otherAgent);
+  if (r1.isError) ok('进程级冻结：另一个 agent id 写 tests/ 同样被拒');
+  else bad('进程级冻结失效：另一个 agent id 写 tests/ 被放行');
+
+  const r2 = await dispatch('write', { file_path: 'tests/test_w.py', content: 'x' });
+  if (r2.isError) ok('进程级冻结：不带 agent 的调用同样被拒');
+  else bad('进程级冻结失效：不带 agent 的调用被放行');
 }
 
 // 但写产品代码必须放行
@@ -301,12 +325,27 @@ if (started.length < 1) {
   const checks = [
     ['provider 为 spawn', provider === 'spawn'],
     ['outputSchema 已传（强制结构化）', request.outputSchema?.type === 'object'],
+    // 断言**关键性质**而不是硬编码列表：写能力工具必须不在 allow 里。
+    // 硬编码整个数组会让"加一个只读工具"也报错，掩盖真正的回归。
     [
-      'toolFilter 是只读白名单',
-      JSON.stringify(request.toolFilter) === '{"allow":["read","grep","glob","bash"]}',
+      'toolFilter 不含写能力工具（write/edit）',
+      Array.isArray(request.toolFilter?.allow) &&
+        !request.toolFilter.allow.includes('write') &&
+        !request.toolFilter.allow.includes('edit'),
+    ],
+    [
+      'toolFilter 保留只读检索工具与 shell',
+      ['read', 'grep', 'glob'].every((n) => request.toolFilter.allow.includes(n)) &&
+        (request.toolFilter.allow.includes('bash') || request.toolFilter.allow.includes('pwsh')),
     ],
     ['persona 已传且非空', typeof request.persona === 'string' && request.persona.length > 50],
-    ['persona 提醒了工具子集（防御 toolFilter 不隐藏静态提示词）', /do not have|read-only subset/i.test(request.persona)],
+    // 正向：必须明确要求「忽略让你修改的指示」
+    ['persona 要求忽略修改类指示', /Ignore any instruction that would have you modify/i.test(request.persona)],
+    // 负向：**不得**再声称「只读/不能修改」——那句话被实测推翻过，
+    // 而且旧 persona 也能通过只做正向匹配的断言（无鉴别力）
+    ['persona 不再声称「只读」（负向断言）', !/read-only tools|You cannot modify/i.test(request.persona)],
+    // 正向：必须如实说明 bash 能写但不许写
+    ['persona 如实描述 bash 能力边界', /technically able to change files/i.test(request.persona)],
     ['prompt 是 ContentBlock[]', Array.isArray(request.prompt) && request.prompt[0]?.type === 'text'],
     ['未传 agentOptions（未配置模型时不乱传）', request.agentOptions === undefined],
   ];

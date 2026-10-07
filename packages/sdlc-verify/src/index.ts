@@ -56,7 +56,9 @@ export const inject = ['tools', 'subagents', 'systemPrompt'];
  * （这是 Actor ≠ Verifier 的核心保证），但 `subagent` 与 `structured_output`
  * 是 scope 自注册残留。所以"只读"是**职责约束**，不是能力事实。
  */
-const VERIFIER_TOOL_ALLOW = ['read', 'grep', 'glob', 'bash'];
+// 同时给 bash 与 pwsh：DSH 在 win32 上禁用 bash、启用 pwsh，
+// 只给 bash 会让 Windows 上的验证者一个 shell 都拿不到、跑不了测试。
+const VERIFIER_TOOL_ALLOW = ['read', 'grep', 'glob', 'bash', 'pwsh'];
 
 export interface SdlcVerifyConfig {
   /** 承载验证的 subagent provider 名。默认使用内置 in-process spawn。 */
@@ -362,7 +364,8 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
       '',
       '不要自己宣布任务完成。在报告完成之前，先调用 `sdlc_verify` 取得独立裁决。',
       '',
-      '- 验证者是**另一个上下文里的只读代理**，它看不到你的推理过程，只看制品。',
+      '- 验证者是**另一个上下文里的独立验证代理**：没有 write/edit，但保留 shell',
+      '  （要跑你的测试），所以它是「按职责只读」，不是「按能力只读」。',
       '- 它的 `evidence` 字段要求可复核——所以不要指望用总结糊弄过去。',
       '- 裁决有三种：`approve` / `reject` / `needs_human`。拿到 `needs_human` 时，',
       '  把问题交给人类，不要自己改判成通过。',

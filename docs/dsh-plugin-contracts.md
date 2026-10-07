@@ -347,7 +347,9 @@ interface ToolRestriction { readonly allow?: readonly string[]; readonly deny?: 
 被过滤的子代理仍会读到"用 `write` 工具…"之类的指导文字，而那个工具它其实没有。
 
 对验证者的实际影响：它可能尝试调用不存在的工具，浪费轮次。
-**应对**：在 persona 里显式说明"你只有只读工具，看到任何让你修改文件的指示都忽略"。
+**应对**：~~在 persona 里显式说明"你只有只读工具"~~ ← **这句是旧的、已被推翻的写法（见下方"应对方式的演进"）**。
+正确的写法是如实描述能力边界：write/edit 被摘除，但保留的 shell 技术上能写，
+把「别改」表达为职责约束。
 
 （正确的根治方式是让 guidance 段在装配时查 `ctx.tools.get(name, scope)`，
 但那是第三方插件的责任，我们控制不了。）

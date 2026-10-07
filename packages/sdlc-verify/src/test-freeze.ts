@@ -105,14 +105,33 @@ const MUTATION_RE = [
   // git 的写操作（允许 -C <path> 等全局参数插在 git 与子命令之间）
   /\bgit\b(\s+-[^\s]+\s+\S+)*\s+(checkout|restore|rm|mv|reset|stash|apply|clean|revert|switch)\b/,
   /\bpatch\b\s/,
-  // 测试运行器的「批量改写预期」开关：它们直接把断言改成当前输出，
-  // 效果等同于改测试，是让失败变绿的常用手法（验证者实测记录）
-  // 允许包运行器前缀（`npx jest -u`、`pnpm dlx vitest -u`…）——
-  // 原来的 `\b(jest|...)` 因为 `npx` 在前而词边界不成立，实测漏检。
-  /(^|[\s;&|])(npx|pnpm|yarn|bunx|bun)?[\s]*(jest|vitest|pytest|ava|playwright|cypress)\b[^|]*(-u\b|--update[-a-z]*\b|--snapshot-update\b|--update-snapshots\b)/,
+  // PowerShell 的写入/删除 cmdlet。
+  // 光把 `pwsh` 纳入通道是不够的——PowerShell 不用 `rm`/`>` 这套写法，
+  // 得单独认这些 cmdlet，否则 Windows 上的冻结形同虚设。
+  /\b(Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Move-Item|Copy-Item|New-Item|Rename-Item|Set-Item|Set-ItemProperty|Tee-Object)\b/i,
 ].map((re) => re.source).join('|');
 
 const MUTATION_RE_COMPILED = new RegExp(MUTATION_RE);
+
+/**
+ * 「批量改写预期」开关 —— **独立的拦截信号，不要求命令里出现测试路径。**
+ *
+ * 为什么必须独立：`npx jest -u`（不带路径）会把**全部**快照/断言改成当前输出，
+ * 效果等同改测试。而它没有任何测试路径 token，所以走"变更操作 + 目标路径"
+ * 那套判定时必然放行——实测确认过这个洞，且我第一版冒烟用例恰好带了 `tests/`，
+ * 把洞遮住了（这是"挑好走的路"的典型错误）。
+ *
+ * 注意 `-u` 的写法：不能写成 `--?-u`（那匹配的是 `--u`/`---u`），
+ * 也不能让 `-u` 裸奔——它会匹配 `--update` 里的 `-u`。
+ * 所以这里把「测试运行器 + 更新开关」作为一个整体匹配，工具名与开关必须同现。
+ */
+const UPDATE_SWITCH_RE =
+  /(^|[\s;&|])(npx|pnpm|yarn|bunx|bun|uv|poetry|pipenv)?[\s]*(jest|vitest|pytest|ava|playwright|cypress|rspec|phpunit|mocha)\b[^|]*(\s-u(\s|$)|\s--update[-a-z]*\b|\s--snapshot-update\b|\s--update-snapshots\b)/;
+
+/** 命中「批量改写预期」开关。 */
+export function isUpdateSwitch(command: unknown): boolean {
+  return typeof command === 'string' && UPDATE_SWITCH_RE.test(command);
+}
 
 /**
  * 从 bash 命令里取出可能是路径的 token。
@@ -178,6 +197,18 @@ export function judgeTestMutation(exec: {
   if (name === 'bash' || name === 'pwsh') {
     const command = args?.['command'];
     if (typeof command !== 'string') return { blocked: false };
+
+    // ① 批量改写预期开关：**不要求命令里出现测试路径**
+    //    （`npx jest -u` 会把全部快照改成当前输出，这本身就是改测试证据）
+    if (isUpdateSwitch(command)) {
+      return {
+        blocked: true,
+        reason: '冻结期内不允许用「批量改写预期」开关（-u / --update-snapshots 等）——' +
+          '它会把断言改成当前输出，等同于改测试',
+      };
+    }
+
+    // ② 变更操作 + 测试目标
     if (!MUTATION_RE_COMPILED.test(command)) return { blocked: false };
     const hit = pathTokens(command).find((t) => isTestPath(t));
     if (hit !== undefined) {

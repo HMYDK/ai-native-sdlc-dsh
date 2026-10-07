@@ -177,7 +177,7 @@ function compareNodes(
       }
     }
 
-    // 2) 逐层比对必填性：裁决 required 的字段，输出侧也必须 required
+    // 2) 逐层比对必填性 —— **双向**
     const vReq = new Set((v['required'] ?? []) as string[]);
     for (const k of vReq) {
       const child = oProps[k] as { required?: boolean } | undefined;
@@ -185,8 +185,34 @@ function compareNodes(
         problems.push(`${path}.${k} 在裁决里必填，但工具输出 schema 未标 required`);
       }
     }
+    for (const k of oKeys) {
+      const child = oProps[k] as { required?: boolean } | undefined;
+      if (child?.required === true && !vReq.has(k) && k !== 'verifier_session') {
+        problems.push(`${path}.${k} 在工具输出 schema 里必填，但裁决里是可选的（输出更严会把合法裁决拒掉）`);
+      }
+    }
 
-    // 3) 递归进入子节点
+    // 3) 值级比对：枚举
+    //    裁决侧的每个取值都必须被输出侧接受——否则那条裁决会被运行时拒掉，
+    //    症状与键缺失完全相同（INVALID_TOOL_OUTPUT，调用方拿不到 findings）。
+    //    只比键集合是抓不到这一类的（验证者实测：把 severity enum 加宽后断言不抛）。
+    for (const k of vKeys) {
+      const vEnum = (vProps[k] as { enum?: unknown[] } | undefined)?.enum;
+      if (!Array.isArray(vEnum)) continue;
+      const oEnum = (oProps[k] as { enum?: unknown[] } | undefined)?.enum;
+      if (!Array.isArray(oEnum)) {
+        problems.push(`${path}.${k} 在裁决里限定了枚举，但工具输出 schema 没有枚举约束`);
+        continue;
+      }
+      const missing = vEnum.filter((x) => !oEnum.includes(x));
+      if (missing.length > 0) {
+        problems.push(
+          `${path}.${k} 的枚举取值 [${missing.map(String).join(', ')}] 不被工具输出 schema 接受`,
+        );
+      }
+    }
+
+    // 4) 递归进入子节点
     for (const k of vKeys) {
       if (k in oProps) compareNodes(vProps[k], oProps[k], `${path}.${k}`, problems);
     }

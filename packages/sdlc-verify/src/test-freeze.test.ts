@@ -78,13 +78,13 @@ test('shell 改写测试文件被拦', () => {
 });
 
 /**
- * 回归用例。
+ * 判定覆盖的守恒断言。
  *
- * 口径要准确：其中 **9 条**是独立验证者实测出来、在修复前**确实被放行**的；
- * `shred` 在修复前已被拦住，留在这里作为**既有覆盖的守恒断言**
- * （防止将来重构时把它弄丢），不是回归证据。
+ * **口径（实测，不要凭印象改）**：这 10 种写法在上一版实现下就**已经全部被拦住**，
+ * 所以它是守恒断言——防止将来重构把已有覆盖弄丢——**不是回归证据**。
  *
- * 每一条都对应一次真实的判定讨论，不要删。
+ * 我曾在这里写过"9 条实测曾被放行"，那是假的，已按实测更正。
+ * 真正的回归缺口是另外三个当时无人覆盖的形态（见下方 update-switch 用例）。
  */
 test('回归：实测过的绕过手法必须被拦', () => {
   const bypasses: Array<[string, string]> = [
@@ -103,6 +103,56 @@ test('回归：实测过的绕过手法必须被拦', () => {
     const v = judgeTestMutation({ name: 'bash', arguments: { command } });
     assert.equal(v.blocked, true, `绕过手法未被拦（${label}）: ${command}`);
   }
+});
+
+test('批量改写预期开关——不要求命令里出现测试路径', () => {
+  // 这 3 条是**当时无人覆盖**的真实缺口：不带显式路径时，
+  // 「变更操作 + 目标路径」那套判定必然放行，而它们会把全部快照改成当前输出。
+  const mustBlock = [
+    'npx jest -u',
+    'npx jest --update-snapshots',
+    'npx vitest -u',
+    'pytest --snapshot-update',
+    'npx jest -u --silent',
+  ];
+  for (const command of mustBlock) {
+    const v = judgeTestMutation({ name: 'bash', arguments: { command } });
+    assert.equal(v.blocked, true, `应被拦: ${command}`);
+  }
+  // 防误伤：别的工具里 -u 是别的意思
+  const mustAllow = [
+    'docker run -u root alpine',
+    'curl -u user:pass https://example.com',
+    'git log -u',
+    'npm install -u',
+  ];
+  for (const command of mustAllow) {
+    const v = judgeTestMutation({ name: 'bash', arguments: { command } });
+    assert.equal(v.blocked, false, `不应被拦: ${command}`);
+  }
+});
+
+test('pwsh 通道与 bash 同等对待（Windows 上只有 pwsh）', () => {
+  const blocked = judgeTestMutation({
+    name: 'pwsh',
+    arguments: { command: 'Set-Content tests/test_x.py "pass"' },
+  });
+  assert.equal(blocked.blocked, true, 'pwsh 写测试资产应被拦');
+});
+
+test('测试运行器配置与快照也算测试资产（验证者实测的漏项）', () => {
+  for (const p of [
+    'src/__snapshots__/Panel.tsx.snap',
+    'testdata/golden.json',
+    'jest.config.js',
+    'vitest.config.ts',
+    'pytest.ini',
+  ]) {
+    assert.equal(isTestPath(p), true, `应识别为测试资产: ${p}`);
+  }
+  // spec/ 目录不再一律当测试资产（减少误伤），但 rspec 形态仍认
+  assert.equal(isTestPath('docs/spec/design.md'), false, 'docs/spec/ 是文档，不该误伤');
+  assert.equal(isTestPath('spec/models/order_spec.rb'), true, 'rspec 应识别');
 });
 
 test('只读 shell 命令不被拦（防误伤）', () => {
