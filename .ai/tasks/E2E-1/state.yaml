@@ -1,11 +1,12 @@
 task: E2E-1
 title: "工作流演示：制品链（intent/spec/plan）+ 独立验证"
-status: VERIFYING
+status: DONE
 created: 2026-10-07T16:15:59.689Z
-updated: 2026-10-07T16:48:55.443Z
+updated: 2026-10-07T16:54:42.331Z
 artifacts:
   intent: "intent.md"
   plan: "plan.md"
+  review: "review.json"
   spec: "spec.md"
   verification: "verification.json"
 history:
@@ -41,3 +42,11 @@ history:
     from: "IMPLEMENTING"
     to: "VERIFYING"
     reason: "制品链已就位，进入验证；判据见本次 sdlc_verify 调用传入的 criteria（针对制品链，不针对理赔功能），会落进 verification.json"
+  - at: "2026-10-07T16:54:30.143Z"
+    from: "VERIFYING"
+    to: "REVIEWING"
+    reason: "独立验证返回 approve（四条判据全 met），进入评审"
+  - at: "2026-10-07T16:54:42.331Z"
+    from: "REVIEWING"
+    to: "DONE"
+    reason: "评审决定：接受制品链演示作为交付物（依据：独立验证 approve + 四条判据全 met）。review.json 记录了决定、依据、以及**明确未被接受的**两项（理赔功能实现、R4 的「对外」边界定义），不声称有额外审批人。"
