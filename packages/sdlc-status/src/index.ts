@@ -243,7 +243,11 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
         // 选择窗口（纯函数，见 scan.ts 的 selectTasks）。
         // task_id 未命中时它会抛错——那是**有意的**：返回空数组会让调用方
         // 分不清"该任务不存在"与"扫描坏了"。
-        const sel = selectTasks(result.tasks, { taskId, offset, limit });
+        // `explicit` 决定切窗模式：没传参数时按呈现序取前 limit 个
+        // （= 改动前的行为，回答"最该看的是什么"）；传了参数时按 id 码元序
+        // （= 与时间无关，可反复翻页把所有都看一遍）。
+        const explicit = taskId !== undefined || offset !== undefined || limit !== undefined;
+        const sel = selectTasks(result.tasks, { taskId, offset, limit, explicit });
 
         const lines = sel.entries.map((t) => formatEntry(t));
 
@@ -255,7 +259,6 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
         //
         // 所以：默认路径回到旧行为（只有那行旧的截断提示）；
         // 文案只在"调用方问了什么"的语境里才成立。
-        const explicit = taskId !== undefined || offset !== undefined || limit !== undefined;
         const bits: string[] = [];
         if (explicit) {
           if (sel.singleIndex >= 0) {
@@ -265,7 +268,14 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
             if (limit !== undefined) ignored.push('limit');
             if (ignored.length > 0) bits.push(`已忽略 ${ignored.join(' 与 ')}（单任务详情不受分页影响）`);
           } else if (sel.entries.length === 0) {
-            bits.push(`没有更多了：offset=${String(offset)} 已越过总数 ${result.counts.total}`);
+            // ⚠️ 别在空仓库上说"已越过总数"——`offset=0` 没有越过任何东西，
+            // 只是仓库里没有任务。独立验证者指出过这条（上一轮我只把它挡住
+            // 了默认路径，显式 offset=0 时仍在说错话）。
+            if (result.counts.total === 0) {
+              bits.push('没有任务（仓库里还没有 .ai/tasks/*）');
+            } else {
+              bits.push(`没有更多了：offset=${String(offset)} 已越过总数 ${result.counts.total}`);
+            }
           } else if (!sel.complete) {
             bits.push(
               `显示第 ${sel.start + 1}-${sel.start + sel.entries.length} 个，共 ${result.counts.total} 个` +
@@ -345,7 +355,10 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
  * 为什么不做宽容处理：把 `offset=-1` 当成 0、把 `limit=1.5` 当成 1，
  * 会让调用方**以为自己的参数生效了**，而它没有。参数错就要说出来。
  *
- * 空串与 `undefined` 都当作"没给"（模型常把可选参数传成空串）。
+ * ⚠️ 空串与 `null` 分支是**防御性**的，在真实工具路径上走不到：
+ * `offset`/`limit` 声明为 `type: 'integer'`，DSH 的参数 schema 会先把
+ * `''` 与 `null` 拒掉（实测错误为 `invalid arguments: "offset" must be an integer`）。
+ * 独立验证者两次指出这点，所以这里写明事实，免得后来人以为空串被容忍。
  */
 function intArg(
   raw: unknown,

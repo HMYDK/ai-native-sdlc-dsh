@@ -511,6 +511,25 @@ console.log('\n== 7. 边界情况 ==');
   if (!phantom) ok('显式分页的 tasks 里没有"未显示"那行（不会挤出真实任务）');
   else bad('显式分页不该追加截断提示行 —— 它会把真实任务挤出窗口');
 
+  // ⚠️ `truncated` 的新语义（= !complete）必须在这里断，**不能在默认路径断**：
+  // 默认路径下新旧式子（`!complete` vs `!explicit && !complete`）逐字等价，
+  // 所以那条断言对这次修改不可证伪。独立验证者指出：把 truncated 回退成旧式子，
+  // 作者冒烟仍然 60/60。
+  const explicitTrunc = await bigCall({ offset: 0, limit: 10 });
+  if (explicitTrunc.value.truncated === true && explicitTrunc.value.complete === false) {
+    ok('显式分页时 truncated=true 且 complete=false（旧式子在恒为 false，会被这条抓住）');
+  } else {
+    bad(
+      `显式分页下 truncated 应为 true、complete 应为 false，实际 truncated=${explicitTrunc.value.truncated} complete=${explicitTrunc.value.complete}`,
+    );
+  }
+  const tailTrunc = await bigCall({ offset: 200, limit: 50 });
+  if (tailTrunc.value.truncated === false && tailTrunc.value.complete === true) {
+    ok('取到末尾时 truncated=false 且 complete=true');
+  } else {
+    bad(`末尾页 truncated 应为 false，实际 ${tailTrunc.value.truncated}`);
+  }
+
   // 上限之外的任务仍然可达（这是本任务的原始目标）
   const tail = await bigCall({ offset: 200 });
   const tailIds = tail.value.tasks
@@ -572,20 +591,148 @@ console.log('\n== 7b. 空看板的渲染必须与旧行为逐字一致 ==');
     agent: emptyAgent,
     signal: new AbortController().signal,
   });
-  const text = er.value.tasks !== undefined || er.value.summary !== undefined
-    ? (() => {
-        const v = er.value;
-        const lines = Array.isArray(v.tasks) ? v.tasks : [];
-        const note = typeof v.note === 'string' && v.note !== '' ? v.note : undefined;
-        return [String(v.summary), ...(note !== undefined ? [note] : []), '', ...lines].join('\n');
-      })()
-    : '';
+  // ⚠️ 必须读**真实渲染输出**（`content[0].text`）。
+  // 我第一版在这里自己把 summary/note/lines 拼了一遍——那等于在测试里复制了
+  // 渲染逻辑，于是渲染器本身的回归（比如 note 被渲染漏掉，正是上一轮 blocking
+  // 关心的那件事）照样全绿。独立验证者指出：把 render 里的 note 删掉，
+  // 作者冒烟仍然 60/60。
+  const rendered = (r) =>
+    (Array.isArray(r.content) ? r.content : [])
+      .filter((c) => c?.type === 'text')
+      .map((c) => String(c.text))
+      .join('');
+  const text = rendered(er);
   if (text === '没有任务。\n') {
-    ok(`空看板渲染逐字等于旧行为：${JSON.stringify(text)}`);
+    ok(`空看板渲染逐字等于旧行为（读真实 content）：${JSON.stringify(text)}`);
   } else bad(`空看板渲染变了：${JSON.stringify(text)}（应为 "没有任务。\\n"）`);
   if (er.value.note === undefined) ok('空看板不产生 note（不再出现"已越过总数 0"）');
   else bad(`空看板不该有 note，实际：${er.value.note}`);
+
+  // 反向：显式分页时 note 必须真的被**渲染出来**（字段存在但人看不到等于没有）
+  const shown = await ctx.tools.execute({
+    callId: `smoke-render-${Math.random().toString(36).slice(2)}`,
+    name: 'sdlc_status',
+    arguments: { offset: 0, limit: 1 },
+    agent: { id: 'smoke-render', session: { header: { cwd: emptyRoot2 } } },
+    signal: new AbortController().signal,
+  });
+  const shownText = rendered(shown);
+  if (shownText.includes('没有任务') && !shownText.includes('已越过总数')) {
+    ok(`空仓库 + 显式 offset=0 不说"已越过总数"：${JSON.stringify(shownText)}`);
+  } else bad(`空仓库 + 显式 offset=0 的渲染不对：${JSON.stringify(shownText)}`);
   fs.rmSync(emptyRoot2, { recursive: true, force: true });
+}
+
+console.log('\n== 7c. note 必须真的被渲染出来（字段存在但人看不到等于没有）==');
+{
+  // 独立验证者指出的空断言：我原来在**空仓库**上断言 `includes('没有任务')`，
+  // 而空仓库的 note 恰好是「没有任务（仓库里还没有 .ai/tasks/*）」——含"没有任务"，
+  // 所以把 render 里的 note 删掉，这条也照样绿。
+  // 改用**非空**仓库，并断言 note 的那句特有文本出现在真实渲染里。
+  const rRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-status-render-'));
+  const rTasks = path.join(rRoot, '.ai/tasks');
+  for (let i = 1; i <= 60; i += 1) {
+    const id = `RN-${String(i).padStart(3, '0')}`;
+    fs.mkdirSync(path.join(rTasks, id), { recursive: true });
+    fs.writeFileSync(
+      path.join(rTasks, id, 'state.yaml'),
+      `task: ${id}\ntitle: "${id}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
+      'utf8',
+    );
+    fs.writeFileSync(path.join(rTasks, id, 'i.md'), '# I\n', 'utf8');
+    fs.writeFileSync(path.join(rTasks, id, 's.md'), '# S\n', 'utf8');
+  }
+  const rr = await ctx.tools.execute({
+    callId: `smoke-render2-${Math.random().toString(36).slice(2)}`,
+    name: 'sdlc_status',
+    arguments: { offset: 0, limit: 10 },
+    agent: { id: 'smoke-render2', session: { header: { cwd: rRoot } } },
+    signal: new AbortController().signal,
+  });
+  const t = (Array.isArray(rr.content) ? rr.content : [])
+    .filter((c) => c?.type === 'text')
+    .map((c) => String(c.text))
+    .join('');
+  // note 在这条路径上的特有文本：「显示第 1-10 个，共 60 个（还有 50 个，用 offset=10 继续）」
+  if (t.includes('显示第 1-10 个，共 60 个')) {
+    ok('note 真的出现在渲染文本里（不是只在 value 里）');
+  } else bad(`note 没被渲染出来：${JSON.stringify(t.slice(0, 160))}`);
+  if (t.includes('offset=10 继续')) {
+    ok('渲染文本给出了下一步的 offset（可操作）');
+  } else bad('渲染文本缺少下一步的 offset');
+  fs.rmSync(rRoot, { recursive: true, force: true });
+}
+
+console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小的 ==');
+{
+  // 独立验证者指出的**夹具盲区**：我原来的分页夹具是同质的（PG-001..060 状态与
+  // 更新时间全相同），于是 **id 序恰好等于紧迫序**——而我一度把整页改成按 id 序
+  // 选人，这个回归在那种夹具里**天然看不见**。
+  // 验证者用混合夹具实测：旧首行 `✗ ZZ-001 — 读不出来`，改坏后首行
+  // `· AA-001 [SPEC]` —— **一个坏任务都不在里面**。看板存在的理由就是
+  // "一眼看到要动手的"，那等于把它拆了。
+  //
+  // 所以这里造"紧迫序 ≠ id 序"的形态：坏任务的 id 故意排在字母表后面。
+  const mRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-status-mixed-'));
+  const mTasks = path.join(mRoot, '.ai/tasks');
+  const put = (id, body) => {
+    fs.mkdirSync(path.join(mTasks, id), { recursive: true });
+    fs.writeFileSync(path.join(mTasks, id, 'state.yaml'), body, 'utf8');
+  };
+  for (let i = 1; i <= 5; i += 1) {
+    put(
+      `ZZ-00${i}`,
+      `task: ZZ-00${i}\ntitle: "坏的 ${i}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\nhistory: []\n`,
+    );
+    fs.writeFileSync(path.join(mTasks, `ZZ-00${i}`, 'i.md'), '# I\n', 'utf8');
+  }
+  // 这 5 个 state.yaml 写坏（status 非法）→ 它们会被判 health=error，排在呈现序最前
+  for (let i = 1; i <= 5; i += 1) {
+    fs.writeFileSync(
+      path.join(mTasks, `ZZ-00${i}`, 'state.yaml'),
+      `task: ZZ-00${i}\ntitle: "坏的 ${i}"\nstatus: NOT_A_STATUS\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts: {}\nhistory: []\n`,
+      'utf8',
+    );
+  }
+  for (let i = 1; i <= 5; i += 1) {
+    put(
+      `AA-00${i}`,
+      `task: AA-00${i}\ntitle: "好的 ${i}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
+    );
+    fs.writeFileSync(path.join(mTasks, `AA-00${i}`, 'i.md'), '# I\n', 'utf8');
+    fs.writeFileSync(path.join(mTasks, `AA-00${i}`, 's.md'), '# S\n', 'utf8');
+  }
+
+  const mRes = await ctx.tools.execute({
+    callId: `smoke-mixed-${Math.random().toString(36).slice(2)}`,
+    name: 'sdlc_status',
+    arguments: {},
+    agent: { id: 'smoke-mixed', session: { header: { cwd: mRoot } } },
+    signal: new AbortController().signal,
+  });
+  const firstLine = String(mRes.value.tasks[0] ?? '');
+  if (/ZZ-00/.test(firstLine)) {
+    ok(`默认页第一条是坏任务（紧迫序优先）：${firstLine.slice(0, 40)}`);
+  } else {
+    bad(`默认页第一条应是坏任务 ZZ-00*，实际：${firstLine.slice(0, 60)}`);
+  }
+  const badCount = mRes.value.tasks.filter((l) => /ZZ-00/.test(l)).length;
+  if (badCount === 5) ok('5 个坏任务都在默认页里（没有一个被 id 序挤掉）');
+  else bad(`默认页应含全部 5 个坏任务，实际 ${badCount} 个`);
+
+  // 反过来：显式分页用 id 序（可反复翻页不重不漏）
+  const mPage = await ctx.tools.execute({
+    callId: `smoke-mixed2-${Math.random().toString(36).slice(2)}`,
+    name: 'sdlc_status',
+    arguments: { offset: 0, limit: 3 },
+    agent: { id: 'smoke-mixed', session: { header: { cwd: mRoot } } },
+    signal: new AbortController().signal,
+  });
+  if (/AA-00/.test(String(mPage.value.tasks[0] ?? ''))) {
+    ok('显式分页第一条是 id 序最小的（AA-00*）—— 与默认页分工不同');
+  } else bad(`显式分页首条应是 AA-00*，实际：${String(mPage.value.tasks[0] ?? '').slice(0, 50)}`);
+
+  fs.rmSync(mRoot, { recursive: true, force: true });
 }
 
 console.log('\n== 8. 清理 ==');

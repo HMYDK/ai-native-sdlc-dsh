@@ -374,23 +374,34 @@ export interface Selection {
  */
 export function selectTasks(
   entries: readonly TaskEntry[],
-  opts: { taskId?: string; offset?: number; limit?: number } = {},
+  opts: { taskId?: string; offset?: number; limit?: number; explicit?: boolean } = {},
 ): Selection {
   const total = entries.length;
+
+  const explicit = opts.explicit ?? false;
 
   // ── 单任务详情：不受分页影响
   if (opts.taskId !== undefined) {
     const idx = entries.findIndex((e) => e.task === opts.taskId);
+    // ⚠️ 位置口径：下面返回的 `singleIndex` 是**分页那根轴**（id 码元序）上的位置，
+    // 而不是 `entries` 的呈现序位置。两者在"紧迫序 ≠ id 序"的仓库里不同，
+    // 用呈现序位置去换算 `offset` 会取错页——独立验证者指出过这一点
+    // （task_id=AA-001 报成"第 4 个"，而 offset=0,limit=1 返回的第一条正是它）。
+    // 既然 `offset` 是 id 序的，位置也必须报 id 序的。
     if (idx < 0) {
       throw new Error(
         `找不到任务 ${opts.taskId}（已扫描 ${total} 个任务，第 1-${total} 个）。` +
           '若确认该任务存在，检查 tasks_dir 是否指向了正确的目录。',
       );
     }
+    const target = entries[idx] as TaskEntry;
+    // 同 id 的唯一性由调用方保证（扫描出的目录名唯一）。若有并列，
+    // 按出现顺序稳定排列——与切窗用的比较器同一套规则。
+    const idRank = entries.filter((e) => e.task < target.task).length;
     return {
-      entries: [entries[idx] as TaskEntry],
-      start: idx,
-      singleIndex: idx,
+      entries: [target],
+      start: idRank,
+      singleIndex: idRank,
       complete: true,
       remaining: 0,
     };
@@ -402,23 +413,39 @@ export function selectTasks(
   const limit = Math.min(requested, MAX_PAGE_LIMIT);
   const clamped = requested > MAX_PAGE_LIMIT;
 
-  // ⚠️ 分页必须按一个**与时间无关**的全序切窗，否则会重/漏。
+  // ── 切窗：两种模式，取决于调用方**有没有显式要求分页**
   //
-  // 缺陷原貌（独立验证者用 3 个任务、0.5 秒间隔实测复现）：
+  // ⚠️ 这里我犯过两次错，都被独立验证者抓住，都记在案：
+  //
+  // 错 1（原来的缺陷）：直接按传入顺序 `entries.slice(...)` 切。而
   // `scanTasks` 的排序首键是**停滞分组**（error > stale > waiting > 其余），
-  // 而"是否 stale"由 now 与 updated 之差决定。两次翻页之间只要有任务跨过
-  // 阈值，它的位置就整体前移 → 同一个 offset 返回不同任务、
-  // 某个任务重复、另一个任务永远取不到。
+  // "是否 stale"由 now 与 updated 之差决定。两次翻页之间只要有任务跨过阈值，
+  // 它的位置就整体前移 → 同一 offset 返回不同任务、某任务重复、另一个取不到。
+  // （验证者用 3 个任务、0.5 秒间隔实测复现。）
   //
-  // 修法：切窗用 **task id 的字典序**（与时间无关、与仓库内容一一对应），
-  // 页内仍按 `scanTasks` 给的顺序呈现（保留"哪些该先看"的排序）。
-  // 代价：页间不再按紧迫度排序——但"不重不漏"是可证伪的正确性要求，
-  // 而"第一页最紧急"只是便利。
-  const byId = entries.map((e, i) => ({ e, i })).sort((a, b) => a.e.task.localeCompare(b.e.task));
-  const window = byId
-    .slice(offset, offset + limit)
-    .sort((a, b) => a.i - b.i) // 页内恢复呈现顺序
-    .map((x) => x.e);
+  // 错 2（我修错 1 时引入的）：把**整页**改成按 task id 字典序选人。于是
+  // 默认调用（不传参数）不再显示最该看的 50 个——60 任务仓库里旧首行是
+  // `✗ ZZ-001 — 读不出来`，新首行是 `· AA-001 [SPEC]`，**一个坏任务都不在里面**。
+  // 看板存在的理由就是"一眼看到要动手的"，这等于把它拆了。
+  // 而且我的冒烟夹具是同质的（id 序恰好等于紧迫序），天然看不见。
+  //
+  // 现在的做法：
+  //   · 没传参数        → 按传入顺序取前 limit 个（= 改动前的行为，R1 逐字兼容）
+  //   · 传了参数        → 按 task id 的**码元**序切窗（与时间无关，可反复翻页）
+  // 两种模式分工明确：默认调用回答"最该看的是什么"，显式分页回答"把所有都看一遍"。
+  //
+  // 用码元比较而不是 localeCompare：localeCompare 不是全序——两个不同 id
+  // 在 ICU 下可能比较为 0（零宽空格 U+200B、软连字符 U+00AD 等会被忽略），
+  // 那时稳定排序退回传入顺序，缺陷原样回来。验证者用 `K-1` 与 `K-\u200B1`
+  // 在纯函数层与真实工具端到端都复现了。码元比较保证任意两个不同 id 都不并列。
+  const window = explicit
+    ? entries
+        .map((e, i) => ({ e, i }))
+        .sort((a, b) => (a.e.task < b.e.task ? -1 : a.e.task > b.e.task ? 1 : a.i - b.i))
+        .slice(offset, offset + limit)
+        .sort((a, b) => a.i - b.i) // 页内恢复呈现顺序（保留"哪些该先看"）
+        .map((x) => x.e)
+    : entries.slice(offset, offset + limit);
   const end = offset + window.length; // 已显示到第几个（从 1 计）
   const remaining = Math.max(0, total - end);
   const complete = remaining === 0;

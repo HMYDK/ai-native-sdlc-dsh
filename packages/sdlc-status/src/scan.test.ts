@@ -733,8 +733,8 @@ test('回归：翻页顺序必须与时间无关（输入顺序变了，切窗�
   const all = manyTasks(5); // T-001..T-005，顺序即 id 序
   const shuffled = [all[3], all[0], all[4], all[2], all[1]]; // 时间导致的重排
 
-  const a = selectTasks(all, { offset: 1, limit: 2 });
-  const b = selectTasks(shuffled as TaskEntry[], { offset: 1, limit: 2 });
+  const a = selectTasks(all, { offset: 1, limit: 2, explicit: true });
+  const b = selectTasks(shuffled as TaskEntry[], { offset: 1, limit: 2, explicit: true });
 
   assert.deepEqual(
     ids(b.entries).slice().sort(),
@@ -752,7 +752,7 @@ test('回归：时间导致重排时，逐页取回仍然不重不漏', () => {
   const collect = (entries: TaskEntry[]) => {
     const seen: string[] = [];
     for (let o = 0; o < entries.length; o += 2) {
-      seen.push(...ids(selectTasks(entries, { offset: o, limit: 2 }).entries));
+      seen.push(...ids(selectTasks(entries, { offset: o, limit: 2, explicit: true }).entries));
     }
     return seen.slice().sort();
   };
@@ -776,4 +776,69 @@ test('回归：单任务详情的位置字段必须反映该任务的位置，�
   const s2 = selectTasks(all, { taskId: 'T-137', offset: 200, limit: 5 });
   assert.equal(s2.singleIndex, 136);
   assert.equal(s2.start, 136, 'offset 不该影响单任务详情的位置');
+});
+
+test('回归：localeCompare 比较相等的两个 id 也必须稳定（不能用 localeCompare 做切窗键）', () => {
+  // 独立验证者的反例：`K-1` 与 `K-\u200B1`（连字符后是零宽空格）在 ICU 默认
+  // 排序下 `localeCompare` 返回 0。那时 Array.sort 的稳定性会让顺序**退回传入顺序**，
+  // 而传入顺序正是 scanTasks 随时间变的呈现序——缺陷原样回来。
+  // 所以切窗键必须是**码元**比较（任意两个不同 id 都不并列）。
+  const mk = (task: string): TaskEntry => ({
+    task,
+    health: 'ok',
+    status: 'SPEC',
+    artifacts: {},
+    missingForStatus: [],
+    missingOnDisk: [],
+    nextRequired: [],
+  });
+  const A = 'K-1';
+  const B = 'K-\u200B1'; // 视觉上几乎一样，但码元不同
+  assert.equal(A.localeCompare(B), 0, '前提：localeCompare 认为它们相等');
+  assert.notEqual(A, B, '前提：它们确实是不同的 id');
+
+  const ord1 = selectTasks([mk(A), mk(B), mk('Z-9')], { offset: 0, limit: 1, explicit: true });
+  const ord2 = selectTasks([mk(B), mk(A), mk('Z-9')], { offset: 0, limit: 1, explicit: true });
+  assert.deepEqual(
+    ids(ord2.entries),
+    ids(ord1.entries),
+    '输入顺序变了，同一 offset 必须给到同一个任务（码元序不受 locale 影响）',
+  );
+});
+
+test('回归：默认页必须显示"最该看的"，而不是 id 最小的（我修错过一次）', () => {
+  // 缺陷原貌：我把**整页**改成按 id 字典序选人，于是默认调用不再显示最该看的。
+  // 独立验证者用 60 个任务的混合夹具实测：旧首行是 `✗ ZZ-001 — 读不出来`，
+  // 新首行是 `· AA-001 [SPEC]` —— **一个坏任务都不在里面**。
+  // 看板存在的理由就是"一眼看到要动手的"，这等于把它拆了。
+  //
+  // 而我的冒烟夹具是同质的（id 序恰好等于紧迫序），所以天然看不见这个差异。
+  // 这条测试专门造出"紧迫序 ≠ id 序"的形态。
+  const entry = (task: string, health: TaskEntry['health']): TaskEntry => ({
+    task,
+    health,
+    status: health === 'error' ? undefined : 'SPEC',
+    artifacts: {},
+    missingForStatus: [],
+    missingOnDisk: [],
+    nextRequired: [],
+  });
+  // 传入顺序 = 紧迫序（坏的在前）；id 序恰好相反（AA-* 在 ZZ-* 前面）
+  const urgentFirst: TaskEntry[] = [
+    entry('ZZ-001', 'error'),
+    entry('ZZ-002', 'error'),
+    entry('AA-001', 'ok'),
+    entry('AA-002', 'ok'),
+    entry('AA-003', 'ok'),
+  ];
+  const d = selectTasks(urgentFirst, { limit: 2 }); // 不传 explicit → 呈现序
+  assert.deepEqual(
+    ids(d.entries),
+    ['ZZ-001', 'ZZ-002'],
+    '默认页必须取呈现序（紧迫序）的前几个，而不是 id 序的 AA-001/A-002',
+  );
+
+  // 反过来：显式分页时用固定序（id），保证可反复翻页不重不漏
+  const e = selectTasks(urgentFirst, { offset: 0, limit: 2, explicit: true });
+  assert.deepEqual(ids(e.entries), ['AA-001', 'AA-002'], '显式分页用 id 序切窗');
 });
