@@ -14,17 +14,24 @@
 | | 状态 |
 |---|---|
 | 仓库骨架、制品目录约定 | ✅ |
-| 两道门禁脚本（发布 / 制品） | ✅ 逻辑已自测 24/24 |
-| 三个 Skill | ✅ |
-| 插件挂载 | ⬜ **未完成——门禁当前静默失效** → [PLUGIN-SETUP.md](PLUGIN-SETUP.md) |
-| 门禁 deny/ask 端到端实测 | ❌ **实测未通过** → [incident](artifacts/incidents/2026-10-07-gate-not-wired.md) |
+| 两道门禁脚本（发布 / 制品） | ✅ 脚本自测 26/26 |
+| 三个 Skill | ✅ 已加载（`/skill` 可调用）|
+| 插件安装与挂载 | ✅ `hooks-claude-code` fiber `active` |
+| **门禁端到端实测** | ✅ **通过**——见下 |
 | 阶段 06 无人闭环 | ⬜ 需先决定 Host 常驻还是外部 cron |
 
-> ⚠️ **重要：钩子尚未接线，门禁当前不生效。**
-> 2026-10-07 的端到端实验证明，`git push origin main` 在真实 Git 操作中**未被阻断**。
-> 根因是桥接插件 `dsh-hooks-claude-code` 未安装，因此没有任何东西读取 `hooks.json`。
-> **`.claude/hooks/` 现在是惰性代码。** 详见
-> [artifacts/incidents/2026-10-07-gate-not-wired.md](artifacts/incidents/2026-10-07-gate-not-wired.md)。
+### 端到端验证结果（2026-10-07）
+
+三条路径全部实测通过，证据取自会话日志的 `hook/*` 事件：
+
+| 场景 | decision | exit | 结果 |
+|---|---|---|---|
+| `git push origin main` | `block` | 2 | 命令**未执行**，返回门禁理由 |
+| 普通命令（`make test`） | `pass` | 0 | 正常执行 |
+| 无配对 intent 写 `artifacts/spec/` | `block` | 2 | 写入**未发生** |
+
+配置见 [PLUGIN-SETUP.md](PLUGIN-SETUP.md)；完整的排查过程与四个根因见
+[artifacts/incidents/2026-10-07-gate-not-wired.md](artifacts/incidents/2026-10-07-gate-not-wired.md)。
 
 ## 目录
 
