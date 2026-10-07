@@ -135,7 +135,7 @@ handbook/                 # 手册原文，只读
       · 本轮真正的回归是 3 个**当时无人覆盖**的缺口（不是"曾被放行"）：
         `npx jest -u` 不带路径、`dd of=tests/x.py` 的 key= 前缀、以及快照模式里
         `-u` 写错成 `--?-u`（写成 `--?-u` 时既不匹配 `-u` 也不该匹配 `--update`）。
-- [x] 运行时冒烟 **60/60**（`smoke.mjs`：真实 Cordis + 真实 ToolRuntime，
+- [x] 运行时冒烟 **64/64**（`smoke.mjs`：真实 Cordis + 真实 ToolRuntime，
       真的 dispatch 工具调用；断言数由脚本输出，不手写。
       含进程级冻结、被拦命令必须证明未执行、persona 的正负向断言）
 - [x] 根因已修复：`dependencies` 里的 `@deepseek-ai/*` 会让 profile 装第二份
