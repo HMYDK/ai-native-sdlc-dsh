@@ -33,9 +33,9 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 
 | 插件 | 机制 | 状态 |
 |---|---|---|
-| `packages/sdlc-verify` | 独立验证 + 测试冻结 | ✅ 已实现并实测加载 |
+| `packages/sdlc-verify` | 独立验证 + 测试冻结 | ✅ 已实现并端到端验证 |
+| `packages/sdlc-task` | 任务状态机 + 制品链（state.yaml 在 git） | ✅ 已实现，待装入 desktop |
 | `sdlc-artifact` | 制品写作工具 | ⬜ |
-| `sdlc-task` | 任务状态与制品链 | ⬜ |
 | `sdlc-skills` | 方法论 Skill 与提示词段 | ⬜ |
 | `sdlc-release` | Gate 前的工作 | ⬜ |
 | `sdlc-ui` | 客户端制品链面板 | ⬜ |
@@ -43,10 +43,13 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 ## 目录
 
 ```
-packages/sdlc-verify/     # 已实现的插件（TypeScript → lib/）
+packages/sdlc-verify/     # 独立验证 + 测试冻结
   src/index.ts            #   插件入口：工具 + guard + 提示词段
   src/verdict.ts          #   裁决 schema、persona、提示词构造
   src/test-freeze.ts      #   测试冻结判定（纯函数，可脱离 DSH 单测）
+packages/sdlc-task/       # 任务状态机 + 制品链
+  src/index.ts            #   三个工具 + 提示词段（文件走 ctx.fs）
+  src/state.ts            #   状态机与 state.yaml 形状（纯函数，可脱离 DSH 单测）
 docs/                     # DSH 契约与调研（改代码前必查）
 handbook/                 # 手册原文，只读
 ```
@@ -156,7 +159,22 @@ handbook/                 # 手册原文，只读
   孙代理能否拿到 write/edit 需重新实测）。
 - 真正的硬约束应落在工具限制/沙箱层，或服务端分支保护。
 
+### sdlc-task 的状态
+
+- [x] 单测 **23/23**（状态机纯函数层）
+- [x] 运行时冒烟 **26/26**（真实 Cordis + ToolRuntime + `ctx.fs` 内存桩，
+      跑完 create → status → advance 全流程）
+- [x] 单测抓出 3 个会在生产里崩的 bug（均已在测试里锁住）：
+      ① `yamlScalar` 只按首字符决定加引号 → 含 `: ` 或 ` #` 的标题**写出非法 YAML**；
+      ② `created/updated` 缺失时静默填当前时间 → **伪造事实来源**；
+      ③ 用 js-yaml 默认 schema 解析 → ISO 时间戳变 `Date` 对象 →
+        **读任何正常写出的 state.yaml 都崩**。修法：`JSON_SCHEMA` + 对 Date 容错。
+- [x] `sdlc_task_advance` 支持 `artifacts` 参数：迁移与登记**原子完成**。
+      没有这个能力时，调用方只能手改 `state.yaml` 才能满足下一状态门槛，
+      状态机就守不住自己的规矩。
+- [ ] 待装入 desktop profile 做真实端到端验证
+- [ ] 回填 `sdlc-verify`：接受 `task_id`、冻结改为按 task 记账
+
 ## 待用户决策
 
 - 是否把 `main` 分支保护配上（我测过的所有控制里**只有服务端分支保护不可绕过**）
-- MVP 第二个插件选哪个：`sdlc-task`（状态与制品链）还是 `sdlc-artifact`（制品工具）

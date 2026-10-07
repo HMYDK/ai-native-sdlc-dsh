@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "AI 原生 SDLC — 任务与制品",
+    "description": "任务状态与制品链：git 里的 state.yaml 是事实来源，状态迁移有准入门槛。"
+  }
+}

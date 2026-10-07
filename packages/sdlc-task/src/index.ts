@@ -1,0 +1,506 @@
+/**
+ * @ai-native-sdlc/dsh-sdlc-task
+ *
+ * AI 原生 SDLC 的**任务状态与制品链**。
+ *
+ * 它只做三件事：
+ *   1. 建任务目录，并写下 `state.yaml` + `intent.md` 骨架
+ *   2. 报告状态、制品清单、**缺失项**、以及与磁盘的一致性
+ *   3. 迁移状态，**先校验准入门槛**，并把迁移追加进 history
+ *
+ * 它**不做**的事（有意为之）：
+ *   · 不持有状态——每次读 `state.yaml`。Git 才是事实来源（手册 §2.2）
+ *   · 不代理发布授权——那是 Git/CI 层的事
+ *   · 不记录审批人——本仓库不需要审批归属
+ *
+ * 代价（明确记录）：手改 `state.yaml` 能跳过门槛。客户端控制的上限是
+ * "让违规显眼、让误操作变难"，不是"让违规不可能"。
+ */
+
+import type { Context } from '@deepseek-ai/cordis';
+// 必须显式 import：`ctx.fs` 由 dsh-fs 的 declaration merging 提供，
+// 不 import 它的类型就看不到这个属性（tsc 会报 Property 'fs' does not exist）。
+import type { FsTarget } from '@deepseek-ai/dsh-fs';
+import z from '@deepseek-ai/schemastery';
+import { defineTool } from '@deepseek-ai/dsh-tools';
+import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
+import {
+  applyAdvance,
+  checkAdvance,
+  checkConsistency,
+  isStatus,
+  KNOWN_ARTIFACTS,
+  normalizeArtifactPath,
+  normalizeTaskId,
+  parseTaskState,
+  REQUIRED_ARTIFACTS,
+  serializeTaskState,
+  STATUSES,
+  TASKS_DIR,
+  taskDirFor,
+  type TaskState,
+  type TaskStatus,
+} from './state.js';
+
+export const name = 'sdlc-task';
+
+/**
+ * 依赖的 Cordis 服务。
+ * `fs` 走 harness 的文件系统（尊重沙箱与观察策略），而不是直接 import node:fs。
+ * `sessionProjections` 不在列表里——本插件不读会话状态。
+ */
+export const inject = ['tools', 'fs', 'systemPrompt'];
+
+export const Config = z.object({
+  /** 任务目录所在位置，相对仓库根。默认 `.ai/tasks`。 */
+  tasksDir: z.string().default(TASKS_DIR),
+  /** intent.md 的骨架模板。`{{task}}` / `{{title}}` 会被替换。 */
+  intentTemplate: z
+    .string()
+    .default(
+      [
+        '# Intent: {{title}}',
+        'Author: <谁>. Status: draft.',
+        '',
+        '## Problem',
+        '<具体到能验证的问题——不要写方案>',
+        '',
+        '## Proposed outcome',
+        '<可观察的结果，不是功能清单>',
+        '',
+        '## Affected users and systems',
+        '',
+        '## Constraints',
+        '<包括"不做什么">',
+        '',
+        '## Open questions',
+        '<诚实列出还没想清楚的——这是给规格阶段的输入>',
+        '',
+      ].join('\n'),
+    ),
+});
+
+interface SdlcTaskConfig {
+  tasksDir: string;
+  intentTemplate: string;
+}
+
+/**
+ * 从工具执行上下文取 session 的工作目录，作为**仓库根**。
+ *
+ * 官方 fs 工具的写法就是 `exec.agent?.session.header.cwd`——`Agent` 本身
+ * 只暴露 `id`，cwd 在 session header 上。逐层用可选链，任一环缺失都返回
+ * undefined（而不是抛错），由调用方给出可读的错误。
+ *
+ * 这是刻意的简化：多仓库工作区需要显式传 repo 参数，等真有需求再加。
+ */
+function sessionCwd(exec: { agent?: unknown }): string | undefined {
+  const agent = exec.agent as
+    | { session?: { header?: { cwd?: unknown } } }
+    | undefined;
+  const cwd = agent?.session?.header?.cwd;
+  return typeof cwd === 'string' && cwd !== '' ? cwd.replace(/\/+$/, '') : undefined;
+}
+
+function requireSessionCwd(exec: { agent?: unknown }): string {
+  const cwd = sessionCwd(exec);
+  if (cwd === undefined) {
+    throw new Error(
+      'sdlc-task 无法确定仓库根：拿不到 session 的 cwd。' +
+        '请在有工作目录的会话里调用（子代理或非会话调用可能没有 cwd）。',
+    );
+  }
+  return cwd;
+}
+
+export interface TaskPaths {
+  repoRoot: string;
+  taskDir: string;
+  stateFile: string;
+}
+
+function pathsFor(cfg: SdlcTaskConfig, exec: { agent?: unknown }, taskId: unknown): TaskPaths {
+  const repoRoot = requireSessionCwd(exec);
+  const id = normalizeTaskId(taskId);
+  // 注意：这里用配置的 tasksDir 而不是常量，但 taskDirFor 用常量。
+  // 保持简单：配置只允许改目录名，路径拼接交给一个函数。
+  const base = `${repoRoot}/${cfg.tasksDir.replace(/\/+$/, '')}`;
+  const taskDir = cfg.tasksDir === TASKS_DIR ? taskDirFor(repoRoot, id) : `${base}/${id}`;
+  return { repoRoot, taskDir, stateFile: `${taskDir}/state.yaml` };
+}
+
+/** 读 + 解析 state.yaml。文件不存在时返回 undefined（而不是抛错）。 */
+async function readState(
+  ctx: Context,
+  paths: TaskPaths,
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<TaskState | undefined> {
+  const target = await ctx.fs.resolve(paths.stateFile, { signal });
+  const info = await ctx.fs.stat(target, signal);
+  if (info === undefined || info.type !== 'file') return undefined;
+  const text = await ctx.fs.readText(target, signal);
+  let raw: unknown;
+  try {
+    // 必须用 JSON_SCHEMA：默认 schema 会把 `2026-10-07T10:00:00.000Z` 解析成
+    // **Date 对象**，于是"时间戳是字符串"的校验会失败，读任何正常写出的
+    // state.yaml 都会报"缺少 created"。这是实测踩到的坑。
+    raw = parseYaml(text, { schema: JSON_SCHEMA });
+  } catch (e) {
+    throw new Error(
+      `state.yaml 解析失败（${paths.stateFile}）：${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  return parseTaskState(taskId, raw);
+}
+
+/** 写 state.yaml。 */
+async function writeState(
+  ctx: Context,
+  paths: TaskPaths,
+  state: TaskState,
+  signal?: AbortSignal,
+): Promise<void> {
+  const target = await ctx.fs.resolve(paths.stateFile, { signal });
+  await ctx.fs.writeText(target, serializeTaskState(state), undefined, signal);
+}
+
+/**
+ * 一次性探完 state.yaml 里登记的制品在磁盘上是否存在，返回**同步可查**的表。
+ *
+ * 为什么这样做：`checkConsistency` / `checkAdvance` 刻意是同步纯函数
+ * （这样能脱离 DSH 单测），而文件探测必然是异步的。在边界上换算一次，
+ * 比把纯函数改成异步、或塞进丑陋的同步桩要好。
+ */
+async function probeArtifacts(
+  ctx: Context,
+  paths: TaskPaths,
+  state: TaskState,
+  signal?: AbortSignal,
+): Promise<Map<string, boolean>> {
+  const out = new Map<string, boolean>();
+  for (const rel of Object.values(state.artifacts)) {
+    try {
+      const target = await ctx.fs.resolve(`${paths.taskDir}/${rel}`, { signal });
+      const info = await ctx.fs.stat(target, signal);
+      out.set(rel, info !== undefined && info.type === 'file');
+    } catch {
+      out.set(rel, false);
+    }
+  }
+  return out;
+}
+
+/**
+ * 把模型传来的 `artifacts` 参数收敛为 `Record<string, string>`。
+ *
+ * 参数 DSL 的 `json` 节点是"任意 JSON 值"，运行时类型宽于声明。
+ * 这里显式收窄：非字符串值静默丢弃，避免把对象塞进制品路径位。
+ */
+function coerceArtifactMap(raw: unknown): Record<string, string> {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string' && v !== '') out[k] = v;
+  }
+  return out;
+}
+
+export function apply(ctx: Context, config: SdlcTaskConfig): void {
+  const cfg = config;
+
+  // ────────────────────────────────────────────────────────────── 建任务
+  ctx.tools.register(
+    defineTool({
+      name: 'sdlc_task_create',
+      description:
+        'Create a task: makes the task directory, writes state.yaml (status=INTENT) and an intent.md skeleton. ' +
+        'The task directory is the durable home for the artifact chain; state.yaml is the source of truth and ' +
+        'lives in git, so it is human-readable and hand-editable.',
+      parameters: {
+        task_id: {
+          type: 'string',
+          required: true,
+          description: 'Task identity, e.g. "PROJ-1024". Normalized to uppercase; A-Z 0-9 and hyphens.',
+        },
+        title: { type: 'string', required: true, description: 'One-line human title for the task.' },
+        problem: {
+          type: 'string',
+          description:
+            'Optional: what problem this solves, in the requester\'s own words. Substituted into the intent skeleton.',
+        },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            task: { type: 'string', required: true },
+            status: { type: 'string', required: true },
+            task_dir: { type: 'string', required: true },
+            state_file: { type: 'string', required: true },
+            created: { type: 'array', required: true, items: { type: 'string' } },
+          },
+        },
+        render: (_a, v) => {
+          const o = v as { task?: unknown; status?: unknown; task_dir?: unknown };
+          return [
+            {
+              type: 'text',
+              text: `任务 ${String(o.task)} 已创建（${String(o.status)}）\n目录：${String(o.task_dir)}`,
+            },
+          ];
+        },
+      },
+      async execute(args, exec) {
+        const paths = pathsFor(cfg, exec, args.task_id);
+        const id = normalizeTaskId(args.task_id);
+
+        const existing = await readState(ctx, paths, id, exec.signal);
+        if (existing !== undefined) {
+          throw new Error(
+            `任务 ${id} 已存在（状态 ${existing.status}）：${paths.stateFile}。` +
+              '用 sdlc_task_status 查看它，不要重复创建。',
+          );
+        }
+
+        const now = new Date().toISOString();
+        const state: TaskState = {
+          task: id,
+          title: args.title,
+          status: 'INTENT',
+          created: now,
+          updated: now,
+          artifacts: { intent: KNOWN_ARTIFACTS['intent'] ?? 'intent.md' },
+          history: [{ at: now, from: '', to: 'INTENT', reason: '任务创建' }],
+        };
+
+        const intentText = cfg.intentTemplate
+          .replaceAll('{{task}}', id)
+          .replaceAll('{{title}}', args.title)
+          .replaceAll('{{problem}}', args.problem ?? '<具体到能验证的问题——不要写方案>');
+
+        const intentTarget = await ctx.fs.resolve(`${paths.taskDir}/intent.md`, {
+          signal: exec.signal,
+        });
+        await ctx.fs.writeText(intentTarget, intentText, undefined, exec.signal);
+        await writeState(ctx, paths, state, exec.signal);
+
+        return {
+          task: id,
+          status: state.status,
+          task_dir: paths.taskDir,
+          state_file: paths.stateFile,
+          created: ['intent.md', 'state.yaml'],
+        };
+      },
+    }),
+  );
+
+  // ────────────────────────────────────────────────────────────── 查状态
+  ctx.tools.register(
+    defineTool({
+      name: 'sdlc_task_status',
+      description:
+        'Report a task\'s current status, its artifact index, what is MISSING for that status, and whether ' +
+        'state.yaml agrees with the files on disk. Use this to find out what the next required artifact is ' +
+        'instead of guessing.',
+      parameters: {
+        task_id: { type: 'string', required: true, description: 'Task identity, e.g. "PROJ-1024".' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            task: { type: 'string', required: true },
+            title: { type: 'string', required: true },
+            status: { type: 'string', required: true },
+            consistent: { type: 'boolean', required: true },
+            artifacts: { type: 'array', required: true, items: { type: 'string' } },
+            missing_for_status: { type: 'array', required: true, items: { type: 'string' } },
+            missing_on_disk: { type: 'array', required: true, items: { type: 'string' } },
+            next_required: { type: 'array', required: true, items: { type: 'string' } },
+            history: { type: 'array', required: true, items: { type: 'string' } },
+          },
+        },
+        render: (_a, v) => {
+          const o = v as {
+            task?: unknown;
+            title?: unknown;
+            status?: unknown;
+            consistent?: unknown;
+            artifacts?: unknown;
+            missing_for_status?: unknown;
+            missing_on_disk?: unknown;
+            next_required?: unknown;
+          };
+          const list = (x: unknown) => (Array.isArray(x) && x.length ? x.join(', ') : '（无）');
+          return [
+            {
+              type: 'text',
+              text: [
+                `任务 ${String(o.task)} — ${String(o.title)}`,
+                `状态：${String(o.status)}    自洽：${o.consistent === true ? '是' : '**否**'}`,
+                `已登记制品：${list(o.artifacts)}`,
+                `当前状态缺失：${list(o.missing_for_status)}`,
+                `磁盘上找不到：${list(o.missing_on_disk)}`,
+                `下一状态所需：${list(o.next_required)}`,
+              ].join('\n'),
+            },
+          ];
+        },
+      },
+      async execute(args, exec) {
+        const paths = pathsFor(cfg, exec, args.task_id);
+        const id = normalizeTaskId(args.task_id);
+        const state = await readState(ctx, paths, id, exec.signal);
+        if (state === undefined) {
+          throw new Error(
+            `任务 ${id} 不存在：${paths.stateFile}。先用 sdlc_task_create 创建。`,
+          );
+        }
+        const presence = await probeArtifacts(ctx, paths, state, exec.signal);
+        const report = checkConsistency(state, (rel) => presence.get(rel) === true);
+
+        // 下一状态的准入门槛（用于回答"下一步该产出什么"）
+        const idx = STATUSES.indexOf(state.status);
+        const nextStatus = idx >= 0 && idx + 1 < STATUSES.length ? STATUSES[idx + 1] : undefined;
+        const nextRequired = nextStatus === undefined ? [] : [...REQUIRED_ARTIFACTS[nextStatus]];
+
+        return {
+          task: state.task,
+          title: state.title,
+          status: state.status,
+          consistent: report.missingForStatus.length === 0 && report.missingOnDisk.length === 0,
+          artifacts: Object.entries(state.artifacts).map(([k, v]) => `${k}=${v}`),
+          missing_for_status: report.missingForStatus,
+          missing_on_disk: report.missingOnDisk,
+          next_required: nextRequired,
+          history: state.history.map((h) => `${h.at} ${h.from}→${h.to}: ${h.reason}`),
+        };
+      },
+    }),
+  );
+
+  // ────────────────────────────────────────────────────────────── 迁移状态
+  ctx.tools.register(
+    defineTool({
+      name: 'sdlc_task_advance',
+      description:
+        'Move a task to a new status. Refuses unless the target status\'s required artifacts are registered in ' +
+        'state.yaml AND present on disk, and unless you supply a reason. Backward moves are allowed on purpose — ' +
+        'discovering a better approach and being unable to revise the plan is the real failure mode.',
+      parameters: {
+        task_id: { type: 'string', required: true, description: 'Task identity, e.g. "PROJ-1024".' },
+        to: {
+          type: 'string',
+          required: true,
+          description: `Target status. One of: ${STATUSES.join(' / ')}`,
+        },
+        reason: {
+          type: 'string',
+          required: true,
+          description: 'Why this transition. Recorded in history — an empty reason is a refused transition.',
+        },
+        artifacts: {
+          type: 'json',
+          description:
+            'Artifacts to register as part of this transition, e.g. {"spec":"spec.md"}. Paths are relative to ' +
+            'the task directory. Registering here (rather than hand-editing state.yaml) keeps the move and the ' +
+            'registration atomic — without it there is no way to satisfy the gate for the next status.',
+        },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            task: { type: 'string', required: true },
+            from: { type: 'string', required: true },
+            to: { type: 'string', required: true },
+            direction: { type: 'string', required: true },
+          },
+        },
+        render: (_a, v) => {
+          const o = v as { task?: unknown; from?: unknown; to?: unknown; direction?: unknown };
+          return [
+            {
+              type: 'text',
+              text: `${String(o.task)}：${String(o.from)} → ${String(o.to)}（${String(o.direction)}）`,
+            },
+          ];
+        },
+      },
+      async execute(args, exec) {
+        const paths = pathsFor(cfg, exec, args.task_id);
+        const id = normalizeTaskId(args.task_id);
+        if (!isStatus(args.to)) {
+          throw new Error(
+            `非法目标状态：${JSON.stringify(args.to)}。允许值：${STATUSES.join(' / ')}`,
+          );
+        }
+        const loaded = await readState(ctx, paths, id, exec.signal);
+        if (loaded === undefined) {
+          throw new Error(`任务 ${id} 不存在：${paths.stateFile}`);
+        }
+
+        // 先把本次要登记的制品并进来，再校验门槛——这样"移动 + 登记"是原子的。
+        // 没有这一步，调用方只能手改 state.yaml 才能满足下一状态的门槛，
+        // 状态机也就守不住自己的规矩了。
+        const toRegister = coerceArtifactMap(args.artifacts);
+        const state: TaskState =
+          Object.keys(toRegister).length === 0
+            ? loaded
+            : {
+                ...loaded,
+                artifacts: {
+                  ...loaded.artifacts,
+                  ...Object.fromEntries(
+                    Object.entries(toRegister).map(([k, v]) => [
+                      k,
+                      normalizeArtifactPath(id, v),
+                    ]),
+                  ),
+                },
+              };
+
+        const presence = await probeArtifacts(ctx, paths, state, exec.signal);
+        const verdict = checkAdvance(
+          state.status,
+          args.to,
+          state,
+          (rel) => presence.get(rel) === true,
+          args.reason,
+        );
+        if (!verdict.ok) {
+          throw new Error(
+            `不能迁移到 ${args.to}：\n- ${verdict.problems.join('\n- ')}` +
+              '\n提示：可以在同一次调用里用 artifacts 参数登记制品，例如 ' +
+              `{"to":"${args.to}","artifacts":{"spec":"spec.md"}}`,
+          );
+        }
+
+        const next = applyAdvance(state, args.to, args.reason);
+        await writeState(ctx, paths, next, exec.signal);
+        return { task: next.task, from: state.status, to: next.status, direction: verdict.direction };
+      },
+    }),
+  );
+
+  // ────────────────────────────────────────────────────────────── 方法论引导
+  ctx.systemPrompt.section({
+    name: 'sdlc:task-policy',
+    order: 690,
+    text: [
+      '## 任务与制品链（AI 原生 SDLC）',
+      '',
+      '`.ai/tasks/<TASK-ID>/state.yaml` 是任务状态与制品索引的**事实来源**，它进 git、人可读、也可手改。',
+      '',
+      '- 开始一项工作时先 `sdlc_task_create`；不确定缺什么就先 `sdlc_task_status`。',
+      '- 状态迁移用 `sdlc_task_advance`，它会**拒绝**缺制品或没给原因的迁移。',
+      '- 回退是允许的：发现了更好的方案就退回 `PLANNED` 改计划，**不要**硬着头皮往下走。',
+      '- 制品路径写在 `state.yaml` 的 `artifacts` 里，是相对任务目录的路径。',
+    ].join('\n'),
+  });
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "AI-native SDLC — Task & Artifacts",
+    "description": "Task status and artifact chain: state.yaml in git is the source of truth, with a guarded state machine."
+  }
+}
