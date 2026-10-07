@@ -249,11 +249,24 @@ export function classifyStaleness(input: {
   // 终态：已经完成，不存在"停滞"
   if (status === 'DONE') return { class: 'closed', ageMs, thresholdHours: staleAfterHours };
 
-  // 明确在等人：验证者说"我判断不了"，或已到评审/待批环节。
-  // 这些的"不动"是流程设计如此，不是故障。
-  if (verdictStatus === 'needs_human' || status === 'REVIEWING') {
-    return { class: 'waiting', ageMs, thresholdHours: staleAfterHours };
-  }
+  // "在等人" = **真的**需要人来做点什么，不动是流程设计如此，不是故障。
+  //
+  // ⚠️ 这里曾经写成 `verdictStatus === 'needs_human' || status === 'REVIEWING'`，
+  // 把**所有** REVIEWING 都算成 waiting。于是在真实仓库里实测到：
+  // 一个已经 `approve`、一行命令就能推进到 DONE 的任务被标成「在等人」——
+  // 那是**假的求助信号**，会让人以为有事要处理。
+  // （见测试场 PLAY-2；当时的输出是「2 个任务，1 个在等人」。）
+  //
+  // 现在按"下一步该谁动"来分：
+  //   needs_human  验证者明确说"我判断不了" → 人
+  //   REVIEWING + reject         → 人（要决定接不接受）
+  //   REVIEWING + needs_human    → 人
+  //   REVIEWING + 无裁决         → 人（还没验证就先评审了，得有人看）
+  //   REVIEWING + approve        → **不是等人**：推进是机械动作，往下走 stale/active
+  const humanNeeded =
+    verdictStatus === 'needs_human' ||
+    (status === 'REVIEWING' && verdictStatus !== 'approve');
+  if (humanNeeded) return { class: 'waiting', ageMs, thresholdHours: staleAfterHours };
 
   const stale = ageMs > staleAfterHours * 3600_000;
   return { class: stale ? 'stale' : 'active', ageMs, thresholdHours: staleAfterHours };

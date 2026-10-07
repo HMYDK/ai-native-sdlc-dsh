@@ -490,3 +490,88 @@ test('humanAge 给人读的时长', () => {
   assert.equal(humanAge(5 * 3600_000), '5 小时');
   assert.equal(humanAge(3 * 24 * 3600_000), '3 天');
 });
+
+// ─────────────────── REVIEWING 的四种形态（以前完全没覆盖，藏了一个真缺陷）
+
+test('回归：REVIEWING + approve 不算"在等人"——推进是机械动作', () => {
+  // 缺陷原貌：`verdictStatus === 'needs_human' || status === 'REVIEWING'`
+  // 把**所有** REVIEWING 都算成 waiting，于是在真实仓库里实测到
+  // 「2 个任务，1 个在等人」——而那个任务的裁决是 approve、
+  // `sdlc_task_advance → DONE` 一行就能推。
+  // 那是**假的求助信号**：看板喊"来人"，其实没有人需要出手。
+  //
+  // 判据应当按"下一步该谁动"分，而不是按状态名分。
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z');
+  const OLD = '2026-10-07T00:00:00.000Z'; // 三天前，超过 24 小时阈值
+  const mk = (task: string, verdict?: string) => {
+    const files: Record<string, string> = {
+      'state.yaml': stateYaml({
+        task,
+        status: 'REVIEWING',
+        updated: OLD,
+        artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+      }),
+      'i.md': 'x',
+      's.md': 'x',
+      'p.md': 'x',
+    };
+    if (verdict !== undefined) {
+      files['verification.json'] = verdictJson({
+        status: verdict,
+        criteria: 1,
+        results: ['met'],
+      });
+    }
+    return files;
+  };
+  const tasks = [
+    { task: 'APPR', verdict: 'approve' },
+    { task: 'REJ', verdict: 'reject' },
+    { task: 'HUMAN', verdict: 'needs_human' },
+    { task: 'NONE', verdict: undefined },
+  ];
+  const r = scanTasks({
+    dirs: tasks.map((t) => ({ task: t.task, files: Object.keys(mk(t.task, t.verdict)) })),
+    readFile: (task, rel) => mk(task, tasks.find((t) => t.task === task)?.verdict)[rel],
+    now: NOW,
+    staleAfterHours: 24,
+  });
+  const byTask = Object.fromEntries(r.tasks.map((t) => [t.task, t.staleness?.class]));
+
+  assert.equal(
+    byTask['APPR'],
+    'stale',
+    'approve 之后没人推进 —— 这才是"停滞"，不是"在等人"（没有人被请求出手）',
+  );
+  for (const t of ['REJ', 'HUMAN', 'NONE']) {
+    assert.equal(byTask[t], 'waiting', `${t} 是真的在等人`);
+  }
+  // 汇总也必须对得上，否则 summary 里那句"1 个在等人"仍然是错的
+  assert.equal(r.counts.staleness.waiting, 3, '只有三种形态算 waiting');
+  assert.equal(r.counts.staleness.stale, 1, 'approve 那条算 stale');
+});
+
+test('回归：REVIEWING + approve 且**刚动过** → active（不是 waiting，也不是 stale）', () => {
+  // 这条防的是"矫枉过正"：修完上面那个缺陷后，很容易顺手把
+  // REVIEWING+approve 一律算成 stale。刚 approve 完还没推进不是停滞。
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z');
+  const files: Record<string, string> = {
+    'state.yaml': stateYaml({
+      task: 'FRESH-APPR',
+      status: 'REVIEWING',
+      updated: '2026-10-09T23:00:00.000Z', // 一小时前
+      artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+    }),
+    'i.md': 'x',
+    's.md': 'x',
+    'p.md': 'x',
+    'verification.json': verdictJson({ status: 'approve', criteria: 1, results: ['met'] }),
+  };
+  const r = scanTasks({
+    dirs: [{ task: 'FRESH-APPR', files: Object.keys(files) }],
+    readFile: (_t, rel) => files[rel],
+    now: NOW,
+    staleAfterHours: 24,
+  });
+  assert.equal(r.tasks[0]?.staleness?.class, 'active');
+});
