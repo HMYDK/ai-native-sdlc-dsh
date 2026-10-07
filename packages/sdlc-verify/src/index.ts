@@ -45,10 +45,16 @@ export const name = 'sdlc-verify';
 export const inject = ['tools', 'subagents', 'systemPrompt'];
 
 /**
- * 验证者允许使用的工具。**只读**。
+ * 验证者允许使用的工具。
  *
- * 用 allow 白名单而不是 deny 黑名单：新增工具时默认不放行，
- * 避免"某个新工具恰好能改文件"这种漏洞。
+ * 用 allow 白名单而不是 deny 黑名单：**继承面**上新增的工具默认不放行。
+ *
+ * ⚠️ 但 allow **不能**过滤子代理 scope 自注册的工具——`ctx.tools.restrict()`
+ * 的语义是"restrictions intersect; scoped registrations remain visible"。
+ * 实测：四次验证者会话的 wire 工具面都是
+ * `bash glob grep read structured_output subagent` —— write/edit 确实被摘掉了
+ * （这是 Actor ≠ Verifier 的核心保证），但 `subagent` 与 `structured_output`
+ * 是 scope 自注册残留。所以"只读"是**职责约束**，不是能力事实。
  */
 const VERIFIER_TOOL_ALLOW = ['read', 'grep', 'glob', 'bash'];
 
@@ -134,7 +140,9 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
       name: 'sdlc_verify',
       description:
         'Run independent verification of a change. Spawns a verifier that never saw your reasoning, ' +
-        'has read-only tools, and must return a machine-readable verdict (approve / reject / needs_human) ' +
+        'has its write/edit tools removed (it keeps bash so it can run your tests, so treat it as ' +
+        'read-only by role, not by capability), and must return a machine-readable verdict ' +
+        '(approve / reject / needs_human) ' +
         'with evidence for every finding. Use this before claiming a task is complete. ' +
         'The verifier is deliberately NOT you: it re-reads the artifacts and tries to refute the change.',
       parameters: {

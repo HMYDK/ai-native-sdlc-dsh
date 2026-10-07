@@ -59,8 +59,10 @@
 
 > **关于"只读"的如实说明**：白名单是 `read` / `grep` / `glob` / `bash`。
 > 保留 `bash` 是因为验证者必须能**跑测试**来复核作者的证据，而 `bash` 是通用 shell、
-> 技术上能写文件。persona 里如实写了这一点（约束来自职责，不是来自虚假的能力声明），
-> 默认的测试冻结也不覆盖它（验证者是另一个 agent）。
+> 技术上能写文件。persona 里如实写了这一点（约束来自职责，不是来自虚假的能力声明）。
+> 另外 `toolFilter` 只过滤**继承面**：实测验证者的工具面是
+> `bash glob grep read structured_output subagent`——`write`/`edit` 确实被摘掉了，
+> 但 `subagent`/`structured_output` 是 scope 自注册残留。
 > 要真正硬约束，应在工具限制或沙箱层做，而不是靠"声明它只读"。
 
 裁决有**三态**：`approve` / `reject` / `needs_human`。
@@ -83,11 +85,14 @@ Bug → 写失败的测试 → 确认复现 → sdlc_fix_start（冻结）→ �
 `sed -i`、`perl -pi`、`find -delete`、`python -c`/`node -e` 内写入、
 `git checkout|restore|reset|clean`（含 `git -C`）。
 
-> ⚠️ **shell 通道是保守启发式，不是硬边界。**
-> 文件工具通道（`write`/`edit` 的 `file_path`）是**结构化**的，绕不过去；
-> 但 shell 通道判的是命令**文本**，任何不落进上述模式的等价写法仍可绕过
-> （例如自造二进制、动态拼出的命令名）。**真正的硬约束应落在工具限制或沙箱层**：
-> 冻结期直接 restrict 掉写能力，而不是靠命令文本匹配。
+> ⚠️ **两层都只是「提高成本」，不是硬边界。**
+> 文件工具通道（`write`/`edit` 的 `file_path`）参数是**结构化**的，编码绕不过去；
+> 但**是否算测试资产**仍靠上面的名字模式表——未覆盖的命名不会被冻结
+> （验证者实测过 `jest.config.js`、`testdata/`、`*.snap`，已补入）。
+> shell 通道判的是命令**文本**，不落进模式的等价写法仍可绕过
+> （自造二进制、heredoc、动态拼出的命令名）。
+> 而且**解冻只需 Actor 自己调一次 `sdlc_fix_end`**，所以它不是防篡改边界。
+> **真正的硬约束应落在工具限制或沙箱层**：冻结期直接 restrict 掉写能力。
 
 
 ## 开发

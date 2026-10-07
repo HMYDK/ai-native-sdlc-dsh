@@ -352,6 +352,11 @@ interface ToolRestriction { readonly allow?: readonly string[]; readonly deny?: 
 （正确的根治方式是让 guidance 段在装配时查 `ctx.tools.get(name, scope)`，
 但那是第三方插件的责任，我们控制不了。）
 
+**应对方式的演进（重要）**：最初的写法是在 persona 里声称「你只有只读工具」——
+**那是假的**，而且被验证者当场戳穿（它用保留的 `bash` 建了 25 个文件）。
+现在改为**如实描述能力边界**，把「别改」表达为职责约束而非能力声明。
+照抄旧写法会重新引入这条被推翻的虚假声明。
+
 ---
 
 ## 4. 工具与拦截

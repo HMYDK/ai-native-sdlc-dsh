@@ -197,10 +197,19 @@ for (const [label, command] of [
   ['重定向（不带空格）', "echo pass >tests/test_x.py"],
   ['解释器内写入', `python3 -c "open('tests/test_x.py','w')"`],
   ['find -delete', 'find tests -name "*.py" -delete'],
+  ['dd of= 前缀', 'dd if=/dev/zero of=tests/x.py bs=1 count=0'],
+  ['快照批量更新', 'npx jest -u tests/'],
 ]) {
+  const before = executedCommands.length;
   const r = await dispatch('bash', { command }, fakeAgent);
-  if (r.isError && JSON.stringify(r.content ?? '').includes('冻结期内不可修改')) {
-    ok(`shell 通道被拦: ${label}`);
+  const denied = r.isError && JSON.stringify(r.content ?? '').includes('冻结期内不可修改');
+  // 关键：不仅要「返回 isError」，还要证明命令**没有真的执行**。
+  // 否则若将来 guard 的执行时机挪到 dispatch 之后，这条测试仍会通过。
+  const ranAnyway = executedCommands.length > before;
+  if (denied && !ranAnyway) {
+    ok(`shell 通道被拦且未执行: ${label}`);
+  } else if (denied && ranAnyway) {
+    bad(`shell 通道返回拒绝但命令仍被执行了（${label}）: ${command}`);
   } else {
     bad(`shell 通道未拦（${label}）: ${command}`);
   }
@@ -208,9 +217,11 @@ for (const [label, command] of [
 
 // 只读 shell 命令必须放行（防误伤）
 for (const command of ['pytest tests/test_x.py -q', 'cat tests/test_x.py', 'git diff tests/']) {
+  const before = executedCommands.length;
   const r = await dispatch('bash', { command }, fakeAgent);
   if (r.isError) bad(`只读 shell 被误伤: ${command}`);
-  else ok(`只读 shell 放行: ${command}`);
+  else if (executedCommands.length === before) bad(`只读 shell 未真正执行: ${command}`);
+  else ok(`只读 shell 放行并执行: ${command}`);
 }
 
 // 但写产品代码必须放行
@@ -282,9 +293,10 @@ console.log('\n== 5c. needs_human + unverified 必须能穿透（原 schema 漂�
 
 console.log('\n== 6. 插件传给验证者的请求是否正确 ==');
 if (started.length < 1) {
-  bad(`subagents.start 未被调用`);
+  bad('subagents.start 从未被调用');
 } else {
-  // 断言第 5 节那次调用（它传了 artifacts；后面的用例请求不同）
+  // 断言**第 5 节**那次调用（started[0]）——它带 artifacts。
+  // 后面 5c/7 节还会各发起一次，所以这里不假设总数为 1。
   const { provider, request } = started[0];
   const checks = [
     ['provider 为 spawn', provider === 'spawn'],
@@ -348,11 +360,12 @@ console.log('\n== 7. 提供测试证据时的条件渲染 ==');
 }
 
 console.log('\n== 8. SubagentRun 必须被 dispose（契约要求，原先漏了）==');
-// 3 次 sdlc_verify 调用（第 5、5c、7 节），每次都必须在 finally 里 dispose
-if (disposeCalls.length >= 3) {
-  ok(`dispose 被调用 ${disposeCalls.length} 次（每次 sdlc_verify 调用后都释放）`);
+// 恰好 3 次 sdlc_verify 调用（第 5、5c、7 节）→ 必须恰好 3 次 dispose。
+// 用精确相等而不是 >=：后者发现不了重复 dispose。
+if (disposeCalls.length === 3) {
+  ok(`dispose 恰好被调用 3 次，与 sdlc_verify 调用次数一致`);
 } else {
-  bad(`dispose 只被调用 ${disposeCalls.length} 次，期望 3`);
+  bad(`dispose 被调用 ${disposeCalls.length} 次，期望恰好 3 次`);
 }
 // 第 7 节在断言前清空过 started，这里顺便记录该次请求确实带了测试证据
 {

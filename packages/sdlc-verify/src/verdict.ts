@@ -139,39 +139,95 @@ export const TOOL_OUTPUT_SCHEMA = {
   },
 } as const;
 
+/**
+ * 防漂移自检 —— **递归比对**，不只看顶层。
+ *
+ * 为什么必须递归：`additionalProperties: false` 的约束是**逐层**生效的。
+ * 验证者实测过——若只比对顶层，把裁决的嵌套字段（如 findings 里新增一项）
+ * 漏在输出 schema 外，会复现与顶层漂移**完全相同**的失败：
+ *   `value.findings[0].note is not a declared property`
+ * 整条裁决变成 INVALID_TOOL_OUTPUT，调用方连 findings 都拿不到。
+ * 也就是说，只比顶层等于没覆盖这个断言存在的理由。
+ */
+function compareNodes(
+  verdictNode: unknown,
+  outNode: unknown,
+  path: string,
+  problems: string[],
+): void {
+  const v = verdictNode as Record<string, unknown> | undefined;
+  const o = outNode as Record<string, unknown> | undefined;
+  if (v === undefined || v === null) return;
+
+  // 1) 逐层比对 properties 的键集合（双向）
+  const vProps = (v['properties'] ?? undefined) as Record<string, unknown> | undefined;
+  if (vProps !== undefined) {
+    const oProps = (o?.['properties'] ?? {}) as Record<string, unknown>;
+    const vKeys = Object.keys(vProps);
+    const oKeys = Object.keys(oProps);
+
+    for (const k of vKeys) {
+      if (!(k in oProps)) {
+        problems.push(`${path}.${k} 在工具输出 schema 中缺失`);
+      }
+    }
+    for (const k of oKeys) {
+      if (!vKeys.includes(k)) {
+        problems.push(`${path}.${k} 是工具输出 schema 独有、裁决里不存在`);
+      }
+    }
+
+    // 2) 逐层比对必填性：裁决 required 的字段，输出侧也必须 required
+    const vReq = new Set((v['required'] ?? []) as string[]);
+    for (const k of vReq) {
+      const child = oProps[k] as { required?: boolean } | undefined;
+      if (child?.required !== true) {
+        problems.push(`${path}.${k} 在裁决里必填，但工具输出 schema 未标 required`);
+      }
+    }
+
+    // 3) 递归进入子节点
+    for (const k of vKeys) {
+      if (k in oProps) compareNodes(vProps[k], oProps[k], `${path}.${k}`, problems);
+    }
+  }
+
+  // 4) 数组元素也要递归（findings.items 是漂移的实际藏身处）
+  if (v['items'] !== undefined) {
+    compareNodes(v['items'], o?.['items'], `${path}[]`, problems);
+  }
+}
+
 export function assertSchemasAligned(): void {
-  const outProps = TOOL_OUTPUT_SCHEMA.properties as Record<string, unknown>;
-  const verdictProps = Object.keys(VERDICT_SCHEMA.properties ?? {});
-  const verdictRequired = new Set(
-    (VERDICT_SCHEMA as { required?: string[] }).required ?? [],
-  );
+  const problems: string[] = [];
 
-  // 1) 裁决的每个字段都必须在工具输出 schema 里声明
-  const missing = verdictProps.filter((k) => !(k in outProps));
-  if (missing.length > 0) {
-    throw new Error(
-      `sdlc-verify: 工具输出 schema 缺少裁决字段 [${missing.join(', ')}]——` +
-        'additionalProperties:false 会让这些字段的裁决变成工具错误',
-    );
+  // 顶层比对把 verifier_session（工具自己的元信息，不属于裁决）排除在外
+  const verdictOnly: Record<string, unknown> = {};
+  for (const [k, spec] of Object.entries(
+    (VERDICT_SCHEMA.properties ?? {}) as Record<string, unknown>,
+  )) {
+    verdictOnly[k] = spec;
+  }
+  const outOnly: Record<string, unknown> = {};
+  for (const [k, spec] of Object.entries(TOOL_OUTPUT_SCHEMA.properties)) {
+    if (k === 'verifier_session') continue;
+    outOnly[k] = spec;
   }
 
-  // 2) 必填性一致：裁决 required 里的字段，工具输出也必须 required
-  const notRequired = [...verdictRequired].filter(
-    (k) => (outProps[k] as { required?: boolean } | undefined)?.required !== true,
+  compareNodes(
+    {
+      properties: verdictOnly,
+      required: (VERDICT_SCHEMA as { required?: string[] }).required ?? [],
+    },
+    { properties: outOnly },
+    'verdict',
+    problems,
   );
-  if (notRequired.length > 0) {
-    throw new Error(
-      `sdlc-verify: 工具输出 schema 未把 [${notRequired.join(', ')}] 标为必填`,
-    );
-  }
 
-  // 3) 反向：工具输出里声明的裁决字段，不能是裁决 schema 里没有的
-  const extra = Object.keys(outProps).filter(
-    (k) => k !== 'verifier_session' && !verdictProps.includes(k),
-  );
-  if (extra.length > 0) {
+  if (problems.length > 0) {
     throw new Error(
-      `sdlc-verify: 工具输出 schema 声明了裁决里不存在的字段 [${extra.join(', ')}]`,
+      'sdlc-verify: 工具输出 schema 与裁决 schema 漂移（会让对应裁决变成工具错误）：\n  ' +
+        problems.join('\n  '),
     );
   }
 }

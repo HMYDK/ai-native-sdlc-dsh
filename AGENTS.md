@@ -116,21 +116,29 @@ handbook/                 # 手册原文，只读
 ## 当前状态
 
 - [x] `sdlc-verify` 插件：TypeScript 严格模式零错误
-- [x] 单测 9/9（纯函数层）
-- [x] **运行时冒烟测试 33/33**（`smoke.mjs`：真实 Cordis + 真实 ToolRuntime，
-      真的调用工具；覆盖冻结拦截/放行/解冻、裁决穿透、六个 subagent 参数、
-      提示词内容与条件渲染）
-- [x] 根因已定位并修复：`dependencies` 里的 `@deepseek-ai/*` 导致 profile 装第二份
+- [x] 单测 **10/10**（纯函数层，含 9 条实测曾被放行的绕过手法回归）
+- [x] 运行时冒烟 **40/40**（`smoke.mjs`：真实 Cordis + 真实 ToolRuntime，
+      真的 dispatch 工具调用；断言数由脚本输出，不手写）
+- [x] 根因已修复：`dependencies` 里的 `@deepseek-ai/*` 会让 profile 装第二份
       `dsh-tools`，破坏模块内 Symbol 身份，使**所有**工具调用失败
-- [x] 用户 profile 已重建恢复（旧的留在 `~/.dsh/profiles/desktop.broken`）
-- [ ] **尚未在真实会话里端到端跑通**：需要装进 profile、重启、真的调一次
-      `sdlc_verify` 并拿到结构化裁决。冒烟测试覆盖了机制，但没覆盖
-      "真实子代理 + 真实模型" 这条链路
-- [ ] 其余 5 个插件
+- [x] **已在真实会话端到端跑通**：`sdlc_verify` 返回结构化裁决，四次验证者会话
+      （`0569f81b` / `b6f19027` / `45de6b01` / `086c1405`）；工具面实测为
+      `bash glob grep read structured_output subagent`——`write`/`edit` 确认被摘除
+- [x] `needs_human` + `unverified` 通路已验证（`45de6b01` 返回 3 条未决问题）——
+      这条通路在修复前是坏的
+- [x] 已按两轮验证裁决修复 2 条 blocking + 7 条 important（详见 git log）
+
+### 已知边界（不要当成"已完成"）
+
+- **冻结不是防篡改边界**：Actor 自己调一次 `sdlc_fix_end` 即可解冻。
+  它是流程摩擦 + 留痕，不是硬约束。
+- **测试资产识别是名字模式表**：未覆盖的命名不会被冻结。
+- **shell 通道是文本启发式**：不落进模式的等价写法可绕过。
+- **`pwsh` 通道已加但未实测**（本机无 Windows）。
+- **`toolFilter` 只过滤继承面**：验证者仍持有 `subagent`，孙代理是否继承限制**未实测**。
+- 真正的硬约束应落在工具限制/沙箱层，或服务端分支保护。
 
 ## 待用户决策
 
 - 是否把 `main` 分支保护配上（我测过的所有控制里**只有服务端分支保护不可绕过**）
 - MVP 第二个插件选哪个：`sdlc-task`（状态与制品链）还是 `sdlc-artifact`（制品工具）
-- 是否现在把 `sdlc-verify` 装回 desktop profile 做真实端到端验证
-  （风险已明确：插件本身已证明在隔离上下文中不破坏调度，但真实会话是最后一道未知）
