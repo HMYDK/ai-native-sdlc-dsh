@@ -59,9 +59,24 @@ export const inject = ['tools', 'subagents', 'systemPrompt', 'fs'];
  * （这是 Actor ≠ Verifier 的核心保证），但 `subagent` 与 `structured_output`
  * 是 scope 自注册残留。所以"只读"是**职责约束**，不是能力事实。
  */
-// 同时给 bash 与 pwsh：DSH 在 win32 上禁用 bash、启用 pwsh，
-// 只给 bash 会让 Windows 上的验证者一个 shell 都拿不到、跑不了测试。
-const VERIFIER_TOOL_ALLOW = ['read', 'grep', 'glob', 'bash', 'pwsh'];
+/**
+ * 验证者允许使用的工具。
+ *
+ * ⚠️ **shell 工具必须按平台选**：官方 bundle 里 `tool-bash` 在 win32 禁用、
+ * `tool-pwsh` 在非 win32 禁用，所以任一平台上都只有其中一个存在。
+ * 而 `ctx.tools.restrict()` 对**不存在的工具名直接抛错**：
+ *   `tools.restrict() names unknown global tool "pwsh"`
+ * ——把两个都写上会让 macOS 上的验证**整条通路报错**（实测踩到）。
+ *
+ * 教训：为某个平台做的修复，必须验证它没有弄坏另一个平台。
+ */
+const BASE_VERIFIER_TOOLS = ['read', 'grep', 'glob'] as const;
+
+function verifierToolAllow(): string[] {
+  // 与官方 dsh-base 的 cordis.patch.yml 同一判据
+  const shell = process.platform === 'win32' ? 'pwsh' : 'bash';
+  return [...BASE_VERIFIER_TOOLS, shell];
+}
 
 export interface SdlcVerifyConfig {
   /** 承载验证的 subagent provider 名。默认使用内置 in-process spawn。 */
@@ -294,7 +309,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           // 只读：摘掉 write/edit。注意 bash 仍在白名单里（验证者需要跑测试来
           // 复核证据），而 bash 技术上能写文件——所以 persona 里如实说明了这一点，
           // 而不是声称"改不了任何东西"。
-          toolFilter: { allow: VERIFIER_TOOL_ALLOW },
+          toolFilter: { allow: verifierToolAllow() },
           // 独立角色：新上下文 + 明确"你没有写这段代码，也别相信关于它的说法"。
           persona: VERIFIER_PERSONA,
           ...(wantsRoute || wantsTokens

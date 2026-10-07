@@ -483,6 +483,15 @@ if (started.length < 1) {
         !request.toolFilter.allow.includes('write') &&
         !request.toolFilter.allow.includes('edit'),
     ],
+    // 跨平台回归：allow 里只能出现**本平台真实存在**的 shell 工具。
+    // tools.restrict() 对不存在的工具名直接抛错，把 bash 与 pwsh 都写上会让
+    // 另一个平台的验证整条通路报错（实测：macOS 上报 unknown global tool "pwsh"）。
+    [
+      `toolFilter 只含本平台存在的 shell 工具（当前 ${process.platform}）`,
+      process.platform === 'win32'
+        ? request.toolFilter.allow.includes('pwsh') && !request.toolFilter.allow.includes('bash')
+        : request.toolFilter.allow.includes('bash') && !request.toolFilter.allow.includes('pwsh'),
+    ],
     [
       'toolFilter 保留只读检索工具与 shell',
       ['read', 'grep', 'glob'].every((n) => request.toolFilter.allow.includes(n)) &&
