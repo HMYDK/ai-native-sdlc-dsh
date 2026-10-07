@@ -159,6 +159,20 @@ handbook/                 # 手册原文，只读
   孙代理能否拿到 write/edit 需重新实测）。
 - 真正的硬约束应落在工具限制/沙箱层，或服务端分支保护。
 
+### 本轮真实会话暴露的 4 个 bug（都只在重启加载新模块后才出现）
+
+这条本身就是教训：**上一轮所有测试跑的都是旧模块**，所以四个 bug 一个都没抓到。
+
+1. **沙箱接线**（`sdlc-task`）：`fs.resolve` 没带 cwd、`writeText` 没带 policy
+   → 落到部署 fallback 根 → "写自己仓库"被判越界。见 pitfalls §11.1。
+2. **跨平台白名单**（`sdlc-verify`）：为修 Windows 把 `pwsh` 加进 allow，
+   而 `tools.restrict()` 对不存在的工具名**直接抛错** → macOS 上验证整条通路报错。
+   修法：按 `process.platform` 只放本平台存在的那个。
+3. **同一个沙箱坑第二次**（`sdlc-verify` 的落盘路径）：修了 A 包没 grep B 包。
+   这次是**验证者替我抓到的**——它裁决没问题，但 summary 里如实带出了落盘失败。
+4. **假通过的断言**：`dispose` 断言写死"恰好 3 次"、计数器放在会被临时替换的
+   impl 里 → 新增用例后假失败/漏计。改为比对两个实际计数。
+
 ### sdlc-task 的状态
 
 - [x] 单测 **23/23**（状态机纯函数层）
@@ -172,8 +186,13 @@ handbook/                 # 手册原文，只读
 - [x] `sdlc_task_advance` 支持 `artifacts` 参数：迁移与登记**原子完成**。
       没有这个能力时，调用方只能手改 `state.yaml` 才能满足下一状态门槛，
       状态机就守不住自己的规矩。
-- [ ] 待装入 desktop profile 做真实端到端验证
-- [ ] 回填 `sdlc-verify`：接受 `task_id`、冻结改为按 task 记账
+- [x] **已在真实会话端到端跑通**：create 建目录 + state.yaml、status 报缺失项、
+      缺制品时 advance 被拒并点名缺什么、`artifacts` 参数原子登记后放行
+      （任务 `.ai/tasks/SMOKE-1`，状态已到 SPEC）
+- [x] 回填 `sdlc-verify`：接受 `task_id` 自动解析制品、裁决落盘 verification.json、
+      冻结绑定 task（拒绝信息带任务归属，错 task_id 解冻被拒）
+- [x] 真实 `sdlc_verify` 返回过 `approve` + 2 findings + 7 unverified
+- [ ] 待重启后确认最后一处修复（落盘沙箱策略）真的生效
 
 ## 待用户决策
 
