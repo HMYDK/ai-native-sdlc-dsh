@@ -1,90 +1,122 @@
-# AI 原生 SDLC 落地仓库
+# AI 原生 SDLC × DeepSeek Harness
 
 把 Anthropic《[AI 原生 SDLC 实战手册](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)》
-的方法论落地到 **DeepSeek Harness (DSH)**。手册中文全译在 [handbook/](handbook/)。
+的方法论落成 **DeepSeek Harness 插件**。手册中文全译在 [handbook/](handbook/)。
 
-## 一句话
+## 定位（先读这段，它决定后面所有取舍）
 
-**每个阶段的产出是一份提交入库的制品，下一阶段读它。**
-`intent.md` → `spec.md` → `plan.md` → diff + 测试 → 带评审发现的 PR → 事故记录。
-提交历史同时就是审计追踪。
+**Harness 决定「Agent 如何工作」，Git/CI/RBAC 决定「工作对不对、能不能上线」。**
 
-## 当前进度
+这句话不是口号，是实测结论：客户端的一切控制都能被绕过。
+我对自己的门禁做过一次实验——`printf '%s' 'git push origin main' | base64 -D | sh`
+就绕过去了，因为门禁在匹配命令文本。
 
-| | 状态 |
+所以本仓库的目标**不是**「用 Harness 做合规管控」，而是：
+
+> 把方法论里**本来就该机器保证**的部分（验证、证据、流程状态）
+> 做成 Harness 里的一等公民；把**不能**由客户端保证的部分
+> （发布授权、分支保护、密钥）明确留给 Git/CI/K8s。
+
+## 架构：按机制拆插件，不按阶段拆
+
+文档原方案按 SDLC 阶段拆 7 个插件。我改成按**扩展点/机制**拆，理由：
+
+- DSH 可挂的扩展点只有四个：工具拦截、工具/Skill 注册、提示词组装、客户端 UI
+- 这四个点与六个阶段**完全不正交**
+- 按阶段拆会让**一个制品链跨六个包**，且**一个拦截点被六个插件注册**
+
+规划中的插件（**全量 6 个，MVP 2 个**）：
+
+| 插件 | 拥有的机制 | 状态 |
+|---|---|---|
+| `sdlc-verify` | 非 Actor 的独立验证 + 测试冻结 | ✅ **已实现** |
+| `sdlc-artifact` | 制品写作工具（intent/spec/plan 合并）| ⬜ |
+| `sdlc-task` | 任务状态与制品链（`.ai/tasks/<ID>/state.yaml`）| ⬜ |
+| `sdlc-skills` | 方法论 Skill 与提示词段 | ⬜ |
+| `sdlc-release` | Gate **之前**的工作（MR / CI / staging 报告）| ⬜ |
+| `sdlc-ui` | 客户端：制品链面板 | ⬜ |
+
+**MVP 先做 verifier，不是先做 plan。** 原因：verifier 输出结构化 PASS/FAIL，
+是唯一能被严格自动验证的插件；`plan` 输出给人看的 markdown，很难自动判断好坏。
+而且手册自己说"Verification 是最值得优先建设的部分"。
+
+## 已完成：`sdlc-verify`
+
+见 [packages/sdlc-verify/](packages/sdlc-verify/)。
+
+### 两条机制
+
+**1. `sdlc_verify` —— Actor ≠ Verifier**
+
+启动一个验证子代理，四个机制共同保证它不是实现者：
+
+| 机制 | 作用 |
 |---|---|
-| 仓库骨架、制品目录约定 | ✅ |
-| 两道门禁脚本（发布 / 制品） | ✅ 脚本自测 26/26 |
-| 三个 Skill | ✅ 已加载（`/skill` 可调用）|
-| 插件安装与挂载 | ✅ `hooks-claude-code` fiber `active` |
-| **门禁端到端实测** | ✅ **通过**——见下 |
-| 阶段 06 无人闭环 | ⬜ 需先决定 Host 常驻还是外部 cron |
+| **新会话** | 验证者看不到 Actor 的推理过程，只看制品 |
+| **`toolFilter` 只读白名单** | 它**改不了任何东西**（schema 与执行同时被移除）|
+| **独立 `persona`** | 明确"你没写这段代码，也别相信关于它的说法" |
+| **`outputSchema` 强制结构化** | 必须提交机器可读裁决，不能只给一段自然语言 |
 
-### 端到端验证结果（2026-10-07）
+裁决有**三态**：`approve` / `reject` / `needs_human`。
+第三条是刻意的——只给 PASS/FAIL 会逼验证者在**证据不足**时猜成 PASS。
 
-三条路径全部实测通过，证据取自会话日志的 `hook/*` 事件：
+结构化捕获失败时返回 `needs_human`，**绝不退化成"解析自由文本然后猜"**：
+那会把一个明确的失败变成一个可能错误的通过。
 
-| 场景 | decision | exit | 结果 |
-|---|---|---|---|
-| `git push origin main` | `block` | 2 | 命令**未执行**，返回门禁理由 |
-| 普通命令（`make test`） | `pass` | 0 | 正常执行 |
-| 无配对 intent 写 `artifacts/spec/` | `block` | 2 | 写入**未发生** |
+**2. 测试冻结 —— 单调 guard，不是提示词请求**
 
-配置见 [PLUGIN-SETUP.md](PLUGIN-SETUP.md)；完整的排查过程与四个根因见
-[artifacts/incidents/2026-10-07-gate-not-wired.md](artifacts/incidents/2026-10-07-gate-not-wired.md)。
-
-## 目录
-
-| 路径 | 作用 |
-|---|---|
-| [handbook/](handbook/) | 手册原文，只读参考 |
-| [AGENTS.md](AGENTS.md) | 项目记忆，每次会话自动读取 |
-| [.dsh/skills/](.dsh/skills/) | 组织沉淀知识（DSH 项目级根，开箱即用） |
-| [.claude/hooks/](.claude/hooks/) | 门禁脚本（shell 子进程） |
-| [artifacts/](artifacts/) | 制品链 |
-| [PLUGIN-SETUP.md](PLUGIN-SETUP.md) | 插件挂载操作说明（人工步骤） |
-| [work/dsh-inspect/docs/](work/dsh-inspect/docs/) | DSH 能力调研结论（带行号引用，是决策依据） |
-
-## 现在可以做什么
-
-**门禁脚本的逻辑已经可以自测**，不需要装任何插件：
-
-```sh
-bash .claude/hooks/verify-gates.sh
+```
+Bug → 写失败的测试 → 确认复现 → sdlc_fix_start（冻结）→ 改产品代码 → sdlc_fix_end
 ```
 
-它会验证 24 条「什么被阻断、什么被放行、什么被误伤」。
-这是**脚本逻辑**的验证，不是**桥接挂载**的验证——后者见 PLUGIN-SETUP.md 第 4 步。
+冻结期内任何改动测试资产的工具调用都被拒绝，包括经由 shell 的
+（`rm tests/`、`sed -i`、`git checkout -- tests/`）。用的是 `ctx.tools.guard()`：
+**返回字符串即拒绝，且没有任何后续监听器能翻回允许。**
 
-## 两道门禁
+为什么不能用提示词：提示词没有约束力。为什么不能用文本匹配：
+guard 拿的是**结构化**的 `exec.name` + `exec.arguments`，
+所以 `base64` 之类的编码规避在这里无效。
 
-**发布门禁** [production-gate.sh](.claude/hooks/production-gate.sh)——拦主干推送、生产命名空间、
-生产发布动作、生产数据破坏性操作。被拦时不要改写命令绕过，走
-[deployment-gate](.dsh/skills/deployment-gate/SKILL.md) 里写的授权流程。
+## 开发
 
-**制品门禁** [artifact-guard.sh](.claude/hooks/artifact-guard.sh)——强制制品命名，
-并要求 `spec/`/`plan/` 必须与某个 intent 配对（先写 intent，再写规格）。
+```sh
+npm install          # 装类型依赖（.d.ts 只在 npm tarball 里）
+npm run build        # tsc
+npm run test         # 单测（纯函数部分，不需要 DSH）
+```
 
-## 必须知道的边界（本机实测，不是从手册推断的）
+验证插件真的能加载（**用隔离 profile，不碰正在用的 App**）：
 
-这套东西提高的是「**违规变得罕见**」，不是「**违规不可能**」。
+```sh
+BASE="/Applications/DeepSeek Harness.app/Contents"
+CLI="$BASE/Resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js"
+APP="$BASE/MacOS/DeepSeek Harness"
+
+cd packages/sdlc-verify && npm pack
+ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile verifytest add "$PWD"/*.tgz
+ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --port 19999
+# 看启动输出：出现 "entry did not activate" 就是失败
+```
+
+## 文档
+
+| 文件 | 内容 |
+|---|---|
+| [AGENTS.md](AGENTS.md) | 项目记忆与工程约定（改代码前先读）|
+| [docs/dsh-plugin-contracts.md](docs/dsh-plugin-contracts.md) | **插件/preset 权威契约**，含三个静默失败的坑 |
+| [docs/dsh-pitfalls.md](docs/dsh-pitfalls.md) | DSH 实测坑清单 + 能力边界 |
+| [docs/dsh-plugin-authoring.md](docs/dsh-plugin-authoring.md) | 插件编写与分发的详细调研 |
+| [docs/dsh-*.md](docs/) | 其余 DSH 子系统调研（带行号引用）|
+
+## 边界（不要高估这套东西）
 
 | 缺口 | 事实 |
 |---|---|
-| 无不可覆盖的管理层 | 配置层全在用户可写目录。能改 `~/.dsh/` 的人可以关掉任何控制 |
-| 无网络出口管控 | DSH 沙箱「文件效果是全部策略词汇」。**无法限制网络** |
-| 无受保护路径 | 沙箱按目录范围放行，不识别 `.git/`、CI 配置、密钥 |
-| 不能改写入参 | 钩子只能拒绝，不能「消毒后放行」 |
-| 钩子只覆盖 7/30 事件 | 无策略层、无热重载 |
-| 无审批人归属 | `approval/decided` 只记结果，不记谁批的 |
-| 规范日志不脱敏 | 逐字落盘，且默认 zstd 压缩不可直读 |
+| 网络出口管控 | **不存在**。DSH 沙箱明确"文件效果是全部策略词汇" |
+| 受保护路径 | **不存在**。沙箱按目录范围放行 |
+| 不可覆盖的管理层 | **不存在**。能改 `~/.dsh/` 的人可以摘掉任何插件 |
+| 客户端控制 | 上限是"提高成本"，**不能作为合规证据** |
+| 异构模型验证 | 当前版本做不到（外部 subagent 后端不在运行时里）|
 
-→ **合规边界必须落在 host 层**（文件属主 / MDM / 独立运行身份），DSH 只能做执行面。
-完整分析见 [work/dsh-inspect/docs/](work/dsh-inspect/docs/)。
-
-## 相关文件
-
-- [AGENTS.md](AGENTS.md) — 项目记忆与关键约束，改仓库前先读
-- [PLUGIN-SETUP.md](PLUGIN-SETUP.md) — 插件挂载（含已知不支持项）
-- [.dsh/skills/ai-native-sdlc/SKILL.md](.dsh/skills/ai-native-sdlc/SKILL.md) — 制品链方法论
-- [.dsh/skills/artifact-authoring/SKILL.md](.dsh/skills/artifact-authoring/SKILL.md) — 制品写作质量判据
+→ 真正不可绕过的只有两处：**服务端分支保护**（GitHub rulesets / GitLab
+protected branch）与 **host 层**（文件属主、MDM、独立运行身份）。

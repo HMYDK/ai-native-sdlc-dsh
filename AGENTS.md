@@ -1,142 +1,116 @@
-# AI 原生 SDLC 落地仓库
+# AI 原生 SDLC × DeepSeek Harness
 
-本仓库把 Anthropic《AI 原生 SDLC 实战手册》的方法论落地到 **DeepSeek Harness (DSH)**。
-手册原文（中文全译）在 `handbook/`。本文件是 agent 的项目记忆，每次会话开始时读取。
+本仓库把 Anthropic《AI 原生 SDLC 实战手册》的方法论落成 **DSH 插件**。
+手册中文全译在 `handbook/`。本文件是 agent 的项目记忆，每次会话开始时读取。
 
-## 仓库在做什么
+## 目标与边界（最重要，先读）
 
-把手册的六个阶段（规划→设计→构建→测试→部署→维护）表达为**受版本控制的制品链**，
-并把可自动化的控制点接到 DSH 的扩展点上。
+**目标**：把方法论里*本来就该机器保证*的部分（验证、证据、流程状态）
+做成 Harness 里的一等公民。
 
-**制品即流程**：每个阶段的产出是一份提交入库的制品，下一阶段读取它。
-`intent.md` → `spec.md` → `plan.md` → diff+测试 → 带评审发现的 PR → 事故记录。
-提交历史同时就是审计追踪。
+**不做**：用 Harness 做合规管控。实测已证明客户端控制可被绕过——
+用 base64 编码执行 `git push origin main` 就绕过了我写的文本匹配门禁。
+
+> **Harness 决定「Agent 如何工作」，Git/CI/RBAC 决定「工作对不对、能不能上线」。**
+
+发布授权、分支保护、密钥属于后者，**不要试图在插件里实现它们**。
+
+## 交付形态：插件 bundle，不是仓库脚本
+
+第一版我错误地做成了「git 仓库 + shell 脚本 + md 约定」，
+那不是 DSH 插件，只是一个跑在 DSH 里的外部工具集。已废弃。
+
+正确形态：**npm 包 + `dsh.bundle.patch`**，`dsh plugin add` 即自动挂载。
+
+## 拆分原则：按机制，不按阶段
+
+DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提示词组装 / 客户端 UI），
+与 SDLC 六个阶段**完全不正交**。按阶段拆会让一个制品链跨六个包、
+一个拦截点被六个插件注册。
+
+规划 6 个插件，MVP 2 个。**顺序是「先 verifier」**——它输出结构化 PASS/FAIL，
+是唯一能被严格自动验证的插件。
+
+| 插件 | 机制 | 状态 |
+|---|---|---|
+| `packages/sdlc-verify` | 独立验证 + 测试冻结 | ✅ 已实现并实测加载 |
+| `sdlc-artifact` | 制品写作工具 | ⬜ |
+| `sdlc-task` | 任务状态与制品链 | ⬜ |
+| `sdlc-skills` | 方法论 Skill 与提示词段 | ⬜ |
+| `sdlc-release` | Gate 前的工作 | ⬜ |
+| `sdlc-ui` | 客户端制品链面板 | ⬜ |
 
 ## 目录
 
-| 路径 | 作用 |
-|---|---|
-| `handbook/` | 手册原文，只读参考，不修改 |
-| `.dsh/skills/` | 组织沉淀知识（DSH 项目级 Skill 根，rank 100） |
-| `.claude/skills/` | 同一批 Skill 的 Claude Code 根，由 `customSkillDirs` 挂载 |
-| `.claude/hooks.json` | 门禁钩子，走 `dsh-hooks-claude-code` 桥接 |
-| `.claude/hooks/` | 钩子脚本（shell 子进程） |
-| `artifacts/` | 制品链，见下 |
-| `work/dsh-inspect/docs/` | DSH 能力调研结论（带行号引用，是决策依据） |
-
-## 制品链约定
-
 ```
-artifacts/
-  intent/    意图     — 提出者原话 + 问题/结果/影响/约束/待决问题
-  spec/      规格     — 需求与设计合并，标注需关注领域
-  plan/      计划     — 改哪些文件、工作顺序、风险、如何证明
-  review/    评审发现 — 按严重程度排序
-  incidents/ 事故     — 处置记录，回路写回新的 intent
+packages/sdlc-verify/     # 已实现的插件（TypeScript → lib/）
+  src/index.ts            #   插件入口：工具 + guard + 提示词段
+  src/verdict.ts          #   裁决 schema、persona、提示词构造
+  src/test-freeze.ts      #   测试冻结判定（纯函数，可脱离 DSH 单测）
+docs/                     # DSH 契约与调研（改代码前必查）
+handbook/                 # 手册原文，只读
 ```
 
-**命名**：`intent/YYYY-MM-DD-<kebab-slug>.md`，`spec/` 与 `plan/` 用**同名 slug** 与 intent 配对。
-命名由 `.claude/hooks/artifact-guard.sh` 强制。
+## 工程约定
 
-**最小模板**（每个 intent 至少包含这些小节）：
+### 写插件必守（每条都踩过，全是"警告后继续"的静默失败）
 
-```markdown
-# Intent: <标题>
-Author: <谁>. Status: draft | accepted | rejected.
+1. **`inject` 列出每一个访问到的服务**。少一个就抛
+   `cannot get property "X" without inject`，插件不激活但 app 照常启动。
+2. **`Config` 必须是 Standard Schema 校验器**（schemastery 或 zod），
+   不能是普通对象——Cordis 会调 `Config['~standard'].validate`。
+3. **`files` 用 `lib/**/*.js`**，不是 `lib/index.js`（后者只匹配单文件）。
+   打包后**核对文件数**。
+4. **不要用 default export**——会隐藏 loader 元数据（有正式 postmortem）。
+5. **不要留未 await 的 promise**。游离的 promise 拒绝或同步回调抛错会
+   **销毁整个 app**，与是哪个插件无关。
 
-## Problem
-## Proposed outcome
-## Affected users and systems
-## Constraints
-## Open questions
-```
+### 验证纪律
 
-## 关键约束（本机实测结论，不要凭手册推断）
+- **符号链接安装通过 ≠ 真实分发可用。** 必须用 `npm pack` 的 tarball 装一遍。
+- **隔离 profile 验证，不碰正在用的 App**：
+  `dsh plugin --profile verifytest add <tgz>`，看启动日志有无
+  `entry did not activate`。
+- **`plugin_manager list_plugins` 是唯一的运行时真相**（含 `fiberPhase`）。
+  不要靠推断；`cordis_inspect` 查 Service 对不注册服务的插件必然误报。
+- **单元测试通过 ≠ 端到端可用。** 任何涉及"接线"的改动都要真实操作验证，
+  且汇报时不要把单测说成功能可用。
 
-1. **项目根判定靠 `.git`**。DSH 的 skill 根与 `AGENTS.md` 都取"最近含 `.git` 的祖先"，
-   否则退回 cwd。本仓库必须保持是 git 仓库。
-2. **`dsh` CLI 与桌面运行时版本不一致**（PATH 上是 `0.1.0-rc.7`，运行时是 `0.2.0-rc.2`）。
-   **不要**用 PATH 上的 `dsh` 管理本机 profile，会触发 peer 校验失败。
-3. **插件安装需要审批**；本会话的审批策略可能是 `never`，此时安装会被自动拒绝而非询问。
-   安装步骤写在 `PLUGIN-SETUP.md`，由人执行。
-4. **`.claude/skills/` 不被 DSH 识别**；而且 **宿主的 `skill-filesystem` 行在
-   `dsh-web-app/cordis.patch.yml` 里是 `disabled: true`**（注释："presets own local
-   discovery"），本地发现改由各 agent preset 自己挂。后果：**宿主层没有 Skill provider，
-   项目级 `.dsh/skills/` 不会进入任何 agent 的目录**——`/skill <name>` 报
-   `unknown or no longer available`，即使目录结构与 frontmatter 全部正确。
-   修法：在 profile 层重挂宿主级 provider（注册进 registry 全局层，对全部 agent 可见）：
-   ```yaml
-   - insert:
-       - id: skill-filesystem-host
-         name: "@deepseek-ai/dsh-skill-filesystem"
-         config:
-           customSkillDirs: ["<repo>/.claude/skills"]
-   ```
-   **诊断教训：验证「路径解析正确」不等于验证「provider 已挂载」。**
-   真正的判据是 `/skill <name>` 能否加载。此改动**支持 HMR 热加载，无需重启**。
-5. **hooks 桥接只支持 7 个事件**（`SessionStart`/`UserPromptSubmit`/`PreToolUse`/`PostToolUse`/
-   `Stop`/`SubagentStart`/`SubagentStop`），且 **不支持入参改写**——钩子只能拒绝，不能修正后放行。
-5b. **`matcher` 必须用 DSH 的小写工具名——移植 Claude Code 钩子最大的坑。**
-   DSH 实际工具名是 `bash` / `write` / `edit` / `read`，**不是** `Bash`
-   （手册与 Claude Code 文档里都是大写 B）。写了 `"Bash"` **不报任何错**：
-   桥接 fiber 照常 `active`，但 matcher 永不匹配，`hook/*` 事件数恒为 0，**完全静默**。
-   实测：改小写前本会话 854 个事件中 `hook/*` = 0。**matcher 大小写敏感。**
-   可用工具名：`bash write edit read grep glob todo_write subagent plugin_manager
-   cordis_inspect_list cordis_inspect_query job_output job_list job_kill
-   list_agents send_message interrupt_agent skill present` 等。
-   排查手法：解压会话日志统计 `tool/call` 的 `name` 字段。
-6. **`configPath` 的相对路径从启动进程的目录解析**，不是工作区。桌面 App 下必须用绝对路径。
-7. **DSH 没有网络出口管控**。沙箱只管文件效果。不要声称本仓库能限制网络。
-8. **DSH 没有不可覆盖的管理层**。任何控制都能被能改 `~/.dsh/` 的人关闭，
-   合规边界必须落在 host 层（文件属主/MDM/独立进程身份）。
-9. **新增 Skill 后立即可用**（挂载正确时）：`skill-filesystem` 的 watcher 会监听既存根的
-   直接子项，profile 层的 provider 改动也走 HMR，**无需重启**。
-   注：本仓库建成当天 `skill "…" is unknown` 的真实原因是第 4 条（宿主无 provider），
-   不是会话快照——不要沿用那个错误结论。
+### 内容与机制分离
 
-## 改动本仓库时的约定
+- 内容（`SKILL.md` 正文、制品模板）写成 harness 无关的形式
+- 路径绑定交给配置，**不要复制两份内容**
+- 一条必须无例外成立的组织知识 → 写成 Skill **并且**加一个 guard，
+  因为 Skill 只是建议性控制（实测确认：只有 guard/deny 才有约束力）
 
-- **内容层**（`AGENTS.md`、`SKILL.md` 正文、制品模板）写成 harness 无关的形式，
-  路径绑定交给配置，**不要复制两份内容**。
-- **机制层**（门禁、拦截）优先用 `.claude/hooks/` 的 shell 子进程，而不是 DSH 原生插件——
-  插件与宿主同进程且完全受信，**游离 promise 或同步回调抛错会杀死宿主进程**。
-- Skill 名必须 kebab-case，frontmatter 必须有 `name` 与 `description`。
-- 门禁脚本必须**失败即拒绝**（fail closed），且拒绝理由要能让人看懂怎么拿授权。
-- 新增能力前先查 `work/dsh-inspect/docs/`，确认 DSH 是否已有原语；不要假设 Claude Code 的行为。
+## 关键约束（本机实测，不要从文档推断）
+
+1. **类型定义只在 npm tarball 里**。运行时既没有 `.d.ts` 也没有 `src/`。
+   `npm pack @deepseek-ai/dsh-xxx@0.2.0-rc.2` 取 `lib/types/**/*.d.ts`。
+2. **不要用 PATH 上的 `dsh`**（可能是别的版本）。用 App 自带 CLI：
+   `$BASE/Resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js`
+   配 `ELECTRON_RUN_AS_NODE=1` 和 App 的 MacOS 可执行文件。
+3. **Agent preset 没有发现机制**：没有目录扫描、没有环境变量、没有 CLI 参数。
+   只能靠 bundle 补丁的行贡献或覆写。
+4. **只有 `spawn` / `fork` 两个 subagent provider**。四个外部后端不在运行时里，
+   npm 上的版本 peer 与 `0.2.0-rc.2` 不兼容 → **异构模型验证当前做不到**。
+5. **`outputSchema` 只能由插件代码请求**，模型不能。这是好事：
+   "强制结构化裁决"无法被模型绕过。
+6. **`toolFilter` 不过滤别的插件注册的静态提示词**。被过滤的子代理仍会读到
+   "用 write 工具…"之类的文字。已在 verifier persona 里加防御说明。
+7. **DSH 没有**：网络管控、受保护路径、不可覆盖的管理层、模式化 allow/deny、
+   入参改写、审批人归属、规范日志脱敏、连续 OTel 导出。
 
 ## 当前状态
 
-**核心链路已全部打通并通过端到端实测（2026-10-07）。**
+- [x] `sdlc-verify` 插件：类型检查零错误、单测 9/9、打包内容核对、
+      隔离 profile 启动实测**全部条目激活成功**
+- [x] desktop profile 已安装 tarball 版本（待重启生效）
+- [ ] 端到端实测：真实跑一次 `sdlc_verify`，确认结构化裁决能拿到
+- [ ] 端到端实测：测试冻结 guard 在真实会话里拦得住
+- [ ] 其余 5 个插件
 
-- [x] 仓库骨架、制品目录、门禁脚本、技能
-- [x] 门禁脚本逻辑自测（`.claude/hooks/verify-gates.sh`，26 项全通过）
-- [x] 插件安装 + 挂载（App 自带 CLI + profile `insert` 行，fiber `active`）
-- [x] **三个 Skill 可加载**（`/skill <name>` 实测成功）
-- [x] **门禁端到端实测通过**，三条路径均有会话日志 `hook/*` 事件为证：
-      `git push origin main` → `block`/2（未执行）；
-      普通命令 → `pass`/0；
-      无配对 intent 写 `artifacts/spec/` → `block`/2（未写入）
-- [ ] 确认桌面 App 是否把 shell 环境传给钩子进程（决定 `RELEASE_APPROVAL` 怎么注入）
-- [ ] 阶段 06 无人闭环（需先决定 Host 常驻还是外部 cron）
+## 待用户决策
 
-### 四个根因（都是静默失败，排查耗时很长，务必先读）
-
-按发现顺序，每一个的症状都是「什么都没发生」，没有一个会报错：
-
-1. **插件未安装** → 桥接不存在，`hooks.json` 无人读取
-2. **`matcher` 大小写**：写 `"Bash"` 而非 `bash` → fiber 仍 `active`，但永不匹配
-3. **路径空格**：`command` 用裸可执行文件路径 → 仓库路径含空格 → `exit 126`，
-   且按契约属「非阻断失败」，命令照常执行
-4. **宿主层无 Skill provider**：`dsh-web-app` 把 `skill-filesystem` 设为 `disabled`
-   → 项目级 Skill 目录从未被扫描
-
-### 三条给未来的自己的教训
-
-1. **`verify-gates.sh` 直接 `bash 脚本`，绕过了桥接。单元测试通过 ≠ 端到端可用。**
-   任何涉及「接线」的改动都必须用真实操作验证，且汇报时不要把单元测试说成功能可用。
-2. **诊断 DSH 插件问题，第一步永远是 `plugin_manager list_plugins`**——它返回实时
-   Loader 状态（含 `fiberPhase`）。我查了四轮才想到用它，此前一直用不可靠的间接推断
-   （`cordis_inspect` 查 Service——但该桥接根本不注册 Service）。
-3. **「配置写对了」和「运行时加载了」是两件事。** 我先后验证了路径解析、YAML 语法、
-   Schema 校验、dump-config——全部通过，但功能仍然不工作，因为**没有验证运行时状态**。
-   会话日志的 `hook/*` 事件与 `list_plugins` 的 `fiberPhase` 才是运行时真相。
+- 是否把 `main` 分支保护配上（我测过的所有控制里**只有服务端分支保护不可绕过**）
+- MVP 第二个插件选哪个：`sdlc-task`（状态与制品链）还是 `sdlc-artifact`（制品工具）
