@@ -32,7 +32,11 @@ const { Context } = require('@deepseek-ai/cordis');
 const toolsMod = require('@deepseek-ai/dsh-tools');
 
 let failures = 0;
-const ok = (m) => console.log(`  \u2713 ${m}`);
+let passCount = 0;
+const ok = (m) => {
+  passCount++;
+  console.log(`  \u2713 ${m}`);
+};
 const bad = (m) => {
   failures++;
   console.log(`  \u2717 ${m}`);
@@ -71,9 +75,9 @@ ctx.provide('systemPrompt', {
 
 // 记录 subagent 请求，用于断言插件传了什么
 const started = [];
-ctx.provide('subagents', {
-  start: async (provider, request) => {
-    started.push({ provider, request });
+const disposeCalls = [];
+const subagentsStub = {
+  impl: async (provider, request) => {
     return {
       id: 'smoke-child',
       localAgent: undefined,
@@ -93,8 +97,16 @@ ctx.provide('subagents', {
         },
         stopReason: 'completed',
       }),
-      dispose: async () => {},
+      dispose: async () => {
+        disposeCalls.push('smoke-child');
+      },
     };
+  },
+};
+ctx.provide('subagents', {
+  start: async (provider, request) => {
+    started.push({ provider, request });
+    return await subagentsStub.impl(provider, request);
   },
 });
 
@@ -149,6 +161,19 @@ ctx.tools.register({
   execute: async (args) => `wrote ${args.file_path}`,
 });
 
+// bash 桩：shell 通道原先在运行时层完全没有覆盖，而这正是绕过点藏身之处。
+const executedCommands = [];
+ctx.tools.register({
+  name: 'bash',
+  description: 'smoke stub for shell-channel freeze verification',
+  parameters: { command: { type: 'string', required: true } },
+  output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: String(v) }] },
+  execute: async (args) => {
+    executedCommands.push(args.command);
+    return `ran: ${args.command}`;
+  },
+});
+
 const fakeAgent = { id: 'smoke-session-A' };
 
 const r1 = await dispatch('sdlc_fix_start', { reason: 'smoke freeze' }, fakeAgent);
@@ -164,6 +189,28 @@ if (r2.isError && deniedText.includes('冻结期内不可修改')) {
   bad(`write 被拒但原因不符: ${deniedText.slice(0, 120)}`);
 } else {
   bad(`write 到 tests/ 未被拒绝！value=${JSON.stringify(r2.value)}`);
+}
+
+// 冻结生效后：经 shell 改测试也必须被拒（这是原先没覆盖的通道）
+for (const [label, command] of [
+  ['重定向（带空格）', "echo pass > tests/test_x.py"],
+  ['重定向（不带空格）', "echo pass >tests/test_x.py"],
+  ['解释器内写入', `python3 -c "open('tests/test_x.py','w')"`],
+  ['find -delete', 'find tests -name "*.py" -delete'],
+]) {
+  const r = await dispatch('bash', { command }, fakeAgent);
+  if (r.isError && JSON.stringify(r.content ?? '').includes('冻结期内不可修改')) {
+    ok(`shell 通道被拦: ${label}`);
+  } else {
+    bad(`shell 通道未拦（${label}）: ${command}`);
+  }
+}
+
+// 只读 shell 命令必须放行（防误伤）
+for (const command of ['pytest tests/test_x.py -q', 'cat tests/test_x.py', 'git diff tests/']) {
+  const r = await dispatch('bash', { command }, fakeAgent);
+  if (r.isError) bad(`只读 shell 被误伤: ${command}`);
+  else ok(`只读 shell 放行: ${command}`);
 }
 
 // 但写产品代码必须放行
@@ -199,10 +246,45 @@ if (r6.isError) {
   }
 }
 
+console.log('\n== 5c. needs_human + unverified 必须能穿透（原 schema 漂移点）==');
+{
+
+  // 桩默认返回 reject；这里临时替换成带 unverified 的 needs_human。
+  // 这条断言存在的理由很具体：工具输出 schema 曾漏声明 unverified，
+  // 配合 additionalProperties:false 会让**这一条裁决**变成工具错误，
+  // 于是"证据不足就上报给人"的整条通路失效。原冒烟没覆盖它。
+  const original = subagentsStub.impl;
+  subagentsStub.impl = async () => ({
+    id: 'smoke-child-2',
+    localAgent: undefined,
+    result: Promise.resolve({
+      output: [{ type: 'text', text: 'needs human' }],
+      structured: {
+        status: 'needs_human',
+        summary: '证据不足以判断，需要人工介入',
+        findings: [],
+        unverified: ['无法确认生产环境的实际并发量', '缺少回滚演练记录'],
+      },
+      stopReason: 'completed',
+    }),
+    dispose: async () => { disposeCalls.push('smoke-child-2'); },
+  });
+  const r = await dispatch('sdlc_verify', { intent_of_change: 'needs_human 穿透测试' }, fakeAgent);
+  if (r.isError) {
+    bad(`needs_human + unverified 变成工具错误（正是原缺陷）: ${JSON.stringify(r.error)}`);
+  } else if (r.value?.status === 'needs_human' && Array.isArray(r.value?.unverified) && r.value.unverified.length === 2) {
+    ok(`needs_human 携带 unverified 正常穿透（${r.value.unverified.length} 条未决问题）`);
+  } else {
+    bad(`needs_human 裁决形状不符: ${JSON.stringify(r.value)}`);
+  }
+  subagentsStub.impl = original;
+}
+
 console.log('\n== 6. 插件传给验证者的请求是否正确 ==');
-if (started.length !== 1) {
-  bad(`subagents.start 被调用 ${started.length} 次，期望 1 次`);
+if (started.length < 1) {
+  bad(`subagents.start 未被调用`);
 } else {
+  // 断言第 5 节那次调用（它传了 artifacts；后面的用例请求不同）
   const { provider, request } = started[0];
   const checks = [
     ['provider 为 spawn', provider === 'spawn'],
@@ -242,6 +324,7 @@ if (started.length !== 1) {
 
 console.log('\n== 7. 提供测试证据时的条件渲染 ==');
 {
+  started.length = 0;
   const r = await dispatch(
     'sdlc_verify',
     {
@@ -264,10 +347,25 @@ console.log('\n== 7. 提供测试证据时的条件渲染 ==');
   }
 }
 
+console.log('\n== 8. SubagentRun 必须被 dispose（契约要求，原先漏了）==');
+// 3 次 sdlc_verify 调用（第 5、5c、7 节），每次都必须在 finally 里 dispose
+if (disposeCalls.length >= 3) {
+  ok(`dispose 被调用 ${disposeCalls.length} 次（每次 sdlc_verify 调用后都释放）`);
+} else {
+  bad(`dispose 只被调用 ${disposeCalls.length} 次，期望 3`);
+}
+// 第 7 节在断言前清空过 started，这里顺便记录该次请求确实带了测试证据
+{
+  const last = started[started.length - 1];
+  const txt = (last?.request?.prompt ?? []).map((b) => b.text ?? '').join('\n');
+  if (txt.includes('1 passed')) ok('第 7 节请求确实携带了测试证据原文');
+  else bad('第 7 节请求缺少测试证据原文');
+}
+
 console.log('');
+console.log(`断言总数：${passCount + failures}（通过 ${passCount}，失败 ${failures}）`);
 if (failures === 0) {
   console.log('全部通过');
   process.exit(0);
 }
-console.log(`${failures} 项失败`);
 process.exit(1);

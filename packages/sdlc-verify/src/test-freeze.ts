@@ -27,28 +27,77 @@ const TEST_PATH_PATTERNS: RegExp[] = [
 ];
 
 /**
+ * 裸的测试目录名（`tests`、`spec`…）。
+ *
+ * 必须单独认：`find tests -name "*.py" -delete` 这类命令里的目标是**目录本身**，
+ * 没有斜杠也没有扩展名，上面那些模式全都匹配不到——实测就是在这里漏检的。
+ */
+const BARE_TEST_DIR_RE = /^(tests?|specs?|__tests__|__mocks__)$/i;
+
+/**
  * 判断一个路径是否属于测试资产。
  */
 export function isTestPath(p: unknown): boolean {
   if (typeof p !== 'string' || p === '') return false;
   const normalized = p.replace(/\\/g, '/');
+  if (BARE_TEST_DIR_RE.test(normalized)) return true;
   return TEST_PATH_PATTERNS.some((re) => re.test(normalized));
 }
 
-/** 会对文件产生写入/删除效果的 shell 片段（用于 bash 通道的保守判定）。 */
-const MUTATION_RE =
-  /(^|[^<])>{1,2}\s|>>\s|\brm\b|\bmv\b|\bcp\b|\bsed\b\s+[^|]*-i|\btruncate\b|\btee\b|\bdd\b\s|git\s+(checkout|restore|rm|mv|reset|stash|apply|clean|revert)\b|\bpatch\b\s|\bshred\b/;
+/**
+ * 会对文件产生写入/删除效果的 shell 片段。
+ *
+ * ⚠️ **这是保守启发式，不是硬边界。** 判定基于命令**文本**，因此任何
+ * 不落进这些模式的等价写法都能绕过（例如自造二进制、`node -e` 里的 fs.writeFileSync、
+ * 变量拼出的命令名）。真正的硬约束应当落在工具限制或沙箱层
+ * （冻结期直接 restrict 掉写能力）。
+ *
+ * 下面这些形态是**实测出来的绕过点**，逐一补上：
+ *   1. `>tests/x.py`（重定向后无空格）—— 原正则要求 `>\s`，漏掉了
+ *   2. `python3 -c "open('tests/x','w')"` —— 解释器内写入
+ *   3. `find tests -delete` / `-exec`
+ *   4. `perl -pi -e`
+ *   5. `git -C repo checkout -- tests/` —— `-C` 插在中间
+ */
+const MUTATION_RE = [
+  // 重定向：允许 `>` 后无空格（修复实测漏检）
+  /(^|[^<])>{1,2}\s*\S/,
+  // 文件操作
+  /\b(rm|mv|cp|install|truncate|tee|shred|chmod|chown)\b/,
+  /\bdd\b\s/,
+  /\bsed\b\s+[^|]*-i/,
+  /\bperl\b\s+[^|]*-[a-z]*i/,
+  // `[^|]*` 是非贪婪才能正确匹配 `-delete`：贪婪版本会把 `-` 一起吃掉。
+  // 两个分支都留：带 `-` 的 find 动作，以及裸 `delete`。
+  /\bfind\b[^|]*?-(delete|exec)\b/,
+  /\bfind\b[^|]*?(delete|exec)\b/,
+  // 解释器内写入（-c / -e / --eval 后跟内容）
+  /\b(python3?|node|ruby|php|deno|bun)\b[^|]*\s(-c|-e|--eval)\b/,
+  // git 的写操作（允许 -C <path> 等全局参数插在 git 与子命令之间）
+  /\bgit\b(\s+-[^\s]+\s+\S+)*\s+(checkout|restore|rm|mv|reset|stash|apply|clean|revert|switch)\b/,
+  /\bpatch\b\s/,
+].map((re) => re.source).join('|');
+
+const MUTATION_RE_COMPILED = new RegExp(MUTATION_RE);
 
 /**
- * 从 bash 命令里取出可能是路径的 token（保守：取全部看起来像路径的）。
- * 只用于判定，不做 shell 解析。
+ * 从 bash 命令里取出可能是路径的 token。
+ *
+ * 注意一个实测出来的盲点：`find tests -name "*.py" -delete` 里的 `tests`
+ * 是**裸目录名**——既没有斜杠也没有扩展名，会被"看起来像路径"的过滤条件丢掉，
+ * 于是变更操作识别对了、目标却找不到，整体放行。
+ * 所以这里额外保留可能是测试根的裸目录名（BARE_TEST_DIR_RE，见文件上方）。
  */
 export function pathTokens(command: unknown): string[] {
   if (typeof command !== 'string') return [];
   return command
     .split(/[\s;|&()'"`]+/)
     .map((t) => t.replace(/^[^/.\w-]+/, ''))
-    .filter((t) => t.length > 0 && (t.includes('/') || /\.\w+$/.test(t)));
+    .filter(
+      (t) =>
+        t.length > 0 &&
+        (t.includes('/') || /\.\w+$/.test(t) || BARE_TEST_DIR_RE.test(t)),
+    );
 }
 
 export interface TestMutationJudgement {
@@ -88,7 +137,7 @@ export function judgeTestMutation(exec: {
   if (name === 'bash') {
     const command = args?.['command'];
     if (typeof command !== 'string') return { blocked: false };
-    if (!MUTATION_RE.test(command)) return { blocked: false };
+    if (!MUTATION_RE_COMPILED.test(command)) return { blocked: false };
     const hit = pathTokens(command).find((t) => isTestPath(t));
     if (hit !== undefined) {
       return {

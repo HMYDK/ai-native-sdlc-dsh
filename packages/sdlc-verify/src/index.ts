@@ -6,9 +6,10 @@
  *
  * 两条机制：
  *
- * 1. `sdlc_verify` —— 以**新上下文 + 只读工具 + 强制结构化输出**启动一个验证子代理。
+ * 1. `sdlc_verify` —— 以**新上下文 + 受限工具 + 强制结构化输出**启动一个验证子代理。
  *    这是 Actor ≠ Verifier 的实质：验证者看不到 Actor 的推理过程，只看制品；
- *    它改不了任何东西；它必须提交机器可读裁决，而不是一段自然语言。
+ *    它没有 write/edit（但保留 bash 以便复核证据）；它必须提交机器可读裁决，
+ *    而不是一段自然语言。
  *
  * 2. 测试冻结（`sdlc_fix_start` / `sdlc_fix_end` + guard）—— bug 修复期间
  *    禁止改动测试资产。手册要求"用于证明缺陷的测试不能被 Actor 改写"，
@@ -24,7 +25,13 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
 import { judgeTestMutation } from './test-freeze.js';
 import type { Verdict } from './verdict.js';
-import { buildVerificationPrompt, VERDICT_SCHEMA, VERIFIER_PERSONA } from './verdict.js';
+import {
+  assertSchemasAligned,
+  buildVerificationPrompt,
+  VERDICT_SCHEMA,
+  VERIFIER_PERSONA,
+  TOOL_OUTPUT_SCHEMA,
+} from './verdict.js';
 
 export const name = 'sdlc-verify';
 
@@ -36,14 +43,6 @@ export const name = 'sdlc-verify';
  * "警告后继续"，所以症状只是 `fiberPhase: failed`，不仔细看会以为装上了。
  */
 export const inject = ['tools', 'subagents', 'systemPrompt'];
-
-/** 声明本插件追加的持久会话事件（与 hook/invoked 同样的 log-only 用法）。 */
-declare module '@deepseek-ai/dsh-session' {
-  interface SessionEventMap {
-    'sdlc/freeze-started': { reason: string };
-    'sdlc/freeze-ended': { reason: string };
-  }
-}
 
 /**
  * 验证者允许使用的工具。**只读**。
@@ -80,15 +79,25 @@ export const Config = z.object({
 });
 
 /**
- * 冻结状态：按 agent 会话 id 记录。
+ * 冻结状态 —— **进程级全局，不按 agent 记账。**
  *
- * ⚠️ 已知限制（v1 有意如此）：这是**内存态**，进程重启后清空。
- * 持久会话事件仍会写入（`sdlc/freeze-started` / `sdlc/freeze-ended`），
- * 因此审计链完整；但 guard 的即时判定依赖内存。
- * 理由：重启本身即中断了修复工作，冻结随之中止是安全的方向
- * （失败方向是"不再保护"，而不是"错误保护"，两者都会导致拒绝而非放行）。
+ * 为什么是全局：测试资产是**仓库级的共享资源**，不是某个会话的私有物。
+ * 按 agent 记账有一个实测出来的漏洞——actor 只要用自带的 `subagent` 工具
+ * 派一个子代理（另一个 agent id），冻结就完全看不到它，改测试照旧成功。
+ * 而 `Agent` 类型只暴露 `id`（没有 parent、没有 session），
+ * 无法沿血缘判断，所以"全局"既是更准确的语义，也是更可靠的实现。
+ *
+ * 代价（明确记录）：同一进程内无法并行跑两个互不相干的修复——
+ * 后一个 `sdlc_fix_start` 会覆盖前一个的冻结。对"一次修一个 bug"的
+ * 实际工作流这不构成限制；若将来需要并行，应把冻结键改成任务 id，
+ * 并让 `sdlc_verify` 把任务 id 传给守卫。
+ *
+ * ⚠️ 已知限制：**内存态**，进程重启即清空。重启本身中断了修复工作，
+ * 所以冻结随之中止是安全的方向（失败方向是"不再保护"而非"错误保护"）。
+ * 也正因为 `Agent` 不暴露 session，无法写持久事件——
+ * 所以这里**不**声称有审计链；审计来自 git 与工具调用记录。
  */
-const frozen = new Map<string, string>();
+let frozenReason: string | undefined;
 
 /**
  * 把模型传来的 `artifacts` 参数收敛为 `Record<string, string>`。
@@ -112,6 +121,10 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
  * 所以这里可以直接当作已解析的配置使用。
  */
 export function apply(ctx: Context, config: SdlcVerifyConfig): void {
+  // 加载即自检：工具输出 schema 与裁决 schema 一旦漂移，某条裁决路径会静默失效
+  // （实测过：unverified 缺失会让 needs_human 变成工具错误）。
+  assertSchemasAligned();
+
   const cfg = config;
 
   // ────────────────────────────────────────────────────────────── 机制 1
@@ -154,32 +167,9 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         },
       },
       output: {
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            status: { type: 'string', required: true },
-            summary: { type: 'string', required: true },
-            findings: {
-              type: 'array',
-              required: true,
-              items: {
-                type: 'object',
-                additionalProperties: true,
-                properties: {
-                  severity: { type: 'string' },
-                  category: { type: 'string' },
-                  file: { type: 'string' },
-                  line: { type: 'number' },
-                  reason: { type: 'string' },
-                  evidence: { type: 'string' },
-                  suggestion: { type: 'string' },
-                },
-              },
-            },
-            verifier_session: { type: 'string' },
-          },
-        },
+        // 从裁决 schema 派生，不手写——见 verdict.ts 里那处真实漂移缺陷的说明。
+        // 收窄理由：转换是运行时总函数，但 TS 无法从循环里推出 DSL 的字面量类型。
+        schema: TOOL_OUTPUT_SCHEMA,
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args, exec) {
@@ -198,50 +188,78 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
 
         // agentOptions 在 SubagentStartRequest 上是 readonly，
         // 所以一次性构造完整请求，而不是先建对象再补字段。
+        //
+        // maxTokens 只要 >0 就生效，**不依赖** verifierModel 是否设置——
+        // 之前把它放在 model 非空的分支里，导致单独配置 maxTokens 静默无效。
+        const wantsTokens = cfg.verifierMaxTokens > 0;
+        const wantsRoute = cfg.verifierModel !== '';
         const request: SubagentStartRequest = {
           label: 'sdlc-verify',
           prompt: [{ type: 'text', text: prompt }],
           parent: agent,
           signal: exec.signal,
           outputSchema: VERDICT_SCHEMA,
-          // 只读：验证者改不了任何东西，这是 Actor ≠ Verifier 的一半。
+          // 只读：摘掉 write/edit。注意 bash 仍在白名单里（验证者需要跑测试来
+          // 复核证据），而 bash 技术上能写文件——所以 persona 里如实说明了这一点，
+          // 而不是声称"改不了任何东西"。
           toolFilter: { allow: VERIFIER_TOOL_ALLOW },
           // 独立角色：新上下文 + 明确"你没有写这段代码，也别相信关于它的说法"。
           persona: VERIFIER_PERSONA,
-          ...(cfg.verifierModel !== ''
+          ...(wantsRoute || wantsTokens
             ? {
                 agentOptions: {
-                  model: cfg.verifierModel,
-                  ...(cfg.verifierMaxTokens > 0 ? { maxTokens: cfg.verifierMaxTokens } : {}),
+                  ...(wantsRoute ? { model: cfg.verifierModel } : {}),
+                  ...(wantsTokens ? { maxTokens: cfg.verifierMaxTokens } : {}),
                 },
               }
             : {}),
         };
 
-        const run = await ctx.subagents.start(cfg.verifierProvider, request);
-        const result = await run.result;
+        // SubagentRun 的契约要求消费者**总是** dispose（取消剩余工作、达到静默）。
+        // 官方调用方就是这么做的（dsh-tool-subagent 的 settleForegroundRun）。
+        // 不 dispose 会在 abort/异常路径上泄漏子代理句柄。
+        let run: Awaited<ReturnType<typeof ctx.subagents.start>> | undefined;
+        let result: Awaited<ReturnType<typeof ctx.subagents.start>>['result'] extends Promise<
+          infer R
+        >
+          ? R
+          : never;
+        try {
+          run = await ctx.subagents.start(cfg.verifierProvider, request);
+          result = await run.result;
+        } finally {
+          if (run !== undefined) {
+            try {
+              await run.dispose();
+            } catch {
+              /* dispose 失败不应掩盖真正的结果 */
+            }
+          }
+        }
 
         const verdict = result.structured as Verdict | undefined;
 
         if (verdict === undefined) {
           // 结构化捕获失败。**不要**退化成"解析自由文本然后猜"——
           // 那会把一个明确的失败变成一个可能错误的通过。
+          // satisfies 而不是类型注解：保留字面量类型（schema 推断要求），
+          // 同时仍然校验形状。
           return {
             status: 'needs_human',
             summary:
               '验证者未产出结构化裁决，无法据此判断。stop_reason=' +
               String(result.stopReason ?? 'unknown'),
             findings: [],
-            verifier_session: String(run.id),
-          };
+            verifier_session: run !== undefined ? String(run.id) : undefined,
+          } satisfies Verdict & { verifier_session?: string };
         }
 
-        // 唯一一处显式类型收窄，理由：
-        //   返回值形状由上面声明的 `output.schema` 在**运行时**强制
-        //   （框架会按 schema 校验规范化后的值），而 `defineTool` 的推断类型
-        //   带 `additionalProperties: true` 产生的索引签名，TypeScript 无法
-        //   从 `Verdict` 接口反推出来。这不是掩盖形状不一致——运行时已经校验过了。
-        return { ...verdict, verifier_session: String(run.id) } as never;
+        // satisfies：保留字面量类型，让 output.schema 的推断成立。
+        // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
+        return {
+          ...verdict,
+          verifier_session: run !== undefined ? String(run.id) : undefined,
+        } satisfies Verdict & { verifier_session?: string };
       },
     }),
   );
@@ -253,9 +271,10 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
     defineTool({
       name: 'sdlc_fix_start',
       description:
-        'Enter bug-fix mode and FREEZE test assets. While frozen, any attempt to modify a test file ' +
-        '(directly or via shell) is denied. Use this after the failing test reproduces the bug, so the test ' +
-        'cannot be weakened later to make the fix look successful. Call sdlc_fix_end when the fix is verified.',
+        'Enter bug-fix mode and FREEZE test assets **for the whole process**. While frozen, attempts to modify ' +
+        'test files (directly, or via common shell forms) are denied — including from subagents, since the freeze ' +
+        'is not scoped to one agent. Use this after the failing test reproduces the bug, so the test cannot be ' +
+        'weakened later to make the fix look successful. Call sdlc_fix_end when the fix is verified.',
       parameters: {
         reason: {
           type: 'string',
@@ -278,9 +297,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         ],
       },
       async execute(args, exec) {
-        const agent = exec.agent;
-        if (agent === undefined) throw new Error('sdlc_fix_start requires a calling agent');
-        frozen.set(String(agent.id), args.reason);
+        frozenReason = args.reason;
         return { frozen: true, reason: args.reason };
       },
     }),
@@ -304,9 +321,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         render: () => [{ type: 'text', text: '测试资产已解冻' }],
       },
       async execute(args, exec) {
-        const agent = exec.agent;
-        if (agent === undefined) throw new Error('sdlc_fix_end requires a calling agent');
-        frozen.delete(String(agent.id));
+        frozenReason = undefined;
         return { frozen: false };
       },
     }),
@@ -315,10 +330,8 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
   // 单调 guard：任何匹配的 guard 都可拒绝，且**没有任何后续监听器能把它翻回允许**。
   // 这正是"硬约束"与"提示词请求"的区别所在。
   ctx.tools.guard((exec) => {
-    const agent = exec.agent;
-    if (agent === undefined) return undefined;
-    const reason = frozen.get(String(agent.id));
-    if (reason === undefined) return undefined;
+    // 不检查 agent：冻结是进程级/仓库级的，子代理同样受限。
+    if (frozenReason === undefined) return undefined;
 
     const verdict = judgeTestMutation({ name: exec.name, arguments: exec.arguments });
     if (!verdict.blocked) return undefined;
@@ -326,7 +339,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
     return [
       verdict.reason,
       '',
-      `冻结理由：${reason}`,
+      `冻结理由：${frozenReason}`,
       '这个测试是修复正确性的证据。若它确实写错了，先 sdlc_fix_end 说明原因，再改测试——',
       '不要让门禁替你决定。',
     ].join('\n');

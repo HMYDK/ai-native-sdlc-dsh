@@ -128,8 +128,12 @@ printf '%s' 'git push origin main' | base64 -D | sh    # 不会被拦
 不可绕过的控制只有两处：**服务端分支保护**（GitHub rulesets / GitLab protected branch）
 与 **host 层**（文件属主、MDM、独立运行身份）。
 
-**插件化的正确应对**：用 `ctx.tools.guard()` 拿**结构化的 `exec.name` + `exec.arguments`**，
-而不是匹配命令文本——结构化判定不受编码/拼接影响。
+**插件化的正确应对**：用 `ctx.tools.guard()` 拿**结构化的 `exec.name` + `exec.arguments`**。
+
+但要分清通道：**文件工具**（`write`/`edit` 的 `file_path`）是结构化的，编码与拼接影响不了它；
+**shell 工具**（`bash` 的 `command`）判的仍是文本，等价写法照样能绕。
+所以 guard 对 shell 的覆盖是「提高成本」，不是「不可能」——
+真正的硬边界在工具限制（`toolFilter`/`restrict`）或沙箱层。
 
 ## 11. 引擎侧事实：DSH 的能力边界（影响架构决策）
 
