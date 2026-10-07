@@ -263,3 +263,59 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 哈希一致完全无法证明进程加载了新代码。
 
 **要真正生效，重启 App。** 重启后用运行时可见物验证，不要用文件哈希。
+
+## 13. 客户端（Web UI）插件：本机做不出来，也验证不了
+
+计划里有个 `sdlc-ui`（任务看板的面板）。调研后**放弃**，理由是三条实测事实。
+
+### 13.1 构建客户端 bundle 的工具链不在本机
+
+客户端 bundle 不是普通 ESM，而是运行时自定义格式：
+
+```js
+window.__ModuleLoader__.load({
+  id: "@deepseek-ai/dsh-client-ui-goal",
+  factory: (require) => { var module = { exports: {} }; /* ... */ }
+})
+```
+
+这个包装器**可以手写**（React 由宿主提供，只需 `require("react")`），但生成它的
+工具是 monorepo 的共享 **tsdown Client preset**，而：
+
+- `app.asar/dsh/package.json` 的 `scripts` 是 **`{}`**（打包后的发行版）
+- 没有 `tsdown.config.ts`、没有 `pnpm-workspace.yaml`、没有 `packages/`/`apps/`
+- 官方包**只分发预构建产物，不带 `src/`**
+
+我自己早先的调研记录已经写明这一点：*"构建工具是 monorepo 的共享 tsdown Client
+preset —— 不在这个 extract 里，所以我无法引用它。"*
+
+### 13.2 host 半给客户端用的 RPC 是构建期生成的
+
+官方客户端用 `ctx.remote.<namespace>.<method>`，来自 host 侧的 `@Remote()` 装饰器。
+查客户端服务目录：**没有 `remote`**（`no catalogued Service named "remote"`）。
+这是构建期生成的 RPC 层，手工产不出来。
+
+官方先例 `dsh-client-ui-deliverables` 走的是另一条路——host 半注册
+`/api/changes.summary` 这类**认证路由** + `ctx.connection.authenticatedUrl`。
+可行，但要自己处理认证，而且多一层易错的东西。
+
+### 13.3 决定性的一条：渲染结果**验证不了**
+
+> 每处**其他**改动 —— apps/web 外壳和普通包 —— 需要重建受影响的 Web 制品，
+> 并在**页面刷新后**验证这个现有 URL。
+
+`apps/web` 不在这里，所以我写不出、也验证不了渲染结果。
+
+### 结论：换成 host 侧工具
+
+> **按本项目最硬的纪律（"加载 ≠ 可用"），不该交付一个连"加载"都做不到的东西。**
+
+改成 `sdlc-status`：同样的信息（所有任务的状态、制品完整性、缺失项、最新裁决），
+host 侧工具，**能被完整验证**。这次的冒烟甚至用**真实 `LocalFileSystem`** 而不是
+内存桩——见 §11.1 的教训（"桩忽略参数 = 测试对这类问题失明"）。
+
+### 如果将来要做客户端 UI，缺的是
+
+1. 能产出 `window.__ModuleLoader__.load` 格式的构建（或确认手写包装器可行并验证）
+2. host→client 的数据通道：要么走认证 HTTP 路由（官方先例），要么拿到构建期 RPC
+3. 一个能刷新页面并看到渲染结果的验证手段（否则违背验证纪律）

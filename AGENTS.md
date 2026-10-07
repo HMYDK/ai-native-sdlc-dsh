@@ -51,9 +51,9 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 | `packages/sdlc-verify` | 独立验证 + 测试冻结 | ✅ 已实现并端到端验证 |
 | `packages/sdlc-task` | 任务状态机 + 制品链（state.yaml 在 git） | ✅ 已实现并端到端跑通 |
 | `packages/sdlc-artifact` | 制品撰写 + 结构检查（只查结构） | ✅ 已实现并端到端跑通 |
-| `sdlc-skills` | 方法论 Skill 与提示词段 | ⬜ |
-| `sdlc-release` | Gate 前的工作 | ⬜ |
-| `sdlc-ui` | 客户端制品链面板 | ⬜ |
+| `packages/sdlc-status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） | ✅ 已实现（真实 fs 冒烟） |
+| `sdlc-release` | Gate 前的工作（PR 描述、CI 证据汇集） | ⬜ |
+| ~~`sdlc-ui`~~ | 客户端制品链面板 | ❌ **本机做不出来**，见 pitfalls §13 |
 
 ## 目录
 
@@ -65,6 +65,9 @@ packages/sdlc-verify/     # 独立验证 + 测试冻结
 packages/sdlc-task/       # 任务状态机 + 制品链
   src/index.ts            #   三个工具 + 提示词段（文件走 ctx.fs）
   src/state.ts            #   状态机与 state.yaml 形状（纯函数，可脱离 DSH 单测）
+packages/sdlc-artifact/   # 制品撰写 + 结构检查（只查结构，不查质量）
+packages/sdlc-status/     # 任务看板（只读；坏任务不拖垮全局）
+  src/scan.ts             #   跨任务扫描与聚合（纯函数，可脱离 DSH 单测）
 docs/                     # DSH 契约与调研（改代码前必查）
 handbook/                 # 手册原文，只读
 ```
@@ -222,6 +225,27 @@ spec.md 的映射表枚举了 **10** 个内部状态，而我和 plan.md 五处�
   状态机的结构局限，不是演示场景的问题。
 - **"对外只暴露 4 态"的定义面不清**：设计把映射放在门户侧、API 返回内部状态码，
   于是内部术语仍跨过网络边界。四态保证只由前端承担，API 侧不可强制。
+
+### sdlc-status 的状态
+
+- [x] 单测 **14/14**（跨任务扫描纯函数层）
+- [x] 运行时冒烟 **24/24** —— **本仓库唯一用真实 `LocalFileSystem` 的冒烟**
+      · 前三个插件的冒烟都用内存 `ctx.fs` 桩，而"桩忽略参数 = 测试对这类问题失明"
+        （沙箱接线 bug 正是这样漏过去的）。这次在 `mkdtemp` 的临时目录里
+        造真实任务树，同时验证了真实 `listDir`/`stat`/`readText` 与沙箱路径解析。
+      · 含**只读性**断言：调用前后比对整个文件树与 mtime，必须完全一致。
+- [x] 关键设计：**坏任务不拖垮全局**。一个任务的 `state.yaml` 被手改坏，
+      看板仍要报出其它任务——出问题的时候最需要能看到东西。
+- [x] 状态机常量**从 sdlc-task 导入**（`exports["./state"]`），不复制一份——
+      本项目已经吃过一次"两份真相漂移"的亏（sdlc-verify 的 schema 漂移）。
+- [ ] 待装入 desktop profile 做真实端到端验证
+
+### 放弃 sdlc-ui 的原因（已记入 pitfalls §13）
+
+客户端 bundle 需要 `window.__ModuleLoader__.load` 格式 + tsdown Client preset，
+而本机 `dsh/package.json` 的 scripts 是 `{}`（打包发行版），**没有构建工具链**；
+host→client 的 RPC 是构建期生成的；`apps/web` 不在这里，**渲染结果验证不了**。
+交付一个连"加载"都做不到的东西违背本项目最硬的纪律。
 
 ### sdlc-task 的状态
 
