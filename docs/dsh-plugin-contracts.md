@@ -100,6 +100,73 @@ export const Config = z.object({
 `npm pack --dry-run` 会列出实际内容——**打包后核对文件数**，
 不要只看它能跑通。
 
+### 0.5 🔴 DSH 运行时包必须是**单例**，绝不能写进 `dependencies`
+
+**这是最危险的一个坑**，因为它**在加载时完全正常**，直到任何一次工具调用才爆发，
+而且症状看起来完全不像插件问题：
+
+```
+Cannot read properties of undefined (reading 'prepare')
+```
+
+**每一个**工具调用都失败（包括内置的 `read`、`bash`），会话彻底不可用。
+
+#### 机制
+
+`dsh-tools` 内部有一个**不导出的模块级 Symbol**：
+
+```js
+const TOOL_RUNTIME_SCHEDULER = Symbol("@deepseek-ai/dsh-tools.scheduler");
+```
+
+`dsh-agent-loop` 从包里 `import` 这个 Symbol，然后在**每次工具调用**时用它查表：
+
+```js
+const prepared = await ctx.tools[TOOL_RUNTIME_SCHEDULER].prepare(call.exec);
+```
+
+如果 `ctx.tools`（一个 `ToolRuntime` 实例）来自**另一份 `dsh-tools` 副本**，
+那么它的 Symbol 键是**另一个值** → 查表得到 `undefined` → 读 `.prepare` 报错。
+
+`Symbol()` 每次求值都产生新值，**所以"同一份模块实例"不是优化，是正确性前提**。
+
+#### 触发方式
+
+插件把 `@deepseek-ai/dsh-*` 写进 `dependencies`：
+
+```json
+// ✗ 致命：profile 会装第二份 dsh-tools
+"dependencies": { "@deepseek-ai/dsh-tools": "0.2.0-rc.2" }
+```
+
+`dsh plugin add` 之后，profile 的 `node_modules/@deepseek-ai/` 里会出现
+一份独立的 `dsh-tools`，与 App 自带的形成两个实例。
+
+#### 正确做法
+
+```json
+// ✓ 只声明 peer + dev
+"peerDependencies":  { "@deepseek-ai/dsh-tools": "0.2.0-rc.2" },
+"devDependencies":   { "@deepseek-ai/dsh-tools": "0.2.0-rc.2" }
+```
+
+运行时由宿主提供这些包，**不要**替它决定版本，也**不要**让它装第二份。
+
+#### 排查手法
+
+```sh
+find ~/.dsh/profiles/<profile> -path "*node_modules/@deepseek-ai/dsh-tools/package.json"
+# 有一份 = 被污染了（正常应该是 0 份，全部由 App 提供）
+```
+
+一旦装上就很难干净移除（残留会让符号解析继续错位）——
+最可靠的恢复是**重建 profile**：
+
+```sh
+mv ~/.dsh/profiles/desktop ~/.dsh/profiles/desktop.broken
+open -a "DeepSeek Harness"     # 会用模板重建，会话历史不受影响
+```
+
 ### 0.4 本地开发时不要用符号链接安装
 
 `dsh plugin add <绝对路径>` 会创建**符号链接**。Node 的模块解析会
