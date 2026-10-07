@@ -156,3 +156,34 @@ printf '%s' 'git push origin main' | base64 -D | sh    # 不会被拦
 | 结构化输出 | `structured_output` 工具**存在**，带"恰好调用一次"守卫与单调提交 |
 | 子代理后端 | 6 种：in-process `spawn` / `fork` / ACP / Codex / Claude Code / SDK |
 | 编排 token 计费 | **无**。引擎限制并发与子级数量，但不统计跨子级 token |
+
+## 12. 改了插件代码**不会**热重载已激活的条目
+
+实测踩到，而且骗过了我一次：
+
+`dsh plugin add` 之后**看起来**像生效（系统提示里出现了新的提示词段、
+工具出现在清单里），于是我以为 HMR 会热加载模块变更。**不会。**
+
+机制（验证者查证并给出源码位置）：
+
+- `dsh-app-boot` 的 `reconcileProfilePatches` 对根 include 条目调用
+  `entry.update({ config })`
+- `cordis-plugin-loader` 的 `Entry.update` 在 options 深比较**无变化**且
+  `force=false` 时**直接 return**，不重新 `import` 模块
+
+后果：改了 `lib/*.js` 并重新 `dsh plugin add` 之后，
+**运行中的进程仍在执行旧模块**。旧的工具 schema、旧的 persona、旧的判定逻辑
+全都还在内存里。
+
+### 怎么分清「制品对了」和「进程加载了」
+
+| 判据 | 能证明什么 |
+|---|---|
+| `npm pack` 内容 / 文件哈希一致 | 只证明**制品**对了 |
+| `plugin_manager list_plugins` 的 `fiberPhase` | 只证明**条目激活**了 |
+| **子代理 persona 文本、工具描述、工具清单哈希** | 才证明**加载的是这一版** |
+
+⚠️ 用「磁盘哈希一致」代替「运行时可观测物」是我犯过的错：
+哈希一致完全无法证明进程加载了新代码。
+
+**要真正生效，重启 App。** 重启后用运行时可见物验证，不要用文件哈希。
