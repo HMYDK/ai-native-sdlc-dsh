@@ -55,6 +55,13 @@ handbook/                 # 手册原文，只读
 
 ### 写插件必守（每条都踩过，全是"警告后继续"的静默失败）
 
+0. 🔴 **绝不要把 `@deepseek-ai/dsh-*` 写进 `dependencies`。**
+   只写 `peerDependencies` + `devDependencies`。写进 dependencies 会让 profile
+   装**第二份** `dsh-tools`，而 `dsh-agent-loop` 用一个**模块内 Symbol** 查表
+   （`ctx.tools[TOOL_RUNTIME_SCHEDULER]`）——两份模块 = 两个 Symbol 值 = 查不到
+   = **每一次工具调用都失败**，会话彻底不可用。
+   加载时完全正常，只在工具调用时爆发，且移除插件也未必能恢复。
+   详见 `docs/dsh-plugin-contracts.md` §0.5。
 1. **`inject` 列出每一个访问到的服务**。少一个就抛
    `cannot get property "X" without inject`，插件不激活但 app 照常启动。
 2. **`Config` 必须是 Standard Schema 校验器**（schemastery 或 zod），
@@ -67,6 +74,11 @@ handbook/                 # 手册原文，只读
 
 ### 验证纪律
 
+**跑 `npm run verify`（= build + test + smoke），不要只看其中一项。**
+
+- **`smoke.mjs` 是关键的那一层**：它用真实 Cordis 上下文 + 真实 `ToolRuntime`
+  挂载插件并**真的调用工具**。加载成功 ≠ 可用——这个脚本就是为了防这件事。
+  它不需要重启 App，也不碰用户 profile。
 - **符号链接安装通过 ≠ 真实分发可用。** 必须用 `npm pack` 的 tarball 装一遍。
 - **隔离 profile 验证，不碰正在用的 App**：
   `dsh plugin --profile verifytest add <tgz>`，看启动日志有无
@@ -103,14 +115,22 @@ handbook/                 # 手册原文，只读
 
 ## 当前状态
 
-- [x] `sdlc-verify` 插件：类型检查零错误、单测 9/9、打包内容核对、
-      隔离 profile 启动实测**全部条目激活成功**
-- [x] desktop profile 已安装 tarball 版本（待重启生效）
-- [ ] 端到端实测：真实跑一次 `sdlc_verify`，确认结构化裁决能拿到
-- [ ] 端到端实测：测试冻结 guard 在真实会话里拦得住
+- [x] `sdlc-verify` 插件：TypeScript 严格模式零错误
+- [x] 单测 9/9（纯函数层）
+- [x] **运行时冒烟测试 33/33**（`smoke.mjs`：真实 Cordis + 真实 ToolRuntime，
+      真的调用工具；覆盖冻结拦截/放行/解冻、裁决穿透、六个 subagent 参数、
+      提示词内容与条件渲染）
+- [x] 根因已定位并修复：`dependencies` 里的 `@deepseek-ai/*` 导致 profile 装第二份
+      `dsh-tools`，破坏模块内 Symbol 身份，使**所有**工具调用失败
+- [x] 用户 profile 已重建恢复（旧的留在 `~/.dsh/profiles/desktop.broken`）
+- [ ] **尚未在真实会话里端到端跑通**：需要装进 profile、重启、真的调一次
+      `sdlc_verify` 并拿到结构化裁决。冒烟测试覆盖了机制，但没覆盖
+      "真实子代理 + 真实模型" 这条链路
 - [ ] 其余 5 个插件
 
 ## 待用户决策
 
 - 是否把 `main` 分支保护配上（我测过的所有控制里**只有服务端分支保护不可绕过**）
 - MVP 第二个插件选哪个：`sdlc-task`（状态与制品链）还是 `sdlc-artifact`（制品工具）
+- 是否现在把 `sdlc-verify` 装回 desktop profile 做真实端到端验证
+  （风险已明确：插件本身已证明在隔离上下文中不破坏调度，但真实会话是最后一道未知）
