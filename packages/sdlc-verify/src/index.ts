@@ -22,6 +22,9 @@
 import type { Context } from '@deepseek-ai/cordis';
 // 显式 import：ctx.fs 由 dsh-fs 的 declaration merging 提供
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
+import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox';
+// 只为触发 declaration merging：`ctx.sandboxPolicy` 由它提供
+import type { SandboxPolicyService as _SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
@@ -45,7 +48,9 @@ export const name = 'sdlc-verify';
  * `cannot get property "<name>" without inject`——而插件激活失败是
  * "警告后继续"，所以症状只是 `fiberPhase: failed`，不仔细看会以为装上了。
  */
-export const inject = ['tools', 'subagents', 'systemPrompt', 'fs'];
+// `sandboxPolicy` 必须有：写 verification.json 要按会话策略解析（否则会落到
+// 沙箱的部署 fallback 根，写入被误判越界——实测第二次踩到，第一次在 sdlc-task）。
+export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolicy'];
 
 /**
  * 验证者允许使用的工具。
@@ -146,6 +151,35 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
  * `config` 由 Cordis 经 `Config['~standard'].validate()` 校验并填好默认值后传入，
  * 所以这里可以直接当作已解析的配置使用。
  */
+/**
+ * 解析选项：把会话 cwd（或策略给的 workspace 根）作为 cwd 传进去。
+ * 与 sdlc-task 同一套写法——官方 dsh-tool-fs 也是这么做的。
+ */
+function resolveOptions(
+  exec: { agent?: unknown; signal?: AbortSignal },
+  policyRoot?: string,
+): { cwd?: string; signal?: AbortSignal } {
+  const agent = exec.agent as { session?: { header?: { cwd?: unknown } } } | undefined;
+  const raw = agent?.session?.header?.cwd;
+  const sessionCwd = typeof raw === 'string' && raw !== '' ? raw.replace(/\/+$/, '') : undefined;
+  const cwd = policyRoot ?? sessionCwd;
+  return { ...(cwd !== undefined ? { cwd } : {}), signal: exec.signal };
+}
+
+/** 解析本次调用的沙箱策略（写操作专用）。 */
+async function writePolicy(
+  ctx: Context,
+  exec: { agent?: unknown },
+): Promise<SandboxExecutionPolicy | undefined> {
+  const session = (exec.agent as { session?: unknown } | undefined)?.session;
+  if (session === undefined) return undefined;
+  try {
+    return ctx.sandboxPolicy.resolve({ session: session as never });
+  } catch {
+    return undefined;
+  }
+}
+
 interface ResolvedTask {
   id: string;
   dir: string;
@@ -184,7 +218,7 @@ async function resolveTask(
 
   let raw: unknown;
   try {
-    const target = await ctx.fs.resolve(`${dir}/state.yaml`, { signal });
+    const target = await ctx.fs.resolve(`${dir}/state.yaml`, resolveOptions(exec));
     const info = await ctx.fs.stat(target, signal);
     if (info === undefined || info.type !== 'file') {
       throw new Error(
@@ -373,8 +407,12 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         // 写失败不掩盖裁决本身（裁决已经拿到了，先把它交出去）。
         if (task !== undefined) {
           try {
+            const policy = await writePolicy(ctx, exec);
             await ctx.fs.writeText(
-              await ctx.fs.resolve(`${task.dir}/verification.json`, { signal: exec.signal }),
+              await ctx.fs.resolve(
+                `${task.dir}/verification.json`,
+                resolveOptions(exec, policy?.workspaceRoot),
+              ),
               JSON.stringify(
                 {
                   task: task.id,
@@ -389,6 +427,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               ) + '\n',
               undefined,
               exec.signal,
+              policy,
             );
           } catch (e) {
             return {

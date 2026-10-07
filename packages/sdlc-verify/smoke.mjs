@@ -76,8 +76,13 @@ ctx.provide('systemPrompt', {
 // 内存文件系统桩：sdlc_verify 现在会在给了 task_id 时读 state.yaml、
 // 并把裁决写到 verification.json。
 const files = new Map();
+// 记录 cwd 与 policy：这是锁住"沙箱接线正确"的关键。
+// 之前的桩忽略这两个参数，于是"落盘被沙箱拒绝"这个 bug 逃过了测试。
+const resolveCalls = [];
+const writeCalls = [];
 ctx.provide('fs', {
-  async resolve(p, _o) {
+  async resolve(p, o) {
+    resolveCalls.push({ path: p, cwd: o?.cwd });
     return { targetKey: p, displayPath: p };
   },
   async stat(target) {
@@ -88,9 +93,20 @@ ctx.provide('fs', {
     if (v === undefined) throw new Error(`ENOENT: ${target.displayPath}`);
     return v;
   },
-  async writeText(target, content) {
+  async writeText(target, content, _intent, _signal, policy) {
+    writeCalls.push({ path: target.displayPath, policy });
     files.set(target.displayPath, content);
     return { version: 'v1' };
+  },
+});
+
+// 沙箱策略服务桩：会话 cwd 就是 workspace-write 的边界
+const WORKSPACE_ROOT = '/repo';
+ctx.provide('sandboxPolicy', {
+  resolve({ session }) {
+    return session === undefined
+      ? undefined
+      : { mode: 'workspace-write', workspaceRoot: WORKSPACE_ROOT };
   },
 });
 
@@ -410,6 +426,31 @@ console.log('\n== 5d. 任务身份：从 state.yaml 解析制品并把裁决落�
     ok('task_id 不存在时报错（不静默降级）');
   } else {
     bad('task_id 不存在时未报错');
+  }
+}
+
+console.log('\n== 5d-2. 沙箱接线（落盘曾因漏传策略被拒）==');
+{
+  const missingCwd = resolveCalls.filter((c) => c.cwd === undefined);
+  if (missingCwd.length === 0) {
+    ok(`每次 fs.resolve 都带了 cwd（共 ${resolveCalls.length} 次）`);
+  } else {
+    bad(
+      `${missingCwd.length} 次 resolve 没有 cwd —— 会落到沙箱的 fallback 根，` +
+        `写 verification.json 会被误判越界。例：${missingCwd[0].path}`,
+    );
+  }
+  const wrongRoot = resolveCalls.filter((c) => c.cwd !== undefined && c.cwd !== WORKSPACE_ROOT);
+  if (wrongRoot.length === 0) ok('resolve 的 cwd 一律是会话的 workspace 根');
+  else bad(`有 ${wrongRoot.length} 次 resolve 用了别的 cwd：${wrongRoot[0].cwd}`);
+
+  const noPolicy = writeCalls.filter((w) => w.policy === undefined);
+  if (writeCalls.length === 0) {
+    bad('没有任何 writeText 调用，落盘路径没被覆盖');
+  } else if (noPolicy.length === 0) {
+    ok(`每次 writeText 都带了沙箱策略（共 ${writeCalls.length} 次）`);
+  } else {
+    bad(`${noPolicy.length} 次 writeText 没带策略（落盘会被拒）`);
   }
 }
 
