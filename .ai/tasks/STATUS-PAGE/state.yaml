@@ -1,11 +1,12 @@
 task: STATUS-PAGE
 title: "sdlc_status：让被截断的任务可达（分页 + 单任务详情）"
-status: VERIFYING
+status: DONE
 created: 2026-10-07T17:54:15.468Z
-updated: 2026-10-07T17:57:22.377Z
+updated: 2026-10-07T18:26:36.726Z
 artifacts:
   intent: "intent.md"
   plan: "plan.md"
+  review: "review.json"
   spec: "spec.md"
   verification: "verification.json"
 history:
@@ -29,3 +30,11 @@ history:
     from: "IMPLEMENTING"
     to: "VERIFYING"
     reason: "实现完成：selectTasks 纯函数 + 工具参数/输出/渲染 + 冒烟。四包 tsc 0、单测 49、冒烟 53、测试场端到端 22/22、测试场自身 25 条 OK"
+  - at: "2026-10-07T18:26:29.337Z"
+    from: "VERIFYING"
+    to: "REVIEWING"
+    reason: "独立验证裁决 approve（verifier_session fc3995e6），6/6 判据 met；随后按其 2 条 minor 与 1 条 test_integrity finding 收尾并重跑全量验证"
+  - at: "2026-10-07T18:26:36.726Z"
+    from: "REVIEWING"
+    to: "DONE"
+    reason: "评审结论 accept：approve 裁决 + 已按其 findings 收尾。review.json 记录了 4 轮裁决的经过与如实保留的未处理项"
