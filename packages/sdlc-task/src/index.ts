@@ -60,35 +60,10 @@ export const inject = ['tools', 'fs', 'systemPrompt', 'sandboxPolicy'];
 export const Config = z.object({
   /** 任务目录所在位置，相对仓库根。默认 `.ai/tasks`。 */
   tasksDir: z.string().default(TASKS_DIR),
-  /** intent.md 的骨架模板。`{{task}}` / `{{title}}` 会被替换。 */
-  intentTemplate: z
-    .string()
-    .default(
-      [
-        '# Intent: {{title}}',
-        'Author: <谁>. Status: draft.',
-        '',
-        '## Problem',
-        '<具体到能验证的问题——不要写方案>',
-        '',
-        '## Proposed outcome',
-        '<可观察的结果，不是功能清单>',
-        '',
-        '## Affected users and systems',
-        '',
-        '## Constraints',
-        '<包括"不做什么">',
-        '',
-        '## Open questions',
-        '<诚实列出还没想清楚的——这是给规格阶段的输入>',
-        '',
-      ].join('\n'),
-    ),
 });
 
 interface SdlcTaskConfig {
   tasksDir: string;
-  intentTemplate: string;
 }
 
 /**
@@ -262,9 +237,12 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
     defineTool({
       name: 'sdlc_task_create',
       description:
-        'Create a task: makes the task directory, writes state.yaml (status=INTENT) and an intent.md skeleton. ' +
-        'The task directory is the durable home for the artifact chain; state.yaml is the source of truth and ' +
-        'lives in git, so it is human-readable and hand-editable.',
+        'Create a task: makes the task directory and writes state.yaml (status=INTENT). The task directory is ' +
+        'the durable home for the artifact chain; state.yaml is the source of truth and lives in git, so it is ' +
+        'human-readable and hand-editable. ' +
+        'NOTE: no intent.md is written — author it with sdlc_artifact_write, then register it via the ' +
+        '`artifacts` parameter of sdlc_task_advance. Advancing out of INTENT requires the intent artifact, so ' +
+        'an un-authored intent cannot move forward.',
       parameters: {
         task_id: {
           type: 'string',
@@ -275,7 +253,8 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         problem: {
           type: 'string',
           description:
-            'Optional: what problem this solves, in the requester\'s own words. Substituted into the intent skeleton.',
+            'Optional: what problem this solves, in the requester\'s own words. Recorded as context only — the ' +
+            'intent artifact itself is authored separately with sdlc_artifact_write.',
         },
       },
       output: {
@@ -319,21 +298,22 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           status: 'INTENT',
           created: now,
           updated: now,
-          artifacts: { intent: KNOWN_ARTIFACTS['intent'] ?? 'intent.md' },
+          // 刻意**不**登记 intent，也不生成占位文件。
+          //
+          // 实测发现的「两份真相」：create 原来写一个 intent 骨架，而
+          // sdlc-artifact 的 skeletonFor 也生成骨架——两者是**不同的产物**
+          // （模板分别住在两个插件里）。后果：
+          //   ① 同一件事两份真相，会漂移
+          //   ② 写真实意图必须覆盖那个占位文件，于是每个任务的第一步都是
+          //      「先碰一次拒绝，再加 overwrite」——训练效果更糟：人会学会
+          //      无脑加 overwrite，那道防**静默替换**的防线就失效了
+          //
+          // 现在：建任务与写意图是两件事，意图由 sdlc-artifact 写。
+          // 没写意图就前进会被门槛拦住——对的，意图本就是前进的前提。
+          artifacts: {},
           history: [{ at: now, from: '', to: 'INTENT', reason: '任务创建' }],
         };
 
-        const intentText = cfg.intentTemplate
-          .replaceAll('{{task}}', id)
-          .replaceAll('{{title}}', args.title)
-          .replaceAll('{{problem}}', args.problem ?? '<具体到能验证的问题——不要写方案>');
-
-        const policy = await writePolicy(ctx, exec);
-        const opts = resolveOptions(exec, policy?.workspaceRoot);
-        const intentTarget = await ctx.fs.resolve(`${paths.taskDir}/intent.md`, opts);
-        // 先写 intent.md 再写 state.yaml：两者任何一个失败都不该留下
-        // "有 state.yaml 但没有 intent.md"的悬空任务（那会让状态机自欺）。
-        await ctx.fs.writeText(intentTarget, intentText, undefined, exec.signal, policy);
         await writeState(ctx, paths, state, exec);
 
         return {
@@ -341,7 +321,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           status: state.status,
           task_dir: paths.taskDir,
           state_file: paths.stateFile,
-          created: ['intent.md', 'state.yaml'],
+          created: ['state.yaml'],
         };
       },
     }),
@@ -547,7 +527,9 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
       '',
       '`.ai/tasks/<TASK-ID>/state.yaml` 是任务状态与制品索引的**事实来源**，它进 git、人可读、也可手改。',
       '',
-      '- 开始一项工作时先 `sdlc_task_create`；不确定缺什么就先 `sdlc_task_status`。',
+      '- 开始一项工作时先 `sdlc_task_create`（它只建 `state.yaml`，**不生成 `intent.md`**）；',
+      '  意图用 `sdlc_artifact_write` 写，随 `sdlc_task_advance` 的 `artifacts` 参数登记。',
+      '- 不确定缺什么就先 `sdlc_task_status`。',
       '- 状态迁移用 `sdlc_task_advance`，它会**拒绝**缺制品或没给原因的迁移。',
       '- 回退是允许的：发现了更好的方案就退回 `PLANNED` 改计划，**不要**硬着头皮往下走。',
       '- 制品路径写在 `state.yaml` 的 `artifacts` 里，是相对任务目录的路径。',

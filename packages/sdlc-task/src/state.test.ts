@@ -335,3 +335,64 @@ test('门槛表覆盖全部状态，且随状态单调不减', () => {
     }
   }
 });
+
+// ─────────────────────────── 空 artifacts 的序列化（测试场抓到的真实缺陷）
+
+test('回归：空 artifacts 不写 {} 占位符（否则第一个制品的登记会写坏事实来源）', () => {
+  // 缺陷原貌：序列化器对空 artifacts 写
+  //     artifacts:
+  //       {}
+  // 而"登记制品"是在 artifacts: 之后、缩进块结束处插一行——它把 `{}` 当成
+  // 一条已有条目，插在**它后面**，产生非法缩进：
+  //     artifacts:
+  //       {}
+  //       intent: "intent.md"
+  // 于是整个 state.yaml 解析失败。后果：artifacts 为空时，
+  // **第一个制品的登记就会写坏 state.yaml**——而它是事实来源。
+  const empty = baseState({ artifacts: {} });
+  const text = serializeTaskState(empty);
+
+  assert.ok(!/^\s*\{\}\s*$/m.test(text), `空 artifacts 不该出现 {} 占位符：\n${text}`);
+
+  // 空映射仍要能往返
+  const back = parseTaskState('PROJ-1', parseYaml(text, { schema: JSON_SCHEMA }));
+  assert.deepEqual(back.artifacts, {});
+
+  // 关键：模拟**真实调用方**的登记做法（sdlc-artifact / sdlc-verify 的
+  // registerArtifact：在 artifacts 段末尾插一行）。
+  // 它必须同时处理两种形态：`artifacts: {}`（同一行）与 `artifacts:` + 缩进块。
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => /^artifacts:\s*(\{\s*\})?\s*$/.test(l));
+  assert.ok(start >= 0, `应有 artifacts 行：\n${text}`);
+
+  if (/^artifacts:\s*\{\s*\}\s*$/.test(lines[start] ?? '')) {
+    // 空映射写成同一行 → 直接把这一行换掉
+    lines[start] = 'artifacts:\n  intent: "intent.md"';
+  } else {
+    let insertAt = start + 1;
+    while (insertAt < lines.length && /^\s{2}\S/.test(lines[insertAt] ?? '')) insertAt += 1;
+    lines.splice(insertAt, 0, '  intent: "intent.md"');
+  }
+  const afterRegister = lines.join('\n');
+
+  const reparsed = parseTaskState(
+    'PROJ-1',
+    parseYaml(afterRegister, { schema: JSON_SCHEMA }),
+  );
+  assert.deepEqual(
+    reparsed.artifacts,
+    { intent: 'intent.md' },
+    `登记一行后必须是合法 YAML 且解析出该制品。实际文本：\n${afterRegister}`,
+  );
+});
+
+test('回归：非空 artifacts 可以继续追加登记（不破坏已有条目）', () => {
+  const text = serializeTaskState(baseState({ artifacts: { intent: 'intent.md' } }));
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => /^artifacts:\s*$/.test(l));
+  let insertAt = start + 1;
+  while (insertAt < lines.length && /^\s{2}\S/.test(lines[insertAt] ?? '')) insertAt += 1;
+  lines.splice(insertAt, 0, '  spec: "spec.md"');
+  const back = parseTaskState('PROJ-1', parseYaml(lines.join('\n'), { schema: JSON_SCHEMA }));
+  assert.deepEqual(back.artifacts, { intent: 'intent.md', spec: 'spec.md' });
+});

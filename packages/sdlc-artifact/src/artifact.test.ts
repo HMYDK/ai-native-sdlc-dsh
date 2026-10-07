@@ -14,6 +14,7 @@ import {
   checkArtifact,
   extractSections,
   isArtifactKind,
+  isUnmodifiedSkeleton,
   REQUIRED_SECTIONS,
   sectionBody,
   skeletonFor,
@@ -175,4 +176,55 @@ test('检查结果里带上实际找到的章节，便于对账', () => {
   const r = checkArtifact('plan', wellFormed('plan'));
   assert.deepEqual(r.found, ['Files that change', 'Order of work', 'Risks', 'Proof']);
   assert.equal(r.kind, 'plan');
+});
+
+// ───────────────────────────────── 骨架识别（决定能否免 overwrite 覆盖）
+
+test('未修改的骨架被识别出来（忽略一级标题的差异）', () => {
+  // sdlc_task_create 用**真实标题**生成骨架，而这里不知道标题，
+  // 所以比对时忽略 `# Intent: ...` 这一行，其余必须逐字相同。
+  const fromCreate = skeletonFor('intent', '修复会员折扣计算错误');
+  const fromTool = skeletonFor('intent', '（待填标题）');
+  assert.equal(
+    isUnmodifiedSkeleton('intent', fromCreate),
+    true,
+    'create 生成的骨架（带真实标题）必须被认出来',
+  );
+  assert.equal(isUnmodifiedSkeleton('intent', fromTool), true);
+  for (const k of ARTIFACT_KINDS) {
+    assert.equal(isUnmodifiedSkeleton(k, skeletonFor(k, '任意标题')), true, `${k} 的骨架应被识别`);
+  }
+});
+
+test('回归：只填了一节就不算骨架——仍然需要显式 overwrite', () => {
+  // 这是这条豁免的边界：豁免的只是"一个字没动过"的骨架。
+  // 一旦有人往里写了东西，它就是别人的产出了。
+  const filled = skeletonFor('intent', 'T').replace(
+    '<!-- 下游要靠它判断这份意图解不解决问题；只写方案会让规格阶段无从对照 -->',
+    '客户反复打电话问进度。',
+  );
+  assert.equal(
+    isUnmodifiedSkeleton('intent', filled),
+    false,
+    '填了一节之后就不能再自动覆盖了——那是别人的产出',
+  );
+});
+
+test('回归：删掉一节也不算骨架', () => {
+  const trimmed = skeletonFor('plan', 'T').replace(/\n## Risks\n[\s\S]*?(?=\n## |$)/, '\n');
+  assert.equal(isUnmodifiedSkeleton('plan', trimmed), false, '结构被改过就不是骨架');
+});
+
+test('回归：正文一模一样但**不是**骨架结构 → 不豁免', () => {
+  // 防一类巧合作弊：如果有人把骨架内容抄进一份自己的文档，但那不是骨架格式
+  const mangled = skeletonFor('spec', 'T').replace('## Requirements', '## 需求');
+  assert.equal(isUnmodifiedSkeleton('spec', mangled), false);
+});
+
+test('识别是大小写与空白敏感的（逐行 trimEnd 之后比较）', () => {
+  // 行尾空白容忍，行内改动不容忍
+  const withTrailingSpace = skeletonFor('plan', 'T').replace(/\n/g, '   \n');
+  assert.equal(isUnmodifiedSkeleton('plan', withTrailingSpace), true, '行尾空白应当容忍');
+  const changed = skeletonFor('plan', 'T').replace('Order of work', 'ORDER OF WORK');
+  assert.equal(isUnmodifiedSkeleton('plan', changed), false, '正文改动不该容忍');
 });

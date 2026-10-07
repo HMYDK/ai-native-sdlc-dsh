@@ -229,6 +229,27 @@ export function checkArtifact(kind: ArtifactKind, markdown: string): ArtifactChe
   return { kind, ok: findings.length === 0, found: heads, findings };
 }
 
+/**
+ * 判断磁盘上的内容是不是**未经修改的骨架**。
+ *
+ * 逐行比对，忽略一级标题（`# Intent: ...`）——因为骨架的标题由
+ * `sdlc_task_create` 填的是真实标题，而这里不知道标题是什么。
+ * 其余每一行必须完全一致：任何人工补充（哪怕只填了一节）都会让它返回 false，
+ * 于是仍然需要显式 overwrite。
+ */
+export function isUnmodifiedSkeleton(kind: ArtifactKind, existing: string): boolean {
+  const ref = skeletonFor(kind, 'x');
+  const strip = (text: string) =>
+    text
+      .split('\n')
+      .filter((l) => !/^#\s/.test(l)) // 去掉一级标题
+      .map((l) => l.trimEnd());
+  const a = strip(existing);
+  const b = strip(ref);
+  if (a.length !== b.length) return false;
+  return a.every((line, i) => line === b[i]);
+}
+
 export function isArtifactKind(v: unknown): v is ArtifactKind {
   return typeof v === 'string' && (ARTIFACT_KINDS as readonly string[]).includes(v);
 }

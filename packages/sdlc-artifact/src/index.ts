@@ -30,6 +30,7 @@ import {
   ARTIFACT_KINDS,
   checkArtifact,
   isArtifactKind,
+  isUnmodifiedSkeleton,
   REQUIRED_SECTIONS,
   skeletonFor,
   type ArtifactKind,
@@ -159,12 +160,24 @@ async function registerArtifact(
   }
 
   const lines = text.split('\n');
-  const start = lines.findIndex((l) => /^artifacts:\s*$/.test(l));
+  // 两种形态都要认：
+  //   `artifacts:` 后面跟缩进块   —— 有制品时
+  //   `artifacts: {}` 同一行      —— 空时（sdlc-task 的序列化器写这个）
+  // 只认前者会让"第一个制品"永远登记不上，而且**静默跳过**
+  // （这个组合正是测试场抓到的：序列化器写 `  {}` 单独一行，
+  //   登记逻辑把 `{}` 当成已有条目插在它后面，写出非法 YAML）。
+  const start = lines.findIndex((l) => /^artifacts:\s*(\{\s*\})?\s*$/.test(l));
   if (start < 0) {
     return (
       `⚠ 制品未登记：state.yaml 里找不到 \`artifacts:\` 段（可能被手改过）。` +
       `文件已写好，请手动登记 ${kind}: "${filename}"`
     );
+  }
+  if (/^artifacts:\s*\{\s*\}\s*$/.test(lines[start] ?? '')) {
+    // 空映射写在同一行 → 展开成缩进块并放入第一个制品
+    lines[start] = `artifacts:\n  ${kind}: "${filename}"`;
+    await writeFile(ctx, paths.stateFile, lines.join('\n'), exec);
+    return `制品登记：${kind} → ${filename}（artifacts 原为空）`;
   }
   let insertAt = start + 1;
   while (insertAt < lines.length && /^\s{2}\S/.test(lines[insertAt] ?? '')) insertAt += 1;
@@ -314,6 +327,7 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
             kind: { type: 'string', required: true },
             path: { type: 'string', required: true },
             created: { type: 'boolean', required: true },
+            replaced_skeleton: { type: 'boolean', required: true },
             structure_ok: { type: 'boolean', required: true },
             findings: { type: 'array', required: true, items: { type: 'string' } },
             registration: { type: 'string', required: true },
@@ -327,7 +341,7 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
             {
               type: 'text',
               text: [
-                `${String(o.kind)} 已${o.created === true ? '创建' : '更新'}：${String(o.path)}`,
+                `${String(o.kind)} 已${o.created === true ? '创建' : o.replaced_skeleton === true ? '写入（替换了骨架）' : '更新'}：${String(o.path)}`,
                 `结构检查：${o.structure_ok === true ? '通过' : `**不通过**（${fs.length} 项）`}`,
                 ...fs.map((f) => `  · ${f}`),
                 String(o.registration),
@@ -354,12 +368,26 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
 
         const existing = await readFileIfExists(ctx, path, exec);
         if (existing !== undefined && args.overwrite !== true) {
-          const check = checkArtifact(kind, existing);
-          throw new Error(
-            `${filename} 已存在（${existing.length} 字符，结构检查${check.ok ? '通过' : '不通过'}）。` +
-              '要用 overwrite: true 明确覆盖——静默替换会让"当初要求的是什么"丢失。' +
-              '想先看它的结构问题，用 sdlc_artifact_check。',
-          );
+          // 骨架不算"已有内容"。
+          //
+          // 为什么：每个任务的第一步都是写 intent，而 `sdlc_task_create` 必然
+          // 先放一个骨架。若把骨架当成"已有内容"，唯一的高频路径就变成
+          // 「先碰一次拒绝，再加 overwrite: true 重试」——而它的训练效果更糟：
+          // 人会学会无脑加 overwrite，那道防线（防**静默替换**）就失效了。
+          //
+          // 判定是精确的，不是"看起来像空文件"这种猜测：
+          // `sdlc_task_create` 生成的骨架与 `skeletonFor` 的输出逐字一致。
+          // 但标题不同（create 用真实标题，这里不知道），所以按**行**比对：
+          // 忽略一级标题那一行，其余必须完全相同。
+          const looksLikeSkeleton = isUnmodifiedSkeleton(kind, existing);
+          if (!looksLikeSkeleton) {
+            const check = checkArtifact(kind, existing);
+            throw new Error(
+              `${filename} 已存在（${existing.length} 字符，结构检查${check.ok ? '通过' : '不通过'}）。` +
+                '要用 overwrite: true 明确覆盖——静默替换会让"当初要求的是什么"丢失。' +
+                '想先看它的结构问题，用 sdlc_artifact_check。',
+            );
+          }
         }
 
         const content =
@@ -381,6 +409,9 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
           kind,
           path,
           created: existing === undefined,
+          // 显式报出来，不静默：覆盖的是骨架还是真内容，调用方应当看得见
+          replaced_skeleton:
+            existing !== undefined && isUnmodifiedSkeleton(kind, existing),
           structure_ok: r.ok,
           findings: r.findings.map((f) => `[${f.kind}] ${f.detail}`),
           registration,

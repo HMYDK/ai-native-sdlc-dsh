@@ -173,11 +173,14 @@ export function parseTaskState(taskId: string, raw: unknown): TaskState {
   }
 
   const artifactsRaw = o['artifacts'];
-  if (
+  // `artifacts:` 后面留空时 YAML 解析出 null——那是"没有制品"，不是错误。
+  // 但数组要显式拒绝：数组也是 object，否则 [] 会被当成"没有制品"静默通过。
+  if (artifactsRaw === null) {
+    // 视为空映射
+  } else if (
     artifactsRaw !== undefined &&
-    (artifactsRaw === null || typeof artifactsRaw !== 'object' || Array.isArray(artifactsRaw))
+    (typeof artifactsRaw !== 'object' || Array.isArray(artifactsRaw))
   ) {
-    // 数组也是 object，必须显式排除——否则 [] 会被当成"没有制品"静默通过
     throw new Error('state.yaml 的 artifacts 必须是映射（键 → 相对路径），不能是数组');
   }
   const artifacts: Record<string, string> = {};
@@ -240,11 +243,33 @@ export function serializeTaskState(state: TaskState): string {
     `updated: ${state.updated}`,
   ];
 
-  lines.push('artifacts:');
+  // ⚠️ 空映射**不写 `{}` 占位符**。
+  //
+  // 这是一个由测试场抓到的真实缺陷：序列化器原来对空 artifacts 写
+  //   artifacts:
+  //     {}
+  // 而"登记制品"的逻辑是「在 artifacts: 之后、缩进块结束处插一行」——
+  // 它把 `{}` 当成了一条已有条目，于是插在它**后面**：
+  //   artifacts:
+  //     {}
+  //     intent: "intent.md"     ← 非法缩进，整个 state.yaml 解析失败
+  // 后果：artifacts 为空时，**第一个制品的登记就会写坏事实来源**。
+  // 空着什么都不写，插入逻辑自然就对了。
   const keys = Object.keys(state.artifacts).sort();
   if (keys.length === 0) {
-    lines.push('  {}');
+    // 空映射写在同一行，且**不能**写成单独一行的 `  {}`。
+    //
+    // 缺陷原貌（测试场抓到）：原来写的是
+    //     artifacts:
+    //       {}
+    // 而"登记制品"的逻辑是「在 artifacts: 之后、缩进块结束处插一行」——
+    // 它把 `{}` 当成一条已有条目，插在**它后面**，产生非法缩进，
+    // 整个 state.yaml 解析失败。后果：artifacts 为空时，
+    // **第一个制品的登记就会写坏事实来源**。
+    // 写成同一行的 `artifacts: {}` 就没有可被误解的缩进块。
+    lines.push('artifacts: {}');
   } else {
+    lines.push('artifacts:');
     for (const k of keys) lines.push(`  ${k}: ${yamlText(state.artifacts[k] ?? '')}`);
   }
 

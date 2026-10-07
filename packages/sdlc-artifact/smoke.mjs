@@ -274,6 +274,52 @@ console.log('\n== 6. 结构不合格时的行为 ==');
   }
 }
 
+console.log('\n== 6b. 回归：artifacts 为空时的**第一个**制品登记 ==');
+{
+  // 这是测试场抓到的真实缺陷：sdlc_task_create 现在产出
+  //     artifacts: {}
+  // 若登记逻辑只认 `^artifacts:\s*$`，就找不到锚点 → 静默不登记；
+  // 而更早的版本还会把 `  {}` 当成已有条目插在它后面，写出非法 YAML。
+  // 后果一样严重：artifacts 为空时**第一个制品永远登记不上**。
+  const EMPTY = 'EMPTY-1';
+  const emptyDir = `/repo/.ai/tasks/${EMPTY}`;
+  files.set(
+    `${emptyDir}/state.yaml`,
+    [
+      `task: ${EMPTY}`,
+      'title: "空 artifacts"',
+      'status: INTENT',
+      'created: "2026-10-07T10:00:00.000Z"',
+      'updated: "2026-10-07T10:00:00.000Z"',
+      'artifacts: {}',
+      'history: []',
+      '',
+    ].join('\n'),
+  );
+
+  const r = await dispatch('sdlc_artifact_write', {
+    task_id: EMPTY,
+    kind: 'intent',
+    content: goodIntent,
+  });
+  if (r.isError) bad(`空 artifacts 时写入失败: ${JSON.stringify(r.error)}`);
+  else {
+    if (/制品登记：intent/.test(r.value.registration)) ok('artifacts 为空时第一个制品仍然登记上了');
+    else bad(`第一个制品未登记：${r.value.registration}`);
+
+    // 登记后的 state.yaml 必须是**合法 YAML**（这是那个缺陷的核心）
+    const { load, JSON_SCHEMA } = require('js-yaml');
+    const text = files.get(`${emptyDir}/state.yaml`) ?? '';
+    try {
+      const doc = load(text, { schema: JSON_SCHEMA });
+      if (doc.artifacts?.intent === 'intent.md') ok('登记后的 state.yaml 是合法 YAML 且含该制品');
+      else bad(`登记后内容不符：${JSON.stringify(doc.artifacts)}`);
+    } catch (err) {
+      bad(`登记写出非法 YAML（正是那个缺陷）：${err.message.split('\n')[0]}\n${text}`);
+    }
+  }
+}
+
 console.log('\n== 7. 从磁盘检查已有制品 ==');
 {
   const r = await dispatch('sdlc_artifact_check', { kind: 'intent', task_id: TASK });

@@ -152,10 +152,21 @@ else {
   ok(`create → task=${created.value.task} status=${created.value.status}`);
   if (created.value.task === 'PROJ-7') ok('task id 已归一化为大写');
   else bad(`task id 未归一化: ${created.value.task}`);
+  // 用真正的 YAML 解析断言——正则匹配序列化文本会在 artifacts: {} 上误判
+  {
+    const { load, JSON_SCHEMA } = require('js-yaml');
+    const doc = load(files.get('/repo/.ai/tasks/PROJ-7/state.yaml'), { schema: JSON_SCHEMA });
+    if (Object.keys(doc.artifacts ?? {}).length === 0) {
+      ok('state.yaml 的 artifacts 为空（意图还没写，登记它会让状态机自欺）');
+    } else {
+      bad(`未写意图却登记了: ${JSON.stringify(doc.artifacts)}`);
+    }
+  }
   if (files.has('/repo/.ai/tasks/PROJ-7/state.yaml')) ok('state.yaml 已写入');
   else bad('state.yaml 未写入');
-  if (files.has('/repo/.ai/tasks/PROJ-7/intent.md')) ok('intent.md 骨架已写入');
-  else bad('intent.md 未写入');
+  // create **不再**生成 intent.md——建任务与写意图是两件事（实测发现两份模板真相）
+  if (!files.has('/repo/.ai/tasks/PROJ-7/intent.md')) ok('未生成 intent.md 占位文件（设计如此）');
+  else bad('create 竟然写了 intent.md——两份模板真相又回来了');
 }
 
 // 4b. 重复 create 必须被拒
@@ -222,8 +233,12 @@ else bad('空 reason 的迁移被放行');
   const { load, dump, JSON_SCHEMA } = require('js-yaml');
   const stateFile = '/repo/.ai/tasks/PROJ-7/state.yaml';
   const doc = load(files.get(stateFile), { schema: JSON_SCHEMA });
+  // create 不再生成 intent.md，所以这里必须把它补上——
+  // 「登记了制品但文件不在」会被门槛拦住（这是对的，不是 bug）。
+  doc.artifacts.intent = 'intent.md';
   doc.artifacts.spec = 'spec.md';
   files.set(stateFile, dump(doc, { schema: JSON_SCHEMA, noRefs: true }));
+  files.set('/repo/.ai/tasks/PROJ-7/intent.md', '# Intent\n');
   files.set('/repo/.ai/tasks/PROJ-7/spec.md', '# Spec\n');
   const good = await dispatch('sdlc_task_advance', {
     task_id: 'PROJ-7',
@@ -306,6 +321,7 @@ console.log('\n== 5. 落盘的 state.yaml 内容自查 ==');
   const { JSON_SCHEMA, load } = require('js-yaml');
   try {
     const parsed = load(text, { schema: JSON_SCHEMA });
+    // 迁移链：创建(INTENT) → SPEC → 回退(INTENT)。回退是允许的（第三节的用例）。
     if (parsed.status === 'INTENT' && Array.isArray(parsed.history) && parsed.history.length >= 3) {
       ok(`state.yaml 可解析，status=${parsed.status}，history ${parsed.history.length} 条（只追加）`);
     } else {

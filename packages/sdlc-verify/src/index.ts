@@ -227,7 +227,15 @@ async function registerVerificationArtifact(
   // 在 artifacts 段末尾插入一行。artifacts 是我们自己写出来的固定形状，
   // 但用户可能手改过——所以找不到锚点时就放弃（宁可不登记，也不改坏文件）。
   const lines = text.split('\n');
-  const start = lines.findIndex((l) => /^artifacts:\s*$/.test(l));
+  // 与 sdlc-artifact 同一套：两种形态都要认（见那里的说明）
+  const start = lines.findIndex((l) => /^artifacts:\s*(\{\s*\})?\s*$/.test(l));
+  if (start >= 0 && /^artifacts:\s*\{\s*\}\s*$/.test(lines[start] ?? '')) {
+    lines[start] = `artifacts:\n  verification: "verification.json"`;
+      // 复用函数开头已解析好的 target 与 policy——
+      // 重复调用 writePolicy 既浪费也容易漏（沙箱接线漏一次就会被拒）
+      await ctx.fs.writeText(target, lines.join('\n'), undefined, exec.signal, policy);
+    return '制品登记：verification → state.yaml 的 artifacts（artifacts 原为空）';
+  }
   if (start < 0) {
     return (
       '⚠ verification 制品未登记：state.yaml 里找不到 `artifacts:` 段' +
