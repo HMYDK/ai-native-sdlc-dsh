@@ -20,6 +20,9 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis';
+// 显式 import：ctx.fs 由 dsh-fs 的 declaration merging 提供
+import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
+import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
@@ -42,7 +45,7 @@ export const name = 'sdlc-verify';
  * `cannot get property "<name>" without inject`——而插件激活失败是
  * "警告后继续"，所以症状只是 `fiberPhase: failed`，不仔细看会以为装上了。
  */
-export const inject = ['tools', 'subagents', 'systemPrompt'];
+export const inject = ['tools', 'subagents', 'systemPrompt', 'fs'];
 
 /**
  * 验证者允许使用的工具。
@@ -105,7 +108,7 @@ export const Config = z.object({
  * 也正因为 `Agent` 不暴露 session，无法写持久事件——
  * 所以这里**不**声称有审计链；审计来自 git 与工具调用记录。
  */
-let frozenReason: string | undefined;
+let frozen: { task?: string; reason: string } | undefined;
 
 /**
  * 把模型传来的 `artifacts` 参数收敛为 `Record<string, string>`。
@@ -128,6 +131,72 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
  * `config` 由 Cordis 经 `Config['~standard'].validate()` 校验并填好默认值后传入，
  * 所以这里可以直接当作已解析的配置使用。
  */
+interface ResolvedTask {
+  id: string;
+  dir: string;
+  artifacts: Record<string, string>;
+}
+
+/**
+ * 从 `task_id` 解析任务目录与已登记制品。
+ *
+ * 刻意**不 import sdlc-task 的类型或函数**：两个插件各自独立发布，
+ * 只在 `state.yaml` 这个**文件契约**上耦合。少一层包依赖，就少一类
+ * 版本不兼容问题——而 state.yaml 的形状本来就是稳定的公开约定。
+ *
+ * 拿不到任务时返回 undefined（调用方退回到显式 artifacts），
+ * 但任务**存在却读不动**时要抛错——那说明状态文件坏了，不该静默降级。
+ */
+async function resolveTask(
+  ctx: Context,
+  exec: { agent?: unknown },
+  taskId: unknown,
+  signal?: AbortSignal,
+): Promise<ResolvedTask | undefined> {
+  if (typeof taskId !== 'string' || taskId.trim() === '') return undefined;
+
+  const agent = exec.agent as { session?: { header?: { cwd?: unknown } } } | undefined;
+  const cwdRaw = agent?.session?.header?.cwd;
+  if (typeof cwdRaw !== 'string' || cwdRaw === '') {
+    throw new Error(
+      `给了 task_id=${taskId} 但拿不到 session 的 cwd，无法定位任务目录。` +
+        '要么在有工作目录的会话里调用，要么去掉 task_id 并显式传 artifacts。',
+    );
+  }
+  const repoRoot = cwdRaw.replace(/\/+$/, '');
+  const id = taskId.trim().toUpperCase();
+  const dir = `${repoRoot}/.ai/tasks/${id}`;
+
+  let raw: unknown;
+  try {
+    const target = await ctx.fs.resolve(`${dir}/state.yaml`, { signal });
+    const info = await ctx.fs.stat(target, signal);
+    if (info === undefined || info.type !== 'file') {
+      throw new Error(
+        `任务 ${id} 没有 state.yaml（${dir}/state.yaml）。先用 sdlc_task_create 建任务，` +
+          '或去掉 task_id 参数。',
+      );
+    }
+    // JSON_SCHEMA：默认 schema 会把 ISO 时间戳解析成 Date（见 docs/dsh-pitfalls.md）
+    raw = parseYaml(await ctx.fs.readText(target, signal), { schema: JSON_SCHEMA });
+  } catch (e) {
+    throw new Error(
+      `读取任务 ${id} 的 state.yaml 失败：${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
+  const state = raw as { artifacts?: unknown } | null;
+  const registered =
+    state !== null && typeof state === 'object' && !Array.isArray(state)
+      ? coerceArtifactMap(state.artifacts)
+      : {};
+  const artifacts: Record<string, string> = {};
+  for (const [kind, rel] of Object.entries(registered)) {
+    artifacts[kind] = `${dir}/${rel}`;
+  }
+  return { id, dir, artifacts };
+}
+
 export function apply(ctx: Context, config: SdlcVerifyConfig): void {
   // 加载即自检：工具输出 schema 与裁决 schema 一旦漂移，某条裁决路径会静默失效
   // （实测过：unverified 缺失会让 needs_human 变成工具错误）。
@@ -175,6 +244,13 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           type: 'string',
           description: 'Optional narrowing of what to verify (e.g. "only the retry logic").',
         },
+        task_id: {
+          type: 'string',
+          description:
+            'Optional: an sdlc-task task id, e.g. "PROJ-1024". When given, the artifacts registered in ' +
+            'that task\'s state.yaml are resolved automatically (you do not have to pass `artifacts`), and the ' +
+            'verdict is written to verification.json inside the task directory so the task state machine can see it.',
+        },
       },
       output: {
         // 从裁决 schema 派生，不手写——见 verdict.ts 里那处真实漂移缺陷的说明。
@@ -188,9 +264,15 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           throw new Error('sdlc_verify requires a calling agent');
         }
 
+        // 任务身份（可选）：给了就从 state.yaml 解析已登记的制品，
+        // 显式传入的 artifacts 优先级更高（允许针对单次验证覆盖）。
+        const explicit = coerceArtifactMap(args.artifacts);
+        const task = await resolveTask(ctx, exec, args.task_id, exec.signal);
+        const artifacts = task === undefined ? explicit : { ...task.artifacts, ...explicit };
+
         const prompt = buildVerificationPrompt({
           intentOfChange: args.intent_of_change,
-          artifacts: coerceArtifactMap(args.artifacts),
+          artifacts,
           diff: args.diff,
           testEvidence: args.test_evidence,
           scope: args.scope,
@@ -266,10 +348,45 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
 
         // satisfies：保留字面量类型，让 output.schema 的推断成立。
         // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
-        return {
+        const finalVerdict = {
           ...verdict,
           verifier_session: run !== undefined ? String(run.id) : undefined,
         } satisfies Verdict & { verifier_session?: string };
+
+        // 落盘到任务目录：这样 sdlc_task_advance 到 REVIEWING 时，
+        // 状态机能真的看到 verification 制品——而不是靠人记得粘一份。
+        // 写失败不掩盖裁决本身（裁决已经拿到了，先把它交出去）。
+        if (task !== undefined) {
+          try {
+            await ctx.fs.writeText(
+              await ctx.fs.resolve(`${task.dir}/verification.json`, { signal: exec.signal }),
+              JSON.stringify(
+                {
+                  task: task.id,
+                  at: new Date().toISOString(),
+                  intent_of_change: args.intent_of_change,
+                  scope: args.scope,
+                  artifacts,
+                  verdict: finalVerdict,
+                },
+                null,
+                2,
+              ) + '\n',
+              undefined,
+              exec.signal,
+            );
+          } catch (e) {
+            return {
+              ...finalVerdict,
+              summary:
+                finalVerdict.summary +
+                `\n\n⚠ 裁决未能写入 ${task.dir}/verification.json：` +
+                `${e instanceof Error ? e.message : String(e)}`,
+            } satisfies Verdict & { verifier_session?: string };
+          }
+        }
+
+        return finalVerdict;
       },
     }),
   );
@@ -291,6 +408,10 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           required: true,
           description: 'Which failing test proves the bug, e.g. "test_status.py::test_partial_claim".',
         },
+        task_id: {
+          type: 'string',
+          description: 'Optional: the sdlc-task task this fix belongs to, e.g. "PROJ-1024". Recorded so the refusal message names the task.',
+        },
       },
       output: {
         schema: {
@@ -307,7 +428,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         ],
       },
       async execute(args, exec) {
-        frozenReason = args.reason;
+        frozen = { task: args.task_id, reason: args.reason };
         return { frozen: true, reason: args.reason };
       },
     }),
@@ -321,6 +442,10 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         'test passing unchanged. Freezing exists to prove the fix, not to block legitimate test work.',
       parameters: {
         reason: { type: 'string', required: true, description: 'How the fix was verified.' },
+        task_id: {
+          type: 'string',
+          description: 'Must match the task_id given to sdlc_fix_start when one was given.',
+        },
       },
       output: {
         schema: {
@@ -331,7 +456,15 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         render: () => [{ type: 'text', text: '测试资产已解冻' }],
       },
       async execute(args, exec) {
-        frozenReason = undefined;
+        // 换了一个 task 就解冻别人，会让"证明某个修复"这件事失去意义——
+        // 所以只允许解冻自己那次冻结。
+        if (frozen !== undefined && frozen.task !== undefined && args.task_id !== frozen.task) {
+          throw new Error(
+            `当前冻结属于任务 ${frozen.task}，不能用 ${args.task_id} 解冻。` +
+              '要么用同一个 task_id，要么先确认那次修复已经结束。',
+          );
+        }
+        frozen = undefined;
         return { frozen: false };
       },
     }),
@@ -341,7 +474,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
   // 这正是"硬约束"与"提示词请求"的区别所在。
   ctx.tools.guard((exec) => {
     // 不检查 agent：冻结是进程级/仓库级的，子代理同样受限。
-    if (frozenReason === undefined) return undefined;
+    if (frozen === undefined) return undefined;
 
     const verdict = judgeTestMutation({ name: exec.name, arguments: exec.arguments });
     if (!verdict.blocked) return undefined;
@@ -349,7 +482,8 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
     return [
       verdict.reason,
       '',
-      `冻结理由：${frozenReason}`,
+      frozen.task !== undefined ? `冻结所属任务：${frozen.task}` : '',
+      `冻结理由：${frozen.reason}`,
       '这个测试是修复正确性的证据。若它确实写错了，先 sdlc_fix_end 说明原因，再改测试——',
       '不要让门禁替你决定。',
     ].join('\n');

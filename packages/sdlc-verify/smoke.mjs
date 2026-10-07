@@ -73,9 +73,31 @@ ctx.provide('systemPrompt', {
   getContextOrder: () => 0,
 });
 
+// 内存文件系统桩：sdlc_verify 现在会在给了 task_id 时读 state.yaml、
+// 并把裁决写到 verification.json。
+const files = new Map();
+ctx.provide('fs', {
+  async resolve(p, _o) {
+    return { targetKey: p, displayPath: p };
+  },
+  async stat(target) {
+    return files.has(target.displayPath) ? { type: 'file', version: 'v1' } : undefined;
+  },
+  async readText(target) {
+    const v = files.get(target.displayPath);
+    if (v === undefined) throw new Error(`ENOENT: ${target.displayPath}`);
+    return v;
+  },
+  async writeText(target, content) {
+    files.set(target.displayPath, content);
+    return { version: 'v1' };
+  },
+});
+
 // 记录 subagent 请求，用于断言插件传了什么
 const started = [];
 const disposeCalls = [];
+let verifyCalls = 0;
 const subagentsStub = {
   impl: async (provider, request) => {
     return {
@@ -105,6 +127,8 @@ const subagentsStub = {
 };
 ctx.provide('subagents', {
   start: async (provider, request) => {
+    // 计数器放在这个**唯一入口**：5c 会临时替换 impl，放在 impl 里会漏计
+    verifyCalls += 1;
     started.push({ provider, request });
     return await subagentsStub.impl(provider, request);
   },
@@ -183,7 +207,7 @@ ctx.tools.register({
   },
 });
 
-const fakeAgent = { id: 'smoke-session-A' };
+const fakeAgent = { id: 'smoke-session-A', session: { header: { cwd: '/repo' } } };
 
 const r1 = await dispatch('sdlc_fix_start', { reason: 'smoke freeze' }, fakeAgent);
 if (r1.isError) bad(`sdlc_fix_start 报错: ${JSON.stringify(r1.error)}`);
@@ -315,7 +339,133 @@ console.log('\n== 5c. needs_human + unverified 必须能穿透（原 schema 漂�
   subagentsStub.impl = original;
 }
 
+console.log('\n== 5d. 任务身份：从 state.yaml 解析制品并把裁决落盘 ==');
+{
+  // 预置一个任务的 state.yaml（形状与 sdlc-task 写出的完全一致）
+  files.set(
+    '/repo/.ai/tasks/PROJ-9/state.yaml',
+    [
+      'task: PROJ-9',
+      'title: "带任务身份的验证"',
+      'status: PLANNED',
+      'created: "2026-10-07T10:00:00.000Z"',
+      'updated: "2026-10-07T10:00:00.000Z"',
+      'artifacts:',
+      '  intent: "intent.md"',
+      '  spec: "spec.md"',
+      '  plan: "plan.md"',
+      'history: []',
+      '',
+    ].join('\n'),
+  );
+
+  started.length = 0;
+  const r = await dispatch(
+    'sdlc_verify',
+    { intent_of_change: '任务身份接线测试', task_id: 'proj-9' },
+    fakeAgent,
+  );
+
+  if (r.isError) {
+    bad(`带 task_id 的调用失败: ${JSON.stringify(r.error)}`);
+  } else {
+    ok('带 task_id 的 sdlc_verify 正常返回');
+    // 请求里应当带上**自动解析出**的制品绝对路径（调用方没传 artifacts）
+    const req = started[started.length - 1]?.request;
+    const txt = (req?.prompt ?? []).map((b) => b.text ?? '').join('\n');
+    const expect = [
+      ['intent', '/repo/.ai/tasks/PROJ-9/intent.md'],
+      ['spec', '/repo/.ai/tasks/PROJ-9/spec.md'],
+      ['plan', '/repo/.ai/tasks/PROJ-9/plan.md'],
+    ];
+    for (const [kind, full] of expect) {
+      if (txt.includes(full)) ok(`自动解析出 ${kind} → ${full}`);
+      else bad(`未把 ${kind} 的路径解析进提示词（期望含 ${full}）`);
+    }
+    // 裁决必须落盘，否则状态机到 REVIEWING 时看不到 verification 制品
+    const vf = files.get('/repo/.ai/tasks/PROJ-9/verification.json');
+    if (vf === undefined) {
+      bad('裁决未写入 verification.json');
+    } else {
+      try {
+        const parsed = JSON.parse(vf);
+        if (parsed.task === 'PROJ-9' && parsed.verdict?.status !== undefined) {
+          ok(`裁决已落盘：task=${parsed.task} status=${parsed.verdict.status}`);
+        } else {
+          bad(`落盘内容不符: ${vf.slice(0, 120)}`);
+        }
+      } catch (e) {
+        bad(`落盘的 verification.json 不是合法 JSON: ${e.message}`);
+      }
+    }
+  }
+
+  // 任务不存在时要报错而不是静默降级
+  const missing = await dispatch(
+    'sdlc_verify',
+    { intent_of_change: 'x', task_id: 'NOPE-1' },
+    fakeAgent,
+  );
+  if (missing.isError && /没有 state.yaml/.test(JSON.stringify(missing.content ?? missing.error))) {
+    ok('task_id 不存在时报错（不静默降级）');
+  } else {
+    bad('task_id 不存在时未报错');
+  }
+}
+
+console.log('\n== 5e. 冻结绑定任务身份 ==');
+{
+  const t1 = { id: 'agent-1', session: { header: { cwd: '/repo' } } };
+  const t2 = { id: 'agent-2', session: { header: { cwd: '/repo' } } };
+  await dispatch('sdlc_fix_end', { reason: '清理', task_id: 'PROJ-9' }, t1);
+  const started2 = await dispatch(
+    'sdlc_fix_start',
+    { reason: '固定', task_id: 'PROJ-9' },
+    t1,
+  );
+  if (started2.isError) bad(`带 task_id 的 fix_start 失败: ${JSON.stringify(started2.error)}`);
+  else ok('fix_start 接受 task_id');
+
+  // 用另一个 task 解冻必须被拒
+  const wrongEnd = await dispatch(
+    'sdlc_fix_end',
+    { reason: '想解冻别人的', task_id: 'OTHER-1' },
+    t2,
+  );
+  if (wrongEnd.isError && /属于任务 PROJ-9/.test(JSON.stringify(wrongEnd.content ?? wrongEnd.error))) {
+    ok('用错 task_id 解冻被拒（并指明冻结属于哪个任务）');
+  } else {
+    bad(`错 task_id 解冻未被拒: ${JSON.stringify(wrongEnd.value ?? wrongEnd.error)}`);
+  }
+
+  // 拒绝信息里应当带上任务归属
+  const blockedWrite = await dispatch(
+    'write',
+    { file_path: 'tests/x.py', content: 'x' },
+    t2,
+  );
+  const text = JSON.stringify(blockedWrite.content ?? '');
+  if (blockedWrite.isError && text.includes('PROJ-9')) {
+    ok('冻结拒绝信息里带上了任务归属');
+  } else {
+    bad('冻结拒绝信息未指明所属任务');
+  }
+
+  await dispatch('sdlc_fix_end', { reason: '收尾', task_id: 'PROJ-9' }, t1);
+}
+
 console.log('\n== 6. 插件传给验证者的请求是否正确 ==');
+{
+  started.length = 0;
+  await dispatch(
+    'sdlc_verify',
+    {
+      intent_of_change: '第 6 节的基准调用',
+      artifacts: { intent: '.ai/tasks/SMOKE/intent.md', plan: '.ai/tasks/SMOKE/plan.md' },
+    },
+    fakeAgent,
+  );
+}
 if (started.length < 1) {
   bad('subagents.start 从未被调用');
 } else {
@@ -399,12 +549,12 @@ console.log('\n== 7. 提供测试证据时的条件渲染 ==');
 }
 
 console.log('\n== 8. SubagentRun 必须被 dispose（契约要求，原先漏了）==');
-// 恰好 3 次 sdlc_verify 调用（第 5、5c、7 节）→ 必须恰好 3 次 dispose。
-// 用精确相等而不是 >=：后者发现不了重复 dispose。
-if (disposeCalls.length === 3) {
-  ok(`dispose 恰好被调用 3 次，与 sdlc_verify 调用次数一致`);
+// 断言「每次 sdlc_verify 调用都恰好 dispose 一次」——用两个实际计数比对，
+// 而不是写死数字（写死会在新增用例时假失败，而假失败会掩盖真问题）。
+if (disposeCalls.length === verifyCalls && verifyCalls > 0) {
+  ok(`dispose 次数(${disposeCalls.length}) == sdlc_verify 调用次数(${verifyCalls})`);
 } else {
-  bad(`dispose 被调用 ${disposeCalls.length} 次，期望恰好 3 次`);
+  bad(`dispose ${disposeCalls.length} 次 vs sdlc_verify ${verifyCalls} 次，必须一一对应`);
 }
 // 第 7 节在断言前清空过 started，这里顺便记录该次请求确实带了测试证据
 {
