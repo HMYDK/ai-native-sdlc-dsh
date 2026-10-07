@@ -14,6 +14,25 @@ import type { ObjectJsonSchema, ValueSchemaSpec } from '@deepseek-ai/dsh-tools';
 export const VERDICT_STATUSES = ['approve', 'reject', 'needs_human'] as const;
 export type VerdictStatus = (typeof VERDICT_STATUSES)[number];
 
+/**
+ * 单条验收标准的裁决结果。
+ *
+ * 三态与顶层裁决同构，理由也一样：只给 met/not_met 会逼验证者在证据不足时
+ * 二选一，而"证据不足"最常见的结局是猜成 met。
+ *
+ * `cannot_tell` 是本功能存在的**核心理由**：它把"我只验了前置条件"
+ * 从一句埋在 summary 里的自我限定，变成结构化结果里一条可检查的记录。
+ */
+export const CRITERION_RESULTS = ['met', 'not_met', 'cannot_tell'] as const;
+export type CriterionResultStatus = (typeof CRITERION_RESULTS)[number];
+
+export interface CriterionResult {
+  /** 原样回抄调用方给的标准文本——便于对账，也防止验证者偷偷改写标准。 */
+  criterion: string;
+  result: CriterionResultStatus;
+  evidence: string;
+}
+
 export const SEVERITIES = ['blocking', 'important', 'minor'] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
@@ -50,6 +69,105 @@ export interface Verdict {
   summary: string;
   findings: Finding[];
   unverified?: string[];
+  /** 逐条验收标准的裁决。调用方给了 criteria 时必须逐条覆盖。 */
+  criteria_results?: CriterionResult[];
+}
+
+/**
+ * 验收标准策略的**强制执行点**。
+ *
+ * 规则：
+ *  1. 没给 criteria 时，`approve` 降级为 `needs_human`——
+ *     没有"对"的定义，就不存在"验证通过"这件事。
+ *  2. 给了 criteria 时，每条标准都必须有结果；漏掉的补成一条 finding
+ *     （`cannot_tell` 是**正当答案**，漏报不是）。
+ *  3. 有 `cannot_tell` 时，`approve` 也降级为 `needs_human`——
+ *     标准没验完就宣布通过，与没给标准是同一个问题。
+ *
+ * 降级**不隐藏**原来的裁决：原文进 finding 的 evidence，读者能看到
+ * 验证者本来想说什么。
+ */
+export function enforceCriteriaPolicy(
+  verdict: Verdict,
+  criteria: string[],
+  sessionId: string | undefined,
+): Verdict & { verifier_session?: string } {
+  const findings: Finding[] = [...(verdict.findings ?? [])];
+  const results = Array.isArray(verdict.criteria_results) ? verdict.criteria_results : [];
+  let status = verdict.status;
+  const notes: string[] = [];
+
+  if (criteria.length === 0) {
+    if (status === 'approve') {
+      status = 'needs_human';
+      notes.push(
+        '**已降级为 needs_human**：这次调用没有给出 `criteria`（验收标准）。' +
+          '没有"对"的定义时，验证者只能自行推断判据，"通过"就退化成一句意见。' +
+          '这份验证者的原始结论是 approve，原文见下方 finding。',
+      );
+      findings.push({
+        severity: 'blocking',
+        category: 'missing_evidence',
+        reason: '缺少验收标准（criteria），无法据以判断"通过"意味着什么',
+        evidence: `验证者原结论：${verdict.summary}`,
+        suggestion:
+          '把 spec.md 里的验收标准逐条传进 criteria 后重跑。标准应当是**可证伪**的' +
+          '（"接口在并发 100 时 p99 < 200ms"，而不是"性能良好"）。',
+      });
+    }
+  } else {
+    const reported = new Set(results.map((r) => (r.criterion ?? '').trim()));
+    const missing = criteria.filter((c) => !reported.has(c.trim()));
+    if (missing.length > 0) {
+      findings.push({
+        severity: 'important',
+        category: 'missing_evidence',
+        reason: `验证者漏报了 ${missing.length} 条验收标准的结果`,
+        evidence: missing.map((m, i) => `${i + 1}. ${m}`).join('\n'),
+        suggestion:
+          '每条标准都必须给出 met / not_met / cannot_tell。`cannot_tell` 是正当答案，' +
+          '漏报不是——它会让调用方以为这条被检查过。',
+      });
+    }
+
+    const cannotTell = results.filter((r) => r.result === 'cannot_tell');
+    if (cannotTell.length > 0 && status === 'approve') {
+      status = 'needs_human';
+      notes.push(
+        `**已降级为 needs_human**：有 ${cannotTell.length} 条验收标准是 ` +
+          '`cannot_tell`（无法判定）。标准没验完就宣布通过，与没给标准是同一个问题。',
+      );
+    }
+
+    const notMet = results.filter((r) => r.result === 'not_met');
+    if (notMet.length > 0 && status === 'approve') {
+      status = 'needs_human';
+      notes.push(
+        `**已降级为 needs_human**：有 ${notMet.length} 条验收标准是 ` +
+          '`not_met`（不成立）。验证者自己都认为不成立，不应以 approve 收场。',
+      );
+    }
+  }
+
+  // ⚠️ 两条返回路径**都必须带 `findings`**。
+  //
+  // 这里曾有一个严重缺陷：未降级的分支写成 `return { ...verdict, verifier_session }`，
+  // 把本地攒的 `findings` 整个丢掉了。后果是「验证者漏报了 N 条验收标准」
+  // 这条 finding **永远不会出现在返回值里**——只有在恰好发生降级时才带出来。
+  // 也就是说：漏报标准这件事被静默吞掉了，而"静默吞掉"正是本项目最忌讳的失败模式。
+  //
+  // 抓不到它的原因值得记：我一直在**穿过整个工具调度**去测，
+  // 而那个回路里有两处会掩盖它。把它移到纯函数层、直接写单测后，一次就暴露了。
+  if (notes.length === 0) {
+    return { ...verdict, findings, verifier_session: sessionId };
+  }
+  return {
+    ...verdict,
+    status,
+    summary: `${verdict.summary}\n\n${notes.join('\n\n')}`,
+    findings,
+    verifier_session: sessionId,
+  };
 }
 
 export interface VerificationPromptInput {
@@ -58,6 +176,8 @@ export interface VerificationPromptInput {
   testEvidence?: string;
   scope?: string;
   intentOfChange?: string;
+  /** 本次必须逐条裁决的验收标准。来源通常是 spec.md。 */
+  criteria?: string[];
 }
 
 /**
@@ -94,6 +214,19 @@ export const VERDICT_SCHEMA: ObjectJsonSchema = {
     unverified: {
       type: 'array',
       items: { type: 'string' },
+    },
+    criteria_results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['criterion', 'result', 'evidence'],
+        properties: {
+          criterion: { type: 'string' },
+          result: { type: 'string', enum: [...CRITERION_RESULTS] },
+          evidence: { type: 'string' },
+        },
+      },
     },
   },
 };
@@ -135,6 +268,21 @@ export const TOOL_OUTPUT_SCHEMA = {
       },
     },
     unverified: { type: 'array', items: { type: 'string' } },
+    // 刻意**不**标 required：裁决 schema 里它是可选的（没给 criteria 时
+    // 验证者不会产出它）。输出侧更严会把合法的裁决拒掉——这正是
+    // assertSchemasAligned 在加载时报出来的那类漂移。内部字段仍必填。
+    criteria_results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          criterion: { type: 'string', required: true },
+          result: { type: 'string', required: true, enum: [...CRITERION_RESULTS] },
+          evidence: { type: 'string', required: true },
+        },
+      },
+    },
     verifier_session: { type: 'string' },
   },
 } as const;
@@ -300,6 +448,33 @@ export function buildVerificationPrompt(input: VerificationPromptInput): string 
 
   if (input.intentOfChange) {
     parts.push(`## 这次变更声称要达成的目标\n\n${input.intentOfChange}\n`);
+  }
+
+  // 验收标准段刻意放在 scope **之前**：它是本次验证的骨架，不是补充说明。
+  if (input.criteria !== undefined && input.criteria.length > 0) {
+    parts.push(
+      [
+        '## 必须逐条裁决的验收标准',
+        '',
+        '对下面**每一条**给出结果，并在 `criteria_results` 里逐条覆盖——一条都不能少：',
+        '',
+        '- `met`：有可复核的证据表明它成立',
+        '- `not_met`：有可复核的证据表明它不成立',
+        '- `cannot_tell`：**在你的能力或本次范围内无法判定**',
+        '',
+        '`cannot_tell` 是一个**正当的、会被上报的结果**，不是失败。',
+        '但不要用它代替调查：先尽力查，查不动了再用。',
+        '',
+        '⚠️ 只确认了前置条件（文件在、测试跑了）**不等于**该标准成立。',
+        '每条 `met` 都要说明你实际观察到了什么行为。',
+        '',
+        '`criterion` 字段要**原样回抄**下面的文本——便于调用方对账，',
+        '也避免标准在传递中被悄悄改写。',
+        '',
+        ...input.criteria.map((c, i) => `${i + 1}. ${c}`),
+        '',
+      ].join('\n'),
+    );
   }
 
   if (input.scope) {

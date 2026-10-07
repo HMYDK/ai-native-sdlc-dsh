@@ -30,10 +30,11 @@ import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
 import { judgeTestMutation } from './test-freeze.js';
-import type { Verdict } from './verdict.js';
+import type { Finding, Verdict } from './verdict.js';
 import {
   assertSchemasAligned,
   buildVerificationPrompt,
+  enforceCriteriaPolicy,
   VERDICT_SCHEMA,
   VERIFIER_PERSONA,
   TOOL_OUTPUT_SCHEMA,
@@ -129,6 +130,17 @@ export const Config = z.object({
  * 所以这里**不**声称有审计链；审计来自 git 与工具调用记录。
  */
 let frozen: { task?: string; reason: string } | undefined;
+
+/**
+ * 把模型传来的数组参数收敛为 `string[]`（丢掉非字符串项与空串）。
+ */
+function coerceStringList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter((v) => v !== '');
+}
 
 /**
  * 把模型传来的 `artifacts` 参数收敛为 `Record<string, string>`。
@@ -342,6 +354,16 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           type: 'string',
           description: 'Optional narrowing of what to verify (e.g. "only the retry logic").',
         },
+        criteria: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'The acceptance criteria this change must satisfy (usually lifted verbatim from spec.md). When ' +
+            'given, the verifier must return a per-criterion result (met / not_met / cannot_tell). ' +
+            'IMPORTANT: approving WITHOUT criteria is not allowed — if criteria are absent, a would-be approve ' +
+            'is downgraded to needs_human by the plugin, because "verified" without a stated definition of ' +
+            'correct is just an opinion.',
+        },
         task_id: {
           type: 'string',
           description:
@@ -368,12 +390,14 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         const task = await resolveTask(ctx, exec, args.task_id, exec.signal);
         const artifacts = task === undefined ? explicit : { ...task.artifacts, ...explicit };
 
+        const criteria = coerceStringList(args.criteria);
         const prompt = buildVerificationPrompt({
           intentOfChange: args.intent_of_change,
           artifacts,
           diff: args.diff,
           testEvidence: args.test_evidence,
           scope: args.scope,
+          criteria,
         });
 
         // agentOptions 在 SubagentStartRequest 上是 readonly，
@@ -444,10 +468,20 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           } satisfies Verdict & { verifier_session?: string };
         }
 
+        // ── 强制策略：**没有验收标准就不许通过** ──────────────────────
+        //
+        // 这一条由**代码**执行，不是靠提示词请求——本项目已经反复证明
+        // 提示词请求没有约束力（"Skill 只是建议性控制"）。
+        //
+        // 理由：验证者不知道"对"的定义时只能自己推断判据，于是"验证通过"
+        // 退化成一句意见。这正是之前每一次验证都出现的弱点——验证者自称
+        // "只覆盖了前置条件"，但那只是 summary 里的一句道歉，不是可检查的东西。
+        const enforced = enforceCriteriaPolicy(verdict, criteria, run !== undefined ? String(run.id) : undefined);
+
         // satisfies：保留字面量类型，让 output.schema 的推断成立。
         // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
         const finalVerdict = {
-          ...verdict,
+          ...enforced,
           verifier_session: run !== undefined ? String(run.id) : undefined,
         } satisfies Verdict & { verifier_session?: string };
 
@@ -473,6 +507,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
                   at: new Date().toISOString(),
                   intent_of_change: args.intent_of_change,
                   scope: args.scope,
+                  criteria,
                   artifacts,
                   verdict: finalVerdict,
                 },

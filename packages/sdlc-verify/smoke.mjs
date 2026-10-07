@@ -114,6 +114,7 @@ ctx.provide('sandboxPolicy', {
 const started = [];
 const disposeCalls = [];
 let verifyCalls = 0;
+let capturedCriteriaPrompt = '';
 const subagentsStub = {
   impl: async (provider, request) => {
     return {
@@ -498,6 +499,159 @@ console.log('\n== 5d-3. 静默失败必须变成可报告的警告 ==');
   }
   if (/手动登记/.test(summary)) ok('警告里给出了补救办法（手动登记）');
   else bad('警告没有给出补救办法');
+}
+
+console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提示词）==');
+{
+  // 桩返回什么裁决，就由这里控制。
+  // 形状必须与 SubagentRun 一致：{id, localAgent, result: Promise<SubagentResult>}。
+  // （第一版写成了裸的 SubagentResult，于是插件读 run.result.structured 时
+  // 报 "Cannot read properties of undefined"——自己的测试抓到的。）
+  const craftVerdict = (over) => ({
+    id: 'smoke-criteria-child',
+    localAgent: undefined,
+    result: Promise.resolve({
+      output: [{ type: 'text', text: 'criteria 桩输出' }],
+      structured: { status: 'approve', summary: '看起来没问题', findings: [], ...over },
+      stopReason: 'end_turn',
+    }),
+    // dispose 必须提供：dispose 断言是「调用次数 == dispose 次数」，
+    // 桩少给一个 dispose 就会让那个断言失衡（这正是它抓到的）。
+    dispose: async () => {
+      disposeCalls.push('smoke-criteria-child');
+    },
+  });
+
+  // (1) 没给 criteria + 验证者说 approve → 必须降级
+  {
+    const original = subagentsStub.impl;
+    subagentsStub.impl = async () => craftVerdict({});
+    const r = await dispatch('sdlc_verify', { intent_of_change: '无标准测试' }, fakeAgent);
+    subagentsStub.impl = original;
+    if (r.isError) bad(`调用失败: ${JSON.stringify(r.error)}`);
+    else {
+      if (r.value.status === 'needs_human') ok('没给 criteria 时 approve 被降级为 needs_human');
+      else bad(`未降级，status=${r.value.status}（这是最危险的一条：没有定义就算通过）`);
+      const blocking = (r.value.findings ?? []).filter((f) => f.severity === 'blocking');
+      if (blocking.length > 0 && /验收标准/.test(blocking[0].reason)) {
+        ok('降级时附了一条 blocking finding（说明为什么）');
+      } else {
+        bad(`降级没有可复核的理由: ${JSON.stringify(r.value.findings)}`);
+      }
+      if (/验证者原结论/.test(JSON.stringify(r.value.findings))) {
+        ok('降级保留了验证者的原始结论（不隐藏它）');
+      } else {
+        bad('降级把验证者的原话丢了');
+      }
+    }
+  }
+
+  // (2) 给了 criteria、逐条 met → 允许 approve
+  {
+    const original = subagentsStub.impl;
+    subagentsStub.impl = async (_p, req) => {
+      const txt = (req.prompt ?? []).map((b) => b.text ?? '').join('\n');
+      // 顺手断言：criteria 必须真的进了提示词
+      capturedCriteriaPrompt = txt;
+      return craftVerdict({
+        criteria_results: [
+          { criterion: '接口在 p99 < 200ms', result: 'met', evidence: '压测输出见 /tmp/x' },
+          { criterion: '旧客户端不受影响', result: 'met', evidence: '契约测试通过' },
+        ],
+      });
+    };
+    const r = await dispatch(
+      'sdlc_verify',
+      { intent_of_change: '有标准测试', criteria: ['接口在 p99 < 200ms', '旧客户端不受影响'] },
+      fakeAgent,
+    );
+    subagentsStub.impl = original;
+    if (r.isError) bad(`调用失败: ${JSON.stringify(r.error)}`);
+    else if (r.value.status === 'approve') ok('逐条 met 时允许 approve');
+    else bad(`不该降级，status=${r.value.status}`);
+
+    if (/必须逐条裁决的验收标准/.test(capturedCriteriaPrompt)) {
+      ok('criteria 段确实进了提示词');
+    } else {
+      bad('criteria 没有进提示词');
+    }
+    if (/p99 < 200ms/.test(capturedCriteriaPrompt) && /旧客户端不受影响/.test(capturedCriteriaPrompt)) {
+      ok('两条标准原文都在提示词里');
+    } else {
+      bad('标准原文没进提示词');
+    }
+    if (/cannot_tell/.test(capturedCriteriaPrompt)) ok('提示词说明了 cannot_tell 是正当答案');
+    else bad('提示词没说 cannot_tell');
+  }
+
+  // (3) 有 cannot_tell + approve → 降级
+  {
+    const original = subagentsStub.impl;
+    subagentsStub.impl = async () =>
+      craftVerdict({
+        criteria_results: [
+          { criterion: 'a', result: 'met', evidence: 'x' },
+          { criterion: 'b', result: 'cannot_tell', evidence: '范围外' },
+        ],
+      });
+    const r = await dispatch(
+      'sdlc_verify',
+      { intent_of_change: 't', criteria: ['a', 'b'] },
+      fakeAgent,
+    );
+    subagentsStub.impl = original;
+    if (r.value?.status === 'needs_human') ok('有 cannot_tell 时 approve 被降级');
+    else bad(`有 cannot_tell 却放行: ${r.value?.status}`);
+  }
+
+  // (4) 有 not_met + approve → 降级
+  {
+    const original = subagentsStub.impl;
+    subagentsStub.impl = async () =>
+      craftVerdict({
+        criteria_results: [{ criterion: 'a', result: 'not_met', evidence: '实测不成立' }],
+      });
+    const r = await dispatch('sdlc_verify', { intent_of_change: 't', criteria: ['a'] }, fakeAgent);
+    subagentsStub.impl = original;
+    if (r.value?.status === 'needs_human') ok('有 not_met 时 approve 被降级');
+    else bad(`有 not_met 却放行: ${r.value?.status}`);
+  }
+
+  // (5) 漏报标准 → 补一条 important finding
+  {
+    const original = subagentsStub.impl;
+    subagentsStub.impl = async () =>
+      craftVerdict({ criteria_results: [{ criterion: 'a', result: 'met', evidence: 'x' }] });
+    const r = await dispatch(
+      'sdlc_verify',
+      { intent_of_change: 't', criteria: ['a', 'b', 'c'] },
+      fakeAgent,
+    );
+    subagentsStub.impl = original;
+    const imp = (r.value?.findings ?? []).filter(
+      (f) => f.severity === 'important' && /漏报/.test(f.reason),
+    );
+    if (imp.length > 0) ok('漏报的标准被补成 finding（2 条没报）');
+    else bad(`漏报未被发现: ${JSON.stringify(r.value?.findings)}`);
+    if (/^2 条/.test(imp[0]?.reason ?? '') || /漏报了 2 条/.test(imp[0]?.reason ?? '')) {
+      ok('finding 里报出了漏报的条数');
+    } else {
+      bad(`漏报条数不对: ${imp[0]?.reason}`);
+    }
+  }
+
+  // (6) reject 不受降级影响（降级只针对 approve）
+  {
+    const original = subagentsStub.impl;
+    subagentsStub.impl = async () =>
+      craftVerdict({ status: 'reject', summary: '有阻断问题', findings: [
+        { severity: 'blocking', category: 'logic_error', reason: 'r', evidence: 'e' },
+      ] });
+    const r = await dispatch('sdlc_verify', { intent_of_change: 't' }, fakeAgent);
+    subagentsStub.impl = original;
+    if (r.value?.status === 'reject') ok('reject 不被改动（降级只针对 approve）');
+    else bad(`reject 被改成了 ${r.value?.status}`);
+  }
 }
 
 console.log('\n== 5e. 冻结绑定任务身份 ==');
