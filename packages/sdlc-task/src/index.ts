@@ -21,6 +21,10 @@ import type { Context } from '@deepseek-ai/cordis';
 // 必须显式 import：`ctx.fs` 由 dsh-fs 的 declaration merging 提供，
 // 不 import 它的类型就看不到这个属性（tsc 会报 Property 'fs' does not exist）。
 import type { FsTarget } from '@deepseek-ai/dsh-fs';
+import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox';
+// 显式 import 只为触发 declaration merging —— `ctx.sandboxPolicy` 由它提供。
+// 不 import 就看不到这个属性（tsc: Property 'sandboxPolicy' does not exist）。
+import type { SandboxPolicyService as _SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
@@ -49,7 +53,9 @@ export const name = 'sdlc-task';
  * `fs` 走 harness 的文件系统（尊重沙箱与观察策略），而不是直接 import node:fs。
  * `sessionProjections` 不在列表里——本插件不读会话状态。
  */
-export const inject = ['tools', 'fs', 'systemPrompt'];
+// `sandbox` 必须在列表里：文件写入要按会话的沙箱策略解析（否则会用到
+// 沙箱的**默认根**而不是会话 cwd，写入被拒——实测踩到过）。
+export const inject = ['tools', 'fs', 'systemPrompt', 'sandboxPolicy'];
 
 export const Config = z.object({
   /** 任务目录所在位置，相对仓库根。默认 `.ai/tasks`。 */
@@ -129,17 +135,55 @@ function pathsFor(cfg: SdlcTaskConfig, exec: { agent?: unknown }, taskId: unknow
   return { repoRoot, taskDir, stateFile: `${taskDir}/state.yaml` };
 }
 
+/**
+ * 解析选项：**必须把会话 cwd 传进去**。
+ *
+ * 官方 fs 工具的做法是 `sessionResolveOptions(exec, policy?.workspaceRoot)`——
+ * `policy.workspaceRoot` 优先于 `session.header.cwd`。不传的话解析会落到
+ * 沙箱的默认根上，于是"写自己仓库里的文件"被判成越界
+ * （`file access denied under workspace-write mode`）。实测踩到过。
+ */
+function resolveOptions(
+  exec: { agent?: unknown; signal?: AbortSignal },
+  policyRoot?: string,
+): { cwd?: string; signal?: AbortSignal } {
+  const cwd = policyRoot ?? sessionCwd(exec);
+  return { ...(cwd !== undefined ? { cwd } : {}), signal: exec.signal };
+}
+
+/**
+ * 解析本次调用的沙箱策略（写操作专用）。
+ *
+ * 服务名是 **`ctx.sandboxPolicy`**（策略），不是 `ctx.sandbox`（执行器）。
+ * 策略从 **session** 推导：会话的 cwd 就是它的 workspace-write 边界。
+ * 所以必须把 `exec.agent.session` 传进去——否则会落到部署的 fallback 根，
+ * 于是"写自己仓库里的文件"被误判成越界（实测踩到过）。
+ */
+async function writePolicy(
+  ctx: Context,
+  exec: { agent?: unknown },
+): Promise<SandboxExecutionPolicy | undefined> {
+  const session = (exec.agent as { session?: unknown } | undefined)?.session;
+  if (session === undefined) return undefined;
+  try {
+    return ctx.sandboxPolicy.resolve({ session: session as never });
+  } catch {
+    // 拿不到策略时按"无策略"处理：由 fs 后端自己决定默认行为。
+    return undefined;
+  }
+}
+
 /** 读 + 解析 state.yaml。文件不存在时返回 undefined（而不是抛错）。 */
 async function readState(
   ctx: Context,
   paths: TaskPaths,
   taskId: string,
-  signal?: AbortSignal,
+  exec: { agent?: unknown; signal?: AbortSignal },
 ): Promise<TaskState | undefined> {
-  const target = await ctx.fs.resolve(paths.stateFile, { signal });
-  const info = await ctx.fs.stat(target, signal);
+  const target = await ctx.fs.resolve(paths.stateFile, resolveOptions(exec));
+  const info = await ctx.fs.stat(target, exec.signal);
   if (info === undefined || info.type !== 'file') return undefined;
-  const text = await ctx.fs.readText(target, signal);
+  const text = await ctx.fs.readText(target, exec.signal);
   let raw: unknown;
   try {
     // 必须用 JSON_SCHEMA：默认 schema 会把 `2026-10-07T10:00:00.000Z` 解析成
@@ -159,10 +203,11 @@ async function writeState(
   ctx: Context,
   paths: TaskPaths,
   state: TaskState,
-  signal?: AbortSignal,
+  exec: { agent?: unknown; signal?: AbortSignal },
 ): Promise<void> {
-  const target = await ctx.fs.resolve(paths.stateFile, { signal });
-  await ctx.fs.writeText(target, serializeTaskState(state), undefined, signal);
+  const policy = await writePolicy(ctx, exec);
+  const target = await ctx.fs.resolve(paths.stateFile, resolveOptions(exec, policy?.workspaceRoot));
+  await ctx.fs.writeText(target, serializeTaskState(state), undefined, exec.signal, policy);
 }
 
 /**
@@ -176,13 +221,16 @@ async function probeArtifacts(
   ctx: Context,
   paths: TaskPaths,
   state: TaskState,
-  signal?: AbortSignal,
+  exec: { agent?: unknown; signal?: AbortSignal },
 ): Promise<Map<string, boolean>> {
   const out = new Map<string, boolean>();
   for (const rel of Object.values(state.artifacts)) {
     try {
-      const target = await ctx.fs.resolve(`${paths.taskDir}/${rel}`, { signal });
-      const info = await ctx.fs.stat(target, signal);
+      const target = await ctx.fs.resolve(
+        `${paths.taskDir}/${rel}`,
+        resolveOptions(exec),
+      );
+      const info = await ctx.fs.stat(target, exec.signal);
       out.set(rel, info !== undefined && info.type === 'file');
     } catch {
       out.set(rel, false);
@@ -256,7 +304,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         const paths = pathsFor(cfg, exec, args.task_id);
         const id = normalizeTaskId(args.task_id);
 
-        const existing = await readState(ctx, paths, id, exec.signal);
+        const existing = await readState(ctx, paths, id, exec);
         if (existing !== undefined) {
           throw new Error(
             `任务 ${id} 已存在（状态 ${existing.status}）：${paths.stateFile}。` +
@@ -280,11 +328,13 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           .replaceAll('{{title}}', args.title)
           .replaceAll('{{problem}}', args.problem ?? '<具体到能验证的问题——不要写方案>');
 
-        const intentTarget = await ctx.fs.resolve(`${paths.taskDir}/intent.md`, {
-          signal: exec.signal,
-        });
-        await ctx.fs.writeText(intentTarget, intentText, undefined, exec.signal);
-        await writeState(ctx, paths, state, exec.signal);
+        const policy = await writePolicy(ctx, exec);
+        const opts = resolveOptions(exec, policy?.workspaceRoot);
+        const intentTarget = await ctx.fs.resolve(`${paths.taskDir}/intent.md`, opts);
+        // 先写 intent.md 再写 state.yaml：两者任何一个失败都不该留下
+        // "有 state.yaml 但没有 intent.md"的悬空任务（那会让状态机自欺）。
+        await ctx.fs.writeText(intentTarget, intentText, undefined, exec.signal, policy);
+        await writeState(ctx, paths, state, exec);
 
         return {
           task: id,
@@ -354,13 +404,13 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
       async execute(args, exec) {
         const paths = pathsFor(cfg, exec, args.task_id);
         const id = normalizeTaskId(args.task_id);
-        const state = await readState(ctx, paths, id, exec.signal);
+        const state = await readState(ctx, paths, id, exec);
         if (state === undefined) {
           throw new Error(
             `任务 ${id} 不存在：${paths.stateFile}。先用 sdlc_task_create 创建。`,
           );
         }
-        const presence = await probeArtifacts(ctx, paths, state, exec.signal);
+        const presence = await probeArtifacts(ctx, paths, state, exec);
         const report = checkConsistency(state, (rel) => presence.get(rel) === true);
 
         // 下一状态的准入门槛（用于回答"下一步该产出什么"）
@@ -440,7 +490,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             `非法目标状态：${JSON.stringify(args.to)}。允许值：${STATUSES.join(' / ')}`,
           );
         }
-        const loaded = await readState(ctx, paths, id, exec.signal);
+        const loaded = await readState(ctx, paths, id, exec);
         if (loaded === undefined) {
           throw new Error(`任务 ${id} 不存在：${paths.stateFile}`);
         }
@@ -465,7 +515,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
                 },
               };
 
-        const presence = await probeArtifacts(ctx, paths, state, exec.signal);
+        const presence = await probeArtifacts(ctx, paths, state, exec);
         const verdict = checkAdvance(
           state.status,
           args.to,
@@ -482,7 +532,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         }
 
         const next = applyAdvance(state, args.to, args.reason);
-        await writeState(ctx, paths, next, exec.signal);
+        await writeState(ctx, paths, next, exec);
         return { task: next.task, from: state.status, to: next.status, direction: verdict.direction };
       },
     }),

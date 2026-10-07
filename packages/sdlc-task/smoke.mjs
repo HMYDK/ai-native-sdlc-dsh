@@ -67,10 +67,15 @@ ctx.provide('systemPrompt', {
   getContextOrder: () => 0,
 });
 
-// 内存文件系统桩：只实现插件用到的 resolve/stat/readText/writeText
+// 内存文件系统桩：只实现插件用到的 resolve/stat/readText/writeText。
+// 记录每次 resolve 的 cwd 与 writeText 收到的 policy —— 这是锁住
+// "沙箱接线正确"（cwd 必须是会话根，且写操作要带 policy）的关键。
 const files = new Map();
+const resolveCalls = [];
+const writeCalls = [];
 ctx.provide('fs', {
-  async resolve(p) {
+  async resolve(p, opts) {
+    resolveCalls.push({ path: p, cwd: opts?.cwd });
     return { targetKey: p, displayPath: p };
   },
   async stat(target) {
@@ -83,9 +88,19 @@ ctx.provide('fs', {
     if (v === undefined) throw new Error(`ENOENT: ${target.displayPath}`);
     return v;
   },
-  async writeText(target, content) {
+  async writeText(target, content, _intent, _signal, policy) {
+    writeCalls.push({ path: target.displayPath, policy });
     files.set(target.displayPath, content);
     return { version: 'v1' };
+  },
+});
+
+// 沙箱策略服务桩：会话 cwd 就是 workspace-write 的边界
+const WORKSPACE_ROOT = '/repo';
+ctx.provide('sandboxPolicy', {
+  resolve({ session }) {
+    if (session === undefined) return undefined;
+    return { mode: 'workspace-write', workspaceRoot: WORKSPACE_ROOT };
   },
 });
 
@@ -257,6 +272,31 @@ else bad('不存在的任务未报错');
     ok('拿不到 cwd 时给出可读错误（而不是崩）');
   } else {
     bad(`拿不到 cwd 时的行为不符: ${JSON.stringify(noCwd.value ?? noCwd.error)}`);
+  }
+}
+
+console.log('\n== 4k. 沙箱接线（曾因漏传 cwd 导致写入被拒）==');
+{
+  const missingCwd = resolveCalls.filter((c) => c.cwd === undefined);
+  if (missingCwd.length === 0) {
+    ok(`每次 fs.resolve 都带了 cwd（共 ${resolveCalls.length} 次）`);
+  } else {
+    bad(
+      `${missingCwd.length} 次 resolve 没有 cwd —— 会落到沙箱的 fallback 根，` +
+        `写入会被误判越界。例：${missingCwd[0].path}`,
+    );
+  }
+  const wrongRoot = resolveCalls.filter((c) => c.cwd !== undefined && c.cwd !== WORKSPACE_ROOT);
+  if (wrongRoot.length === 0) ok('resolve 的 cwd 一律是会话的 workspace 根');
+  else bad(`有 ${wrongRoot.length} 次 resolve 用了别的 cwd：${wrongRoot[0].cwd}`);
+
+  const noPolicy = writeCalls.filter((w) => w.policy === undefined);
+  if (writeCalls.length > 0 && noPolicy.length === 0) {
+    ok(`每次 writeText 都带了沙箱策略（共 ${writeCalls.length} 次）`);
+  } else if (writeCalls.length === 0) {
+    bad('没有任何 writeText 调用，说明写路径没被覆盖');
+  } else {
+    bad(`${noPolicy.length} 次 writeText 没带策略`);
   }
 }
 
