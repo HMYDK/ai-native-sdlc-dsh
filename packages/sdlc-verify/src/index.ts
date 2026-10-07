@@ -180,6 +180,47 @@ async function writePolicy(
   }
 }
 
+/**
+ * 把 `verification.json` 登记进任务 state.yaml 的 `artifacts`。
+ *
+ * 刻意**不 import sdlc-task 的代码**：两个插件只在 `state.yaml` 这个
+ * **文件契约**上耦合（与前文 resolveTask 同一原则）。这里做的是最小编辑：
+ * 只在 artifacts 映射里加/覆盖一个键，其余内容保持原样——
+ * 因为 state.yaml 是人也会手改的文件，重写它风险太大。
+ *
+ * 失败不抛错：登记失败不该让已经拿到的裁决作废，只记一条警告。
+ */
+async function registerVerificationArtifact(
+  ctx: Context,
+  exec: { agent?: unknown; signal?: AbortSignal },
+  task: ResolvedTask,
+): Promise<void> {
+  const statePath = `${task.dir}/state.yaml`;
+  const policy = await writePolicy(ctx, exec);
+  const target = await ctx.fs.resolve(statePath, resolveOptions(exec, policy?.workspaceRoot));
+  const info = await ctx.fs.stat(target, exec.signal);
+  if (info === undefined || info.type !== 'file') return;
+
+  const text = await ctx.fs.readText(target, exec.signal);
+  if (/^\s*verification:/m.test(text)) return; // 已登记，不重复写
+
+  // 在 artifacts 段末尾插入一行。artifacts 是我们自己写出来的固定形状，
+  // 但用户可能手改过——所以找不到锚点时就放弃（宁可不登记，也不改坏文件）。
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => /^artifacts:\s*$/.test(l));
+  if (start < 0) return;
+  let insertAt = start + 1;
+  while (insertAt < lines.length && /^\s{2}\S/.test(lines[insertAt] ?? '')) insertAt += 1;
+  lines.splice(insertAt, 0, '  verification: "verification.json"');
+  await ctx.fs.writeText(
+    target,
+    lines.join('\n'),
+    undefined,
+    exec.signal,
+    policy,
+  );
+}
+
 interface ResolvedTask {
   id: string;
   dir: string;
@@ -402,8 +443,13 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           verifier_session: run !== undefined ? String(run.id) : undefined,
         } satisfies Verdict & { verifier_session?: string };
 
-        // 落盘到任务目录：这样 sdlc_task_advance 到 REVIEWING 时，
-        // 状态机能真的看到 verification 制品——而不是靠人记得粘一份。
+        // 落盘到任务目录**并登记进 state.yaml**。
+        //
+        // 只写文件是不够的：`sdlc_task_advance` 的门槛看的是 state.yaml 的
+        // `artifacts`，不是"磁盘上碰巧有这个文件"。不登记的话，状态机到
+        // REVIEWING 时会说"缺 verification 制品"——而它明明就在旁边。
+        // （这条是独立验证者指出的，它比我更早看到了这个不一致。）
+        //
         // 写失败不掩盖裁决本身（裁决已经拿到了，先把它交出去）。
         if (task !== undefined) {
           try {
@@ -429,6 +475,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               exec.signal,
               policy,
             );
+            await registerVerificationArtifact(ctx, exec, task);
           } catch (e) {
             return {
               ...finalVerdict,

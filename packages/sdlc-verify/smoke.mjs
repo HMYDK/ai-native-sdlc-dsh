@@ -414,6 +414,21 @@ console.log('\n== 5d. 任务身份：从 state.yaml 解析制品并把裁决落�
         bad(`落盘的 verification.json 不是合法 JSON: ${e.message}`);
       }
     }
+
+    // 光写到磁盘不够：状态机的门槛看的是 state.yaml 的 artifacts。
+    // 不登记的话，advance 到 REVIEWING 会说"缺 verification 制品"——
+    // 而它明明就在旁边。（独立验证者指出的不一致。）
+    const st = files.get('/repo/.ai/tasks/PROJ-9/state.yaml') ?? '';
+    if (/^\s{2}verification:\s*"verification\.json"/m.test(st)) {
+      ok('verification 已登记进 state.yaml 的 artifacts');
+    } else {
+      bad(`verification 未登记进 artifacts，状态机到 REVIEWING 会看不到它。state.yaml=\n${st}`);
+    }
+    // 而且不能把别的制品弄丢
+    for (const [k, v] of [['intent', 'intent.md'], ['spec', 'spec.md'], ['plan', 'plan.md']]) {
+      if (new RegExp(`^\\s{2}${k}:\\s*"${v}"`, 'm').test(st)) ok(`登记后 ${k} 仍在 artifacts 里`);
+      else bad(`登记 verification 时把 ${k} 弄丢了`);
+    }
   }
 
   // 任务不存在时要报错而不是静默降级
