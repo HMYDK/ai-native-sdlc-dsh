@@ -63,6 +63,15 @@ Author: <谁>. Status: draft | accepted | rejected.
    否则只有 `.dsh/skills/` 生效。
 5. **hooks 桥接只支持 7 个事件**（`SessionStart`/`UserPromptSubmit`/`PreToolUse`/`PostToolUse`/
    `Stop`/`SubagentStart`/`SubagentStop`），且 **不支持入参改写**——钩子只能拒绝，不能修正后放行。
+5b. **`matcher` 必须用 DSH 的小写工具名——移植 Claude Code 钩子最大的坑。**
+   DSH 实际工具名是 `bash` / `write` / `edit` / `read`，**不是** `Bash`
+   （手册与 Claude Code 文档里都是大写 B）。写了 `"Bash"` **不报任何错**：
+   桥接 fiber 照常 `active`，但 matcher 永不匹配，`hook/*` 事件数恒为 0，**完全静默**。
+   实测：改小写前本会话 854 个事件中 `hook/*` = 0。**matcher 大小写敏感。**
+   可用工具名：`bash write edit read grep glob todo_write subagent plugin_manager
+   cordis_inspect_list cordis_inspect_query job_output job_list job_kill
+   list_agents send_message interrupt_agent skill present` 等。
+   排查手法：解压会话日志统计 `tool/call` 的 `name` 字段。
 6. **`configPath` 的相对路径从启动进程的目录解析**，不是工作区。桌面 App 下必须用绝对路径。
 7. **DSH 没有网络出口管控**。沙箱只管文件效果。不要声称本仓库能限制网络。
 8. **DSH 没有不可覆盖的管理层**。任何控制都能被能改 `~/.dsh/` 的人关闭，
@@ -87,15 +96,22 @@ Author: <谁>. Status: draft | accepted | rejected.
 
 - [x] 仓库骨架、制品目录、门禁脚本、技能
 - [x] 门禁脚本逻辑自测（`.claude/hooks/verify-gates.sh`，24/24 通过）
-- [ ] 插件挂载（见 `PLUGIN-SETUP.md`，待人工执行）
-- [x] **门禁端到端实测——未通过**：2026-10-07 实测 `git push origin main` 在真实 Git
-      操作中未被阻断。根因：桥接插件未安装，`hooks.json` 无人读取，`.claude/hooks/` 是惰性代码。
-      隔离验证证明**脚本本身正确**（exit=2 阻断 / 带授权 exit=0），偏离仅在接线。
-      见 `artifacts/incidents/2026-10-07-gate-not-wired.md`
-- [ ] 确认 `matcher` 匹配语义（文档只给了 schema，未给匹配例子）
+- [x] 插件安装 + 挂载：**已证实成功**。用 App 自带 CLI
+      (`/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh`) 安装，
+      并在 `$DSH_PROFILE_DIR/cordis.patch.yml` 加 `insert` 行。
+      `plugin_manager list_plugins` 显示
+      `include:hooks-claude-code / fiberPhase: "active"` ✓
+- [x] **`matcher` 语义已确认——这就是根因**：DSH 工具名是**小写**
+      (`bash`/`write`/`edit`)，写成手册里的 `"Bash"` 会导致 matcher 永不匹配，
+      且**完全静默**（fiber 仍 active，`hook/*` 事件数恒为 0）。已修正为小写。
+- [ ] **待验证**：改小写后重启 App，重跑 `git push origin main` 应被阻断
 - [ ] 确认桌面 App 是否把 shell 环境传给钩子进程（决定 `RELEASE_APPROVAL` 怎么注入）
 - [ ] 阶段 06 无人闭环（需先决定 Host 常驻还是外部 cron）
 
-> **教训（写给未来的自己）**：`verify-gates.sh` 直接 `bash 脚本`，**绕过了桥接**。
-> 单元测试通过 ≠ 端到端可用。任何涉及「接线」的改动，都必须用真实操作验证，
-> 不要在汇报里把单元测试通过说得像功能可用。
+> **两条教训（写给未来的自己）**
+> 1. `verify-gates.sh` 直接 `bash 脚本`，**绕过了桥接**。单元测试通过 ≠ 端到端可用。
+>    任何涉及「接线」的改动，都必须用真实操作验证。
+> 2. **`plugin_manager list_plugins` 是观测桥接是否加载的正确探针**——它返回实时
+>    Loader 状态（含 `fiberPhase`）。我查了四轮才想到用它，此前一直在用不可靠的
+>    间接推断（`cordis_inspect` 查 Service——但该桥接根本不注册 Service）。
+>    排查 DSH 插件问题时，**先用这个工具看 Loader 状态**，不要靠推断。
