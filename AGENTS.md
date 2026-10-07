@@ -88,7 +88,14 @@ Author: <谁>. Status: draft | accepted | rejected.
 - [x] 仓库骨架、制品目录、门禁脚本、技能
 - [x] 门禁脚本逻辑自测（`.claude/hooks/verify-gates.sh`，24/24 通过）
 - [ ] 插件挂载（见 `PLUGIN-SETUP.md`，待人工执行）
-- [ ] 门禁 deny/ask 端到端实测（依赖上一条）
+- [x] **门禁端到端实测——未通过**：2026-10-07 实测 `git push origin main` 在真实 Git
+      操作中未被阻断。根因：桥接插件未安装，`hooks.json` 无人读取，`.claude/hooks/` 是惰性代码。
+      隔离验证证明**脚本本身正确**（exit=2 阻断 / 带授权 exit=0），偏离仅在接线。
+      见 `artifacts/incidents/2026-10-07-gate-not-wired.md`
 - [ ] 确认 `matcher` 匹配语义（文档只给了 schema，未给匹配例子）
 - [ ] 确认桌面 App 是否把 shell 环境传给钩子进程（决定 `RELEASE_APPROVAL` 怎么注入）
 - [ ] 阶段 06 无人闭环（需先决定 Host 常驻还是外部 cron）
+
+> **教训（写给未来的自己）**：`verify-gates.sh` 直接 `bash 脚本`，**绕过了桥接**。
+> 单元测试通过 ≠ 端到端可用。任何涉及「接线」的改动，都必须用真实操作验证，
+> 不要在汇报里把单元测试通过说得像功能可用。
