@@ -17,3 +17,6 @@ packages/*/lib/
 .env.*
 *.pem
 *.key
+
+# 冒烟测试用的临时任务（真实任务应当提交，见 packages/sdlc-task/README.md）
+.ai/tasks/SMOKE-*/
