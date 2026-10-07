@@ -209,9 +209,32 @@ handbook/                 # 手册原文，只读
 sdlc_task_create           → 建任务（state.yaml + intent.md 骨架）
 sdlc_artifact_write ×3     → intent / spec / plan，结构合格才登记
 sdlc_task_advance ×4       → INTENT→SPEC→PLANNED→IMPLEMENTING→VERIFYING
-sdlc_verify + criteria(5)  → needs_human，5 条全部 cannot_tell
-                             裁决自动落盘 + 自动登记进 artifacts
+sdlc_verify + criteria(5)  → 第一轮 needs_human（5 条全部 cannot_tell）
 ```
+
+**这条任务后来被正确地打回并重新界定**，过程本身是一次有价值的演示：
+
+第一轮验证给 `needs_human` + 2 条 blocking，其中一条是**我自己算错的数**
+（spec 映射表枚举 10 个内部状态，我五处都写 9 个），另一条是根子上的：
+`state.yaml` 里先写"不写真实产品代码"、紧接着写"实现完成"——**同一文件自相矛盾**。
+验证者把这个问题原样交还给人：「本任务的交付范围到底是什么？」
+
+处置（2026-10-07）：
+1. **回退** `VERIFYING → PLANNED`（第一次在真实会话里跑通回退路径——
+   它要求目标状态的门槛成立，不是随便退）
+2. 标题改为「工作流演示：制品链 + 独立验证」，不再声称实现了理赔功能
+3. 删掉针对**已废弃说法**的旧裁决（可在 git 历史取回；
+   删除一事记在 state.yaml 的 history 里，不是毁证据）
+4. **用正确的判据重跑**：判据针对制品链（如实性 / 章节齐备 /
+   Proof 与验收标准对应 / spec 内部自洽），不针对假想的理赔功能
+   → `approve`，四条全 `met`
+
+⚠️ 这次重跑验证者**逐行数出**了表格里的 10 个状态并与文中五处对账，
+`grep '9 态|9 个|九'` 零命中——**修好了**。它还独立跑了
+`sdlc-artifact` 的结构检查器复核三个制品（`ok=true findings=[]`）。
+
+它另外抓到一件我漏了的事，而且是对的：**改完工作区没提交**，
+而 AGENTS.md 仍写着旧状态——「这正是仓库自己反复强调要避免的两份真相漂移」。
 
 **这次验证的价值在于验证者抓到了我自己算错的数**：
 spec.md 的映射表枚举了 **10** 个内部状态，而我和 plan.md 五处都写"9 个"——

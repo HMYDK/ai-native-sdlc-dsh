@@ -51,7 +51,7 @@ From: spec.md（v1）
    而且它必须在测试里**显式存在**，不能靠"框架默认会拦"。
 
 5. **状态映射与客服系统口径漂移**。内部状态新增时映射表不会自动跟上。
-   处置：映射表的单测里断言"已知内部状态集合 == 下表枚举的 10 个"，
+   处置：映射表的单测里断言"已知内部状态集合 == spec.md Design 表枚举的 10 个"，
    使新增内部状态时测试失败而不是静默落到默认分支。
 
 ## Proof
@@ -61,7 +61,7 @@ From: spec.md（v1）
 | R1：接口只返回该客户自己的理赔 | `test_status.py::test_cross_customer_access_denied`（用 A 的会话查 B 的理赔，断言 403/404） |
 | R2：门户展示状态/下一步/预计日期 | `StatusPanel.test.tsx` 覆盖四种客户状态的渲染；快照与已确认的设计稿比对 |
 | R3：面板读取不超过 claims-core 限流 | 预发环境实测总调用量日志（第 7 步），附峰值截图；单测只覆盖缓存命中逻辑（`useClaimStatus.test.ts`） |
-| R4：对外只暴露 4 态 | `stateMapping.test.ts` 断言下表枚举的 10 个内部状态全部有映射，且输出集合恰为 4 个 |
+| R4：对外只暴露 4 态 | `stateMapping.test.ts` 断言 spec.md Design 表枚举的 10 个内部状态全部有映射，且输出集合恰为 4 个 |
 | R5：会话与前端缓存无理赔详情 | 浏览器存储快照比对（sessionStorage/localStorage 为空）；网络面板确认响应体只有 state/nextStep/etaRange |
 | 全量回归 | `make test` 与 `make lint` 原始输出 |
 
