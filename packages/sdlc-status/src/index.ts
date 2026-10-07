@@ -31,7 +31,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
-import { scanTasks, summarize, type ScanInput, type TaskEntry } from './scan.js';
+import { humanAge, scanTasks, summarize, type ScanInput, type TaskEntry } from './scan.js';
 
 export const name = 'sdlc-status';
 
@@ -40,10 +40,19 @@ export const inject = ['tools', 'fs', 'systemPrompt'];
 export const Config = z.object({
   /** 任务目录位置，相对仓库根。必须与 sdlc-task / sdlc-artifact 一致。 */
   tasksDir: z.string().default('.ai/tasks'),
+  /**
+   * 超过这个小时数没动就算"停滞"。
+   *
+   * ⚠️ 口径：用 `state.yaml` 的 `updated`，即**状态机的时间**，
+   * 不是"最后一次有人干活的时间"——手改制品内容不会动它。
+   * 所以"很新"不代表在推进，但"很久没动"仍然有意义：状态机没动 = 流程没往前走。
+   */
+  staleAfterHours: z.number().default(24),
 });
 
 interface SdlcStatusConfig {
   tasksDir: string;
+  staleAfterHours: number;
 }
 
 function resolveOptions(exec: {
@@ -147,7 +156,11 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
         'verification verdict. Use it to answer "what is stuck", "which task has an unresolved reject", or "what ' +
         'should I work on next" in ONE call instead of asking task by task. ' +
         'Read-only: it never writes or changes any state. A task whose state.yaml is broken is reported as an ' +
-        'error entry rather than aborting the scan — the dashboard must still work when something is wrong.',
+        'error entry rather than aborting the scan — the dashboard must still work when something is wrong. ' +
+        'It also reports how long each task has been idle and separates "stale" (idle past the threshold while ' +
+        'work is expected) from "waiting" (a needs_human verdict — idle because it is waiting for a person, which ' +
+        'is normal). Configure the threshold with staleAfterHours; the clock is state.yaml\'s `updated`, i.e. the ' +
+        'state machine\'s time, so hand-editing an artifact does not reset it.',
       parameters: {
         tasks_dir: {
           type: 'string',
@@ -166,6 +179,8 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
             error: { type: 'number', required: true },
             tasks: { type: 'array', required: true, items: { type: 'string' } },
             truncated: { type: 'boolean', required: true },
+            stale: { type: 'number', required: true },
+            waiting: { type: 'number', required: true },
           },
         },
         render: (_a, v) => {
@@ -188,7 +203,7 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
         const tasksRoot = `${repoRoot}/${dir}`;
 
         const input = await collectScanInput(ctx, tasksRoot, exec);
-        const result = scanTasks(input);
+        const result = scanTasks({ ...input, staleAfterHours: cfg.staleAfterHours });
 
         // 上限：任务很多时不要把所有细节都灌进上下文。
         // 截断要**显式说出来**，否则人以为自己看到了全部。
@@ -209,6 +224,8 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
           error: result.counts.error,
           tasks: lines,
           truncated,
+          stale: result.counts.staleness.stale,
+          waiting: result.counts.staleness.waiting,
         };
       },
     }),
@@ -229,7 +246,13 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
   });
 }
 
-/** 把一个任务条目格式化成一行给人看。 */
+/**
+ * 把一个任务条目格式化成一行给人看。
+ *
+ * 时间维度是刻意放在**最前面**的：看板要回答"哪些卡住了"，
+ * 而"卡了多久"和"卡在哪"一样重要——卡 3 天的和 28 分钟前的，
+ * 优先级完全不同。
+ */
 function formatEntry(t: TaskEntry): string {
   const bits: string[] = [];
 
@@ -237,10 +260,26 @@ function formatEntry(t: TaskEntry): string {
     return `✗ ${t.task} — **读不出来**：${t.error ?? '未知原因'}`;
   }
 
-  const mark = t.health === 'ok' ? '·' : '!';
+  // 停滞标记放最前
+  const st = t.staleness;
+  let mark = t.health === 'ok' ? '·' : '!';
+  if (st?.class === 'stale') mark = '⏳';
+  else if (st?.class === 'waiting') mark = '⏸';
+  else if (st?.class === 'closed') mark = '✓';
+
   bits.push(`${mark} ${t.task}`);
   if (t.status !== undefined) bits.push(`[${t.status}]`);
   if (t.title !== undefined) bits.push(t.title);
+
+  if (st !== undefined && st.ageMs !== undefined) {
+    if (st.class === 'stale') {
+      bits.push(`**停滞 ${humanAge(st.ageMs)}**（阈值 ${st.thresholdHours} 小时）`);
+    } else if (st.class === 'waiting') {
+      bits.push(`等人 ${humanAge(st.ageMs)}`);
+    } else if (st.class !== 'closed') {
+      bits.push(`${humanAge(st.ageMs)}前`);
+    }
+  }
 
   if (t.verdict !== undefined) {
     const v = t.verdict;

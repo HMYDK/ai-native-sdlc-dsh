@@ -10,7 +10,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scanTasks, summarize, summarizeVerdict, type ScanInput } from './scan.js';
+import { humanAge, scanTasks, summarize, summarizeVerdict, type ScanInput } from './scan.js';
 
 /** 造一个合法的 state.yaml 文本。 */
 function stateYaml(over: {
@@ -18,6 +18,7 @@ function stateYaml(over: {
   status: string;
   artifacts?: Record<string, string>;
   title?: string;
+  updated?: string;
 }): string {
   const arts = over.artifacts ?? {};
   return [
@@ -25,7 +26,7 @@ function stateYaml(over: {
     `title: ${JSON.stringify(over.title ?? '标题')}`,
     `status: ${over.status}`,
     'created: "2026-10-07T10:00:00.000Z"',
-    'updated: "2026-10-07T10:00:00.000Z"',
+    `updated: "${over.updated ?? '2026-10-07T10:00:00.000Z'}"`,
     'artifacts:',
     ...Object.entries(arts).map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`),
     'history: []',
@@ -291,7 +292,21 @@ test('VERIFYING 只要求 intent/spec/plan（与 sdlc-task 一致）', () => {
 });
 
 test('summarize 的一句话概览', () => {
-  assert.equal(summarize({ tasks: [], counts: { total: 0, ok: 0, incomplete: 0, error: 0, byStatus: {}, verdicts: { approve: 0, reject: 0, needs_human: 0, none: 0 } } }), '没有任务。');
+  assert.equal(
+    summarize({
+      tasks: [],
+      counts: {
+        total: 0,
+        ok: 0,
+        incomplete: 0,
+        error: 0,
+        byStatus: {},
+        verdicts: { approve: 0, reject: 0, needs_human: 0, none: 0 },
+        staleness: { closed: 0, waiting: 0, stale: 0, active: 0, unknown: 0 },
+      },
+    }),
+    '没有任务。',
+  );
 
   const r = scanTasks(
     inputOf({
@@ -308,4 +323,170 @@ test('summarize 的一句话概览', () => {
   assert.match(line, /2 个任务/);
   assert.match(line, /1 个读不出来/, '坏任务必须在概览里显眼');
   assert.match(line, /needs_human 1/);
+});
+
+// ─────────────────────────────────────────────── 停滞判定（时间维度）
+
+test('停滞判定：三种"没动"必须分开——closed / waiting / stale', () => {
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z'); // 基准时刻
+  const THREE_DAYS_AGO = '2026-10-07T00:00:00.000Z';
+
+  const mk = (task: string, status: string, opts: { updated?: string; verdict?: string } = {}) => {
+    const files: Record<string, string> = {
+      'state.yaml': stateYaml({
+        task,
+        status,
+        updated: opts.updated ?? THREE_DAYS_AGO,
+        artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+      }),
+      'i.md': 'x',
+      's.md': 'x',
+      'p.md': 'x',
+    };
+    if (opts.verdict !== undefined) {
+      files['verification.json'] = verdictJson({ status: opts.verdict, criteria: 1, results: ['met'] });
+    }
+    return files;
+  };
+
+  const r = scanTasks({
+    dirs: ['DONE-OLD', 'NEEDS-HUMAN', 'STUCK', 'FRESH'].map((task) => ({
+      task,
+      files: Object.keys(
+        mk(
+          task,
+          task === 'DONE-OLD' ? 'DONE' : task === 'STUCK' ? 'IMPLEMENTING' : 'VERIFYING',
+          task === 'NEEDS-HUMAN'
+            ? { verdict: 'needs_human' }
+            : task === 'FRESH'
+              ? { updated: '2026-10-09T23:00:00.000Z' }
+              : {},
+        ),
+      ),
+    })),
+    readFile: (task, rel) =>
+      mk(
+        task,
+        task === 'DONE-OLD' ? 'DONE' : task === 'STUCK' ? 'IMPLEMENTING' : 'VERIFYING',
+        task === 'NEEDS-HUMAN'
+          ? { verdict: 'needs_human' }
+          : task === 'FRESH'
+            ? { updated: '2026-10-09T23:00:00.000Z' }
+            : {},
+      )[rel],
+    now: NOW,
+    staleAfterHours: 24,
+  });
+
+  const byTask = Object.fromEntries(r.tasks.map((t) => [t.task, t.staleness?.class]));
+  assert.equal(byTask['DONE-OLD'], 'closed', 'DONE 是终态，不存在"停滞"');
+  assert.equal(
+    byTask['NEEDS-HUMAN'],
+    'waiting',
+    'needs_human 是验证者明确说"交给人"——在等人，不是停滞',
+  );
+  assert.equal(byTask['STUCK'], 'stale', 'IMPLEMENTING 三天没动 = 真停滞');
+  assert.equal(byTask['FRESH'], 'active', '刚动过的不算停滞');
+});
+
+test('停滞判定：阈值可配，且边界是"超过"而不是"达到"', () => {
+  const NOW = Date.parse('2026-10-08T12:00:00.000Z');
+  const at = (hoursAgo: number) => new Date(NOW - hoursAgo * 3600_000).toISOString();
+  const mk = (hoursAgo: number) => ({
+    'state.yaml': stateYaml({
+      task: 'T1',
+      status: 'IMPLEMENTING',
+      updated: at(hoursAgo),
+      artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+    }),
+    'i.md': 'x',
+    's.md': 'x',
+    'p.md': 'x',
+  });
+  const run = (hoursAgo: number, threshold: number) =>
+    scanTasks({
+      dirs: [{ task: 'T1', files: Object.keys(mk(hoursAgo)) }],
+      readFile: (_t: string, rel: string) => (mk(hoursAgo) as Record<string, string>)[rel],
+      now: NOW,
+      staleAfterHours: threshold,
+    }).tasks[0]?.staleness?.class;
+
+  assert.equal(run(23, 24), 'active', '23 小时 < 24 小时阈值');
+  assert.equal(run(24, 24), 'active', '恰好等于阈值不算超过（边界是"超过"）');
+  assert.equal(run(25, 24), 'stale', '25 小时 > 24 小时阈值');
+  assert.equal(run(23, 12), 'stale', '阈值改成 12 小时后 23 小时算停滞');
+});
+
+test('回归：坏任务的停滞类别是 unknown，不能误报成 stale', () => {
+  // 坏任务没有可信的 updated，判成"停滞"会误导人去追一个假的时间问题。
+  const r = scanTasks(inputOf({ BROKEN: { 'state.yaml': '[' } }), );
+  assert.equal(r.tasks[0]?.staleness?.class, 'unknown');
+});
+
+test('排序：停滞的排在"在等人"的前面', () => {
+  // 看板要让人一眼看到"需要我动手"的。needs_human 在等人是流程正常，
+  // 真正停滞的才是要处理的。
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z');
+  const old = '2026-10-01T00:00:00.000Z';
+  const mkFiles = (task: string, status: string, verdict?: string) => {
+    const f: Record<string, string> = {
+      'state.yaml': stateYaml({
+        task,
+        status,
+        updated: old,
+        artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+      }),
+      'i.md': 'x',
+      's.md': 'x',
+      'p.md': 'x',
+    };
+    if (verdict !== undefined) {
+      f['verification.json'] = verdictJson({ status: verdict, criteria: 1, results: ['met'] });
+    }
+    return f;
+  };
+  const files = {
+    'A-WAITING': mkFiles('A-WAITING', 'VERIFYING', 'needs_human'),
+    'B-STUCK': mkFiles('B-STUCK', 'IMPLEMENTING'),
+  };
+  const r = scanTasks({
+    dirs: Object.entries(files).map(([task, f]) => ({ task, files: Object.keys(f) })),
+    readFile: (t, rel) => files[t as keyof typeof files]?.[rel],
+    now: NOW,
+    staleAfterHours: 24,
+  });
+  assert.equal(r.tasks[0]?.task, 'B-STUCK', '停滞的要排在人前面');
+  assert.equal(r.tasks[1]?.task, 'A-WAITING');
+});
+
+test('summarize 把停滞的数量放在最显眼处', () => {
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z');
+  const files = {
+    'B-STUCK': {
+      'state.yaml': stateYaml({
+        task: 'B-STUCK',
+        status: 'IMPLEMENTING',
+        updated: '2026-10-01T00:00:00.000Z',
+        artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+      }),
+      'i.md': 'x',
+      's.md': 'x',
+      'p.md': 'x',
+    },
+  };
+  const r = scanTasks({
+    dirs: [{ task: 'B-STUCK', files: Object.keys(files['B-STUCK']) }],
+    readFile: (_t: string, rel: string) => (files['B-STUCK'] as Record<string, string>)[rel],
+    now: NOW,
+    staleAfterHours: 24,
+  });
+  const line = summarize(r);
+  assert.match(line, /1 个停滞/, `停滞数应出现在概览里：${line}`);
+});
+
+test('humanAge 给人读的时长', () => {
+  assert.equal(humanAge(30_000), '1 分钟', '不足一分钟也显示 1 分钟，不显示 0');
+  assert.equal(humanAge(45 * 60_000), '45 分钟');
+  assert.equal(humanAge(5 * 3600_000), '5 小时');
+  assert.equal(humanAge(3 * 24 * 3600_000), '3 天');
 });

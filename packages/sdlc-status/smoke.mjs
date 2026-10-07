@@ -68,13 +68,13 @@ const write = (p, content) => {
   fs.writeFileSync(full, content, 'utf8');
 };
 
-const stateYaml = (task, status, artifacts) =>
+const stateYaml = (task, status, artifacts, updated) =>
   [
     `task: ${task}`,
     `title: "${task} 的标题"`,
     `status: ${status}`,
     'created: "2026-10-07T10:00:00.000Z"',
-    'updated: "2026-10-07T10:00:00.000Z"',
+    `updated: "${updated ?? '2026-10-07T10:00:00.000Z'}"`,
     'artifacts:',
     ...Object.entries(artifacts).map(([k, v]) => `  ${k}: "${v}"`),
     'history: []',
@@ -151,6 +151,26 @@ mk('NOT-A-TASK');
 mk('NO-STATE');
 write('NO-STATE/readme.txt', 'x');
 
+// H：**真停滞**——IMPLEMENTING 但 3 天没动（用固定旧时间，确保稳定可判）
+mk('PROJ-6');
+write(
+  'PROJ-6/state.yaml',
+  stateYaml('PROJ-6', 'IMPLEMENTING', { intent: 'i.md', spec: 's.md', plan: 'p.md' }, '2020-01-01T00:00:00.000Z'),
+);
+write('PROJ-6/i.md', 'x');
+write('PROJ-6/s.md', 'x');
+write('PROJ-6/p.md', 'x');
+
+// I：刚动过——不该被判成停滞
+mk('PROJ-7');
+write(
+  'PROJ-7/state.yaml',
+  stateYaml('PROJ-7', 'IMPLEMENTING', { intent: 'i.md', spec: 's.md', plan: 'p.md' }, new Date().toISOString()),
+);
+write('PROJ-7/i.md', 'x');
+write('PROJ-7/s.md', 'x');
+write('PROJ-7/p.md', 'x');
+
 ok(`临时任务树已建好：${tasksRoot}`);
 
 console.log('\n== 3. 挂载到真实上下文（真实 ctx.fs）==');
@@ -218,8 +238,8 @@ if (r.isError) {
 } else {
   const v = r.value;
   ok(`概览：${v.summary}`);
-  if (v.total === 6) ok(`识别出 6 个任务（空目录被跳过）`);
-  else bad(`任务数应为 6，实际 ${v.total}（目录：${fs.readdirSync(tasksRoot).join(',')}）`);
+  if (v.total === 8) ok(`识别出 8 个任务（空目录被跳过）`);
+  else bad(`任务数应为 8，实际 ${v.total}（目录：${fs.readdirSync(tasksRoot).join(',')}）`);
 
   const joined = (v.tasks ?? []).join('\n');
   const expect = [
@@ -249,6 +269,18 @@ if (r.isError) {
   }
   if (v.error === 2) ok('错误计数为 2（PROJ-5 与 NO-STATE）');
   else bad(`错误计数应为 2，实际 ${v.error}`);
+
+  // ── 时间维度 ───────────────────────────────────────────────
+  if (v.stale === 1) ok('停滞计数为 1（只有 PROJ-6 是 IMPLEMENTING 且三天没动）');
+  else bad(`停滞计数应为 1，实际 ${v.stale}`);
+
+  const staleLine = lines.find((l) => l.includes('PROJ-6')) ?? '';
+  if (/停滞/.test(staleLine)) ok(`PROJ-6 被标为停滞：${staleLine.trim().slice(0, 70)}…`);
+  else bad(`PROJ-6 未被标为停滞：${staleLine}`);
+
+  const freshLine = lines.find((l) => l.includes('PROJ-7')) ?? '';
+  if (!/停滞/.test(freshLine)) ok('PROJ-7（刚动过）未被误判为停滞');
+  else bad(`PROJ-7 被误判为停滞：${freshLine}`);
   if (v.ok >= 2) ok(`健康任务 ${v.ok} 个（坏任务没有拖垮它们）`);
   else bad(`健康任务只有 ${v.ok} 个——坏任务不该影响其它任务`);
 }

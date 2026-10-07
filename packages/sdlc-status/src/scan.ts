@@ -77,6 +77,7 @@ interface TaskState {
   title: string;
   status: TaskStatus;
   artifacts: Record<string, string>;
+  updated?: string;
 }
 
 /**
@@ -109,6 +110,7 @@ function parseTaskStateLoose(taskId: string, raw: unknown): TaskState {
     title: typeof o['title'] === 'string' ? o['title'] : '',
     status,
     artifacts,
+    ...(typeof o['updated'] === 'string' ? { updated: o['updated'] } : {}),
   };
 }
 
@@ -143,6 +145,35 @@ export interface TaskVerdict {
   cannotTell: number;
 }
 
+/**
+ * 停滞判定。
+ *
+ * ## 为什么"等人"与"停滞"必须分开
+ *
+ * 两者在时间上看一样（都没动），但含义完全相反：
+ *   · `needs_human` 的裁决是验证者**明确说"我判断不了，交给人"**——
+ *     任务在等人，这是流程正常运转，不该被标成故障。
+ *   · 一个 `IMPLEMENTING` 的任务三天没动，才是真的**停滞**。
+ *
+ * 混在一起会把真正的问题淹掉：看板上全是"等人"的条目，
+ * 那条真正卡住的就看不见了。
+ *
+ * ## 取数口径与它的边界
+ *
+ * 用 `state.yaml` 的 `updated`。⚠️ 它是**状态机的时间**，不是"最后一次
+ * 有人干活的时间"：手改制品内容不会动它。所以"很新"不代表在推进，
+ * 但"很久没动"仍然是有意义的信号——状态机没动，意味着流程没往前走。
+ */
+export type StalenessClass = 'closed' | 'waiting' | 'stale' | 'active' | 'unknown';
+
+export interface Staleness {
+  class: StalenessClass;
+  /** 距 `updated` 的毫秒数；拿不到 updated 时为 undefined。 */
+  ageMs?: number;
+  /** 超过这个小时数就算停滞（closed/waiting 不适用）。 */
+  thresholdHours: number;
+}
+
 export interface TaskEntry {
   task: string;
   health: TaskHealth;
@@ -158,6 +189,9 @@ export interface TaskEntry {
   /** 当前状态之后，前进到下一状态还缺什么（用来回答"下一步做什么"）。 */
   nextRequired: string[];
   verdict?: TaskVerdict;
+  /** state.yaml 里的 updated（ISO 字符串）；坏掉的条目为 undefined。 */
+  updated?: string;
+  staleness?: Staleness;
   /** health=error 时的原因。 */
   error?: string;
 }
@@ -167,6 +201,10 @@ export interface ScanInput {
   dirs: Array<{ task: string; files: string[] }>;
   /** 读取某个任务目录下某个文件的内容；不存在返回 undefined。 */
   readFile: (task: string, relativePath: string) => string | undefined;
+  /** 判"多久没动"的基准时刻；默认现在。传进来是为了可单测。 */
+  now?: number;
+  /** 超过这个小时数算停滞；默认 24。 */
+  staleAfterHours?: number;
 }
 
 export interface ScanResult {
@@ -179,7 +217,54 @@ export interface ScanResult {
     error: number;
     byStatus: Partial<Record<TaskStatus, number>>;
     verdicts: { approve: number; reject: number; needs_human: number; none: number };
+    staleness: Record<StalenessClass, number>;
   };
+}
+
+export const DEFAULT_STALE_AFTER_HOURS = 24;
+
+/**
+ * 判定一个任务的停滞类别。
+ *
+ * 顺序很重要：先排除终态与"明确在等人"，再看时间。
+ */
+export function classifyStaleness(input: {
+  status?: TaskStatus;
+  verdictStatus?: string;
+  updated?: string;
+  health: TaskHealth;
+  now: number;
+  staleAfterHours: number;
+}): Staleness {
+  const { status, verdictStatus, updated, health, now, staleAfterHours } = input;
+
+  if (health === 'error' || updated === undefined) {
+    return { class: 'unknown', thresholdHours: staleAfterHours };
+  }
+
+  const t = Date.parse(updated);
+  if (Number.isNaN(t)) return { class: 'unknown', thresholdHours: staleAfterHours };
+  const ageMs = Math.max(0, now - t);
+
+  // 终态：已经完成，不存在"停滞"
+  if (status === 'DONE') return { class: 'closed', ageMs, thresholdHours: staleAfterHours };
+
+  // 明确在等人：验证者说"我判断不了"，或已到评审/待批环节。
+  // 这些的"不动"是流程设计如此，不是故障。
+  if (verdictStatus === 'needs_human' || status === 'REVIEWING') {
+    return { class: 'waiting', ageMs, thresholdHours: staleAfterHours };
+  }
+
+  const stale = ageMs > staleAfterHours * 3600_000;
+  return { class: stale ? 'stale' : 'active', ageMs, thresholdHours: staleAfterHours };
+}
+
+/** 人类可读的时长（1 天内给小时，超过给天）。 */
+export function humanAge(ms: number): string {
+  const hours = ms / 3600_000;
+  if (hours < 1) return `${Math.max(1, Math.round(ms / 60_000))} 分钟`;
+  if (hours < 48) return `${Math.round(hours)} 小时`;
+  return `${Math.round(hours / 24)} 天`;
 }
 
 /** 从 `verification.json` 的内容里提取裁决摘要。坏内容返回 undefined。 */
@@ -224,6 +309,8 @@ export function summarizeVerdict(raw: string | undefined): TaskVerdict | undefin
  */
 export function scanTasks(input: ScanInput): ScanResult {
   const entries: TaskEntry[] = [];
+  const now = input.now ?? Date.now();
+  const staleAfterHours = input.staleAfterHours ?? DEFAULT_STALE_AFTER_HOURS;
 
   for (const { task, files } of input.dirs) {
     const has = (name: string) => files.includes(name);
@@ -240,6 +327,7 @@ export function scanTasks(input: ScanInput): ScanResult {
         missingForStatus: [],
         missingOnDisk: [],
         nextRequired: [],
+        staleness: { class: 'unknown', thresholdHours: staleAfterHours },
         error: '目录里没有 state.yaml（不是一个任务，或任务被建坏了）',
       });
       continue;
@@ -254,6 +342,7 @@ export function scanTasks(input: ScanInput): ScanResult {
         missingForStatus: [],
         missingOnDisk: [],
         nextRequired: [],
+        staleness: { class: 'unknown', thresholdHours: staleAfterHours },
         error: 'state.yaml 读不到内容',
       });
       continue;
@@ -271,6 +360,7 @@ export function scanTasks(input: ScanInput): ScanResult {
         missingForStatus: [],
         missingOnDisk: [],
         nextRequired: [],
+        staleness: { class: 'unknown', thresholdHours: staleAfterHours },
         error: `state.yaml 无法解析：${e instanceof Error ? e.message : String(e)}`,
       });
       continue;
@@ -295,12 +385,14 @@ export function scanTasks(input: ScanInput): ScanResult {
       has('verification.json') ? input.readFile(task, 'verification.json') : undefined,
     );
 
+    const health: TaskHealth =
+      report.missingForStatus.length === 0 && report.missingOnDisk.length === 0
+        ? 'ok'
+        : 'incomplete';
+
     entries.push({
       task,
-      health:
-        report.missingForStatus.length === 0 && report.missingOnDisk.length === 0
-          ? 'ok'
-          : 'incomplete',
+      health,
       status: state.status,
       title: state.title,
       artifacts: state.artifacts,
@@ -308,24 +400,55 @@ export function scanTasks(input: ScanInput): ScanResult {
       missingOnDisk: report.missingOnDisk,
       nextRequired: nextRequired.map((k) => `${k}(${relOf(k)})`),
       ...(verdict !== undefined ? { verdict } : {}),
+      ...(state.updated !== undefined ? { updated: state.updated } : {}),
+      staleness: classifyStaleness({
+        status: state.status,
+        verdictStatus: verdict?.status,
+        updated: state.updated,
+        health,
+        now,
+        staleAfterHours,
+      }),
     });
   }
 
   // 展示顺序：**坏掉的排最前**（需要人处理），然后是正常任务按流程位置，
   // 再按任务名。未验证任务（没跑过 sdlc_verify）的 status 仍存在，
   // 所以它正常参与流程排序，不会和"坏掉"混在一起。
-  const rank = (e: TaskEntry): number => {
-    if (e.health === 'error') return -1;
-    return e.status === undefined ? STATUSES.length : STATUSES.indexOf(e.status);
+  // 排序优先级：**坏掉 > 真正停滞 > 在等人 > 其余（按流程位置）**。
+  // 理由：看板要让人一眼看到"需要我动手"的东西。坏掉的和停滞的都在此列；
+  // "在等人"的（needs_human 等）不动是流程正常，排在它们后面。
+  const group = (e: TaskEntry): number => {
+    if (e.health === 'error') return 0;
+    if (e.staleness?.class === 'stale') return 1;
+    if (e.staleness?.class === 'waiting') return 2;
+    return 3;
   };
+  const rank = (e: TaskEntry): number =>
+    e.status === undefined ? STATUSES.length : STATUSES.indexOf(e.status);
   entries.sort((a, b) => {
+    const g = group(a) - group(b);
+    if (g !== 0) return g;
+    // 同组内：停滞的按"越久越前"，其余按流程位置
+    if (a.staleness?.class === 'stale' && b.staleness?.class === 'stale') {
+      const d = (b.staleness.ageMs ?? 0) - (a.staleness.ageMs ?? 0);
+      if (d !== 0) return d;
+    }
     const d = rank(a) - rank(b);
     return d !== 0 ? d : a.task.localeCompare(b.task);
   });
 
   const byStatus: Partial<Record<TaskStatus, number>> = {};
   const verdicts = { approve: 0, reject: 0, needs_human: 0, none: 0 };
+  const staleness: Record<StalenessClass, number> = {
+    closed: 0,
+    waiting: 0,
+    stale: 0,
+    active: 0,
+    unknown: 0,
+  };
   for (const e of entries) {
+    if (e.staleness !== undefined) staleness[e.staleness.class] += 1;
     if (e.status !== undefined && isStatus(e.status)) {
       byStatus[e.status] = (byStatus[e.status] ?? 0) + 1;
     }
@@ -345,6 +468,7 @@ export function scanTasks(input: ScanInput): ScanResult {
       error: entries.filter((e) => e.health === 'error').length,
       byStatus,
       verdicts,
+      staleness,
     },
   };
 }
@@ -354,8 +478,11 @@ export function summarize(result: ScanResult): string {
   const c = result.counts;
   if (c.total === 0) return '没有任务。';
   const parts = [`${c.total} 个任务`];
-  if (c.incomplete > 0) parts.push(`${c.incomplete} 个制品不全`);
+  // 停滞与坏掉放最前：这两个是"需要人动手"的信号
+  if (c.staleness.stale > 0) parts.push(`**${c.staleness.stale} 个停滞**`);
   if (c.error > 0) parts.push(`**${c.error} 个读不出来**`);
+  if (c.incomplete > 0) parts.push(`${c.incomplete} 个制品不全`);
+  if (c.staleness.waiting > 0) parts.push(`${c.staleness.waiting} 个在等人`);
   const v = c.verdicts;
   const vparts: string[] = [];
   if (v.approve > 0) vparts.push(`approve ${v.approve}`);
