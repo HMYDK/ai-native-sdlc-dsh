@@ -146,14 +146,14 @@ handbook/                 # 手册原文，只读
 ## 当前状态
 
 - [x] `sdlc-verify` 插件：TypeScript 严格模式零错误
-- [x] 单测 **13/13**（纯函数层）
+- [x] 单测 **23/23**（纯函数层，含 criteria 强制策略 10 条）
       · 口径要诚实：`实测过的绕过手法必须被拦` 这条用例里的 10 种写法，
         在上一版实现下**就已经全部被拦住**，所以它是**守恒断言**（防止重构弄丢），
         不是回归证据。
       · 本轮真正的回归是 3 个**当时无人覆盖**的缺口（不是"曾被放行"）：
         `npx jest -u` 不带路径、`dd of=tests/x.py` 的 key= 前缀、以及快照模式里
         `-u` 写错成 `--?-u`（写成 `--?-u` 时既不匹配 `-u` 也不该匹配 `--update`）。
-- [x] 运行时冒烟 **67/67**（`smoke.mjs`：真实 Cordis + 真实 ToolRuntime，
+- [x] 运行时冒烟 **79/79**（`smoke.mjs`：真实 Cordis + 真实 ToolRuntime，
       真的 dispatch 工具调用；断言数由脚本输出，不手写。
       含进程级冻结、被拦命令必须证明未执行、persona 的正负向断言）
 - [x] 根因已修复：`dependencies` 里的 `@deepseek-ai/*` 会让 profile 装第二份
@@ -251,8 +251,8 @@ spec.md 的映射表枚举了 **10** 个内部状态，而我和 plan.md 五处�
 
 ### sdlc-status 的状态
 
-- [x] 单测 **14/14**（跨任务扫描纯函数层）
-- [x] 运行时冒烟 **24/24** —— **本仓库唯一用真实 `LocalFileSystem` 的冒烟**
+- [x] 单测 **24/24**（跨任务扫描纯函数层）
+- [x] 运行时冒烟 **27/27**（真实 `LocalFileSystem`）
       · 前三个插件的冒烟都用内存 `ctx.fs` 桩，而"桩忽略参数 = 测试对这类问题失明"
         （沙箱接线 bug 正是这样漏过去的）。这次在 `mkdtemp` 的临时目录里
         造真实任务树，同时验证了真实 `listDir`/`stat`/`readText` 与沙箱路径解析。
@@ -261,7 +261,7 @@ spec.md 的映射表枚举了 **10** 个内部状态，而我和 plan.md 五处�
       看板仍要报出其它任务——出问题的时候最需要能看到东西。
 - [x] 状态机常量**从 sdlc-task 导入**（`exports["./state"]`），不复制一份——
       本项目已经吃过一次"两份真相漂移"的亏（sdlc-verify 的 schema 漂移）。
-- [ ] 待装入 desktop profile 做真实端到端验证
+- [x] 已装入 desktop profile（`make check` 21/21 通过）
 
 ### 放弃 sdlc-ui 的原因（已记入 pitfalls §13）
 
@@ -272,8 +272,8 @@ host→client 的 RPC 是构建期生成的；`apps/web` 不在这里，**渲染
 
 ### sdlc-task 的状态
 
-- [x] 单测 **23/23**（状态机纯函数层）
-- [x] 运行时冒烟 **29/29**（真实 Cordis + ToolRuntime + `ctx.fs` 内存桩，
+- [x] 单测 **25/25**（状态机纯函数层）
+- [x] 运行时冒烟 **30/30**（真实 Cordis + ToolRuntime + `ctx.fs` 内存桩，
       跑完 create → status → advance 全流程）
 - [x] 单测抓出 3 个会在生产里崩的 bug（均已在测试里锁住）：
       ① `yamlScalar` 只按首字符决定加引号 → 含 `: ` 或 ` #` 的标题**写出非法 YAML**；
