@@ -1,0 +1,22 @@
+# 派生产物：手册的提取/转换脚本与中间文件
+# 保留内容：work/dsh-inspect/docs/ 下的 DSH 插件调研文档（有独立价值）
+work/*
+!work/dsh-inspect/
+work/dsh-inspect/*
+!work/dsh-inspect/docs/
+work/dsh-inspect/__pycache__/
+*.pyc
+
+# 手册的 docx 派生版（md 为准；docx 由 work/md2docx.py 可再生）
+*.docx
+~$*.docx
+
+# macOS
+.DS_Store
+
+# 凭据与本地状态（永不入库）
+.env
+.env.*
+*.pem
+*.key
+.claude/settings.local.json
