@@ -314,6 +314,125 @@ export function summarizeVerdict(raw: string | undefined): TaskVerdict | undefin
   };
 }
 
+/** `selectTasks` 的默认页大小。与工具默认值一致。 */
+export const DEFAULT_PAGE_LIMIT = 50;
+
+/**
+ * `selectTasks` 允许的最大页大小。
+ *
+ * 上限必须存在：看板的用处是把状态**压进上下文**，而不是把 10000 条灌进去。
+ * 但超限时要说出来（`note`），不能静默夹住。
+ */
+export const MAX_PAGE_LIMIT = 200;
+
+export interface Selection {
+  /** 被选中的任务（保持传入顺序）。 */
+  entries: TaskEntry[];
+  /** 选项在 `entries` 里的起始下标（0 基）。`taskId` 命中时为该任务的位置。 */
+  start: number;
+  /** 命中的单个任务在全集里的下标（0 基）；非单任务详情时为 -1。 */
+  singleIndex: number;
+  /** 是否显示了全部任务（没有因为分页而遗漏）。 */
+  complete: boolean;
+  /** `limit` 被夹到 `MAX_PAGE_LIMIT` 时的原始请求值；没被夹为 undefined。 */
+  clampedFrom?: number;
+  /** 还有多少个没显示（`complete` 为 true 时为 0）。 */
+  remaining: number;
+}
+
+/**
+ * 从扫描结果里取一个**窗口**——按 id 取单个，或按 offset/limit 分页。
+ *
+ * ## 为什么是纯函数
+ *
+ * 这是本任务的主要新增逻辑，也是本项目最该被直接单测的一层。
+ * 既定教训：`enforceCriteriaPolicy` 的"findings 被静默丢掉"就是因为
+ * 一直**穿过整个工具调度**被测，藏到最后一轮才暴露；移到纯函数层一次暴露。
+ *
+ * ## 语义（与 spec 的 R2-R5 一一对应）
+ *
+ * - `taskId` **优先于** offset/limit（返回 `singleIndex` 供调用方说明位置）
+ * - `taskId` 找不到 → **抛错**。"明确要一个东西却没有"与"列表为空"是两件事；
+ *   返回空数组会让调用方分不清"任务不存在"与"扫描坏了"
+ * - `offset >= 总数` → 空数组 + 明确说"没有更多"，不是沉默的空
+ * - `limit > MAX_PAGE_LIMIT` → 夹住，并在 `clampedFrom` 里带上原始请求值
+ * - `complete` 是**程序化**的"是否看全了"，调用方不必解析文字
+ *
+ * ## 为什么不产出给用户看的文案
+ *
+ * 原来的版本在这里拼 `note`，结果是**空仓库**也会得到一句
+ * 「没有更多了：offset=0 已越过总数 0」——没有任务却报"已越过总数"。
+ * 而且默认路径（不传任何新参数）本应逐字不变，却多出一行。
+ *
+ * 所以文案移到工具层，由它按"调用方到底传了什么"决定说什么。
+ * 这里只给**结构化事实**。
+ *
+ * ## 前置条件
+ *
+ * 参数校验（非整数、负数）由**调用方**做——工具层要在那里返回 `isError`
+ * 并指出是哪个参数不对。这里假设 `offset` / `limit` 已是合法值。
+ */
+export function selectTasks(
+  entries: readonly TaskEntry[],
+  opts: { taskId?: string; offset?: number; limit?: number } = {},
+): Selection {
+  const total = entries.length;
+
+  // ── 单任务详情：不受分页影响
+  if (opts.taskId !== undefined) {
+    const idx = entries.findIndex((e) => e.task === opts.taskId);
+    if (idx < 0) {
+      throw new Error(
+        `找不到任务 ${opts.taskId}（已扫描 ${total} 个任务，第 1-${total} 个）。` +
+          '若确认该任务存在，检查 tasks_dir 是否指向了正确的目录。',
+      );
+    }
+    return {
+      entries: [entries[idx] as TaskEntry],
+      start: idx,
+      singleIndex: idx,
+      complete: true,
+      remaining: 0,
+    };
+  }
+
+  // ── 分页
+  const offset = opts.offset ?? 0;
+  const requested = opts.limit ?? DEFAULT_PAGE_LIMIT;
+  const limit = Math.min(requested, MAX_PAGE_LIMIT);
+  const clamped = requested > MAX_PAGE_LIMIT;
+
+  // ⚠️ 分页必须按一个**与时间无关**的全序切窗，否则会重/漏。
+  //
+  // 缺陷原貌（独立验证者用 3 个任务、0.5 秒间隔实测复现）：
+  // `scanTasks` 的排序首键是**停滞分组**（error > stale > waiting > 其余），
+  // 而"是否 stale"由 now 与 updated 之差决定。两次翻页之间只要有任务跨过
+  // 阈值，它的位置就整体前移 → 同一个 offset 返回不同任务、
+  // 某个任务重复、另一个任务永远取不到。
+  //
+  // 修法：切窗用 **task id 的字典序**（与时间无关、与仓库内容一一对应），
+  // 页内仍按 `scanTasks` 给的顺序呈现（保留"哪些该先看"的排序）。
+  // 代价：页间不再按紧迫度排序——但"不重不漏"是可证伪的正确性要求，
+  // 而"第一页最紧急"只是便利。
+  const byId = entries.map((e, i) => ({ e, i })).sort((a, b) => a.e.task.localeCompare(b.e.task));
+  const window = byId
+    .slice(offset, offset + limit)
+    .sort((a, b) => a.i - b.i) // 页内恢复呈现顺序
+    .map((x) => x.e);
+  const end = offset + window.length; // 已显示到第几个（从 1 计）
+  const remaining = Math.max(0, total - end);
+  const complete = remaining === 0;
+
+  return {
+    entries: window,
+    start: offset,
+    singleIndex: -1,
+    complete,
+    ...(clamped ? { clampedFrom: requested } : {}),
+    remaining,
+  };
+}
+
 /**
  * 扫描全部任务。
  *

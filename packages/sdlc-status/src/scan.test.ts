@@ -10,7 +10,15 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { humanAge, scanTasks, summarize, summarizeVerdict, type ScanInput } from './scan.js';
+import {
+  humanAge,
+  scanTasks,
+  selectTasks,
+  summarize,
+  summarizeVerdict,
+  type ScanInput,
+  type TaskEntry,
+} from './scan.js';
 
 /** 造一个合法的 state.yaml 文本。 */
 function stateYaml(over: {
@@ -574,4 +582,198 @@ test('回归：REVIEWING + approve 且**刚动过** → active（不是 waiting�
     staleAfterHours: 24,
   });
   assert.equal(r.tasks[0]?.staleness?.class, 'active');
+});
+
+// ─────────────────────────── 分页与单任务详情（selectTasks，纯函数）
+
+/** 造 n 个健康任务（用于分页测试）。 */
+function manyTasks(n: number): TaskEntry[] {
+  return Array.from({ length: n }, (_, i) => {
+    const task = `T-${String(i + 1).padStart(3, '0')}`;
+    return {
+      task,
+      health: 'ok' as const,
+      status: 'SPEC' as const,
+      title: `任务 ${i + 1}`,
+      artifacts: { intent: 'intent.md', spec: 'spec.md' },
+      missingForStatus: [],
+      missingOnDisk: [],
+      nextRequired: [],
+    };
+  });
+}
+
+const ids = (es: readonly TaskEntry[]): string[] => es.map((e) => e.task);
+
+test('selectTasks：不给任何参数 → 全部返回，complete 为 true', () => {
+  const all = manyTasks(30);
+  const s = selectTasks(all, {});
+  assert.deepEqual(ids(s.entries), ids(all));
+  assert.equal(s.complete, true);
+  assert.equal(s.start, 0);
+  assert.equal(s.remaining, 0, '没有遗漏时 remaining 为 0');
+  // 注意：本函数**不再产出给人看的文案**——那移到工具层了。
+  // 原因：空仓库会得到「没有更多了：offset=0 已越过总数 0」这种错话
+  // （没有任务却报"已越过总数"），而默认路径本应逐字不变。
+  // 独立验证者用 HEAD 的旧代码逐字对比抓到了这条。
+});
+
+test('R2 分页：各页不重不漏，并集等于全部', () => {
+  const all = manyTasks(30);
+  const pageSize = 10;
+  const seen: string[] = [];
+  for (let offset = 0; offset < 30; offset += pageSize) {
+    const s = selectTasks(all, { offset, limit: pageSize });
+    assert.equal(s.entries.length, pageSize, `offset=${offset} 应满页`);
+    seen.push(...ids(s.entries));
+  }
+  assert.equal(seen.length, 30, '并集大小应等于总数');
+  assert.equal(new Set(seen).size, 30, '不应有重复');
+  assert.deepEqual(seen, ids(all), '并集应按原顺序等于全部');
+});
+
+test('R2 最后一页不满，且 complete 为 true（确实没有遗漏）', () => {
+  const all = manyTasks(25);
+  const s = selectTasks(all, { offset: 20, limit: 10 });
+  assert.equal(s.entries.length, 5, '最后一页只有 5 个');
+  assert.equal(s.complete, true, 'offset+len 覆盖到末尾 → 没有遗漏');
+});
+
+test('R2 未到末尾时 complete 为 false，且 remaining 给出确切数字', () => {
+  const all = manyTasks(120);
+  const s = selectTasks(all, { offset: 0, limit: 50 });
+  assert.equal(s.complete, false);
+  assert.equal(s.remaining, 70, '120 - 50');
+  assert.equal(s.start, 0);
+});
+
+test('R3 回归：offset 等于总数或超出时，给出可判定的结构化事实', () => {
+  // 诚实：给空数组是事实，但调用方要能**分得清**"没有更多"与"出错了"。
+  // 现在靠 start + complete + remaining 判定；先说"没有更多"的文案在工具层，
+  // 且只在调用方真的传了 offset 时才产出（见上面那条注释）。
+  const all = manyTasks(10);
+  for (const offset of [10, 15, 999]) {
+    const s = selectTasks(all, { offset });
+    assert.equal(s.entries.length, 0, `offset=${offset} 应为空`);
+    assert.equal(s.start, offset, `offset=${offset}：start 如实反映请求`);
+    assert.equal(s.complete, true, `offset=${offset}：确实没有遗漏（本来就没有）`);
+    assert.equal(s.remaining, 0, `offset=${offset}：remaining 为 0`);
+  }
+});
+
+test('R4 单任务详情：只返回那一个，且不受 offset/limit 影响', () => {
+  const all = manyTasks(30);
+  const s = selectTasks(all, { taskId: 'T-015', offset: 25, limit: 1 });
+  assert.deepEqual(ids(s.entries), ['T-015'], 'taskId 优先于 offset/limit');
+  assert.equal(s.complete, true, '单任务详情不存在"遗漏"');
+  assert.equal(s.singleIndex, 14, 'T-015 是第 15 个（0 基下标 14）');
+  assert.equal(s.start, 14, 'start 必须反映**该任务的位置**，而不是 offset');
+  assert.equal(s.remaining, 0);
+});
+
+test('R4 单任务详情：未命中时抛错（不是返回空数组）', () => {
+  // "明确要一个东西却没有"与"列表为空"是两件事。
+  // 返回空数组会让调用方分不清"任务不存在"与"扫描坏了"。
+  const all = manyTasks(5);
+  assert.throws(
+    () => selectTasks(all, { taskId: 'NOPE-1' }),
+    (err: unknown) => {
+      const msg = (err as Error).message;
+      assert.match(msg, /NOPE-1/, '错误信息要带上找不到的 id');
+      return true;
+    },
+  );
+});
+
+test('R5 limit 超过上限被夹住，并带上原始请求值', () => {
+  const all = manyTasks(500);
+  const s = selectTasks(all, { limit: 1000 });
+  assert.equal(s.entries.length, 200, '上限 200');
+  assert.equal(s.clampedFrom, 1000, '要带上请求的原值，而不是静默夹住');
+});
+
+test('R5 limit 未超上限时不带 clampedFrom', () => {
+  const all = manyTasks(500);
+  const s = selectTasks(all, { limit: 20 });
+  assert.equal(s.entries.length, 20);
+  assert.equal(s.clampedFrom, undefined, '没被夹就不该有 clampedFrom');
+});
+
+test('R6 钉子：同一输入连续两次调用，顺序完全相同（翻页的前提）', () => {
+  // 翻页正确性依赖"同一仓库同一顺序"。这里不假设，直接钉住。
+  // 若将来有人改了 scanTasks 的比较器（去掉 localeCompare 兜底），
+  // 这条会红——那时翻页已经不可靠了。
+  const all = manyTasks(60);
+  const a = selectTasks(all, { offset: 30, limit: 10 });
+  const b = selectTasks(all, { offset: 30, limit: 10 });
+  assert.deepEqual(ids(a.entries), ids(b.entries));
+  // 顺带确认它不是"恰好稳定"而是真的按传入顺序切窗
+  assert.deepEqual(ids(a.entries), ids(all.slice(30, 40)));
+});
+
+test('selectTasks 不改动传入的数组（纯函数）', () => {
+  const all = manyTasks(5);
+  const snapshot = ids(all);
+  selectTasks(all, { offset: 2, limit: 2 });
+  assert.deepEqual(ids(all), snapshot, '不该原地排序或裁剪入参');
+});
+
+test('回归：翻页顺序必须与时间无关（输入顺序变了，切窗结果不变）', () => {
+  // ⚠️ 这条是独立验证者逼出来的。我原来那条"钉子"只对**同一个数组**重调纯函数，
+  // 所以它证明不了它声称的东西——真正的风险在 `scanTasks` 层：
+  // 它的排序首键是"停滞分组"（error > stale > waiting > 其余），
+  // 而"是否 stale"由 now 与 updated 之差决定。
+  //
+  // 验证者用 3 个任务、0.5 秒间隔实测复现：第 1 页取到 [A-1, B-1]，
+  // 同一个 offset=2 在 0.5 秒后返回 [B-1] —— B-1 重复、C-1 永远取不到
+  //（仓库内容一字未改，只是任务跨过了停滞阈值）。
+  //
+  // 所以这条测试**改变输入顺序**（模拟 scanTasks 因时间重排），
+  // 断言切窗结果一致。
+  const all = manyTasks(5); // T-001..T-005，顺序即 id 序
+  const shuffled = [all[3], all[0], all[4], all[2], all[1]]; // 时间导致的重排
+
+  const a = selectTasks(all, { offset: 1, limit: 2 });
+  const b = selectTasks(shuffled as TaskEntry[], { offset: 1, limit: 2 });
+
+  assert.deepEqual(
+    ids(b.entries).slice().sort(),
+    ids(a.entries).slice().sort(),
+    '输入顺序变化（模拟跨过停滞阈值导致的重排）后，同一 offset 必须给到同一批任务',
+  );
+  // 页内仍按传入顺序呈现（保留"哪些该先看"）
+  assert.deepEqual(ids(a.entries), ['T-002', 'T-003']);
+});
+
+test('回归：时间导致重排时，逐页取回仍然不重不漏', () => {
+  const all = manyTasks(6);
+  const shuffled = [all[5], all[2], all[0], all[4], all[1], all[3]];
+
+  const collect = (entries: TaskEntry[]) => {
+    const seen: string[] = [];
+    for (let o = 0; o < entries.length; o += 2) {
+      seen.push(...ids(selectTasks(entries, { offset: o, limit: 2 }).entries));
+    }
+    return seen.slice().sort();
+  };
+  const fromAll = collect(all);
+  const fromShuffled = collect(shuffled as TaskEntry[]);
+  assert.deepEqual(fromShuffled, fromAll, '两种排列下翻页的并集必须相同');
+  assert.deepEqual(fromAll, ids(all).slice().sort());
+  assert.equal(new Set(fromAll).size, 6, '不重不漏');
+});
+
+test('回归：单任务详情的位置字段必须反映该任务的位置，而不是 offset', () => {
+  // 独立验证者 finding：原来 window_start/window_end 是在工具层用
+  // `(offset ?? 0) + 1` 算的，所以 task_id='T-137' 会报成"第 1 个"，
+  // 同时传 offset=200 时会报成"第 201 个"——与 note 里的真实位置自相矛盾。
+  // 修法：位置信息从纯函数里带出来（singleIndex），工具层不再自己推。
+  const all = manyTasks(250);
+  const s = selectTasks(all, { taskId: 'T-137' });
+  assert.equal(s.singleIndex, 136, 'T-137 是第 137 个');
+  assert.equal(s.start, 136, 'start 与 singleIndex 一致');
+  // 传了 offset 也不该改变"这个任务在第几个"
+  const s2 = selectTasks(all, { taskId: 'T-137', offset: 200, limit: 5 });
+  assert.equal(s2.singleIndex, 136);
+  assert.equal(s2.start, 136, 'offset 不该影响单任务详情的位置');
 });

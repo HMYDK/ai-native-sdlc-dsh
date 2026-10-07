@@ -336,12 +336,265 @@ console.log('\n== 7. 边界情况 ==');
   fs.rmSync(emptyRoot, { recursive: true, force: true });
 }
 
+// ───────────────────────────────────── 分页与单任务详情（spec: STATUS-PAGE）
+//
+// 这一节用**第三个**临时根（60 个任务），不干扰上面的计数断言。
+// 60 > 默认页大小 50，所以它专门测"超过一页时那个语义差异"——
+// 而那个差异在 ≤50 个任务的仓库里**天然测不到**（见 spec 的 Areas of concern）。
+{
+  console.log('\n== 分页与单任务详情 ==');
+  const pageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-status-page-'));
+  const pageTasks = path.join(pageRoot, '.ai/tasks');
+  const pageAgent = { id: 'smoke-page', session: { header: { cwd: pageRoot } } };
+  const pageCall = (args) =>
+    ctx.tools.execute({
+      callId: `smoke-page-${Math.random().toString(36).slice(2)}`,
+      name: 'sdlc_status',
+      arguments: args,
+      agent: pageAgent,
+      signal: new AbortController().signal,
+    });
+
+  const N = 60;
+  for (let i = 1; i <= N; i += 1) {
+    const id = `PG-${String(i).padStart(3, '0')}`;
+    fs.mkdirSync(path.join(pageTasks, id), { recursive: true });
+    fs.writeFileSync(
+      path.join(pageTasks, id, 'state.yaml'),
+      [
+        `task: ${id}`,
+        `title: "${id}"`,
+        'status: SPEC',
+        'created: "2026-10-07T10:00:00.000Z"',
+        'updated: "2026-10-07T10:00:00.000Z"',
+        'artifacts:',
+        '  intent: "intent.md"',
+        '  spec: "spec.md"',
+        'history: []',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    fs.writeFileSync(path.join(pageTasks, id, 'intent.md'), '# I\n', 'utf8');
+    fs.writeFileSync(path.join(pageTasks, id, 'spec.md'), '# S\n', 'utf8');
+  }
+
+  // R1：默认调用 —— 前 50 个 + 旧截断行，且**不出现**新的窗口说明
+  const d0 = await pageCall({});
+  if (d0.value.total === N) ok(`默认调用：total=${N}（总数，不是显示数）`);
+  else bad(`total 应为 ${N}，实际 ${d0.value.total}`);
+  if (d0.value.tasks.length === 51) ok('默认显示 50 条 + 1 行旧截断提示');
+  else bad(`默认 tasks 长度应为 51，实际 ${d0.value.tasks.length}`);
+  if (d0.value.truncated === true) ok('truncated=true（默认被截断）');
+  else bad('truncated 应为 true');
+  if (d0.value.complete === false) ok('complete=false（确实没看全）');
+  else bad('complete 应为 false');
+  // ⚠️ 这里我犯过一次错，被独立验证者抓住，记录在案：
+  // 我原来断言"默认路径**应当**产生 note（因为它更可操作）"，
+  // 于是把 spec R1「不传新参数时输出逐字不变」这条承诺改掉了。
+  // 验证者用 HEAD 的旧代码逐字对比证明：默认路径也渲染 note，
+  // 且**空仓库**会得到「没有更多了：offset=0 已越过总数 0」——
+  // 没有任务却报"已越过总数"。所以那条"更可操作"是拿正确性换的。
+  // 现在：默认路径逐字回到旧行为，note 只在显式传了参数时产出。
+  if (d0.value.note === undefined) {
+    ok('默认路径不产生 note（R1：输出逐字不变）');
+  } else bad(`默认路径不该有 note，实际：${d0.value.note}`);
+  if (d0.value.tasks.some((l) => /还有 10 个未显示/.test(l))) {
+    ok('旧的截断行仍然保留（向后兼容）');
+  } else bad('旧截断行丢了 —— 不再向后兼容');
+  // 反过来：显式传了 offset 时**必须**给出可操作的下一步
+  const page1 = await pageCall({ offset: 0 });
+  if (typeof page1.value.note === 'string' && /offset=50/.test(page1.value.note)) {
+    ok('显式分页时 note 给出了可操作的下一步（offset=50）');
+  } else bad(`显式分页应有可操作的 note，实际：${page1.value.note}`);
+
+  // R2：翻页不重不漏
+  const seen = [];
+  for (let offset = 0; offset < N; offset += 50) {
+    const r = await pageCall({ offset });
+    seen.push(...r.value.tasks.map((l) => (l.match(/^(?:[·!⏳⏸✓✗]\s+)?(PG-\d+)/) ?? [])[1]).filter(Boolean));
+  }
+  const uniq = new Set(seen);
+  if (seen.length === N) ok(`翻页拿全了 ${N} 个（各页之和）`);
+  else bad(`翻页各页之和应为 ${N}，实际 ${seen.length}`);
+  if (uniq.size === N) ok('翻页无重复（id 去重后仍是 60）');
+  else bad(`翻页有重复：去重后 ${uniq.size}`);
+
+  // R2/R3：最后一页 / 越界
+  const lastPage = await pageCall({ offset: 50 });
+  if (lastPage.value.tasks.length === 10) ok('offset=50 拿到 10 个（最后一页）');
+  else bad(`offset=50 应为 10 个，实际 ${lastPage.value.tasks.length}`);
+  if (lastPage.value.complete === true) ok('最后一页 complete=true（看全了）');
+  else bad('最后一页 complete 应为 true');
+  // ⚠️ 我原来断言"末尾也要有 note"，那是**错的**：
+  // offset=50 显示第 51-60 个，已到末尾且 complete=true，
+  // 此时"没有更多"由 complete 表达，再来一句 note 是噪音。
+  // 真正需要明确说的是**越界**（见下面 offset=999 那条）。
+  if (lastPage.value.note === undefined) {
+    ok('完整显示到末尾时没有多余 note（complete=true 已经说明了一切）');
+  } else bad(`末尾不该有 note（complete=true 已足够），实际：${lastPage.value.note}`);
+
+  const over = await pageCall({ offset: 999 });
+  if (over.value.tasks.length === 0) ok('offset 越界：tasks 为空');
+  else bad(`offset 越界应返回空，实际 ${over.value.tasks.length} 条`);
+  if (typeof over.value.note === 'string' && /没有更多/.test(over.value.note)) {
+    ok('offset 越界：明确说"没有更多"（不是沉默的空）');
+  } else bad(`offset 越界应说明没有更多，实际：${over.value.note}`);
+
+  // R4：单任务详情
+  const one = await pageCall({ task_id: 'PG-042' });
+  if (one.value.tasks.length === 1 && /PG-042/.test(one.value.tasks[0] ?? '')) {
+    ok('task_id 只返回那一个任务');
+  } else bad(`task_id 应只返回 1 条，实际 ${one.value.tasks.length}`);
+  if (one.value.complete === true) ok('单任务详情 complete=true');
+  else bad('单任务详情 complete 应为 true');
+
+  const ignored = await pageCall({ task_id: 'PG-042', offset: 10, limit: 5 });
+  if (ignored.value.tasks.length === 1 && /PG-042/.test(ignored.value.tasks[0] ?? '')) {
+    ok('task_id 优先于 offset/limit');
+  } else bad('task_id 应优先于 offset/limit');
+  if (typeof ignored.value.note === 'string' && /忽略/.test(ignored.value.note)) {
+    ok('说明忽略了哪些参数（不静默丢弃）');
+  } else bad(`应说明忽略的参数，实际：${ignored.value.note}`);
+
+  const missing = await pageCall({ task_id: 'NOPE-9' });
+  if (missing.isError) ok('task_id 未命中 → 报错（不是空数组）');
+  else bad('task_id 未命中应报错');
+  if (missing.isError && /NOPE-9/.test(JSON.stringify(missing.content ?? missing.error))) {
+    ok('未命中的错误信息带上了那个 id');
+  } else bad('错误信息应带上找不到的 id');
+
+  // R5：limit 夹到上限
+  // ⚠️ 独立验证者指出这条曾经是**空断言**：
+  // 原条件 `tasks.length === 200 || total < 200`，而夹具只有 60 个任务，
+  // 于是 `total < 200` 恒真——即使实现完全不夹、直接返回 60 条也会绿。
+  // 修法：另造一个 >200 的仓库，让"被夹到 200"真的可证伪。
+  const bigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-status-big-'));
+  const bigTasks = path.join(bigRoot, '.ai/tasks');
+  const BIG = 250;
+  for (let i = 1; i <= BIG; i += 1) {
+    const id = `BIG-${String(i).padStart(3, '0')}`;
+    fs.mkdirSync(path.join(bigTasks, id), { recursive: true });
+    fs.writeFileSync(
+      path.join(bigTasks, id, 'state.yaml'),
+      `task: ${id}\ntitle: "${id}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
+      'utf8',
+    );
+    fs.writeFileSync(path.join(bigTasks, id, 'i.md'), '# I\n', 'utf8');
+    fs.writeFileSync(path.join(bigTasks, id, 's.md'), '# S\n', 'utf8');
+  }
+  const bigAgent = { id: 'smoke-big', session: { header: { cwd: bigRoot } } };
+  const bigCall = (args) =>
+    ctx.tools.execute({
+      callId: `smoke-big-${Math.random().toString(36).slice(2)}`,
+      name: 'sdlc_status',
+      arguments: args,
+      agent: bigAgent,
+      signal: new AbortController().signal,
+    });
+
+  const clamped = await bigCall({ limit: 1000 });
+  if (clamped.value.total === BIG) ok(`夹具是真的 ${BIG} 个任务（让下面这条可证伪）`);
+  else bad(`夹具应为 ${BIG} 个，实际 ${clamped.value.total}`);
+  if (clamped.value.tasks.length === 200) {
+    ok(`limit=1000 被夹到 200（${BIG} 个任务的仓库里真的显示 200 条）`);
+  } else bad(`limit 应被夹到 200，实际 ${clamped.value.tasks.length}（夹具 ${BIG} 个）`);
+  if (typeof clamped.value.note === 'string' && /1000/.test(clamped.value.note)) {
+    ok('note 说明了请求的是 1000（不静默夹）');
+  } else bad(`应说明请求值，实际：${clamped.value.note}`);
+
+  // 回归：**显式分页时不得追加那条旧的截断提示行**。
+  // 我第一版把 `truncated` 字段的新式子（!complete）也用在渲染上，
+  // 于是显式分页也加了一行"… 还有 N 个未显示"，把一个真实任务挤出窗口
+  // （250 个任务下显示 201 条而不是 200）。这条断言把它钉住。
+  const phantom = clamped.value.tasks.some((l) => /未显示/.test(l));
+  if (!phantom) ok('显式分页的 tasks 里没有"未显示"那行（不会挤出真实任务）');
+  else bad('显式分页不该追加截断提示行 —— 它会把真实任务挤出窗口');
+
+  // 上限之外的任务仍然可达（这是本任务的原始目标）
+  const tail = await bigCall({ offset: 200 });
+  const tailIds = tail.value.tasks
+    .map((l) => (l.match(/BIG-\d+/) ?? [])[0])
+    .filter(Boolean);
+  if (tailIds.length === 50) ok(`offset=200 取到最后 50 个（BIG-201..250）—— 上限之外可达`);
+  else bad(`offset=200 应取到 50 个，实际 ${tailIds.length}`);
+  if (tailIds[0] === 'BIG-201' && tailIds[49] === 'BIG-250') {
+    ok('末尾那一页正是 BIG-201..BIG-250（顺序与内容都对）');
+  } else bad(`末尾页内容不对：${tailIds[0]}..${tailIds[tailIds.length - 1]}`);
+  fs.rmSync(bigRoot, { recursive: true, force: true });
+
+  // 参数校验：非法值必须报错，不静默纠正
+  for (const [arg, label] of [
+    [{ offset: -1 }, 'offset=-1'],
+    [{ offset: 1.5 }, 'offset=1.5'],
+    [{ limit: 0 }, 'limit=0'],
+    [{ limit: 'abc' }, "limit='abc'"],
+  ]) {
+    const bad_ = await pageCall(arg);
+    if (bad_.isError && new RegExp(Object.keys(arg)[0]).test(JSON.stringify(bad_.content ?? bad_.error))) {
+      ok(`${label} → 报错且指出参数名`);
+    } else bad(`${label} 应报错并指出参数名，实际 isError=${bad_.isError}`);
+  }
+
+  // R7：分页路径也必须只读
+  const snapshotTree = (dir, prefix = '', out = {}) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const rel = prefix + e.name;
+      if (e.isDirectory()) snapshotTree(path.join(dir, e.name), rel + '/', out);
+      else out[rel] = fs.statSync(path.join(dir, e.name)).mtimeMs;
+    }
+    return out;
+  };
+  const treeBefore = JSON.stringify(snapshotTree(pageRoot));
+  await pageCall({ offset: 25, limit: 10 });
+  await pageCall({ task_id: 'PG-001' });
+  const treeAfter = JSON.stringify(snapshotTree(pageRoot));
+  if (treeBefore === treeAfter) ok('R7：分页与详情调用后，文件树与 mtime 完全未变（只读）');
+  else bad('R7：分页调用改动了文件树 —— 只读被破坏');
+
+  fs.rmSync(pageRoot, { recursive: true, force: true });
+}
+
+console.log('\n== 7b. 空看板的渲染必须与旧行为逐字一致 ==');
+{
+  // 独立验证者的 blocking 发现：默认路径渲染 multi-line note，
+  // 于是**空仓库**（本仓库与测试场开局都是这个状态）从
+  //   "没有任务。\n"
+  // 变成
+  //   "没有任务。\n没有更多了：offset=0 已越过总数 0\n"
+  // —— 没有任务却报"已越过总数"。这条断言把它钉住。
+  const emptyRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-status-empty2-'));
+  const emptyAgent = { id: 'smoke-empty2', session: { header: { cwd: emptyRoot2 } } };
+  const er = await ctx.tools.execute({
+    callId: `smoke-empty2-${Math.random().toString(36).slice(2)}`,
+    name: 'sdlc_status',
+    arguments: {},
+    agent: emptyAgent,
+    signal: new AbortController().signal,
+  });
+  const text = er.value.tasks !== undefined || er.value.summary !== undefined
+    ? (() => {
+        const v = er.value;
+        const lines = Array.isArray(v.tasks) ? v.tasks : [];
+        const note = typeof v.note === 'string' && v.note !== '' ? v.note : undefined;
+        return [String(v.summary), ...(note !== undefined ? [note] : []), '', ...lines].join('\n');
+      })()
+    : '';
+  if (text === '没有任务。\n') {
+    ok(`空看板渲染逐字等于旧行为：${JSON.stringify(text)}`);
+  } else bad(`空看板渲染变了：${JSON.stringify(text)}（应为 "没有任务。\\n"）`);
+  if (er.value.note === undefined) ok('空看板不产生 note（不再出现"已越过总数 0"）');
+  else bad(`空看板不该有 note，实际：${er.value.note}`);
+  fs.rmSync(emptyRoot2, { recursive: true, force: true });
+}
+
 console.log('\n== 8. 清理 ==');
 fs.rmSync(root, { recursive: true, force: true });
 if (!fs.existsSync(root)) ok(`临时目录已删除（${root}）`);
 else bad('临时目录未清理');
 
 console.log('');
+
 console.log(`断言总数：${passCount + failures}（通过 ${passCount}，失败 ${failures}）`);
 if (failures === 0) {
   console.log('全部通过');
