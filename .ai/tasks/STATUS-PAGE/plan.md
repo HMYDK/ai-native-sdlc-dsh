@@ -72,7 +72,7 @@
 |---|---|
 | **R1 向后兼容** | 冒烟断言：不传新参数时 `note === undefined`（渲染不含窗口说明行）、`tasks` 与改动前一致。**另加一条空看板的渲染逐字比对**（`"没有任务。\n"`）——独立验证者指出这条曾经漏掉，而它正是本仓库开局的状态 |
 | **R2 分页不重不漏** | 单测：30 个任务、页大小 10 → 3 页，各页并集 == 全部且两两交集为空。另加一条钉子：同一输入连续两次 `selectTasks` 输出顺序完全相同 |
-| **R3 offset 超出** | 单测：`offset = 总数` 与 `offset = 总数 + 5` → `entries` 为空、`note` 含"没有更多"、`complete === true`（确实没有遗漏，因为本来就没有） |
+| **R3 offset 超出** | 单测断言**结构化事实**（`entries` 为空、`start` 如实、`remaining === 0`、`complete === false`——空窗口不算看全）；给人看的「没有更多了」那句话由**冒烟**在真实渲染文本上断言（文案已移到工具层） |
 | **R4 单任务详情** | 单测：`taskId` 命中 → 长度 1；`taskId` + `offset` → 仍长度 1 且 `note` 说明忽略了 offset；`taskId` 未命中 → **抛错**（`assert.throws`） |
 | **R5 limit 夹到上限** | 单测：`limit = 1000` → 实际 200 且 `note` 含"请求 1000" |
 | **R6 纯函数可单测** | `selectTasks` 的测试**不 import 任何 DSH 东西**，直接 `import { selectTasks } from './scan.js'`。单测条数从当前 38 增加到 38+N |

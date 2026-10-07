@@ -454,7 +454,16 @@ export function selectTasks(
     entries: window,
     start: offset,
     singleIndex: -1,
-    complete,
+    // ⚠️ 越界时 `complete` 必须是 **false**。
+    //
+    // 原来的 `remaining === 0` 在"offset 越过总数"时也成立（还有 0 个没显示，
+    // 因为一条都没显示），于是调用方只看 complete 会以为"我已经看全了"，
+    // 而它一条任务也没看到。工具描述恰好教调用方用 complete 判断是否看全。
+    // 独立验证者指出这个组合容易被误读：offset=999、共 60 个 →
+    // complete=true、truncated=false、tasks 为空。
+    //
+    // 语义收紧为："**本窗口之外没有遗漏**"，空窗口不算。
+    complete: complete && window.length > 0,
     ...(clamped ? { clampedFrom: requested } : {}),
     remaining,
   };

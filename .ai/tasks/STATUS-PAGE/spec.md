@@ -63,6 +63,14 @@
 - `tasks` 为空数组（这是事实）
 - **但必须明确告知**"没有更多了"，不能让调用方以为出错或以为还有
 - 明确告知的方式：`note` 字段 + 渲染文本里一句话
+- ⚠️ **`complete` 必须是 `false`**：原来的判据 `remaining === 0` 在越界时也成立
+  （还有 0 个没显示，因为一条都没显示），于是调用方只看 `complete` 会以为
+  "我已看全"，而它一条也没看到。语义收紧为"**本窗口之外没有遗漏**"。
+  （独立验证者指出：`offset=999`、共 60 个 → `complete=true` 容易被误读。）
+
+  ⚠️ 连带效应：`complete` 收紧后，`truncated = !complete` 对空窗口也成真，
+  渲染出「… 还有 0 个未显示（共 0 个）」，**空仓库的默认路径立刻违反 R1**。
+  所以截断判定还要加 `entries.length > 0`。这条是冒烟抓到的。
 
 ### R4 单任务详情
 
@@ -97,20 +105,27 @@
 ### 新增的纯函数（`scan.ts`）
 
 ```ts
+/** 只给**结构化事实**，不产出给人看的文案（见下方说明）。 */
 export interface Selection {
-  /** 被选中的任务（保持传入顺序）。 */
-  entries: TaskEntry[];
-  /** 给调用方看的一句话：说明这次选择做了什么、以及是否是全部。 */
-  note?: string;
-  /** 是否是全部任务（没有因分页而遗漏）。 */
-  complete: boolean;
+  entries: TaskEntry[];      // 选中的任务（页内保持呈现序）
+  start: number;             // 在**分页那根轴**（id 码元序）上的起点（0 基）
+  singleIndex: number;       // 单任务详情时该任务在 id 轴上的位置；否则 -1
+  complete: boolean;         // **本窗口之外没有遗漏**（空窗口不算，见 R3）
+  clampedFrom?: number;      // limit 被夹时的原始请求值
+  remaining: number;         // 还剩多少个没显示
 }
 
 export function selectTasks(
   entries: readonly TaskEntry[],
-  opts: { taskId?: string; offset?: number; limit?: number },
+  opts: { taskId?: string; offset?: number; limit?: number; explicit?: boolean },
 ): Selection
 ```
+
+⚠️ **文案不在这一层。** 我第一版让 `selectTasks` 自己拼 `note`，结果是
+**空仓库**也会得到「没有更多了：offset=0 已越过总数 0」——没有任务却报"已越过总数"。
+文案属于"调用方到底问了什么"的语境，所以移到工具层，本函数只给结构化事实。
+
+`explicit` 由工具层传：它决定切窗模式（见 R2）。
 
 **注意 R4 的错误语义**：`task_id` 不存在时抛错。抛错还是返回空？
 抛错——因为"明确要一个东西却没有"和"列表为空"是两件事，

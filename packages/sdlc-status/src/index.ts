@@ -306,7 +306,11 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
         // 会把一个真实任务挤出窗口（冒烟立刻抓到：limit=1000 在 250 个任务的
         // 仓库里显示 201 条，多出的那行是"… 还有 50 个未显示"，而它已经
         // 说了分页信息，重复且有害）。
-        const truncated = !sel.complete;
+        // ⚠️ 空窗口不算截断： 收紧成本窗口之外没有遗漏之后，
+        // 越界的空窗口也是 complete=false，但它一条也没**截**掉——
+        // 加这行会渲染出「… 还有 0 个未显示（共 0 个）」（空仓库的默认路径
+        // 立刻违反 R1，冒烟抓到了）。
+        const truncated = !sel.complete && sel.entries.length > 0;
         if (!explicit && truncated) {
           lines.push(`… 还有 ${result.counts.total - sel.entries.length} 个未显示（共 ${result.counts.total} 个）`);
         }

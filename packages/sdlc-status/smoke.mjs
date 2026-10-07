@@ -694,13 +694,18 @@ console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小�
       'utf8',
     );
   }
-  for (let i = 1; i <= 5; i += 1) {
+  // ⚠️ 健康任务必须多到**让总数超过默认页 50**。我第一版只造了 10 个任务，
+  // 于是这条断言**不可证伪**——独立验证者把这份冒烟放到被 reject 的 HEAD~1
+  // 实现上跑，7d 三条**全绿**（≤50 时"按呈现序"与"按 id 序"返回的是同一批）。
+  // 修好代码与改坏代码都通过 = 这条断言没有证明力。
+  for (let i = 1; i <= 55; i += 1) {
+    const id = `AA-${String(i).padStart(3, '0')}`;
     put(
-      `AA-00${i}`,
-      `task: AA-00${i}\ntitle: "好的 ${i}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
+      id,
+      `task: ${id}\ntitle: "好的 ${i}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
     );
-    fs.writeFileSync(path.join(mTasks, `AA-00${i}`, 'i.md'), '# I\n', 'utf8');
-    fs.writeFileSync(path.join(mTasks, `AA-00${i}`, 's.md'), '# S\n', 'utf8');
+    fs.writeFileSync(path.join(mTasks, id, 'i.md'), '# I\n', 'utf8');
+    fs.writeFileSync(path.join(mTasks, id, 's.md'), '# S\n', 'utf8');
   }
 
   const mRes = await ctx.tools.execute({
@@ -710,6 +715,9 @@ console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小�
     agent: { id: 'smoke-mixed', session: { header: { cwd: mRoot } } },
     signal: new AbortController().signal,
   });
+  if (mRes.value.total === 60 && mRes.value.total > 50) {
+    ok(`夹具共 ${mRes.value.total} 个任务，**超过默认页 50**（否则这条断言不可证伪）`);
+  } else bad(`夹具应为 60 个（>50），实际 ${mRes.value.total} —— 夹具不足会让下面两条恒真`);
   const firstLine = String(mRes.value.tasks[0] ?? '');
   if (/ZZ-00/.test(firstLine)) {
     ok(`默认页第一条是坏任务（紧迫序优先）：${firstLine.slice(0, 40)}`);

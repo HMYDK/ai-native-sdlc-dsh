@@ -656,7 +656,9 @@ test('R3 回归：offset 等于总数或超出时，给出可判定的结构化�
     const s = selectTasks(all, { offset });
     assert.equal(s.entries.length, 0, `offset=${offset} 应为空`);
     assert.equal(s.start, offset, `offset=${offset}：start 如实反映请求`);
-    assert.equal(s.complete, true, `offset=${offset}：确实没有遗漏（本来就没有）`);
+    // 越界时 complete 必须是 false——"一条都没看到"不能算"看全了"。
+    // （原来这里是 true，独立验证者指出调用方只看 complete 会误以为已看全。）
+    assert.equal(s.complete, false, `offset=${offset}：空窗口不算"看全了"`);
     assert.equal(s.remaining, 0, `offset=${offset}：remaining 为 0`);
   }
 });

@@ -1,15 +1,15 @@
 {
   "task": "STATUS-PAGE",
-  "at": "2026-10-07T18:17:13.531Z",
-  "intent_of_change": "这是 STATUS-PAGE 的第二次验证。第一次（verifier_session 96dec378）给 reject，指出 1 条 blocking（默认路径输出变了且空看板文案错误）、1 条 important（翻页顺序依赖墙上时钟会重/漏）与 5 条 minor。本次请求验证这些修复是否真的成立、且没有引入新问题。",
-  "scope": "只验证 packages/sdlc-status。⚠️ 这是**第二次**验证：第一次给了 6 条判据、48 步后被判 needs_human（未产出结构化裁决），所以本次刻意只列 6 条、且都指向**具体修复点**。\n\n请优先用**独立手段**复核这三点（不要只复跑作者的冒烟）：\n① 空看板与默认路径的**渲染文本**是否真的逐字回到旧行为——最可靠的做法是从 git HEAD~1 编译旧代码逐字对比；\n② 切窗是否真的与时间无关——请构造\"同一集合、不同输入顺序\"或\"跨过停滞阈值导致 scanTasks 重排\"的场景，而不是复跑作者那两条测试；\n③ 显式分页时 tasks 数组里是否真的没有那行截断提示（上一次作者在这里引入过 bug：250 个任务下给了 201 条）。\n\n可以不看的（上次已确认或低风险）：只读性（上次用 chmod 0444 加码验证过，本次未改这条路径）、参数校验、task_id 未命中报错。",
+  "at": "2026-10-07T18:25:31.312Z",
+  "intent_of_change": "这是 STATUS-PAGE 的第三次验证。前两次都 reject（96dec378、20488853）。第二次抓到我修第一个 bug 时引入的回归：把整页改成按 id 字典序选人，于是默认调用不再显示最该看的任务。本轮把切窗分成两种模式修回，并把切窗键从 localeCompare 改成码元比较。请求验证这两条是否真的成立。",
+  "scope": "只验证 packages/sdlc-status。⚠️ 第三次验证：前两次分别因步数耗尽（needs_human）与两条 important 而 reject，所以本次只列 6 条、都指向具体修复点。\n\n**最值得投入、且我上轮就是在这里修坏的一点**：默认页（不传参数）在『紧迫序 ≠ id 序』的仓库里，是否仍然把最该看的排在前面。请**自己构造混合夹具**——作者的夹具曾经是同质的（id 序恰好等于紧迫序），所以那个回归在作者的全部证据里天然不可见。构造方式：若干个 state.yaml 损坏（status 非法）或 IMPLEMENTING 且 updated 很久以前的坏任务，其 id 故意排在字母表**后面**（例如 ZZ-*），健康任务用 AA-*。\n\n可以做变异测试来检验作者的断言是否可证伪。作者本轮做过一次：删掉 render 里的 note、truncated 回退旧式子、切窗回退 localeCompare、limit 不夹上限、截断行加进显式分页、整页都用 id 序——六条声称都能被抓住。\n\n可以不看的：只读性（前两轮已用 chmod 0444 加码验证过，本轮未改该路径）、参数校验、task_id 未命中报错、打包与 profile 一致性。",
   "criteria": [
-    "blocking 已修：不传任何新参数时 note 为 undefined，且空仓库（无 .ai/tasks 或目录为空）的渲染文本逐字等于 \"没有任务。\\n\"，不出现『已越过总数』之类的话",
-    "important 已修：翻页切窗与时间无关——把同一个任务集合以不同顺序传入 selectTasks（模拟 scanTasks 因停滞阈值跨越而重排），同一 offset 必须给到同一批任务，且逐页取回的并集不重不漏",
-    "新引入的 bug 已修：显式分页（传了 offset/limit）时 tasks 数组里不得出现『… 还有 N 个未显示』那一行——它会把一个真实任务挤出窗口",
-    "truncated 字段语义为『有任务没显示』（等于 !complete），且默认路径下与改动前的实现等价（total<=50 → false，total>50 → true）",
-    "task_id 命中时 window_start 与 window_end 等于该任务在全集里的位置（从 1 计），不受同时传入的 offset 影响",
-    "冒烟里那条『limit=1000 被夹到 200』的断言在 >200 个任务的夹具下可证伪（夹具不足时该断言会退化为恒真）"
+    "默认页语义（这是我上一轮修坏、本轮修回的地方）：在『紧迫序 ≠ id 序』的混合仓库里（坏掉/停滞任务的 id 排在字母表后面），不传任何参数的默认调用必须把最该看的任务排在前面——第一条应当是坏掉或停滞的任务，而不是 id 最小的那个。请用自己构造的混合夹具实测，不要复用作者的同质夹具",
+    "切窗键必须是码元比较而不是 localeCompare：两个在 ICU 下 localeCompare 相等的不同 id（例如 'K-1' 与 'K-\\u200B1'，零宽空格），在同一 offset、不同输入顺序下必须给到同一个任务",
+    "显式分页（传了 offset/limit）时按 task id 码元序切窗，可反复翻页且跨调用（含任务跨过停滞阈值导致 scanTasks 重排）不重不漏",
+    "truncated 字段在显式分页下等于 !complete（offset=0,limit=10,共250 → true；offset=200,limit=50 → false），且默认路径下与改动前实现逐字等价",
+    "空仓库 + 显式 offset=0 不得说『已越过总数』；空仓库不传参数时渲染文本逐字等于 \"没有任务。\\n\"",
+    "note 必须真的出现在真实渲染输出（ctx.tools.execute 的 content[0].text）里，而不只是 value 里"
   ],
   "artifacts": {
     "intent": "<REPO>/.ai/tasks/STATUS-PAGE/intent.md",
@@ -18,120 +18,74 @@
     "verification": "<REPO>/.ai/tasks/STATUS-PAGE/verification.json"
   },
   "verdict": {
+    "status": "approve",
+    "summary": "第三次验证：6 条判据全部 met，我自己的独立探针 48/48 通过，且每条都被我自己构造的变异体/被 reject 的实现证明可证伪。\n\n我做了什么（不复用作者脚本作为唯一依据）\n1) 编译两个参照实现到 /tmp（不动仓库）：`git archive 60825a2^ `（本轮改动前的基线）、`git archive HEAD~1`（被 reject 的上一轮），各 `tsc` 一份，与当前 lib 在同一进程里各挂一套真实 Cordis + LocalFileSystem + ToolRuntime。\n2) 自写探针 /tmp/vstatus/probe.mjs（48 条断言）覆盖 6 条判据，全部走真实 `ctx.tools.execute`。**关键：我的混合夹具是 62 个任务（故意 > 默认页 50）**——我第一版只造了 11 个任务，结果连被 reject 的 HEAD~1 都能通过；必须超过一页才可证伪（作者新加的那条冒烟夹具正是栽在这里，见 finding 1）。\n3) 字节级 R1 对比 /tmp/vstatus/compare-default.mjs：6 个夹具（空仓库 / 空 .ai/tasks / 30 任务 / 250 任务 / 62 任务混合 / 12 任务停滞）默认调用 `{}` 的渲染文本、tasks 数组、truncated 等字段与改动前基线**逐字相同**。\n4) 5 个变异体（在 /tmp 副本上改，仓库未动）：整页强制 id 序、窗键回退 localeCompare、truncated 回退旧式子、render 删 note、切窗永远按呈现序——我的探针分别失败 5/1/2/2/2 条，证明断言不是空的。\n5) 复核作者的测试面：`tsc --noEmit` 退出码 0；`node --test lib/*.test.js` 54 pass / 0 fail；作者冒烟 68/68。另把 src 重新编译后与 lib 逐文件 diff（6 个文件全同）→ 测试跑的确实是本次源码；`git status` 干净，HEAD=08fca49。本轮测试文件的 diff 只有加强（空看板改为读真实 content、单测补 explicit:true 与打乱输入），没有删断言让结果变绿。\n\n结论：两条修复都成立——默认页在「紧迫序 ≠ id 序」的仓库里第一条是坏任务 `✗ ZZ-101`（3 坏 + 2 停滞都在 50 条窗口内，且与改动前基线同序），而被 reject 的 HEAD~1 在同一个夹具上首行是 `· AA-001`、5 个紧急任务一个都不在页里；切窗键确实改成码元比较（`'K-1'.localeCompare('K-\\u200B1')===0` 成立，但两种相反紧迫序的仓库在同一 offset 下都返回 K-1）。\n\n一条 important：作者为这个回归新加的端到端断言（smoke.mjs 7d）**抓不住它**——夹具只有 10 个任务，而 ≤50 时两种实现返回的都是呈现序。把今天的 smoke.mjs 放到真实的 HEAD~1 实现上跑：67/68，7d 三条全绿，唯一失败的是 7b 空仓库文案（与默认页无关）。提交信息里变异表 F 的「冒烟失败 1 / 单测失败 3」与我在真实 HEAD~1 上量到的（1/2）不符，却与「切窗永远按呈现序」（第一轮那个 bug）逐条吻合。真正钉住该回归的是纯函数单测；index.ts 里 explicit 的接线改坏了当前冒烟不会红。代码本身没问题，所以不阻塞，但建议把 7d 夹具做到超过一页。\n\n另有两条 minor（制品漂移、offset 越界时 complete=true），以及一条观察：`{}` 与 `{limit:50}` 分属两种模式（前者带旧截断行、后者不带，混合仓库里顺序也不同）——这是 spec R2 明确规定的分工，不算缺陷。",
     "criteria_results": [
       {
-        "criterion": "blocking 已修：不传任何新参数时 note 为 undefined，且空仓库（无 .ai/tasks 或目录为空）的渲染文本逐字等于 \"没有任务。\\n\"，不出现『已越过总数』之类的话",
-        "evidence": "我自己编译改动前代码（git archive 9351986 → tsc → /tmp/vz/oldlib）与当前 HEAD 代码（/tmp/vz/newlib），在同一进程各挂真实 Cordis+ToolRuntime+LocalFileSystem，对两个空 fixture 调 {} 并取**真实渲染文本** ctx.tools.execute().content：F1（完全没有 .ai/tasks）= \"没有任务。\\n\"，F2（.ai/tasks 是空目录）= \"没有任务。\\n\"，旧/新逐字相同（探针 /tmp/vz/probe/p1_default_path.mjs 输出 'F1_no_tasks_dir: 渲染文本逐字相同 = true'、'F2_empty_tasks_dir: 渲染文本逐字相同 = true'）；两次调用 value.note 都是 undefined，文本里不含『已越过总数』。作者冒烟同向：ELECTRON_RUN_AS_NODE=1 \"/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness\" --expose-internals packages/sdlc-status/smoke.mjs → '✓ 空看板渲染逐字等于旧行为'、'✓ 空看板不产生 note'，断言总数 60（通过 60，失败 0）。",
-        "result": "met"
+        "criterion": "默认页语义（这是我上一轮修坏、本轮修回的地方）：在『紧迫序 ≠ id 序』的混合仓库里（坏掉/停滞任务的 id 排在字母表后面），不传任何参数的默认调用必须把最该看的任务排在前面——第一条应当是坏掉或停滞的任务，而不是 id 最小的那个。请用自己构造的混合夹具实测，不要复用作者的同质夹具",
+        "result": "met",
+        "evidence": "自建探针 /tmp/vstatus/probe.mjs（真实 Cordis Context + LocalFileSystem + ToolRuntime，真实 ctx.tools.execute）在我自己的混合夹具上：55 个健康 AA-0xx（SPEC、制品齐、刚更新）+ 3 个坏 ZZ-10x（非法 status / 无法解析的 YAML / 目录里没有 state.yaml）+ 2 个停滞 ZZ-10x（IMPLEMENTING、5 天与 3 天没动）+ 1 个 waiting + 1 个 DONE = 62 个任务（故意超过默认页 50）。命令：ELECTRON_RUN_AS_NODE=1 '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness' --expose-internals /tmp/vstatus/probe.mjs packages/sdlc-status/lib C1 → 15/15 PASS，观察到：arguments:{} 时首条 = '✗ ZZ-101 — **读不出来**：state.yaml 无法解析：status 非法'，真实渲染文本第 3 行同一条；5 个紧急任务（3 坏 + 2 停滞，停滞行实测为 '⏳ ZZ-104 [IMPLEMENTING] … **停滞 5 天**'）全部在 50 条窗口内，且都排在第一个 AA-* 之前。可证伪性（同一探针换 lib）：(a) 被 reject 的 HEAD~1（git archive HEAD~1 → tsc → /tmp/vstatus/prev）→ 首条 '· AA-001 [SPEC]'，urgentIdx=-1,-1,-1,-1,-1，5 条断言失败；(b) 改动前基线（60825a2^ → /tmp/vstatus/base）→ 与当前实现同序、首条 ✗ ZZ-101；(c) 变异『整页强制 id 序』(/tmp/vstatus/mutA_explicit_true) → 5 条失败。⚠️ 我第一版夹具只有 11 个任务（≤50），连 HEAD~1 都能通过——此类断言只在夹具超过一页时可证伪。"
       },
       {
-        "criterion": "important 已修：翻页切窗与时间无关——把同一个任务集合以不同顺序传入 selectTasks（模拟 scanTasks 因停滞阈值跨越而重排），同一 offset 必须给到同一批任务，且逐页取回的并集不重不漏",
-        "evidence": "反例（纯函数层，可在仓库里一行复现）：cd 仓库根 && node --input-type=module -e \"import {selectTasks} from './packages/sdlc-status/lib/scan.js'; const e=(t)=>({task:t,health:'ok',status:'SPEC',artifacts:{},missingForStatus:[],missingOnDisk:[],nextRequired:[]}); const A='K-1',B='K-\\u200B1'; console.log(A.localeCompare(B)); console.log(selectTasks([e(A),e(B),e('Z-9')],{offset:0,limit:1}).entries.map(x=>x.task)); console.log(selectTasks([e(B),e(A),e('Z-9')],{offset:0,limit:1}).entries.map(x=>x.task));\" → 输出 'localeCompare = 0'、ord1 → [ 'K-1' ]、ord2 → [ 'K-1' ]（第二个 K-1 里的连字符后是零宽空格）：同一集合、不同输入顺序、同一 offset，给到**不同任务**。根因是 src/scan.ts:417 用 a.e.task.localeCompare(b.e.task) 作切窗键，ICU 默认把它比较为 0，稳定排序于是退回传入顺序。端到端也复现（真实工具、真实 fs、阈值设 1 秒）：/tmp/vz/probe/p4b_tie_e2e.mjs 在 K-1 与 K-<ZWSP>1 先后跨过停滞阈值前后，offset=0,limit=1 在 t1 返回 K-1、t2 返回 K-<ZWSP>1（仓库内容一字未改），输出 '→ 同一 offset 是否给到同一批： false'。补充（供权衡触发条件，不推翻结论）：普通 id 下该性质成立——30 任务确定性打乱 × 5 页并集精确等于全集（探针 p2 ①），以及 P-1/Q-1/R-1 的真实阈值跨越场景（t1 顺序 R-1,P-1,Q-1 → t2 R-1,Q-1,P-1）同 offset 两侧同集合、逐页不重不漏（p2 ③）。",
-        "result": "not_met"
+        "criterion": "切窗键必须是码元比较而不是 localeCompare：两个在 ICU 下 localeCompare 相等的不同 id（例如 'K-1' 与 'K-\\u200B1'，零宽空格），在同一 offset、不同输入顺序下必须给到同一个任务",
+        "result": "met",
+        "evidence": "前置条件实测通过：probe 打印 'PASS C2.precondition-localeCompare-equal :: 0'（'K-1'.localeCompare('K-\\u200B1')===0，长度 4 与 3 区分）。两个真实仓库夹具造成相反的输入/紧迫序：A 仓库 K-1 停滞（IMPLEMENTING、9 天）、K-ZWSP 健康；B 仓库反过来。两次 {offset:0,limit:1} 都返回 K-1（码元序 '1'=0x31 < U+200B），'PASS C2.same-task-both-input-orders :: A-repo=K-1 B-repo=K-1'。可证伪性：变异 /tmp/vstatus/mutB_localecompare（窗键换回 localeCompare）→ 'FAIL C2.same-task-both-input-orders :: A-repo=K-1 B-repo=K-ZWSP'；改动前基线（60825a2^）同样 FAIL；纯函数单测层也可证伪——把当前 lib/scan.test.js 放到 HEAD~1 的 scan.js 上跑（/tmp/vstatus/unit-on-prev）→ '✖ 回归：localeCompare 比较相等的两个 id 也必须稳定'。"
       },
       {
-        "criterion": "新引入的 bug 已修：显式分页（传了 offset/limit）时 tasks 数组里不得出现『… 还有 N 个未显示』那一行——它会把一个真实任务挤出窗口",
-        "evidence": "250 个真实任务（BIG-001..250）、真实 LocalFileSystem：limit=1000 与 offset=0,limit=10 两次调用的 tasks 里匹配 /未显示/ 的行数为 0，limit=1000 时 tasks.length===200（探针 /tmp/vz/probe/p3_paging.mjs 输出 '✓ limit=1000 → tasks 长度 200'、'✓ tasks 里没有截断提示行（命中 0 行）'、'✓ offset=0,limit=10 → 10 条'）；渲染文本前两行是 summary + note，无那行提示。可证伪性（副本变异，仓库未改）：把 lib/index.js 的 `if (!explicit && truncated)` 改成 `if (truncated)` 后跑作者冒烟 → '✗ 显式分页不该追加截断提示行 —— 它会把真实任务挤出窗口' 与 '✗ limit 应被夹到 200，实际 201'，通过 58/失败 2（/tmp/vz/smoke-mutantB.log），复现了作者描述的 201 条现象。",
-        "result": "met"
+        "criterion": "显式分页（传了 offset/limit）时按 task id 码元序切窗，可反复翻页且跨调用（含任务跨过停滞阈值导致 scanTasks 重排）不重不漏",
+        "result": "met",
+        "evidence": "250 个真实任务 PG-001..250，其中 PG-201..240 的 updated 设为『距 24 小时阈值差 0.8 秒』。同一 ctx 内两轮翻页（offset 0/50/100/150/200，limit 50），中间 sleep 2.2s：'PASS C3.staleness-really-changed :: stale 0 -> 40'（证明 scanTasks 呈现序确实重排了）；两轮各自 'coverage-all-250 = 250'、'no-duplicates uniq=250'；'PASS C3.same-id-set-per-offset-across-calls'（逐 offset 的 id 集合两轮完全相同）。可证伪性：变异 /tmp/vstatus/mutE_explicit_false（切窗永远按呈现序）→ 'FAIL C3.same-id-set-per-offset-across-calls :: offset=0: 只在第一次出现[PG-011..PG-016] 只在第二次出现[PG-201..PG-206]'——同一 offset 隔一次调用给到不同任务，正是第一轮那个重复+漏的失败模式。"
       },
       {
-        "criterion": "truncated 字段语义为『有任务没显示』（等于 !complete），且默认路径下与改动前的实现等价（total<=50 → false，total>50 → true）",
-        "evidence": "观测（探针 p3_paging.mjs）：250 任务下 5 组调用的 truncated 与 !complete 逐组相等（默认 → true/true；offset=0,limit=10 → true/true；limit=1000 夹到 200 → true/true；offset=200,limit=50 → false/false；offset=999 → false/false）。默认路径等价性用改动前代码（/tmp/vz/oldlib，HEAD~1 编译）与当前代码在同一 fixture 上对比：total=50 → 旧 false / 新 false，total=51 → true / true，total=60 → true / true，三次的渲染文本逐字相同、note 都是 undefined（p3 输出 '✓ total=50/51/60: 默认路径渲染文本逐字相同'）。注意：这条语义**没有任何测试钉住**——见 finding（回退成 !explicit && !complete 后冒烟仍 60/60 全绿）。",
-        "result": "met"
+        "criterion": "truncated 字段在显式分页下等于 !complete（offset=0,limit=10,共250 → true；offset=200,limit=50 → false），且默认路径下与改动前实现逐字等价",
+        "result": "met",
+        "evidence": "250 任务真实仓库：{offset:0,limit:10} → truncated=true、complete=false、10 条；{offset:200,limit:50} → truncated=false、complete=true、50 条；两条都满足 truncated===!complete（probe C4 7/7 PASS）。默认路径逐字等价：把改动前基线（git archive 60825a2^ → tsc → /tmp/vstatus/base）与当前实现放在同一进程、各挂一套真实 Cordis，对 6 个夹具调 {} 逐字对比（/tmp/vstatus/compare-default.mjs）→ 6/6 PASS：渲染文本逐字相同、tasks 数组逐字相同，total/ok/incomplete/error/stale/waiting/summary/truncated 全同（250 任务与 62 任务混合夹具两边 truncated 都 true，30 任务/空仓库/空目录/12 任务夹具两边都 false）。可证伪性：变异 /tmp/vstatus/mutC_trunc_old（回退成 !explicit && !complete）→ 'FAIL C4.head10-truncated-true :: truncated=false' 与 'FAIL C4.truncated-equals-not-complete'；作者自己的冒烟在同一变异下也失败 1（复现其变异表 C 行）。"
       },
       {
-        "criterion": "task_id 命中时 window_start 与 window_end 等于该任务在全集里的位置（从 1 计），不受同时传入的 offset 影响",
-        "evidence": "250 任务（BIG-001..250）：task_id=BIG-137 → window_start=137、window_end=137；再传 offset=200,limit=5 → 仍是 137-137，tasks 长度 1 且内容为 BIG-137，note='单任务详情（第 137 / 250 个）；已忽略 offset 与 limit（单任务详情不受分页影响）'（探针 p3_paging.mjs 的 '✓ task_id=BIG-137 → window 137-137'、'✓ 同时传 offset=200 → window 137-137'）。位置来自纯函数带回的 singleIndex（src/index.ts:262、304-305），不是 (offset??0)+1。口径补充见 finding：该位置是 scanTasks 呈现序里的位置，与分页用的 id 序不是同一根轴，在混合紧迫度的仓库里两者不一致。",
-        "result": "met"
+        "criterion": "空仓库 + 显式 offset=0 不得说『已越过总数』；空仓库不传参数时渲染文本逐字等于 \"没有任务。\\n\"",
+        "result": "met",
+        "evidence": "两种空仓库形态实测（完全没有 .ai/tasks；.ai/tasks 是空目录）：{} → 真实 content 文本 JSON 逐字等于 \"没有任务。\\n\"，且 value.note===undefined；{offset:0} 与 {offset:0,limit:10} → 文本为 \"没有任务。\\n没有任务（仓库里还没有 .ai/tasks/*）\\n\"，其中不含 '已越过总数'（note 会被渲染出来，所以文本检查同时覆盖字段本身）。probe C5 共 7 条断言全 PASS；并与改动前基线逐字对比相同（compare-default.mjs 的 empty-repo 与 empty-tasks-dir 两个夹具 PASS，tasks 都是空、truncated 都是 false）。"
       },
       {
-        "criterion": "冒烟里那条『limit=1000 被夹到 200』的断言在 >200 个任务的夹具下可证伪（夹具不足时该断言会退化为恒真）",
-        "evidence": "夹具确实是 250 个（smoke.mjs:474 const BIG = 250），冒烟在同一段里断言 total===250 并打印 '✓ 夹具是真的 250 个任务（让下面这条可证伪）'；断言本身已无 `|| total < 200` 逃逸（smoke.mjs:500 是单等号）。可证伪性实测（副本变异，仓库未改）：把 /tmp/vz/pkgD/lib/scan.js 的 `const limit = Math.min(requested, MAX_PAGE_LIMIT)` 改成 `const limit = requested` 后跑冒烟 → '✗ limit 应被夹到 200，实际 250（夹具 250 个）'，59 通过 / 1 失败（/tmp/vz/smoke-mutantD.log）。",
-        "result": "met"
+        "criterion": "note 必须真的出现在真实渲染输出（ctx.tools.execute 的 content[0].text）里，而不只是 value 里",
+        "result": "met",
+        "evidence": "60 任务真实仓库、{offset:0,limit:10}：content 里恰好只有一个 text 块，content[0].type==='text'，content[0].text 包含 value.note（'显示第 1-10 个，共 60 个（还有 50 个，用 offset=10 继续）'）并含 'offset=10 继续'（probe C6 6/6 PASS，断言直接比较 content[0].text.includes(value.note)）。可证伪性：变异 /tmp/vstatus/mutD_render_note（删掉 render 里的 note）→ content[0].text 不再含 note（2 条断言失败）；把当前 smoke.mjs 放到该变异上同样失败 2，复现作者变异表 A 行。"
       }
     ],
     "findings": [
       {
-        "category": "spec_mismatch",
-        "evidence": "探针 /tmp/vz/probe/p1_default_path.mjs：60 任务 fixture = 55 个健康 AA-001..AA-055 + 3 个 state.yaml 坏掉的 ZZ-001..ZZ-003 + 2 个停滞 IMPLEMENTING 的 ZZ-004/005。改动前（HEAD~1 编译）默认调用前 8 个 id = ZZ-001,ZZ-002,ZZ-003,ZZ-004,ZZ-005,AA-001,AA-002,AA-003（含全部高优先任务），渲染首行 '✗ ZZ-001 — 读不出来…'；当前代码前 8 个 id = AA-001..AA-008（一个 ZZ 都不在里面），渲染首行 '· AA-001 [SPEC]…'；逐字比较输出 'F3_sixty_tasks: 渲染文本逐字相同 = false / tasks 数组相同 = false'，两边 note 都是 undefined（不是 note 的问题，是 tasks 内容变了）。反面对照 /tmp/vz/probe/p6_homogeneous.mjs：用作者冒烟同款同质夹具（PG-001..060）时旧/新渲染文本逐字相同 = true —— 证明作者的夹具看不见这个差异。另：工具描述说 'When there are more, pass offset to continue (the note tells you the next offset to use)'（src/index.ts:160-162），但默认路径按 R1 不产出 note，60 任务下调用方只拿到旧的『… 还有 10 个未显示（共 60 个）』，两句自相矛盾。",
-        "file": "packages/sdlc-status/src/scan.ts",
-        "line": 417,
-        "reason": "R1 的兼容性承诺在 >50 任务的仓库里被证伪：默认路径（不传任何参数）的 tasks 现在是「id 字典序最小的 50 个」，而改动前是「scanTasks 紧迫序的前 50 个」。当坏掉/停滞任务的 id 靠后时，默认页会把它们整个藏起来（summary 仍报出数量，但看不到是哪些），这与 intent.md:30、spec.md:7-8「不传任何新参数时 tasks 数组逐字不变」以及提交信息里的「默认路径回到旧行为」相矛盾。作者冒烟的 60 任务夹具是同质的（PG-001..060 状态/更新时间全相同 → id 序恰好等于紧迫序），因此这条改动在作者自己的证据里天然不可见；上一轮验证者用 n≤60 的同类夹具也没看见。",
         "severity": "important",
-        "suggestion": "二选一并落到制品里：① 承认默认页语义变了——把 spec R1 收窄为『≤50 个任务时逐字不变』并在 spec/plan 里写明默认页按 id 字典序选人（同时修正工具描述里『note 会告诉你下一个 offset』这句）；② 保持 R1 的字面承诺——默认页仍取紧迫序前 50 个，续页改用显式游标（例如返回 next_id，从该 id 之后按 id 序继续），这样首页保留紧迫度且跨页不重不漏。任选其一后，冒烟必须补一条『紧迫序 ≠ id 序』的夹具（例如 55 个健康任务 + 5 个 id 靠后的坏掉/停滞任务），否则这个差异永远测不到。"
-      },
-      {
-        "category": "logic_error",
-        "evidence": "① 纯函数反例（可原样复现，命令与输出见 criteria_results 判据 2）：K-1 与 K-\\u200B1 在 localeCompare 下为 0，同一集合两种输入顺序下 offset=0,limit=1 分别给到 K-1 与 K-<ZWSP>1。② 端到端反例（真实工具 + 真实 fs，阈值 1 秒）：/tmp/vz/probe/p4b_tie_e2e.mjs 输出 t1 offset=0,limit=1 → '! K-1 …'、t2 offset=0,limit=1 → '⏳ K-1 …'（第二个含零宽空格），'→ 顺序是否真的变了： true'、'→ 同一 offset 是否给到同一批： false'，期间没有任何文件改动。③ 对照：普通 id 下该性质成立（30 任务打乱 × 5 页并集精确等于全集；P-1/Q-1/R-1 真实阈值跨越两侧同 offset 同集合）——所以这是残留边界，不是主路径回归。",
-        "file": "packages/sdlc-status/src/scan.ts",
-        "line": 417,
-        "reason": "判据 2 不成立：切窗声称用『与时间无关的 task id 字典序』，但 localeCompare 不是全序——两个不同 id 在 ICU 默认排序下可以比较为 0（零宽空格 U+200B、软连字符 U+00AD、NUL 等会被忽略）。比较为 0 时 Array.prototype.sort 的稳定性把顺序退回传入顺序，而传入顺序正是 scanTasks 的呈现序（首键停滞分组随时间变）。于是『同一 offset 给到同一批任务』在这类 id 上仍然不成立，会重复/漏任务——正是这次要消灭的缺陷，只是触发条件变窄了。",
-        "severity": "important",
-        "suggestion": "把切窗键换成不依赖 locale 的码元比较（例如 a.e.task < b.e.task ? -1 : a.e.task > b.e.task ? 1 : 0），使任意两个不同 id 都不并列；并加一条单测：两个 localeCompare 相等的 id（含 U+200B）在两种输入顺序下同一 offset 给到同一批。若决定不改，则必须在 spec R2 里写明前提『task id 在 localeCompare 下两两不等』，并把现有注释里的『与时间无关的全序』降级为事实描述。"
-      },
-      {
-        "category": "logic_error",
-        "evidence": "/tmp/vz/probe/p4_ties.mjs 第三节：空仓库（无 .ai/tasks）调 {offset:0} → note = '没有更多了：offset=0 已越过总数 0'，渲染文本 = '没有任务。\\n没有更多了：offset=0 已越过总数 0\\n'。对应代码分支在 src/index.ts:267-268（entries.length===0 即拼这句，未区分 total===0 与 offset>total）。判据 1 只覆盖『不传任何新参数』，故判据 1 仍 met。",
-        "file": "packages/sdlc-status/src/index.ts",
-        "line": 267,
-        "reason": "空看板 + 显式 offset=0 时仍会输出那句错话『没有更多了：offset=0 已越过总数 0』并渲染出来——上一轮 blocking 的原文只是被限制到默认路径，语义仍然不成立（offset=0 没有越过任何东西，只是仓库里没有任务）。这也是调用方很容易走到的一条路径：工具描述就建议用 offset 继续。",
-        "severity": "minor",
-        "suggestion": "把两种情形分开：total===0（或 offset===0）时说『没有任务』/『这就是全部』，只有 offset>0 且 offset>=total 时才说『已越过总数』；或在 entries 为空且 total===0 时不产出 note。"
-      },
-      {
         "category": "test_integrity",
-        "evidence": "grep 证据：`grep -n truncated packages/sdlc-status/src/*.test.ts` → 零命中；smoke.mjs 只在 :388-389 断言默认路径的 truncated。变异测试：副本 /tmp/vz/pkgC 里把 lib/index.js 的 `const truncated = !sel.complete;` 改回 `const truncated = !explicit && !sel.complete;` 后跑作者冒烟 → '断言总数：60（通过 60，失败 0）'（/tmp/vz/smoke-mutantC.log），即这行修复可以静默回归。",
+        "reason": "本轮为『默认页必须显示最该看的』新加的端到端冒烟断言是不可证伪的：smoke.mjs 7d 的混合夹具只有 10 个任务，小于默认页 50，而 ≤50 时两种实现（当前=呈现序 slice；被 reject 的 HEAD~1=id 序 slice 后再按原下标恢复呈现序）返回的都是完全一样的呈现序，所以这条断言在被修好的代码和坏掉的代码上都会绿。实证：把今天的 smoke.mjs 复制到被 reject 的 HEAD~1 包上运行 → 断言 68，通过 67，失败 1，且三条 7d 断言全部 ✓（'✓ 默认页第一条是坏任务（紧迫序优先）：✗ ZZ-001'、'✓ 5 个坏任务都在默认页里'、'✓ 显式分页第一条是 id 序最小的'）；唯一失败的是 7b『空仓库 + 显式 offset=0 的渲染不对』，与默认页无关。另外提交信息里的变异表 F 行（'整页都用 id 序' → 冒烟失败 1 / 单测失败 3）与我在真实 HEAD~1 代码上量到的不符（冒烟失败 1=上面那条 7b；单测失败 2=localeCompare 与默认页两条），却与另一个变异『切窗永远按呈现序』（第一轮那个 bug）逐条吻合（我实测：冒烟刚好失败 1=7d 显式分页断言，单测刚好失败 3=三条新回归测试，/tmp/vstatus/unit-on-mutE）。也就是说这轮的自查没有真正跑到它声称跑到的那个回归上。真正钉住该回归的是纯函数单测（当前 lib/scan.test.js 对 HEAD~1 的 scan.js → 2 条失败），而工具层的 explicit 接线只在 index.ts，改坏它当前冒烟不会红。代码本身经我独立验证是正确的，所以不阻塞。",
+        "evidence": "cp packages/sdlc-status/smoke.mjs /tmp/vstatus/prev/packages/sdlc-status/smoke.mjs && ELECTRON_RUN_AS_NODE=1 '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness' --expose-internals /tmp/vstatus/prev/packages/sdlc-status/smoke.mjs → '✗ 空仓库 + 显式 offset=0 的渲染不对：\"没有任务。\\n没有更多了：offset=0 已越过总数 0\\n\"' + '断言总数：68（通过 67，失败 1）'，且输出中 7d 三条均为 ✓；对照：同一份 smoke.mjs 对当前 lib → 68/68。单测对照：cp 当前 lib/scan.test.js + HEAD~1 的 lib/scan.js 到 /tmp/vstatus/unit-on-prev && node --test scan.test.js → 'ℹ pass 36 ℹ fail 2'，失败者正是『回归：localeCompare…』与『回归：默认页必须显示最该看的…』；而 /tmp/vstatus/unit-on-mutE（切窗永远按呈现序）→ 'fail 3' 且冒烟对同一变异 '断言总数：68（通过 67，失败 1）' 失败项是 7d 显式分页那条。我的强化夹具（62 任务）在 HEAD~1 上有 5 条断言失败，见 criteria 1。",
         "file": "packages/sdlc-status/smoke.mjs",
-        "line": 388,
-        "reason": "truncated 的新语义（等于 !complete）没有任何测试钉住：单测文件里根本没有 truncated（它们只测 scan.ts 纯函数，不碰 index.ts），冒烟只在默认路径断言过 truncated（那里新旧式子等价）。把这行改回旧式子后全部测试仍然全绿，所以这条修复没有回归保护。",
-        "severity": "minor",
-        "suggestion": "补一条显式分页断言（250 任务、offset=0,limit=10 → truncated===true 且 complete===false；offset=200,limit=50 → truncated===false），或在单测里断言两种式子在各路径上一致。"
+        "line": 676,
+        "suggestion": "把 7d 的混合夹具做到超过默认页（例如 55 个健康 AA-* + 5 个坏/停滞 ZZ-*，共 60 个任务），并把『默认页第一条是坏任务』与『5 个紧急任务都在页内』改成对超页仓库的断言；可直接照搬我探针里的夹具（/tmp/vstatus/probe.mjs 的 C1）。同时更正提交信息/结论里变异表 F 行的归属：那组数字对应的是第一轮的『切窗按呈现序』变异，不是第二轮的『整页 id 序』回归。"
       },
       {
-        "category": "test_integrity",
-        "evidence": "冒烟 smoke.mjs:575-585 自己拼 text 再比较；变异测试：副本 /tmp/vz/pkgE 里把 lib/index.js 的 render 改成 `text: [String(o.summary), '', ...lines].join('\\n')`（永不渲染 note）后跑作者冒烟 → '断言总数：60（通过 60，失败 0）'（/tmp/vz/smoke-mutantE.log）。对照：同一变异在我的探针里立刻可见——探针读的是真实 content，例如 limit=1000 时 content 第二行就是 note（'显示第 1-200 个，共 250 个…'）。",
-        "file": "packages/sdlc-status/smoke.mjs",
-        "line": 575,
-        "reason": "冒烟 7b 的空看板『渲染文本』断言是**在测试里重新拼了一遍渲染逻辑**（把 summary/note/lines 用 '\\n' 拼起来），并没有调用插件真正的 output.render。于是渲染器本身的回归（例如 note 被渲染漏掉——正是本轮 blocking 关心的那件事）照样全绿。我自己的探针用真实 ctx.tools.execute().content 取到 '没有任务。\\n'，所以判据 1 本身成立；但作者这份证据证明不了渲染路径。",
         "severity": "minor",
-        "suggestion": "断言真实渲染输出：用 er.content 的 text（冒烟其它地方已在用 missing.content，没有障碍），或至少额外断言 '空看板 content === \"没有任务。\\n\"' 与 '显式分页时 content 里出现 note 行'。"
-      },
-      {
-        "category": "test_integrity",
-        "evidence": "变异测试：副本 /tmp/vz/mutant/scan.js 把切窗改成 `const window = entries.slice(offset, offset + limit);`（即回到『按传入顺序切窗』）后跑作者的单测文件 → 'ℹ pass 35 / ℹ fail 1'，唯一失败的是 '✗ 回归：翻页顺序必须与时间无关（输入顺序变了，切窗结果不变）'（src/scan.test.ts:721）；src/scan.test.ts:748 那条『时间导致重排时…』通过——因为它的 collect 在同一输入顺序下把所有页取完，任何置换的分页切片并集都等于全集。",
-        "file": "packages/sdlc-status/src/scan.test.ts",
-        "line": 748,
-        "reason": "作者新增的两条『回归』里，第二条（『时间导致重排时，逐页取回仍然不重不漏』）对目标缺陷不可证伪：它在一个输入顺序内翻完所有页，而置换的分页切片并集恒等于全集，所以跨调用/跨顺序的窗口错位永远不会让它变红。作者提交信息里说的『第一条 FAIL』是准确的，但第二条被当作回归证据名不副实（它只是守恒断言）。",
-        "severity": "minor",
-        "suggestion": "把第二条改成跨两个顺序逐 offset 比较集合（像第一条那样），或直接去掉它以免读者以为跨调用不重不漏已被覆盖；真正能抓跨调用场景的是端到端『阈值跨越』用例（我用的 p2b 那种）。"
-      },
-      {
         "category": "spec_mismatch",
-        "evidence": "/tmp/vz/probe/p3_paging.mjs 的混合夹具（60 个健康 AA-001..AA-060 + 3 个 state.yaml 坏掉的 ZZ-001..003）：task_id=AA-001 → window_start=4、note='单任务详情（第 4 / 63 个）'（3 个坏任务排在呈现序最前），而 offset=0,limit=1 返回的第一条正是 AA-001（id 序位置 1）；探针据此打印 '✗ 单任务详情的 window_start(4) 与分页 offset 的口径是否一致'。同质夹具（如冒烟的 BIG-*）两者恰好相等，所以判据 5 的两条断言仍然成立。",
-        "file": "packages/sdlc-status/src/index.ts",
-        "line": 262,
-        "reason": "单任务详情的 window_start/window_end（及 note 里的『第 N / M 个』）用的是 scanTasks 呈现序（紧迫序）里的位置，而分页 offset 用的是 id 字典序的位置，两者不是同一根轴：在紧迫序≠id 序的仓库里，同一任务读到的『第 N 个』与它在分页里的页位不一致，调用方按 window_start 去换算 offset 会取错页。",
-        "severity": "minor",
-        "suggestion": "在 spec/工具描述里写清 window_start 属于哪根轴；或让单任务详情同时给出两个位置（例如 note 写『呈现序第 4 / 63，id 序第 1 / 63』），避免调用方用 id 序 offset 去对齐。"
+        "reason": "制品里对 selectTasks 的接口描述停留在重构前：spec.md 的 Design 代码块仍写 `note?: string` 且签名没有 `explicit`，而纯函数的 note 已经移到工具层（src/scan.ts 的 Selection 只有 entries/start/singleIndex/complete/clampedFrom/remaining，注释写明『所以文案移到工具层』）；plan.md 的 Proof 表中 R3 一行仍要求『… note 含\"没有更多\"、complete === true』由单测钉住，实际单测（src/scan.test.ts 的 'R3 回归：offset 等于总数或超出时，给出可判定的结构化事实'）只断言结构化事实，文案证据在冒烟层。R1/R2/R8/R9 的正文都更新了，只有这两处接口/证据描述没跟上，属于制品内部漂移。",
+        "evidence": "spec.md:100-113（`export interface Selection { entries…; note?: string; complete: boolean }` 与 `selectTasks(entries, { taskId?, offset?, limit? })`）对比 src/scan.ts:328-341（Selection 无 note，含 start/singleIndex/remaining/clampedFrom）与 src/scan.ts:361-368（『所以文案移到工具层…这里只给结构化事实』）；plan.md:75（R3 证据写『note 含\"没有更多\"』）对比 src/scan.test.ts:650-661（只断言 entries.length/start/complete/remaining）。",
+        "file": ".ai/tasks/STATUS-PAGE/spec.md",
+        "line": 100,
+        "suggestion": "同步 spec 的 Design 代码块到实现签名（含 explicit 与 start/singleIndex/remaining/clampedFrom、去掉 note），并把 plan.md Proof 表 R3 行的证据改成『单测断言结构化事实 + 冒烟断言渲染文案』。"
       },
       {
-        "category": "other",
-        "evidence": "/tmp/vz/probe/p5_args.mjs 真实工具调用：{offset:''} → isError=true，错误 'invalid arguments: \"offset\" must be an integer'；{limit:''}、{offset:null}、{limit:null} 同样被 schema 拒掉；对照 {task_id:''} 走默认路径（51 条，isError=false）。对应 src/index.ts:342-363 的注释与分支。",
-        "file": "packages/sdlc-status/src/index.ts",
-        "line": 348,
-        "reason": "intArg 的文档注释描述了在真实工具路径上不可达的行为：注释说『空串与 undefined 都当作没给（模型常把可选参数传成空串）』，但 offset/limit 声明为 type integer，DSH 参数 schema 会先把 '' 与 null 拒掉，所以那两个宽容分支永远走不到。上一轮验证者已提过（其 minor #6），本轮未修也未在提交信息里说明。",
         "severity": "minor",
-        "suggestion": "把注释改成事实（『空串/非整数会在参数 schema 层被拒；这里的判断是防御性的，正常路径走不到』），或删掉不可达分支以免后来人以为空串被容忍。"
+        "category": "logic_error",
+        "reason": "offset ≥ 总数时窗口为空，但 complete=true 且 truncated=false（即调用方只看这两个布尔量会以为『我已经看全了』，而它一条任务也没看到）。实测 60 任务仓库 offset=999：tasks=0、complete=true、truncated=false、window_start=0、window_end=0，只有 note 里写着『没有更多了：offset=999 已越过总数 60』。这是有意为之（plan.md 的 R3 Proof 行明确写 complete === true『确实没有遗漏，因为本来就没有』），而且判据 4 要求 truncated===!complete，所以不算判据违反；但工具描述恰好教调用方用 complete 判断是否看全，这个组合容易被误读。",
+        "evidence": "ELECTRON_RUN_AS_NODE=1 '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness' --expose-internals /tmp/vstatus/edges.mjs packages/sdlc-status/lib → 'offset=999 (60 tasks): {\"tasks\":0,\"complete\":true,\"truncated\":false,\"window_start\":0,\"window_end\":0,\"note\":\"没有更多了：offset=999 已越过总数 60\"}'；同行还可见 {offset:999,limit:1000} → complete=true 且 note 追加了夹上限说明。",
+        "file": "packages/sdlc-status/src/scan.ts",
+        "line": 450,
+        "suggestion": "二选一：越界（窗口为空且 total>0）时让 complete=false（truncated 随之 true，仍满足 truncated===!complete），或在输出 schema/工具描述里把 complete 的定义收窄为『本窗口之外没有遗漏』，避免被读成『已看全』。"
       }
     ],
-    "status": "reject",
-    "summary": "第二次验证（独立复核，不复用作者冒烟作为唯一依据）：上一轮 reject 的两条（blocking 默认路径/空看板、important 翻页顺序依赖时钟）**主体确实修好了**，6 条判据里 5 条 met、1 条 not_met。\n\n我做了什么（全部自己搭，不是复跑作者脚本）：\n1) `git archive 9351986`（改动前）与 `HEAD` 各编译一份到 /tmp/vz/{oldlib,newlib}，在**同一进程**里各挂一套真实 Cordis + ToolRuntime + LocalFileSystem，对同一 fixture 逐字对比旧/新的默认调用与**真实渲染文本**（`ctx.tools.execute().content`，不是照抄渲染逻辑）；\n2) 自造 250 任务探针测分页/夹上限/task_id；\n3) 端到端构造\"跨过停滞阈值导致 scanTasks 重排\"的场景（阈值设成 1 秒）验证翻页切窗；\n4) 5 个变异测试（把实现改坏，跑作者的测试看会不会红）验证\"测试是否真的证明了目标\"；\n5) 只读加码（整棵树 chmod 0444/0555 后再分页/查详情，文件树+mtime+size 不变）。\n\n结论：\n· 判据 1/3/4/5/6 成立（证据见 criteria_results），blocking 与 important 的**主路径**都真的修好了；\n· 判据 2 **不成立**：切窗用的 `localeCompare` 不是全序——两个 id 若在 ICU 下比较相等（如目录名混入零宽空格/软连字符），顺序退回\"传入顺序\"，时间重排后同一 offset 给出**不同任务**。纯函数层与真实工具端到端都复现（同一仓库、无任何文件改动）；\n· 另抓到一条上一轮没发现的 important：spec R1/intent「不传任何新参数时 tasks 数组逐字不变」在 **>50 任务且紧迫序≠id 序**的仓库里被证伪——默认页现在按 id 字典序选人，会把坏掉/停滞但 id 靠后的任务整个藏起来（旧实现默认页显示的正是最该看的那 50 个）。作者冒烟的 60 任务夹具是同质的（PG-001..060 状态/时间全相同），id 序恰好等于紧迫序，所以天然看不见；\n· 另有 6 条 minor：truncated 新语义无测试钉住（变异体存活）、空看板渲染断言是自己复制的渲染逻辑（把渲染里的 note 删掉冒烟仍 60/60）、两条\"回归\"里第二条不可证伪、单任务位置口径与分页口径不一致、空仓库显式 offset=0 仍说\"已越过总数 0\"、intArg 注释描述的分支在真实工具路径不可达（上一轮 minor 未修）。\n\n判 reject 的理由：一条判据有可复核的反例，且一条写进 spec/intent 的兼容性承诺在 >50 任务的仓库上不成立。两处修复量都不大（切窗换成码元比较；R1 要么收窄措辞、要么默认页保留紧迫序并改成游标续页）。\n\n复核通过、与作者声称一致的部分：四包 `tsc --noEmit` 退出码 0、单测 52/52、冒烟 60/60（退出码 0）、工作区干净、tarball 与 lib 三份哈希一致且含 'the ones SHOWN'、desktop profile 里装的三份 lib 与仓库 lib 哈希一致且 profile 下 @deepseek-ai 包数 = 0、冒烟新增断言确实可证伪（变异体 D/B 会红）。未跑：测试场 `make check`（不在范围且会写另一个仓库）、真实会话里的运行时加载（只做了静态核对）。",
     "unverified": [
-      "测试场端到端 `cd <WORKSPACE>/sdlc-playground && make check`（作者声称 22/22）：未运行——该脚本会往另一个仓库写任务，且不在本次验证范围（packages/sdlc-status）内，我不改任何仓库。",
-      "『装入 desktop profile 后线上真的可用』只做了静态核对：~/.dsh/profiles/desktop/node_modules/@ai-native-sdlc/dsh-sdlc-status/lib/{index,scan,helpers}.js 与仓库 lib 三份 sha256 一致、index.js 里 'the ones SHOWN' 命中 1、profile 下 @deepseek-ai 包数 = 0（无重复 dsh-tools）。我没有重启 App、也没有调用 plugin_manager list_plugins 观察 fiberPhase，因此『真实会话里加载的是这份代码』未在运行时确认。",
-      "本仓库/其它真实工作区是否存在 >50 个任务的场景（决定 finding 1 的实际影响面）：未查证（本仓库 .ai/tasks 只有少量任务）。",
-      "sdlc-status 之外三个包的行为未验证：本次改动不涉及它们，我只复核了 `tsc --noEmit` 退出码 0（与作者的『四包 0』一致）。"
+      "作者变异表 F 行的**确切改动**无法复核（改动没进仓库）：我能量到的是『真实的 HEAD~1 代码 → 冒烟失败 1（7b 空仓库）/ 单测失败 2』，而『切窗永远按呈现序』这个变异才给出 1/3 的组合；究竟他们当时改的是哪一种、以及那句『整页都用 id 序』的标签指什么，只能靠推断，不能复跑。",
+      "profile 是否真的装到了这份 lib、tarball/三份哈希一致性、以及测试场 sdlc-playground 的 `make check` 22/22（本次明确划在范围外，我未复核）。",
+      "另外三个包（sdlc-verify / sdlc-task / sdlc-artifact）的 tsc 与单测/冒烟数字（本次只验证 packages/sdlc-status，我仅复现了本包的 tsc 退出码 0）。"
     ],
-    "verifier_session": "20488853-3d82-4ea9-8776-83ad6dcd8311"
+    "verifier_session": "fc3995e6-34ea-4f4e-9732-6961328cf7bf"
   }
 }
