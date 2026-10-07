@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "AI-native SDLC — Verification",
+    "description": "Independent verification: a verifier that is never the actor, plus a monotonic test-freeze gate for bug fixes."
+  }
+}
