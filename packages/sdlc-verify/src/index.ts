@@ -194,31 +194,39 @@ async function registerVerificationArtifact(
   ctx: Context,
   exec: { agent?: unknown; signal?: AbortSignal },
   task: ResolvedTask,
-): Promise<void> {
+): Promise<string> {
+  // 返回值是**给人看的一句话**，会出现在裁决 summary 里。
+  // 为什么必须报出来：这个函数有多条"静默放弃"的路径（找不到 anchors、
+  // state.yaml 不在），而静默成功与静默失败在制品上**完全无法区分**——
+  // 独立验证者指出过这一点。本项目的一条基本纪律是"不要让失败静默"。
   const statePath = `${task.dir}/state.yaml`;
   const policy = await writePolicy(ctx, exec);
   const target = await ctx.fs.resolve(statePath, resolveOptions(exec, policy?.workspaceRoot));
   const info = await ctx.fs.stat(target, exec.signal);
-  if (info === undefined || info.type !== 'file') return;
+  if (info === undefined || info.type !== 'file') {
+    return `⚠ verification 制品未登记：找不到 ${statePath}（裁决本身已落盘）`;
+  }
 
   const text = await ctx.fs.readText(target, exec.signal);
-  if (/^\s*verification:/m.test(text)) return; // 已登记，不重复写
+  if (/^\s*verification:/m.test(text)) {
+    return '制品登记：verification 已在 state.yaml 中（无需重复登记）';
+  }
 
   // 在 artifacts 段末尾插入一行。artifacts 是我们自己写出来的固定形状，
   // 但用户可能手改过——所以找不到锚点时就放弃（宁可不登记，也不改坏文件）。
   const lines = text.split('\n');
   const start = lines.findIndex((l) => /^artifacts:\s*$/.test(l));
-  if (start < 0) return;
+  if (start < 0) {
+    return (
+      '⚠ verification 制品未登记：state.yaml 里找不到 `artifacts:` 段' +
+      '（可能被手改过）。裁决本身已落盘，请手动登记 verification: "verification.json"'
+    );
+  }
   let insertAt = start + 1;
   while (insertAt < lines.length && /^\s{2}\S/.test(lines[insertAt] ?? '')) insertAt += 1;
   lines.splice(insertAt, 0, '  verification: "verification.json"');
-  await ctx.fs.writeText(
-    target,
-    lines.join('\n'),
-    undefined,
-    exec.signal,
-    policy,
-  );
+  await ctx.fs.writeText(target, lines.join('\n'), undefined, exec.signal, policy);
+  return '制品登记：verification → state.yaml 的 artifacts（状态机到 REVIEWING 时可见）';
 }
 
 interface ResolvedTask {
@@ -475,7 +483,11 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               exec.signal,
               policy,
             );
-            await registerVerificationArtifact(ctx, exec, task);
+            const registrationNote = await registerVerificationArtifact(ctx, exec, task);
+            return {
+              ...finalVerdict,
+              summary: `${finalVerdict.summary}\n\n${registrationNote}`,
+            } satisfies Verdict & { verifier_session?: string };
           } catch (e) {
             return {
               ...finalVerdict,

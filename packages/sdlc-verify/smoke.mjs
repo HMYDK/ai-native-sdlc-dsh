@@ -424,6 +424,15 @@ console.log('\n== 5d. 任务身份：从 state.yaml 解析制品并把裁决落�
     } else {
       bad(`verification 未登记进 artifacts，状态机到 REVIEWING 会看不到它。state.yaml=\n${st}`);
     }
+    // 登记结果必须**报出来**：这个函数有多条静默放弃路径，
+    // 而静默成功与静默失败在制品上无法区分（独立验证者指出的）。
+    const summary = String(r.value?.summary ?? '');
+    if (/制品登记：verification/.test(summary)) {
+      ok('summary 里报出了登记结果（静默失败与成功可区分）');
+    } else {
+      bad(`summary 未报告登记结果：${summary.slice(-160)}`);
+    }
+
     // 而且不能把别的制品弄丢
     for (const [k, v] of [['intent', 'intent.md'], ['spec', 'spec.md'], ['plan', 'plan.md']]) {
       if (new RegExp(`^\\s{2}${k}:\\s*"${v}"`, 'm').test(st)) ok(`登记后 ${k} 仍在 artifacts 里`);
@@ -467,6 +476,28 @@ console.log('\n== 5d-2. 沙箱接线（落盘曾因漏传策略被拒）==');
   } else {
     bad(`${noPolicy.length} 次 writeText 没带策略（落盘会被拒）`);
   }
+}
+
+console.log('\n== 5d-3. 静默失败必须变成可报告的警告 ==');
+{
+  // 把 state.yaml 改成没有 artifacts 段的形态（模拟被人手改）
+  files.set(
+    '/repo/.ai/tasks/PROJ-8/state.yaml',
+    ['task: PROJ-8', 'title: "手改过"', 'status: PLANNED', 'created: "x"', 'updated: "x"', 'history: []', ''].join('\n'),
+  );
+  const r = await dispatch(
+    'sdlc_verify',
+    { intent_of_change: '静默失败测试', task_id: 'PROJ-8' },
+    fakeAgent,
+  );
+  const summary = String(r.value?.summary ?? r.error ?? '');
+  if (/找不到 `artifacts:` 段/.test(summary)) {
+    ok('找不到 artifacts 锚点时给出可读警告（而非静默跳过）');
+  } else {
+    bad(`锚点缺失时没有可读警告：${summary.slice(-200)}`);
+  }
+  if (/手动登记/.test(summary)) ok('警告里给出了补救办法（手动登记）');
+  else bad('警告没有给出补救办法');
 }
 
 console.log('\n== 5e. 冻结绑定任务身份 ==');
