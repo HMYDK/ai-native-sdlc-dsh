@@ -190,3 +190,38 @@ test('pathTokens 提取路径 token', () => {
   assert.ok(tokens.includes('tests/a.py'), `应含 tests/a.py，实际：${tokens.join(',')}`);
   assert.ok(tokens.includes('src/b.ts'), `应含 src/b.ts，实际：${tokens.join(',')}`);
 });
+
+test('回归：fd 重定向不算文件写入（`make test 2>&1` 曾被误拦）', () => {
+  // 缺陷原貌（测试场发现）：重定向检测把 `2>&1` 当成"往文件里写"，
+  // 于是 `make test 2>&1` 被拦住。后果是**冻结期间基本没法跑测试**——
+  // 而"改代码后跑测试确认变绿"正是修复流程的核心步骤。
+  const mustAllow = [
+    'make test',
+    'make test 2>&1',
+    'make test 2>&1 | tail -5',
+    'pytest tests/ -q 2>&1',
+    'npm test 2>&1',
+    'make check 2>&1 | grep -E "✗|断言"',
+  ];
+  for (const command of mustAllow) {
+    const v = judgeTestMutation({ name: 'bash', arguments: { command } });
+    assert.equal(v.blocked, false, `不该被拦: ${command}`);
+  }
+});
+
+test('回归：剥离 fd 重定向**没有削弱**真正的写入检测', () => {
+  // 修误伤时最容易出的错是"把洞开大了"。这几条必须仍然被拦。
+  const mustBlock = [
+    'echo x > tests/a.py',
+    'echo x >tests/a.py',
+    'tee tests/a.py',
+    'rm -rf tests/',
+    'make test > /tmp/out.txt tests/', // 真重定向 + 测试目标
+    'make test >tests/out.txt', // 无空格的真重定向
+    'sed -i s/a/b/ tests/a.py 2>&1', // fd 重定向不能掩护 sed -i
+  ];
+  for (const command of mustBlock) {
+    const v = judgeTestMutation({ name: 'bash', arguments: { command } });
+    assert.equal(v.blocked, true, `应被拦: ${command}`);
+  }
+});

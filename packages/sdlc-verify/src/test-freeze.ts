@@ -88,6 +88,22 @@ export function isTestPath(p: unknown): boolean {
  *   4. `perl -pi -e`
  *   5. `git -C repo checkout -- tests/` —— `-C` 插在中间
  */
+/**
+ * 文件描述符重定向不是文件写入，先归一化掉再判变更。
+ *
+ * 踩到的真实误伤（测试场发现）：`make test 2>&1` 被拦住——
+ * 重定向检测把 `2>&1` 当成了"往文件里写"。而 `2>&1` 是**终端惯用法**，
+ * 不写任何文件。后果很严重：**冻结期间基本没法跑测试**，
+ * 而"改代码后跑测试确认变绿"正是修复流程的核心步骤。
+ *
+ * 只剥 `[0-9]>&[0-9]` 这种形态——真正的重定向（`> file`、`>tests/x`）不受影响。
+ * 已知的理论边界：若有人刻意构造 `>2\&1` 这样的**文件名**来规避检测，
+ * 会被误判为放行。这不值得为它牺牲正常可用性。
+ */
+function stripFdRedirects(command: string): string {
+  return command.replace(/[0-9]\s*>\s*&\s*[0-9]/g, ' ');
+}
+
 const MUTATION_RE = [
   // 重定向：允许 `>` 后无空格（修复实测漏检）
   /(^|[^<])>{1,2}\s*\S/,
@@ -209,8 +225,10 @@ export function judgeTestMutation(exec: {
     }
 
     // ② 变更操作 + 测试目标
-    if (!MUTATION_RE_COMPILED.test(command)) return { blocked: false };
-    const hit = pathTokens(command).find((t) => isTestPath(t));
+    //    先剥掉 fd 重定向（`2>&1` 不写文件），否则 `make test 2>&1` 会被误拦
+    const normalized = stripFdRedirects(command);
+    if (!MUTATION_RE_COMPILED.test(normalized)) return { blocked: false };
+    const hit = pathTokens(normalized).find((t) => isTestPath(t));
     if (hit !== undefined) {
       return {
         blocked: true,
