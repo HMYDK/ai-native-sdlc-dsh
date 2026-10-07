@@ -79,6 +79,15 @@ handbook/                 # 手册原文，只读
 
 **跑 `npm run verify`（= build + test + smoke），不要只看其中一项。**
 
+**核对单测数字时用 `grep -E "^[#ℹ] (pass|fail)"`，不要写 `^#`。**
+这个 Node 版本的 `node --test` 用 `ℹ` 前缀，写 `^#` 会零匹配、退出码 1——
+看起来像"测试失败"，其实只是 grep 没匹配到（实测：我写错过一次，
+被独立验证者纠正）。
+
+**独立验证测不了自己这次调用的产物。** 让验证者确认"这次调用会写出的文件"
+必然得到 reject（它只能在调用期间观察）。要么验证**调用前**已存在的东西，
+要么另起一次调用验证产物。详见 pitfalls §11.2。
+
 - **`smoke.mjs` 是关键的那一层**：它用真实 Cordis 上下文 + 真实 `ToolRuntime`
   挂载插件并**真的调用工具**。加载成功 ≠ 可用——这个脚本就是为了防这件事。
   它不需要重启 App，也不碰用户 profile。
@@ -191,8 +200,14 @@ handbook/                 # 手册原文，只读
       （任务 `.ai/tasks/SMOKE-1`，状态已到 SPEC）
 - [x] 回填 `sdlc-verify`：接受 `task_id` 自动解析制品、裁决落盘 verification.json、
       冻结绑定 task（拒绝信息带任务归属，错 task_id 解冻被拒）
-- [x] 真实 `sdlc_verify` 返回过 `approve` + 2 findings + 7 unverified
-- [ ] 待重启后确认最后一处修复（落盘沙箱策略）真的生效
+- [x] 真实 `sdlc_verify` 返回过 `approve`；落盘沙箱策略修复**已确认生效**
+      （`.ai/tasks/SMOKE-1/verification.json` 写出，含 task/at/artifacts/verdict）
+- [x] 落盘后**自动把 verification 登记进 state.yaml** 的 artifacts——
+      只写文件不够，状态机看的是 artifacts（独立验证者指出的不一致）
+- [x] **整轮独立验证通过**（verifier_session 754030b9）：tsc 两包 0 错误、
+      单测 13+23、冒烟 64+29 全部复现；dependencies 无 @deepseek-ai/*
+      · 该验证者还自行核查了"测试跑的是不是当前代码"（比对 lib/*.js 与
+        src/*.ts 的 mtime），排除了本项目屡次踩到的"测试跑旧模块"失败模式
 
 ## 待用户决策
 
