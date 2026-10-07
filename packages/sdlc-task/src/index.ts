@@ -75,25 +75,6 @@ interface SdlcTaskConfig {
  *
  * 这是刻意的简化：多仓库工作区需要显式传 repo 参数，等真有需求再加。
  */
-function sessionCwd(exec: { agent?: unknown }): string | undefined {
-  const agent = exec.agent as
-    | { session?: { header?: { cwd?: unknown } } }
-    | undefined;
-  const cwd = agent?.session?.header?.cwd;
-  return typeof cwd === 'string' && cwd !== '' ? cwd.replace(/\/+$/, '') : undefined;
-}
-
-function requireSessionCwd(exec: { agent?: unknown }): string {
-  const cwd = sessionCwd(exec);
-  if (cwd === undefined) {
-    throw new Error(
-      'sdlc-task 无法确定仓库根：拿不到 session 的 cwd。' +
-        '请在有工作目录的会话里调用（子代理或非会话调用可能没有 cwd）。',
-    );
-  }
-  return cwd;
-}
-
 export interface TaskPaths {
   repoRoot: string;
   taskDir: string;
@@ -101,7 +82,7 @@ export interface TaskPaths {
 }
 
 function pathsFor(cfg: SdlcTaskConfig, exec: { agent?: unknown }, taskId: unknown): TaskPaths {
-  const repoRoot = requireSessionCwd(exec);
+  const repoRoot = requireSessionCwd(exec, 'sdlc-task');
   const id = normalizeTaskId(taskId);
   // 注意：这里用配置的 tasksDir 而不是常量，但 taskDirFor 用常量。
   // 保持简单：配置只允许改目录名，路径拼接交给一个函数。
@@ -118,14 +99,6 @@ function pathsFor(cfg: SdlcTaskConfig, exec: { agent?: unknown }, taskId: unknow
  * 沙箱的默认根上，于是"写自己仓库里的文件"被判成越界
  * （`file access denied under workspace-write mode`）。实测踩到过。
  */
-function resolveOptions(
-  exec: { agent?: unknown; signal?: AbortSignal },
-  policyRoot?: string,
-): { cwd?: string; signal?: AbortSignal } {
-  const cwd = policyRoot ?? sessionCwd(exec);
-  return { ...(cwd !== undefined ? { cwd } : {}), signal: exec.signal };
-}
-
 /**
  * 解析本次调用的沙箱策略（写操作专用）。
  *
@@ -134,20 +107,6 @@ function resolveOptions(
  * 所以必须把 `exec.agent.session` 传进去——否则会落到部署的 fallback 根，
  * 于是"写自己仓库里的文件"被误判成越界（实测踩到过）。
  */
-async function writePolicy(
-  ctx: Context,
-  exec: { agent?: unknown },
-): Promise<SandboxExecutionPolicy | undefined> {
-  const session = (exec.agent as { session?: unknown } | undefined)?.session;
-  if (session === undefined) return undefined;
-  try {
-    return ctx.sandboxPolicy.resolve({ session: session as never });
-  } catch {
-    // 拿不到策略时按"无策略"处理：由 fs 后端自己决定默认行为。
-    return undefined;
-  }
-}
-
 /** 读 + 解析 state.yaml。文件不存在时返回 undefined（而不是抛错）。 */
 async function readState(
   ctx: Context,
@@ -228,6 +187,8 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
   }
   return out;
 }
+
+import { requireSessionCwd, resolveOptions, sessionCwd, writePolicy } from './helpers.js';
 
 export function apply(ctx: Context, config: SdlcTaskConfig): void {
   const cfg = config;

@@ -167,31 +167,7 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
  * 解析选项：把会话 cwd（或策略给的 workspace 根）作为 cwd 传进去。
  * 与 sdlc-task 同一套写法——官方 dsh-tool-fs 也是这么做的。
  */
-function resolveOptions(
-  exec: { agent?: unknown; signal?: AbortSignal },
-  policyRoot?: string,
-): { cwd?: string; signal?: AbortSignal } {
-  const agent = exec.agent as { session?: { header?: { cwd?: unknown } } } | undefined;
-  const raw = agent?.session?.header?.cwd;
-  const sessionCwd = typeof raw === 'string' && raw !== '' ? raw.replace(/\/+$/, '') : undefined;
-  const cwd = policyRoot ?? sessionCwd;
-  return { ...(cwd !== undefined ? { cwd } : {}), signal: exec.signal };
-}
-
 /** 解析本次调用的沙箱策略（写操作专用）。 */
-async function writePolicy(
-  ctx: Context,
-  exec: { agent?: unknown },
-): Promise<SandboxExecutionPolicy | undefined> {
-  const session = (exec.agent as { session?: unknown } | undefined)?.session;
-  if (session === undefined) return undefined;
-  try {
-    return ctx.sandboxPolicy.resolve({ session: session as never });
-  } catch {
-    return undefined;
-  }
-}
-
 /**
  * 把 `verification.json` 登记进任务 state.yaml 的 `artifacts`。
  *
@@ -314,6 +290,8 @@ async function resolveTask(
   }
   return { id, dir, artifacts };
 }
+
+import { resolveOptions, writePolicy } from './helpers.js';
 
 export function apply(ctx: Context, config: SdlcVerifyConfig): void {
   // 加载即自检：工具输出 schema 与裁决 schema 一旦漂移，某条裁决路径会静默失效

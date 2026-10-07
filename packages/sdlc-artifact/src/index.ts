@@ -56,41 +56,6 @@ interface SdlcArtifactConfig {
  * （`process.cwd()`，即 App 的工作目录），于是"写自己仓库里的文件"被判越界。
  * 详见 docs/dsh-pitfalls.md §11.1——这个坑在两个包里各踩过一次。
  */
-function resolveOptions(
-  exec: { agent?: unknown; signal?: AbortSignal },
-  policyRoot?: string,
-): { cwd?: string; signal?: AbortSignal } {
-  const agent = exec.agent as { session?: { header?: { cwd?: unknown } } } | undefined;
-  const raw = agent?.session?.header?.cwd;
-  const sessionCwd = typeof raw === 'string' && raw !== '' ? raw.replace(/\/+$/, '') : undefined;
-  const cwd = policyRoot ?? sessionCwd;
-  return { ...(cwd !== undefined ? { cwd } : {}), signal: exec.signal };
-}
-
-function requireSessionCwd(exec: { agent?: unknown }): string {
-  const agent = exec.agent as { session?: { header?: { cwd?: unknown } } } | undefined;
-  const raw = agent?.session?.header?.cwd;
-  if (typeof raw !== 'string' || raw === '') {
-    throw new Error(
-      'sdlc-artifact 无法确定仓库根：拿不到 session 的 cwd。请在有工作目录的会话里调用。',
-    );
-  }
-  return raw.replace(/\/+$/, '');
-}
-
-async function writePolicy(
-  ctx: Context,
-  exec: { agent?: unknown },
-): Promise<SandboxExecutionPolicy | undefined> {
-  const session = (exec.agent as { session?: unknown } | undefined)?.session;
-  if (session === undefined) return undefined;
-  try {
-    return ctx.sandboxPolicy.resolve({ session: session as never });
-  } catch {
-    return undefined;
-  }
-}
-
 interface TaskPaths {
   repoRoot: string;
   taskDir: string;
@@ -98,7 +63,7 @@ interface TaskPaths {
 }
 
 function pathsFor(cfg: SdlcArtifactConfig, exec: { agent?: unknown }, taskId: unknown): TaskPaths {
-  const repoRoot = requireSessionCwd(exec);
+  const repoRoot = requireSessionCwd(exec, 'sdlc-artifact');
   if (typeof taskId !== 'string' || taskId.trim() === '') {
     throw new Error('task_id 必须是非空字符串，例如 "PROJ-1024"');
   }
@@ -203,6 +168,8 @@ async function registerArtifact(
 function escapeRe(v: string): string {
   return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+import { requireSessionCwd, resolveOptions, writePolicy } from './helpers.js';
 
 export function apply(ctx: Context, config: SdlcArtifactConfig): void {
   const cfg = config;

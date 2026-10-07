@@ -32,6 +32,7 @@ import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
 import { humanAge, scanTasks, summarize, type ScanInput, type TaskEntry } from './scan.js';
+import { requireSessionCwd, resolveOptions } from './helpers.js';
 
 export const name = 'sdlc-status';
 
@@ -55,24 +56,7 @@ interface SdlcStatusConfig {
   staleAfterHours: number;
 }
 
-function resolveOptions(exec: {
-  agent?: unknown;
-  signal?: AbortSignal;
-}): { cwd?: string; signal?: AbortSignal } {
-  const agent = exec.agent as { session?: { header?: { cwd?: unknown } } } | undefined;
-  const raw = agent?.session?.header?.cwd;
-  const cwd = typeof raw === 'string' && raw !== '' ? raw.replace(/\/+$/, '') : undefined;
-  return { ...(cwd !== undefined ? { cwd } : {}), signal: exec.signal };
-}
 
-function requireSessionCwd(exec: { agent?: unknown }): string {
-  const agent = exec.agent as { session?: { header?: { cwd?: unknown } } } | undefined;
-  const raw = agent?.session?.header?.cwd;
-  if (typeof raw !== 'string' || raw === '') {
-    throw new Error('sdlc-status 无法确定仓库根：拿不到 session 的 cwd。请在有工作目录的会话里调用。');
-  }
-  return raw.replace(/\/+$/, '');
-}
 
 /**
  * 读取任务目录，组装成 `scanTasks` 需要的纯输入。
@@ -195,7 +179,7 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
         },
       },
       async execute(args, exec) {
-        const repoRoot = requireSessionCwd(exec);
+        const repoRoot = requireSessionCwd(exec, 'sdlc-status');
         const dir = (typeof args.tasks_dir === 'string' && args.tasks_dir.trim() !== ''
           ? args.tasks_dir.trim()
           : cfg.tasksDir
@@ -246,13 +230,6 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
   });
 }
 
-/**
- * 把一个任务条目格式化成一行给人看。
- *
- * 时间维度是刻意放在**最前面**的：看板要回答"哪些卡住了"，
- * 而"卡了多久"和"卡在哪"一样重要——卡 3 天的和 28 分钟前的，
- * 优先级完全不同。
- */
 function formatEntry(t: TaskEntry): string {
   const bits: string[] = [];
 
