@@ -1,0 +1,123 @@
+{
+  "task": "E2E-1",
+  "at": "2026-10-07T16:18:03.467Z",
+  "intent_of_change": "按 spec.md 实现客户自助查询理赔状态：新增 GET /claims/{id}/status（只返回当前认证客户自己的理赔）、门户面板展示状态/下一步/预计日期、内部 9 态到客户 4 态的映射、面板侧 60 秒缓存以压住 claims-core 的 50 rps 限流。",
+  "scope": "**请先读制品再判断，不要假设有代码。** 这是端到端演示：制品链（intent/spec/plan）是完整的，但**本仓库没有该产品的任何源代码**（claims-api / portal 都不存在）。所以：\n\n1) 先读这三个制品：.ai/tasks/E2E-1/intent.md、spec.md、plan.md；\n2) 然后**如实**判断：这五条验收标准在**当前仓库状态下**能否被验证？\n\n我预期你会大量使用 `cannot_tell`，因为没有任何实现代码可查。**这是正确答案**，请照实给，不要为了给出 met 而推测。若你认为\"缺实现\"本身应当是一条 finding，也请写进 findings——但要区分\"制品链的结构问题\"与\"产品代码不存在\"这两件事。\n\n不要去找 claims-api/ 或 portal/ 目录下的代码——它们不存在。",
+  "criteria": [
+    "R1：接口只返回该客户自己的理赔——用 A 的会话查 B 的理赔必须被拒（403/404），且有显式测试用例覆盖这条",
+    "R2：门户展示状态、下一步、预计完成日期，且四种面向客户的状态都有渲染覆盖",
+    "R3：面板侧的读取经过缓存，使 claims-core 的总调用量不超过其 50 rps 限流",
+    "R4：对外只暴露 4 个面向客户的状态；9 个内部状态全部有映射，且映射输出集合恰为 4 个",
+    "R5：门户会话与前端存储里不出现理赔详情（无新增 PII）"
+  ],
+  "artifacts": {
+    "intent": "<REPO>/.ai/tasks/E2E-1/intent.md",
+    "plan": "<REPO>/.ai/tasks/E2E-1/plan.md",
+    "spec": "<REPO>/.ai/tasks/E2E-1/spec.md"
+  },
+  "verdict": {
+    "status": "needs_human",
+    "summary": "我把任务目录里 4 个文件全部读完，并在仓库里逐条找过实现与证据，结论是：**这次变更在仓库里只有制品（intent/spec/plan/state.yaml），没有任何产品代码，因此 5 条验收标准一条都无法在本仓库状态下判定，全部 cannot_tell**。这不是我偷懒：`ls -d claims-api portal` 返回 No such file or directory，plan.md「Files that change」列的 8 个文件逐个 `[ -e ]` 全部 MISSING，plan.md「Proof」表点名的 4 个测试文件名（test_status.py / StatusPanel.test.tsx / stateMapping.test.ts / useClaimStatus.test.ts）在整仓（排除 node_modules/.git）find 不到，`make test / make lint` 所依赖的 Makefile 不存在，任务目录只有 4 个文件、没有 verification.json 或任何证据制品。\n\n逐条问题的回答：\n1) **目标是否达成**：没有达成——声称的 R1/R2/R3/R5 行为载体（接口、面板、缓存 hook、会话/存储处理）在本仓库不存在；R4 的状态映射模块也不存在。唯一存在的是文档级设计。\n2) **测试是否证明目标行为**：不存在任何测试，谈不上证明；plan.md 承诺的「用 A 的会话查 B 的理赔」这条显式用例只写在纸上，没有落地。\n3) **是否改动测试/fixture/mock/CI 让结果变绿**：**没有发现任何此类改动**——`git status --porcelain` 只有 `?? .ai/`，无 tracked 文件被修改，无 .github/CI 目录。但同样道理，也没有任何测试被加进来，所以「变绿」无从谈起。注意 packages/sdlc-verify/src/test-freeze.test.ts:34-35 里出现的 claims 路径是该插件自己的「测试资产命名模式表」样本，不是本任务的代码，且该文件未被本次变更触碰。\n4) **边界/错误路径/并发**：在制品层面就缺——spec.md 只定义了成功响应 `{state,nextStep,etaRange}`，没有规定 claims-core 超时/5xx、claim 不存在、缓存击穿（60s 边界上的并发放大）、多实例门户缓存不一致的处理；plan.md:62 对 R2 的证明只覆盖四种状态的正常渲染，没有 loading/empty/error。plan.md:50 还允许跨客户访问返回「403 或 404」二选一，而 403 会构成理赔是否存在的枚举预言（existence oracle），spec 未把口径钉死。\n5) **声称完成但拿不出证据**：`state.yaml:30` 记录 IMPLEMENTING→VERIFYING 的理由是「实现完成（演示场景），进入验证」，而同一文件 `state.yaml:26` 上前一次迁移的理由明说「本端到端演示只走到验证环节，不写真实产品代码」。两处自相矛盾；且 `packages/sdlc-task/src/state.ts:52` 显示 VERIFYING 的门槛只有 `['intent','spec','plan']`，所以状态机能放行「零代码证据的实现完成」——这是制品链的结构问题，与「产品代码不存在」是两件事，我分开报。\n\n另外发现一个**制品内部硬矛盾**（可直接复核）：spec.md:28 与 spec.md:23 说内部状态是 **9 个**，plan.md:11/54/64 也按 9 个写（含「断言已知内部状态集合 == 9 个」），但 spec.md:32-35 的映射表实际枚举了 **10 个**（3+3+2+2：新建/待分配/已分配/查勘中/定损中/待补材料/待客户确认/待付款/已付款/已结案）。按 plan.md 写的单测在 spec 自己的设计表上不可能通过，R4 也因此**即使有代码也无法判定**——必须先由人决定 9 还是 10。这是我不给 approve 的核心原因。\n\n我没有为了给出 met 而做任何推测；所有 cannot_tell 都附了「我实际查了什么、查出什么」。",
+    "criteria_results": [
+      {
+        "criterion": "R1：接口只返回该客户自己的理赔——用 A 的会话查 B 的理赔必须被拒（403/404），且有显式测试用例覆盖这条",
+        "result": "cannot_tell",
+        "evidence": "本仓库不存在该接口的任何代码：`ls -d claims-api portal` → 'claims-api: No such file or directory'、'portal: No such file or directory'；plan.md:8-9 声明的 claims-api/routes/status.py、claims-api/tests/test_status.py 逐个 `[ -e ]` 判定为 MISSING；plan.md:61 点名的测试 test_status.py::test_cross_customer_access_denied 在全仓 find（排除 node_modules/.git）零命中。没有可调用的端点、没有可运行的测试，因此无法观察『A 的会话查 B 的理赔被拒』这一行为。设计层面只有 spec.md:41 一句『从会话取客户 id，只查该客户名下的理赔』和 plan.md:49-51 的风险处置，二者都是承诺而非证据。"
+      },
+      {
+        "criterion": "R2：门户展示状态、下一步、预计完成日期，且四种面向客户的状态都有渲染覆盖",
+        "result": "cannot_tell",
+        "evidence": "portal 目录不存在（`ls -d portal` → No such file or directory），plan.md:10-13 声明的 StatusPanel.tsx/stateMapping.ts/useClaimStatus.ts/StatusPanel.test.tsx 与 portal/src/nav/PortalNav.tsx、portal/src/i18n/zh.json 全部 `[ -e ]` MISSING；全仓 find 文件名含 StatusPanel/stateMapping/useClaimStatus 的零命中（仅有 handbook 里的示例文本与 sdlc-verify 插件的命名模式样本）。没有组件、没有渲染测试、没有设计稿快照，无法观察四种状态的渲染行为。"
+      },
+      {
+        "criterion": "R3：面板侧的读取经过缓存，使 claims-core 的总调用量不超过其 50 rps 限流",
+        "result": "cannot_tell",
+        "evidence": "缓存实现 portal/src/claims/useClaimStatus.ts 不存在；plan.md:63 承诺的证据是『预发环境实测总调用量日志（第 7 步），附峰值截图』，而 .ai/tasks/E2E-1/ 仅有 4 个文件（intent.md/spec.md/plan.md/state.yaml，`find .ai/tasks/E2E-1 -type f | wc -l` = 4），没有任何日志或截图。更关键的是制品自己承认这条标准压不住：spec.md:61-63（关注点 3）写明『50 rps 是 claims-core 的总限流，而客服系统也在用同一配额。缓存只能压住面板侧的增长，压不住叠加』，plan.md:38-40 同样把它列为未实测风险。所以即使面板缓存存在，『总调用量 ≤ 50 rps』也不能由面板侧缓存单独证明。"
+      },
+      {
+        "criterion": "R4：对外只暴露 4 个面向客户的状态；9 个内部状态全部有映射，且映射输出集合恰为 4 个",
+        "result": "cannot_tell",
+        "evidence": "映射模块 portal/src/claims/stateMapping.ts 不存在（plan.md:11 声明，`[ -e ]` 判定 MISSING），plan.md:64 承诺的 stateMapping.test.ts 不存在，故映射行为无法观察。且该标准在制品层面即自相矛盾：spec.md:28『内部 9 态 → 面向客户 4 态』、spec.md:23『内部状态有 9 个』、plan.md:54『断言已知内部状态集合 == 9 个』、plan.md:64『断言 9 个内部状态全部有映射』，但 spec.md:32-35 的映射表实际枚举 3+3+2+2=10 个内部状态（用脚本解析表格逐行计数：已受理=新建/待分配/已分配(3)、处理中=查勘中/定损中/待补材料(3)、待确认=待客户确认/待付款(2)、已完成=已付款/已结案(2)，TOTAL=10）。『输出集合恰为 4 个』在文档层面成立（4 个面向客户状态），但『9 个内部状态全部有映射』与设计表对不上：按 plan.md 写出的单测在 spec 自己的表上必然失败。是先有 9 还是 10、第十个是否多写，属需要人裁决的问题，我无法判定。"
+      },
+      {
+        "criterion": "R5：门户会话与前端存储里不出现理赔详情（无新增 PII）",
+        "result": "cannot_tell",
+        "evidence": "没有任何会话/前端存储相关代码（portal 目录不存在；plan.md:10-13 列出的前端文件全部缺失），无法做任何一次真实会话或存储快照。plan.md:65 承诺的证据是『浏览器存储快照比对（sessionStorage/localStorage 为空）；网络面板确认响应体只有 state/nextStep/etaRange』，此类证据在任务目录中不存在（只有 4 个 .md/.yaml 文件）。制品层面只有 spec.md:57-59 的缓和设计（nextStep 限制为通用措辞、材料清单留在详情页），那是设计意图，不是『存储里没有 PII』的观测结果；且该点被 spec.md:59 自己标注为『需要在评审中确认是否满足合规要求』，仍未关闭。"
+      }
+    ],
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "missing_evidence",
+        "reason": "被审查的变更声称『按 spec.md 实现客户自助查询理赔状态』，但仓库里只有制品、没有任何产品代码：plan.md『Files that change』声明的 8 个文件全部不存在，plan.md『Proof』表点名的测试与回归命令的载体也全部不存在。因此 5 条验收标准没有任何一条能被观测。制品链本身是完整的（三个制品章节齐全，intent 的三个开放问题在 spec.md:20-24 逐条处置），我把它与『没有产品代码』分开报告：这不是制品结构缺陷，而是本次交付物与声称的目标不匹配。另注意 plan.md 的前提在本仓库不成立——它假设存在一个『现有认证』的 claims-api/portal 代码库可改，而本仓库只有 DSH 插件包（packages/sdlc-artifact、sdlc-verify、sdlc-task）。",
+        "evidence": "`ls -d claims-api portal` → 'claims-api: No such file or directory' / 'portal: No such file or directory'；对 plan.md:8-13 的 8 个路径逐个 `[ -e ]` 全部输出 MISSING（claims-api/routes/status.py、claims-api/tests/test_status.py、portal/src/claims/StatusPanel.tsx、portal/src/claims/stateMapping.ts、portal/src/claims/useClaimStatus.ts、portal/src/claims/StatusPanel.test.tsx、portal/src/nav/PortalNav.tsx、portal/src/i18n/zh.json）；`find . -path ./node_modules -prune -o -path ./.git -prune -o -type f \\( -name 'StatusPanel*' -o -name 'stateMapping*' -o -name 'useClaimStatus*' -o -name 'test_status.py' \\) -print` 零输出；`ls Makefile` → No such file（plan.md:66 的『make test / make lint 原始输出』无载体）；`find .ai/tasks/E2E-1 -type f | wc -l` = 4。",
+        "file": ".ai/tasks/E2E-1/plan.md",
+        "line": 8,
+        "suggestion": "二选一并明确写进 state.yaml/交付说明：① 真要交付该功能，则补上 plan.md 列出的代码与测试，再进入验证；② 若本任务只是制品链演示，则把任务目标改为『产出 intent/spec/plan 制品链』，不要在 state.yaml 里记录『实现完成』，也不要把这 5 条验收标准当成待验证的实现标准上报。"
+      },
+      {
+        "severity": "blocking",
+        "category": "spec_mismatch",
+        "reason": "spec 设计表枚举的内部状态是 10 个，但 spec 与 plan 五处都按 9 个写，其中 plan.md:54 明确要求单测断言『已知内部状态集合 == 9 个』。这使 R4 的承诺证据在设计表上不可能成立：若照表实现，映射覆盖 10 个内部状态，断言 ==9 的测试必然失败；若照 9 个实现，则必有一个内部状态漏映射（plan.md:55 说这正是要防的静默降级）。这不是措辞问题，而是 R4（以及它对应的验收标准『9 个内部状态全部有映射』）无法实现为真。",
+        "evidence": "对 spec.md 映射表逐行解析计数（`python3` 解析 spec.md 第 30-35 行表格）：已受理=3、处理中=3、待确认=2、已完成=2，TOTAL internal states enumerated: 10；而 `grep -n '9 态\\|9 个' spec.md plan.md` 命中 spec.md:23（内部状态有 9 个）、spec.md:28（内部 9 态 → 面向客户 4 态）、plan.md:11（内部 9 态 → 客户 4 态映射）、plan.md:54（== 9 个）、plan.md:64（9 个内部状态全部有映射）。",
+        "file": ".ai/tasks/E2E-1/spec.md",
+        "line": 28,
+        "suggestion": "由产品负责人/规格作者裁定内部状态究竟是 9 个还是 10 个（若为 10，同步改 spec.md:23/28 与 plan.md:11/54/64 的数字；若为 9，指出表中哪一个不属于内部状态），然后再据此实现 stateMapping 与断言。"
+      },
+      {
+        "severity": "important",
+        "category": "spec_mismatch",
+        "reason": "R4 的字面要求是『对外只暴露 4 个面向客户的状态』，spec.md:23 也承诺『不直接暴露客服系统的内部状态』；但 Design（spec.md:37-38）把映射放在门户侧、让 API 只返回内部状态码，也就是 9/10 个内部状态码会随响应体进入客户浏览器，内部术语仍然跨过了客户端的网络边界。四态保证只由前端模块承担，在 API 侧不可强制；因此 plan.md:64 给的证据（门户侧 stateMapping.test.ts 断言输出集合为 4）在结构上无法证明『对外只暴露 4 态』这一条——它只能证明映射函数被正确调用。这一张力在 spec 里既没有被标为关注点，也没有定义『对外』的边界。",
+        "evidence": "spec.md:14（R4『对外只暴露一套面向客户的状态』）与 spec.md:23（『不直接暴露客服系统的内部状态』）对比 spec.md:37（『映射表放在门户侧的一个模块里，不放进 API』）、spec.md:38（『API 只返回内部状态码，门户做映射』）；plan.md:64 的 R4 证据行只列了 stateMapping.test.ts（门户侧单测）。",
+        "file": ".ai/tasks/E2E-1/spec.md",
+        "line": 37,
+        "suggestion": "明确『对外』的判定面：若指网络/API 边界，则应改为 API 返回客户态（或至少不返内部码），并把证明放在接口测试上；若只指客户可见 UI，则在 spec 中写明『内部状态码会出现在响应体、仅由前端映射遮蔽』并被策略负责人接受。"
+      },
+      {
+        "severity": "important",
+        "category": "missing_evidence",
+        "reason": "验收标准 R3 断言的是 claims-core 的『总调用量』不超过 50 rps，而制品自己承认面板侧缓存无法保证总配额：50 rps 是与客服系统共享的总限流，缓存只压住面板侧增量。plan.md 把结论寄托在第 7 步预发实测上，但该步骤没有任何产物（无日志、无截图、无 measurements 文件），任务目录里也没有 verification.json。也就是说这条标准在当前交付里是『被承认无法用测试证明、且实测也没做』——不是已达成。",
+        "evidence": "spec.md:61-63（关注点 3：『50 rps 是 claims-core 的总限流，而客服系统也在用同一配额…需要在预发环境实测总调用量，而不是假设』）；plan.md:34（第 7 步『在预发环境实测 claims-core 总调用量』）、plan.md:38-40（风险 1 的处置）、plan.md:63（R3 的证据＝预发实测日志＋峰值截图）、plan.md:68（自认『已知无法用测试证明』）；`find .ai/tasks/E2E-1 -type f` 仅 4 个文件，无日志/截图/verification.json。",
+        "file": ".ai/tasks/E2E-1/plan.md",
+        "line": 63,
+        "suggestion": "把 R3 的证据口径定下来：要么接受『面板侧缓存命中率单测 + 预发实测报告』作为证据并要求第 7 步产物入库，要么把 R3 拆成两条（面板侧缓存行为 / 总配额压测），避免用一条无法由被交付物证明的标准来判定完成。"
+      },
+      {
+        "severity": "important",
+        "category": "other",
+        "reason": "制品链在状态层面出现自相矛盾的完成声明：同一次迁移链里，先记录『不写真实产品代码』，紧接着记录『实现完成』并推进到 VERIFYING。这不是拼写问题——state.yaml 是任务状态与制品索引的事实来源、进 git、人可读，下游（评审/验证）会把它当作已完成实现的信号。根因是状态机门槛：VERIFYING 只要求 intent/spec/plan 三个制品，所以一个任务可以在零代码证据的情况下宣布实现完成（REVIEWING 才要求 verification 制品）。请把这条当作制品链的结构问题，与『产品代码不存在』分开处理。",
+        "evidence": ".ai/tasks/E2E-1/state.yaml:26（PLANNED→IMPLEMENTING 的理由：『计划已评审，开始实现（本端到端演示只走到验证环节，不写真实产品代码）』）对比 .ai/tasks/E2E-1/state.yaml:30（IMPLEMENTING→VERIFYING 的理由：『实现完成（演示场景），进入验证』）；packages/sdlc-task/src/state.ts:52（VERIFYING: ['intent','spec','plan']，而 REVIEWING 才含 'verification'）。",
+        "file": ".ai/tasks/E2E-1/state.yaml",
+        "line": 30,
+        "suggestion": "把 state.yaml:30 的理由改成可核对的说法（例如『演示场景：未产出产品代码，进入验证以收集裁决』）；若希望状态机本身能表达这一点，可在 VERIFYING 门槛或 reason 校验里要求登记『实现证据/说明』制品，而不是只靠人记得。"
+      },
+      {
+        "severity": "minor",
+        "category": "architecture",
+        "reason": "错误路径与并发边界在设计中留白，且 R2 的证明只覆盖 happy path：plan.md:62 对 R2 的证明是『覆盖四种客户状态的渲染』，没有 loading/空态/claims-core 超时或 5xx 的渲染；spec.md:40 只定义了成功响应体，没定义错误语义；spec.md:43-44 只规定了 60 秒 TTL，没有涉及 60 秒到期的缓存击穿（同一 claim 的并发请求会在 TTL 边界同时打到 claims-core，正是要压的那个限流）以及门户多实例下各实例独立缓存导致的实际放大。这些在写代码前补进 spec/plan 比事后补便宜。",
+        "evidence": "spec.md:40（接口只定义 `{ state, nextStep, etaRange }` 成功形态）、spec.md:43-44（缓存只写 TTL『对每个 claim id 缓存 60 秒』，无击穿/多实例讨论）、plan.md:62（R2 证据只有四种状态渲染）、plan.md:50（跨客户返回『404/403』二选一，未钉死）。",
+        "file": ".ai/tasks/E2E-1/spec.md",
+        "line": 40,
+        "suggestion": "在 spec 里补错误语义（claim 不存在、claims-core 不可用时面板展示什么）与缓存边界策略（TTL 边界去重/负缓存/多实例一致性），并在 plan 的 R2 证据里加上错误态与空态的渲染用例。"
+      },
+      {
+        "severity": "minor",
+        "category": "security",
+        "reason": "跨客户访问的拒绝码被留成『403 或 404』二选一，两种选择的安全含义不同：403 会告诉调用者『这个 id 存在但不属于你』，构成理赔 id 的枚举预言；404 不泄露存在性。验收标准 R1 也照抄了这个二选一，会让实现者挑对实现更容易、对客户更不利的那个（很多框架的授权装饰器默认就是 403）。",
+        "evidence": "plan.md:50（『接口测试必须包含“用 A 的会话查 B 的理赔 → 404/403”这条用例』）与验收标准 R1 原文的『（403/404）』；spec.md:41（授权设计只说『只查该客户名下的理赔』，未规定拒绝码）。",
+        "file": ".ai/tasks/E2E-1/plan.md",
+        "line": 50,
+        "suggestion": "在 spec 中钉死为 404（不区分『不存在』与『不属于你』），并让 R1 的测试断言具体状态码，而不是接受两种之一。"
+      }
+    ],
+    "unverified": [
+      "本任务的交付范围到底是什么：.ai/tasks/E2E-1/state.yaml:26 说『本端到端演示只走到验证环节，不写真实产品代码』，而提交给我的变更描述说『按 spec.md 实现客户自助查询理赔状态』。两者不可能同时为真。请人确认：是应该在本仓库写出 claims-api/portal 代码（那么当前交付缺全部实现，应 reject），还是本次只交付制品链（那么这 5 条验收标准不应作为实现标准上报）？",
+      "内部状态到底有几个：spec.md:23/28 与 plan.md:11/54/64 说 9 个，spec.md:32-35 的映射表实际枚举 10 个（3+3+2+2，见 criteria_results 中 R4 的计数证据）。9 和 10 哪个是对的？若是 10，多出来的那个是什么？这一条不解决，R4 及其单测无法实现为真，也无法判定。",
+      "『对外只暴露 4 个面向客户的状态』的『对外』指哪一层：若指 HTTP/API 边界，则 spec.md:37-38『API 只返回内部状态码、门户做映射』的设计与 R4（以及 spec.md:23『不直接暴露内部状态』）冲突，必须改设计；若只指客户可见 UI，则应把该边界写进 spec 并由策略负责人接受。plan.md:64 给出的门户侧单测在两种解释下都证明不了这条。",
+      "R3 的验收证据形态需要人定：面板侧 60 秒缓存无法约束与客服系统共享的 50 rps 总配额（spec.md:61-63 自认），plan.md:34 的第 7 步预发实测没有任何产物入库（任务目录只有 4 个文件）。请确认『预发实测报告』是否为本任务必须交付的证据；若必须，当前交付不满足。",
+      "对 plan.md:65（R5）与 plan.md:63（R3）承诺的浏览器存储快照、网络面板响应体检查、预发调用量日志与截图，我在本仓库找不到任何产物；这些是否存在于本仓库之外（如预发环境、外部存储）？若存在于外部，请提供可复核的位置，否则只能按缺失处理。",
+      "plan.md:66 的『make test 与 make lint 原始输出』在本仓库没有对应 Makefile（`ls Makefile` → No such file），我无法确认该回归证据在别处是否存在、是否曾通过。"
+    ],
+    "verifier_session": "9300e089-bb4a-4552-9ee3-7019a261a726"
+  }
+}

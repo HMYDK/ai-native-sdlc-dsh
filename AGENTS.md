@@ -50,7 +50,7 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 |---|---|---|
 | `packages/sdlc-verify` | 独立验证 + 测试冻结 | ✅ 已实现并端到端验证 |
 | `packages/sdlc-task` | 任务状态机 + 制品链（state.yaml 在 git） | ✅ 已实现并端到端跑通 |
-| `sdlc-artifact` | 制品写作工具 | ⬜ |
+| `packages/sdlc-artifact` | 制品撰写 + 结构检查（只查结构） | ✅ 已实现并端到端跑通 |
 | `sdlc-skills` | 方法论 Skill 与提示词段 | ⬜ |
 | `sdlc-release` | Gate 前的工作 | ⬜ |
 | `sdlc-ui` | 客户端制品链面板 | ⬜ |
@@ -197,6 +197,32 @@ handbook/                 # 手册原文，只读
 4. **假通过的断言**：`dispose` 断言写死"恰好 3 次"、计数器放在会被临时替换的
    impl 里 → 新增用例后假失败/漏计。改为比对两个实际计数。
 
+### 四个机制已咬合（E2E-1 演示，2026-10-07）
+
+`.ai/tasks/E2E-1/` 是一条**完整走通**的制品链，可作为手册工作流的参考实现：
+任务状态机 + 制品撰写 + 独立验证 + 逐条判据，四个机制真的接上了。
+
+```
+sdlc_task_create           → 建任务（state.yaml + intent.md 骨架）
+sdlc_artifact_write ×3     → intent / spec / plan，结构合格才登记
+sdlc_task_advance ×4       → INTENT→SPEC→PLANNED→IMPLEMENTING→VERIFYING
+sdlc_verify + criteria(5)  → needs_human，5 条全部 cannot_tell
+                             裁决自动落盘 + 自动登记进 artifacts
+```
+
+**这次验证的价值在于验证者抓到了我自己算错的数**：
+spec.md 的映射表枚举了 **10** 个内部状态，而我和 plan.md 五处都写"9 个"——
+其中 plan.md 还要求单测"断言 == 9 个"，那条单测在 spec 自己的表上**必然失败**。
+验证者逐行解析表格数出了 10。**制品链的事实来源自相矛盾，导致它给出的
+验收标准无法实现**——这是结构检查查不到、只有独立阅读才能发现的一类缺陷。
+已修正为 10。
+
+它另外指出两条值得记的：
+- **`VERIFYING` 的门槛只有 intent/spec/plan**，所以零代码证据也能宣布"实现完成"。
+  状态机的结构局限，不是演示场景的问题。
+- **"对外只暴露 4 态"的定义面不清**：设计把映射放在门户侧、API 返回内部状态码，
+  于是内部术语仍跨过网络边界。四态保证只由前端承担，API 侧不可强制。
+
 ### sdlc-task 的状态
 
 - [x] 单测 **23/23**（状态机纯函数层）
@@ -219,6 +245,12 @@ handbook/                 # 手册原文，只读
       （`.ai/tasks/SMOKE-1/verification.json` 写出，含 task/at/artifacts/verdict）
 - [x] 落盘后**自动把 verification 登记进 state.yaml** 的 artifacts——
       只写文件不够，状态机看的是 artifacts（独立验证者指出的不一致）
+- [x] 加 `criteria`（逐条验收标准强制裁决）：单测 23/23、冒烟 79/79
+      · 强制策略**由代码执行**：没给 criteria 时 approve 降级为 needs_human；
+        有 cannot_tell / not_met 时同样降级；漏报标准补 finding
+      · 抓到一个严重 bug：`enforceCriteriaPolicy` 的早退分支丢掉了 findings，
+        使「漏报 N 条标准」这条 finding 永远不出现——即**漏报被静默吞掉**。
+        抓不到的原因是它一直**穿过整个工具调度**被测；移到纯函数层后一次暴露。
 - [x] **整轮独立验证通过**（verifier_session 754030b9）：tsc 两包 0 错误、
       单测 13+23、冒烟 64+29 全部复现；dependencies 无 @deepseek-ai/*
       · 该验证者还自行核查了"测试跑的是不是当前代码"（比对 lib/*.js 与

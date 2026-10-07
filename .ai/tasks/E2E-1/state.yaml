@@ -1,0 +1,31 @@
+task: E2E-1
+title: "客户自助查询理赔状态"
+status: VERIFYING
+created: 2026-10-07T16:15:59.689Z
+updated: 2026-10-07T16:16:34.336Z
+artifacts:
+  intent: "intent.md"
+  plan: "plan.md"
+  spec: "spec.md"
+  verification: "verification.json"
+history:
+  - at: "2026-10-07T16:15:59.689Z"
+    from: ""
+    to: "INTENT"
+    reason: "任务创建"
+  - at: "2026-10-07T16:16:19.614Z"
+    from: "INTENT"
+    to: "SPEC"
+    reason: "规格已产出：三个开放问题逐条处置、状态映射方案定下、4 条关注点待策略负责人确认"
+  - at: "2026-10-07T16:16:28.452Z"
+    from: "SPEC"
+    to: "PLANNED"
+    reason: "计划已产出：7 步顺序、5 条风险（含授权边界这个高危项）、Proof 表逐条对应验收标准"
+  - at: "2026-10-07T16:16:32.555Z"
+    from: "PLANNED"
+    to: "IMPLEMENTING"
+    reason: "计划已评审，开始实现（本端到端演示只走到验证环节，不写真实产品代码）"
+  - at: "2026-10-07T16:16:34.336Z"
+    from: "IMPLEMENTING"
+    to: "VERIFYING"
+    reason: "实现完成（演示场景），进入验证"
