@@ -52,6 +52,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test lib/*.test.js",
     "smoke": "ELECTRON_RUN_AS_NODE=1 \"$DSH_APP/Contents/MacOS/DeepSeek Harness\" --expose-internals smoke.mjs",
-    "verify": "npm run build && npm run test && npm run smoke"
+    "verify": "npm run build && npm run test && npm run smoke",
+    "mutation-gate": "node ../../tools/mutation-score.mjs --gate sdlc-task"
   }
 }

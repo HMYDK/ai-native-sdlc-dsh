@@ -1,0 +1,1006 @@
+{
+  "generatedAt": "2026-10-08T04:22:55.069Z",
+  "entries": [
+    {
+      "pkg": "sdlc-artifact",
+      "op": "bool-and",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 282,
+      "site": ": skeletonFor(kind, typeof args.title === 'string' && args.title !== '' ? args.title : '（待填标题）');",
+      "src": 360,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "bool-and",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 97,
+      "site": "const existingAt = lines.findIndex((l, i) => i > start && i < insertAt && new RegExp(`^\\\\s{2}${escapeRe(kind)}:\\\\s`).test(l));",
+      "src": null,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "bool-and",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 151,
+      "site": "const list = (x) => Array.isArray(x) && x.length > 0 ? x.join(', ') : '（无）';",
+      "src": null,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "bool-and",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 335,
+      "site": "if (typeof args.task_id === 'string' && args.task_id.trim() !== '') {",
+      "src": 430,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "bool-and",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 93,
+      "site": "while (insertAt < lines.length && /^\\s{2}\\S/.test(lines[insertAt] ?? ''))",
+      "src": 149,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "bool-or",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 32,
+      "site": "if (typeof taskId !== 'string' || taskId.trim() === '') {",
+      "src": 68,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-artifact/lib/artifact.js",
+      "line": 221,
+      "site": "const lines = [`# ${kind === 'intent' ? 'Intent' : kind === 'spec' ? 'Spec' : 'Plan'}: ${title}`, ''];",
+      "src": 259,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（artifact.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 282,
+      "site": ": skeletonFor(kind, typeof args.title === 'string' && args.title !== '' ? args.title : '（待填标题）');",
+      "src": 360,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 237,
+      "site": "`${String(o.kind)} 已${o.created === true ? '创建' : o.replaced_skeleton === true ? '写入（替换了骨架）' : '更新'}：${String(o.path)}`,",
+      "src": 308,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 156,
+      "site": "`${String(o.kind)} 结构检查：${o.ok === true ? '通过' : '**不通过**'}`,",
+      "src": 221,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 238,
+      "site": "`结构检查：${o.structure_ok === true ? '通过' : `**不通过**（${fs.length} 项）`}`,",
+      "src": 309,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 293,
+      "site": "created: existing === undefined,",
+      "src": 375,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 241,
+      "site": "o.quality_checked === false",
+      "src": 312,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-artifact/lib/artifact.js",
+      "line": 116,
+      "site": "const PLACEHOLDER_RE = /<[^<>\\n]{2,80}>/;",
+      "src": 132,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（artifact.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-artifact/lib/artifact.js",
+      "line": 223,
+      "site": "lines.push(`## ${spec.name}`, '', `<!-- ${spec.why} -->`, '');",
+      "src": 261,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（artifact.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "cmp-strict",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 99,
+      "site": "if (existingAt >= 0) {",
+      "src": 157,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "const-false",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 137,
+      "site": "additionalProperties: false,",
+      "src": 201,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "const-false",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 218,
+      "site": "additionalProperties: false,",
+      "src": 201,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "const-false",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 241,
+      "site": "o.quality_checked === false",
+      "src": 312,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "const-true",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 237,
+      "site": "`${String(o.kind)} 已${o.created === true ? '创建' : o.replaced_skeleton === true ? '写入（替换了骨架）' : '更新'}：${String(o.path)}`,",
+      "src": 308,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "const-true",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 156,
+      "site": "`${String(o.kind)} 结构检查：${o.ok === true ? '通过' : '**不通过**'}`,",
+      "src": 221,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-artifact",
+      "op": "const-true",
+      "file": "packages/sdlc-artifact/lib/index.js",
+      "line": 238,
+      "site": "`结构检查：${o.structure_ok === true ? '通过' : `**不通过**（${fs.length} 项）`}`,",
+      "src": 309,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-and",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 179,
+      "site": "const note = typeof o.note === 'string' && o.note !== '' ? o.note : undefined;",
+      "src": 214,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-and",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 351,
+      "site": "if (st !== undefined && st.ageMs !== undefined) {",
+      "src": 400,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-and",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 391,
+      "site": "const nextStatus = idx >= 0 && idx + 1 < STATUSES.length ? STATUSES[idx + 1] : undefined;",
+      "src": 546,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-and",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 441,
+      "site": "if (a.staleness?.class === 'stale' && b.staleness?.class === 'stale') {",
+      "src": 601,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-and",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 87,
+      "site": "if (artifactsRaw !== null && typeof artifactsRaw === 'object' && !Array.isArray(artifactsRaw)) {",
+      "src": 103,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-and",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 461,
+      "site": "if (e.status !== undefined && isStatus(e.status)) {",
+      "src": 620,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-and",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 89,
+      "site": "if (typeof v === 'string' && v !== '')",
+      "src": 105,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-or",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 324,
+      "site": "if (typeof raw !== 'number' || !Number.isInteger(raw)) {",
+      "src": 373,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-or",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 120,
+      "site": "if (health === 'error' || updated === undefined) {",
+      "src": 241,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "bool-or",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 77,
+      "site": "if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {",
+      "src": 91,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/helpers.js",
+      "line": 58,
+      "site": "if (session === undefined)",
+      "src": 109,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（helpers.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 344,
+      "site": "else if (st?.class === 'closed')",
+      "src": 394,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 342,
+      "site": "else if (st?.class === 'waiting')",
+      "src": 393,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 355,
+      "site": "else if (st.class === 'waiting') {",
+      "src": 403,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 340,
+      "site": "if (st?.class === 'stale')",
+      "src": 392,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 339,
+      "site": "let mark = t.health === 'ok' ? '·' : '!';",
+      "src": 391,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 186,
+      "site": "at: typeof o['at'] === 'string' ? o['at'] : undefined,",
+      "src": 309,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 435,
+      "site": "const rank = (e) => e.status === undefined ? STATUSES.length : STATUSES.indexOf(e.status);",
+      "src": null,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 431,
+      "site": "if (e.staleness?.class === 'waiting')",
+      "src": 592,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 364,
+      "site": "const detail = v.criteria > 0",
+      "src": null,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 277,
+      "site": "const windowEnd = sel.entries.length > 0 ? sel.start + sel.entries.length : 0;",
+      "src": 319,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 276,
+      "site": "const windowStart = sel.entries.length > 0 ? sel.start + 1 : 0;",
+      "src": 318,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 229,
+      "site": "if (ignored.length > 0)",
+      "src": 269,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 372,
+      "site": "if (t.missingForStatus.length > 0)",
+      "src": 421,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 374,
+      "site": "if (t.missingOnDisk.length > 0)",
+      "src": 422,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 376,
+      "site": "if (t.nextRequired.length > 0)",
+      "src": 423,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 265,
+      "site": "const clamped = requested > MAX_PAGE_LIMIT;",
+      "src": 414,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-status/lib/scan.js",
+      "line": 510,
+      "site": "if (v.none > 0)",
+      "src": 659,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（scan.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "cmp-strict",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 222,
+      "site": "if (sel.singleIndex >= 0) {",
+      "src": 264,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-status",
+      "op": "const-false",
+      "file": "packages/sdlc-status/lib/index.js",
+      "line": 157,
+      "site": "additionalProperties: false,",
+      "src": 192,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "bool-and",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 270,
+      "site": "consistent: report.missingForStatus.length === 0 && report.missingOnDisk.length === 0,",
+      "src": 366,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "bool-and",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 237,
+      "site": "const list = (x) => (Array.isArray(x) && x.length ? x.join(', ') : '（无）');",
+      "src": null,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "bool-and",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 264,
+      "site": "const nextStatus = idx >= 0 && idx + 1 < STATUSES.length ? STATUSES[idx + 1] : undefined;",
+      "src": 359,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "bool-and",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 118,
+      "site": "if (typeof v === 'string' && v !== '')",
+      "src": 186,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "bool-and",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 99,
+      "site": "out.set(rel, info !== undefined && info.type === 'file');",
+      "src": 168,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "bool-or",
+      "file": "packages/sdlc-task/lib/state.js",
+      "line": 157,
+      "site": "if (h === null || typeof h !== 'object')",
+      "src": 195,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（state.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "bool-or",
+      "file": "packages/sdlc-task/lib/state.js",
+      "line": 101,
+      "site": "if (typeof raw !== 'string' || raw.trim() === '') {",
+      "src": 131,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（state.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 243,
+      "site": "`状态：${String(o.status)} 自洽：${o.consistent === true ? '是' : '**否**'}`,",
+      "src": 335,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 270,
+      "site": "consistent: report.missingForStatus.length === 0 && report.missingOnDisk.length === 0,",
+      "src": 366,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 261,
+      "site": "const report = checkConsistency(state, (rel) => presence.get(rel) === true);",
+      "src": 355,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 339,
+      "site": "const state = Object.keys(toRegister).length === 0",
+      "src": null,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 42,
+      "site": "const taskDir = cfg.tasksDir === TASKS_DIR ? taskDirFor(repoRoot, id) : `${base}/${id}`;",
+      "src": 90,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 114,
+      "site": "if (raw === null || typeof raw !== 'object' || Array.isArray(raw))",
+      "src": 183,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 118,
+      "site": "if (typeof v === 'string' && v !== '')",
+      "src": 186,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-task/lib/state.js",
+      "line": 192,
+      "site": "if (v === null)",
+      "src": 231,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（state.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-task/lib/state.js",
+      "line": 73,
+      "site": "return b > a ? 'forward' : 'back';",
+      "src": 81,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（state.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "const-false",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 151,
+      "site": "additionalProperties: false,",
+      "src": 224,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "const-false",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 222,
+      "site": "additionalProperties: false,",
+      "src": 224,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "const-false",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 307,
+      "site": "additionalProperties: false,",
+      "src": 224,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "const-false",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 102,
+      "site": "out.set(rel, false);",
+      "src": 170,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "const-true",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 243,
+      "site": "`状态：${String(o.status)} 自洽：${o.consistent === true ? '是' : '**否**'}`,",
+      "src": 335,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-task",
+      "op": "const-true",
+      "file": "packages/sdlc-task/lib/index.js",
+      "line": 261,
+      "site": "const report = checkConsistency(state, (rel) => presence.get(rel) === true);",
+      "src": 355,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-and",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 226,
+      "site": "const registered = state !== null && typeof state === 'object' && !Array.isArray(state)",
+      "src": null,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-and",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 171,
+      "site": "if (start >= 0 && /^artifacts:\\s*\\{\\s*\\}\\s*$/.test(lines[start] ?? '')) {",
+      "src": 208,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-and",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 124,
+      "site": "if (typeof v === 'string' && v !== '')",
+      "src": 155,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-and",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 183,
+      "site": "while (insertAt < lines.length && /^\\s{2}\\S/.test(lines[insertAt] ?? ''))",
+      "src": 222,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-and",
+      "file": "packages/sdlc-verify/lib/test-freeze.js",
+      "line": 161,
+      "site": ".filter((t) => t.length > 0 &&",
+      "src": null,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（test-freeze.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-and",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 353,
+      "site": "if (input.criteria !== undefined && input.criteria.length > 0) {",
+      "src": 454,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-or",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 337,
+      "site": "...(wantsRoute || wantsTokens",
+      "src": 408,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-or",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 159,
+      "site": "if (info === undefined || info.type !== 'file') {",
+      "src": 194,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-or",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 204,
+      "site": "if (typeof cwdRaw !== 'string' || cwdRaw === '') {",
+      "src": 254,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "bool-or",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 231,
+      "site": "if (v === undefined || v === null)",
+      "src": 308,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "cmp-eq",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 231,
+      "site": "if (v === undefined || v === null)",
+      "src": 308,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 353,
+      "site": "if (input.criteria !== undefined && input.criteria.length > 0) {",
+      "src": 454,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "cmp-loose",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 381,
+      "site": "if (names.length > 0) {",
+      "src": 486,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "cmp-strict",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 171,
+      "site": "if (start >= 0 && /^artifacts:\\s*\\{\\s*\\}\\s*$/.test(lines[start] ?? '')) {",
+      "src": 208,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 454,
+      "site": "additionalProperties: false,",
+      "src": 553,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 484,
+      "site": "additionalProperties: false,",
+      "src": 553,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 497,
+      "site": "return { frozen: false };",
+      "src": 602,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 122,
+      "site": "additionalProperties: false,",
+      "src": 192,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 131,
+      "site": "additionalProperties: false,",
+      "src": 192,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 152,
+      "site": "additionalProperties: false,",
+      "src": 192,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 178,
+      "site": "additionalProperties: false,",
+      "src": 192,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 187,
+      "site": "additionalProperties: false,",
+      "src": 192,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-false",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 207,
+      "site": "additionalProperties: false,",
+      "src": 192,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-true",
+      "file": "packages/sdlc-verify/lib/index.js",
+      "line": 467,
+      "site": "return { frozen: true, reason: args.reason };",
+      "src": 566,
+      "reason": "unreachable_unverified",
+      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-true",
+      "file": "packages/sdlc-verify/lib/test-freeze.js",
+      "line": 71,
+      "site": "return true;",
+      "src": 71,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（test-freeze.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    },
+    {
+      "pkg": "sdlc-verify",
+      "op": "const-true",
+      "file": "packages/sdlc-verify/lib/verdict.js",
+      "line": 259,
+      "site": "if (child?.required === true && !vReq.has(k) && k !== 'verifier_session') {",
+      "src": 338,
+      "reason": "needs_review",
+      "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+    }
+  ],
+  "status": "INCOMPLETE：100 条只有抽样核实过。门禁暂为报告模式（不阻断 CI）。"
+}

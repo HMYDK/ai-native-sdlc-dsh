@@ -291,11 +291,45 @@ function smokePassed(pkgDir) {
   return { passed: r.code === 0, note: '' };
 }
 
+
+/** 规范化一行，用作清单的键：去缩进、压空白、去掉尾随注释。 */
+function normalizeForList(line) {
+  return line
+    .replace(/\/\/.*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * 读/写"已评审的存活变异"清单。
+ *
+ * ## 为什么用清单而不是得分阈值
+ *
+ * 得分会随**代码**浮动（加一个分支就多几个变异点），所以阈值会变成噪声门：
+ * 要么经常误报，要么被调松到失去意义。
+ *
+ * 清单逼的是另一件事：**每一个存活变异都必须写明它为什么可接受**。
+ * 于是"测试看不见的地方"从一堆数字变成一份**要维护的、有理由的清单**——
+ * 新出现的存活变异就是门禁失败，得当场解释（修掉、或写明等价/不可达）。
+ */
+const ALLOWLIST = path.join(ROOT, 'tools', 'mutation-survivors.json');
+
+function loadAllowlist() {
+  if (!fs.existsSync(ALLOWLIST)) return { entries: [] };
+  return JSON.parse(fs.readFileSync(ALLOWLIST, 'utf8'));
+}
+
+function keyOf(entry) {
+  return [entry.pkg, entry.op, entry.file, entry.site].join(' | ');
+}
+
 // ─────────────────────────────────────────────── 主流程
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 const listOnly = argv.includes('--list');
+const gate = argv.includes('--gate');
+const updateList = argv.includes('--update-allowlist');
 const kinds = flag('kinds')?.split(',');
 const only = argv.filter((a) => !a.startsWith('--'));
 
@@ -375,6 +409,10 @@ for (const pkg of packages) {
         file: path.relative(ROOT, s.file),
         line: s.line,
         src: srcLineOf(s.file, s.line),
+        // 行号会随无关编辑漂移，所以清单的键用**原始行的规范化文本**。
+        // 这样"这处存活我评审过了"在行号移动后依然成立，而真正的新存活
+        // （代码变了）会失配 → 门禁报出来。
+        site: normalizeForList(s.original),
         op: s.op,
       });
       const srcLoc = survivors[survivors.length - 1].src;
@@ -418,6 +456,80 @@ if (T > 0) {
   console.log(`  （存活 ${T - K} 个：那些就是测试看不见的代码面）`);
 }
 console.log(`\n  用时 ${((Date.now() - started) / 1000).toFixed(0)} 秒`);
+
+// ─────────────────────────────────────────────── 门禁 / 清单维护
+
+if (updateList && !listOnly) {
+  const entries = survivors
+    .map((x) => ({
+      pkg: x.pkg,
+      op: x.op.id,
+      file: x.file,
+      line: x.line,
+      site: x.site,
+      src: x.src ?? null,
+      reason: 'unclassified',
+      note: '',
+    }))
+    .sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+  const existing = loadAllowlist();
+  // 保留已经写好的分类（按 key 对齐），新增的标 unclassified
+  const byKey = new Map((existing.entries ?? []).map((e) => [keyOf(e), e]));
+  const merged = entries.map((e) => {
+    const old = byKey.get(keyOf(e));
+    return old ? { ...e, reason: old.reason, note: old.note } : e;
+  });
+  fs.writeFileSync(
+    ALLOWLIST,
+    `${JSON.stringify({ generatedAt: new Date().toISOString(), entries: merged }, null, 2)}\n`,
+  );
+  const unclassified = merged.filter((e) => e.reason === 'unclassified').length;
+  console.log(`\n  清单已写入 ${path.relative(ROOT, ALLOWLIST)}（${merged.length} 条，其中 ${unclassified} 条未分类）`);
+  console.log('  ⚠️ 未分类的条目必须逐条写明 reason，否则这份清单没有意义。');
+}
+
+if (gate) {
+  const allow = loadAllowlist();
+  // ⚠️ 清单不全时**只报告不阻断**。
+  // 原因：清单里 66 条是"待核实"——拿一份没核实完的清单去卡人，
+  // 结果一定是"把新存活直接加进清单了事"，那清单就变成了纸面。
+  // 等分类补齐后再切成阻断。（这是这个项目一贯的做法：先诚实，再变严。）
+  const reportOnly = typeof allow.status === 'string' && allow.status.startsWith('INCOMPLETE');
+  if ((allow.entries ?? []).length === 0 && survivors.length > 0) {
+    console.error(
+      `\n🔴 门禁失败：有 ${survivors.length} 个存活变异，但没有清单。\n` +
+        '  先跑 `node tools/mutation-score.mjs --update-allowlist`，然后**逐条**写明 reason。',
+    );
+    process.exitCode = 1;
+  } else {
+    const known = new Set((allow.entries ?? []).map(keyOf));
+    const unlisted = survivors.filter((x) =>
+      !known.has([x.pkg, x.op.id, x.file, x.site].join(' | ')),
+    );
+    const stillListed = survivors.length;
+    console.log(`\n  门禁：${stillListed} 个存活，${unlisted.length} 个**不在清单里**`);
+    if (unlisted.length > 0) {
+      console.error('\n🔴 门禁失败：以下存活变异是新的 —— 要么修掉，要么写进清单并说明理由：');
+      for (const u of unlisted) {
+        console.error(`    ${u.pkg}  ${u.op.id}  ${u.file}:${u.line}`);
+        console.error(`      ${u.site}`);
+      }
+      console.error(
+        '\n  没有第三种选择：**不允许直接把新存活加进清单了事**。\n' +
+          '  可以接受的理由只有三类：① 等价变异（改了行为不变，需给出实证）\n' +
+          '  ② 不可达（被 schema/类型保证挡住，需指出保证来自哪里）\n' +
+          '  ③ 已知待补（写清补它的条件）',
+      );
+      if (reportOnly) {
+        console.error('\n  ⚠️ 清单标记为 INCOMPLETE，本次**只报告不阻断**（不判失败）。');
+      } else {
+        process.exitCode = 1;
+      }
+    } else {
+      console.log('  ✓ 门禁通过：没有未登记的存活变异');
+    }
+  }
+}
 
 // ─────────────────────────────────────────────── 收尾自检：必须还原干净
 

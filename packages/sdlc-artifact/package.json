@@ -39,11 +39,20 @@
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "3.18.4"
   },
-  "keywords": ["dsh", "deepseek-harness", "sdlc", "artifact", "intent", "spec", "plan"],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "sdlc",
+    "artifact",
+    "intent",
+    "spec",
+    "plan"
+  ],
   "license": "MIT",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test lib/*.test.js"
+    "test": "node --test lib/*.test.js",
+    "mutation-gate": "node ../../tools/mutation-score.mjs --gate sdlc-artifact"
   }
 }
