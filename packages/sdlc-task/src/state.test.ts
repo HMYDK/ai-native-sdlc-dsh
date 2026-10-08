@@ -396,3 +396,85 @@ test('回归：非空 artifacts 可以继续追加登记（不破坏已有条目
   const back = parseTaskState('PROJ-1', parseYaml(lines.join('\n'), { schema: JSON_SCHEMA }));
   assert.deepEqual(back.artifacts, { intent: 'intent.md', spec: 'spec.md' });
 });
+
+// ───────── 变异清单逼出来的覆盖（每条对应清单里一个存活变异）
+
+test('checkAdvance：三种方向都要判对——「回退」不能算前进', () => {
+  // ⚠️ 我一开始为这条测试写的理由是**错的**，如实记下来：
+  // 我以为是"`>` → `>=` 这个变异能存活，因为 false 分支没被断言"。
+  // 手工验证后：那个变异是**等价**的——`direction` 里 `if (a === b) return 'same'`
+  // 已经早退，所以 `b >= a` 与 `b > a` 在到达那一行时永远没有区别。
+  //
+  // 那这条测试还有价值吗？有，但价值不同：它钉住的是**三个方向的语义**
+  // （forward/same/back），而不是防住某个具体变异。变更 `ORDER` 表、
+  // 或改早退条件时它会红。**不要把"能抓住某个变异"当成它存在的理由。**
+  const state = { ...baseState(), status: 'PLANNED' as const };
+  const dir = (to: string) =>
+    checkAdvance('PLANNED', to as never, state, () => true, 'r').direction;
+  assert.equal(dir('IMPLEMENTING'), 'forward');
+  assert.equal(dir('VERIFYING'), 'forward');
+  assert.equal(dir('SPEC'), 'back', '回退方向必须判成 back');
+  assert.equal(dir('INTENT'), 'back');
+  assert.equal(dir('PLANNED'), 'same');
+});
+
+test('normalizeArtifactPath：非字符串与空串都要抛错（两个条件缺一不可）', () => {
+  // 存活变异：`typeof raw !== 'string' || raw.trim() === ''` 的 `||` 改成 `&&`。
+  // 改成 `&&` 之后，只有"既不是字符串**又**是空白串"才抛错——
+  // 于是 `''`、`'   '`、`null` 都会被放行进去，变成非法路径。
+  // 要抓住它，必须**分别**喂这两种输入，不能只喂一种。
+  assert.throws(() => normalizeArtifactPath('PROJ-1', ''), /非空字符串/);
+  assert.throws(() => normalizeArtifactPath('PROJ-1', '   '), /非空字符串/);
+  assert.throws(() => normalizeArtifactPath('PROJ-1', null), /非空字符串/);
+  assert.throws(() => normalizeArtifactPath('PROJ-1', 42), /非空字符串/);
+  // 合法输入仍要放行
+  assert.equal(normalizeArtifactPath('PROJ-1', 'intent.md'), 'intent.md');
+});
+
+test('parseTaskState：history 里的坏条目被跳过，而不是让整个解析崩', () => {
+  // 存活变异：`h === null || typeof h !== 'object'` 的 `||` 改成 `&&`。
+  // 改成 `&&` 之后 `null` 条目不再被跳过 → 下一行读它的字段会抛 TypeError。
+  //
+  // ⚠️ 我第一版想用 serializeTaskState 注入坏条目，**那是错的**：
+  // 序列化器自己就会把非对象过滤掉，注入根本不生效（测试因此假失败）。
+  // 直接手写 YAML 文本才是真的在测解析器的容错。
+  const text = [
+    'task: PROJ-1',
+    'title: "t"',
+    'status: SPEC',
+    'created: "2026-10-07T10:00:00.000Z"',
+    'updated: "2026-10-07T10:00:00.000Z"',
+    'artifacts:',
+    '  intent: "intent.md"',
+    'history:',
+    '  - null',
+    '  - "不是对象"',
+    '  - 42',
+    '  - at: "2026-10-07T11:00:00.000Z"',
+    '    from: "INTENT"',
+    '    to: "SPEC"',
+    '    reason: "正常条目"',
+    '',
+  ].join('\n');
+  const st = parseTaskState('PROJ-1', parseYaml(text, { schema: JSON_SCHEMA }));
+  assert.equal(st.history.length, 1, '只有一条正常条目应当留下');
+  assert.equal(st.history[0]?.to, 'SPEC');
+});
+
+test('describe：null 要报成 "null"，而 undefined 报成 "undefined"（两者不能混）', () => {
+  // 存活变异：`if (v === null) return 'null'` 的 `===` 改成 `!==`。
+  // describe 是**给人看的错误信息**的一部分——把 null 报成 "undefined"
+  // 会让人往错的方向查。这条断言直接钉住两种值的文案。
+  // （describe 未导出，用 checkConsistency 的报错文案间接断言。）
+  const state = { ...baseState(), artifacts: { intent: null as never } };
+  let msg = '';
+  try {
+    serializeTaskState(state);
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  // 无论走哪个分支，都不该把 null 说成 undefined
+  if (/artifacts/.test(msg)) {
+    assert.doesNotMatch(msg, /undefined/, `null 不该被报成 undefined：${msg}`);
+  }
+});

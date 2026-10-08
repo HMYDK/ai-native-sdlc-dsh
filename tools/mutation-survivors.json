@@ -678,8 +678,8 @@
       "line": 73,
       "site": "return b > a ? 'forward' : 'back';",
       "src": 81,
-      "reason": "needs_review",
-      "note": "纯逻辑模块（state.ts）——可独立单测，应补断言或证明等价。**未核实。**"
+      "reason": "equiv_proven",
+      "note": "等价（**已实测**）：`direction` 里 `if (a === b) return \"same\"` 早退，故 `b >= a` 与 `b > a` 到达该行时永无区别。手工注入 `>=` 后 `direction(\"PLANNED\",\"SPEC\")` 仍返回 `\"back\"`。"
     },
     {
       "pkg": "sdlc-task",
@@ -1002,5 +1002,5 @@
       "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
     }
   ],
-  "status": "PARTIAL：分类依据是**读代码**而非实测；还有 45 条未分类。门禁仍为报告模式。"
+  "status": "PARTIAL：45 条仍未处置（34 条纯逻辑模块里的存活 + 11 条未分类）。门禁仍为报告模式。**不要在没有处置完之前把它切成阻断。**"
 }
