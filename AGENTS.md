@@ -53,7 +53,34 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 | `packages/sdlc-artifact` | 制品撰写 + 结构检查（只查结构） | ✅ 已实现并端到端跑通 |
 | `packages/sdlc-status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） | ✅ 已实现（真实 fs 冒烟） |
 | `sdlc-release` | Gate 前的工作（PR 描述、CI 证据汇集） | ⬜ |
+| `sdlc-workflow` | 工作流本身，作为一份 **Skill** 交付给验证者 | ✅ 已实现（12 条冒烟） |
 | ~~`sdlc-ui`~~ | 客户端制品链面板 | ❌ **本机做不出来**，见 pitfalls §13 |
+
+### `sdlc-workflow`：为什么它算机制，而不只是一份规范
+
+另外四个插件管住了「东西**在不在**」（`sdlc_task_advance` 缺制品就拒绝），
+管不住「东西**有用没用**」。实测的代价：作者写的判据**看着专业、其实无法证伪**
+（夹具小到让断言恒真），而四处结构检查全绿。
+
+根因是**没有地方写"什么叫写得好"**。补上的做法不是写一份给作者看的规范
+——本项目实测过：**建议性控制没有约束力**。而是把它写成**给验证者的判据清单**，
+由验证者拿去质问作者。**作者忽略不了，因为质问发生在验证环节。**
+
+清单里七条全部是实测踩出来的（每条都注明出处），不是手册复述。
+
+**Skill 的注册接口（实测确认，别再怀疑它不存在）**：
+
+  · `dsh-base` 的 patch 里挂了 `@deepseek-ai/dsh-skill` 与 `dsh-skill-filesystem`
+    （本机版本 `0.1.5-rc.3`，比 npm 上的 `0.2.0-rc.2` 旧，但 `register()` 签名一致）
+  · 插件侧接口：**`ctx.effect(() => ctx.skills.register({...}))`**
+    · `SkillRegistration` 需要 `name` / `description` / `content` / **`source`**
+      （漏 `source` 会被 tsc 拒；我用 `'bundled'`）
+    · **返回值是 disposer，必须交给 `ctx.effect()` 托管**——
+      丢掉它 = 卸载时 Skill 不归还，留下指向已卸载插件的悬空注册
+      （冒烟的"归还"断言抓到了这一条）
+  · 卸载入口是 **`ctx.fiber.dispose()`**，不是 `ctx.dispose()`（后者不存在）
+  · 类型解析：`@deepseek-ai/dsh-skill` 要装进**仓库根的 node_modules**
+    （其他四个包的类型都从那里来，packages 下没有各自的 node_modules）
 
 ## 目录
 
