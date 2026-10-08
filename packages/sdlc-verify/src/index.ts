@@ -76,13 +76,29 @@ export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolic
  *
  * 教训：为某个平台做的修复，必须验证它没有弄坏另一个平台。
  */
-const BASE_VERIFIER_TOOLS = ['read', 'grep', 'glob'] as const;
+const BASE_VERIFIER_TOOLS = ['read', 'grep', 'glob', 'skill'] as const;
 
 function verifierToolAllow(): string[] {
   // 与官方 dsh-base 的 cordis.patch.yml 同一判据
   const shell = process.platform === 'win32' ? 'pwsh' : 'bash';
   return [...BASE_VERIFIER_TOOLS, shell];
 }
+
+/**
+ * ⚠️ `skill` 为什么必须在这个清单里（这是后来补的，原因值得记）
+ *
+ * `sdlc-workflow` 插件交付的"验证纪律"**是做成 Skill 的**——
+ * 于是曾经出现一个荒谬的状态：一份名称里写着"给验证者的"清单，
+ * **验证者加载不到它**。因为 `toolFilter` 是**允许清单**，
+ * `skill` 不在里面就被摘掉了。
+ *
+ * 依据（实测读代码）：`dsh-tool-skill` 只做 `ctx.tools.register(skillTool)`，
+ * **不注册任何提示词段**——所以 Skill 目录除了这个工具，没有别的通道到达模型。
+ * 不给它这个工具，等于那份清单不存在。
+ *
+ * 这与"摘掉 write/edit"不冲突：`skill` 是**只读**的（读 Skill 正文），
+ * 不给验证者任何写能力。
+ */
 
 export interface SdlcVerifyConfig {
   /** 承载验证的 subagent provider 名。默认使用内置 in-process spawn。 */

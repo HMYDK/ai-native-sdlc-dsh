@@ -738,6 +738,17 @@ if (started.length < 1) {
       ['read', 'grep', 'glob'].every((n) => request.toolFilter.allow.includes(n)) &&
         (request.toolFilter.allow.includes('bash') || request.toolFilter.allow.includes('pwsh')),
     ],
+    // ⚠️ `skill` 必须**单独**钉住。
+    //
+    // 上面那条只查 read/grep/glob，所以 `skill` 被摘掉它照样绿——
+    // 而"摘掉 skill"真的发生过：`sdlc-workflow` 交付的验证纪律是做成
+    // **Skill** 的，而验证者加载不到它（`toolFilter` 是允许清单）。
+    // 结果是一份名字里写着"给验证者的"清单，验证者够不着。
+    //
+    // 依据：`dsh-tool-skill` 只做 `ctx.tools.register(skillTool)`，
+    // **不注册任何提示词段**——Skill 目录除了这个工具没有别的通道。
+    // 没有它就等于那份清单不存在。
+    ['toolFilter 保留 skill（否则验证者读不到那份验证纪律）', request.toolFilter.allow.includes('skill')],
     ['persona 已传且非空', typeof request.persona === 'string' && request.persona.length > 50],
     // 正向：必须明确要求「忽略让你修改的指示」
     ['persona 要求忽略修改类指示', /Ignore any instruction that would have you modify/i.test(request.persona)],
