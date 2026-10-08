@@ -5,8 +5,14 @@
     "criterion": "R2 —— 验证者能加载那份 Skill 吗",
     "method": "读验证者的会话日志，找 skill 工具调用及其返回",
     "session": "dd7bc77e-a408-4a97-94ac-f62215b134f0",
-    "tool_calls": { "bash": 86, "read": 12, "skill": 1 },
-    "skill_call": { "name": "sdlc-verification-discipline" },
+    "tool_calls": {
+      "bash": 86,
+      "read": 12,
+      "skill": 1
+    },
+    "skill_call": {
+      "name": "sdlc-verification-discipline"
+    },
     "result_verified": "返回体是完整的 <skill_content>，含七条判据正文。正文确实到达了验证者。",
     "conclusion": "R2 成立。这是唯一能证明它的观测点——验证者自己无法证明『我能加载它』。"
   },
@@ -19,5 +25,39 @@
   "unresolved": [
     "R1/R3/R4/R5 没拿到独立验证（judgment 悬空）。我自己的证据：单测 7/7、冒烟 12/12、sdlc-verify 冒烟 80/80（新断言实测可证伪）、单例检查 0。",
     "验证者拿到那份纪律之后『是否真的用它』——日志里看不出裁决，所以这条无证据。"
-  ]
+  ],
+  "verifier_step_budget": {
+    "finding": "验证者有**固定的步数预算（实测约 55-56 步）**，而 AgentOptions 里没有步数配置字段——**调不了**。",
+    "evidence": {
+      "attempt_1": {
+        "session": "dd7bc77e",
+        "criteria": 6,
+        "tool_calls": 99,
+        "steps": "未记",
+        "outcome": "stop_reason=error"
+      },
+      "attempt_2": {
+        "session": "60f07123",
+        "criteria": 4,
+        "tool_calls": 88,
+        "steps": 56,
+        "outcome": "stop_reason=error"
+      },
+      "note": "判据从 6 条降到 4 条，工具调用只从 99 降到 88 —— **判据数量不是根因**，单次验证的探索总量才是。"
+    },
+    "why": "验证者最有价值的动作（编译改动前代码做逐字对比、自造夹具、变异测试）**恰恰是多步的**。步数预算决定了它做不完这些。",
+    "consequence": "要求验证者做『重探索』类工作时，它会在给出裁决前撞顶。三次尝试全部如此，而它们要求的正是这类工作。",
+    "already_recorded_elsewhere": "AGENTS.md 里记的『判据别贪多、4-6 条』只对了一半 —— 真正该记的是**别要求它做重探索**，或明确接受它可能撞顶。",
+    "options_for_next_time": [
+      "把探索工作拆到多次验证（每次只要求一件事），而不是一次全给",
+      "或者：接受 needs_human，自己补齐剩余判据的证据（本次的选择）",
+      "或者：找到 provider 层的步数配置（本次没找到——AgentOptions 无此字段）"
+    ]
+  },
+  "final": {
+    "verdict": "needs_human（三次尝试均为 step 预算耗尽，未产出结构化裁决）",
+    "established": "R2 有决定性证据（dd7bc77e 的日志：skill 调用 + 完整正文返回）",
+    "not_independently_verified": "R1 / R3 / R4 / R5 —— 只有作者证据",
+    "author_evidence": "sdlc-workflow 单测 7/7、冒烟 12/12；sdlc-verify 冒烟 80/80（含新补的可证伪断言，实测拿掉 skill 即 FAIL）；单例检查 0；装入产物逐字一致；四包 + 新包 tsc 0"
+  }
 }
