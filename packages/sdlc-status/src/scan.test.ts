@@ -844,3 +844,173 @@ test('回归：默认页必须显示"最该看的"，而不是 id 最小的（�
   const e = selectTasks(urgentFirst, { offset: 0, limit: 2, explicit: true });
   assert.deepEqual(ids(e.entries), ['AA-001', 'AA-002'], '显式分页用 id 序切窗');
 });
+
+// ────────── 概览摘要的**条件拼接**（变异测试发现：只断言"含"不够）
+
+test('概览摘要：计数为 0 的项**不得出现**（"0 个读不出来"是错的）', () => {
+  // 变异测试发现的真缺口：原来只断言摘要**包含**关键数字
+  // （`assert.match(line, /1 个读不出来/)`），于是把
+  // `if (c.error > 0)` 改成 `if (true)` 之后，摘要会输出
+  // 「0 个读不出来」——**而全套测试仍然全绿**。
+  //
+  // 修法：断言"不含"。0 计数的项出现，是**假信号**：
+  // 看板的价值就在"谁该动手"，多报一个 0 会稀释真信号。
+  const r = scanTasks(
+    inputOf({
+      'ONLY-OK': {
+        'state.yaml': stateYaml({
+          task: 'ONLY-OK',
+          status: 'SPEC',
+          artifacts: { intent: 'i.md', spec: 's.md' },
+          updated: '2026-10-09T23:00:00.000Z',
+        }),
+        'i.md': 'x',
+        's.md': 'x',
+      },
+    }),
+  );
+  const line = summarize(r);
+  assert.equal(r.counts.error, 0);
+  assert.equal(r.counts.incomplete, 0);
+  assert.equal(r.counts.staleness.stale, 0);
+  assert.equal(r.counts.staleness.waiting, 0);
+
+  assert.doesNotMatch(line, /读不出来/, `没有坏任务时不该出现"读不出来"：${line}`);
+  assert.doesNotMatch(line, /停滞/, `没有停滞任务时不该出现"停滞"：${line}`);
+  assert.doesNotMatch(line, /制品不全/, `没有不全的制品时不该出现"制品不全"：${line}`);
+  assert.doesNotMatch(line, /在等人/, `没有等人的任务时不该出现"在等人"：${line}`);
+  // 裁决那一栏同理：全都没验证过，就只该出现"未验证"
+  // ⚠️ 这里也要断 `未验证 0`：我第一版只断了三个裁决名，漏了"未验证"，
+  // 于是把 `if (v.none > 0)` 改成 `if (v.none >= 0)` 之后会输出
+  // 「未验证 0」而测试仍然全绿——变异测试抓到了这一点。
+  assert.doesNotMatch(
+    line,
+    /approve|reject|needs_human|未验证 0/,
+    `没有裁决/没有未验证项时不该出现该计数：${line}`,
+  );
+  assert.match(line, /未验证 1/, `未验证的计数必须出现：${line}`);
+});
+
+test('概览摘要：四类信号**齐全时每一项都要出现**（漏报也是错）', () => {
+  // 反方向：把 `if (c.error > 0)` 改成 `if (false)` 会让摘要**漏掉**
+  // 真实信号——那比多报更糟。所以两个方向都要断。
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z');
+  const r = scanTasks({
+    dirs: [
+      // 坏掉（error）
+      { task: 'BAD-1', files: ['state.yaml'] },
+      // 停滞（stale）
+      { task: 'STALE-1', files: ['state.yaml', 'i.md', 's.md', 'p.md'] },
+      // 制品不全（incomplete）
+      { task: 'INC-1', files: ['state.yaml', 'i.md'] },
+      // 在等人（waiting = needs_human）
+      { task: 'WAIT-1', files: ['state.yaml', 'i.md', 's.md', 'p.md', 'verification.json'] },
+    ],
+    readFile: (task, rel) => {
+      if (task === 'BAD-1') return rel === 'state.yaml' ? 'task: BAD-1\nstatus: NOPE\n' : undefined;
+      const base = stateYaml({
+        task,
+        status: task === 'STALE-1' ? 'IMPLEMENTING' : task === 'INC-1' ? 'PLANNED' : 'SPEC',
+        artifacts: { intent: 'i.md', spec: 's.md', ...(task === 'WAIT-1' ? { plan: 'p.md' } : {}) },
+        updated: task === 'STALE-1' ? '2026-10-01T00:00:00.000Z' : '2026-10-09T23:00:00.000Z',
+      });
+      if (rel !== 'state.yaml') return rel === 'verification.json' && task === 'WAIT-1'
+        ? verdictJson({ status: 'needs_human', criteria: 1, results: ['cannot_tell'] })
+        : 'x';
+      return base;
+    },
+    now: NOW,
+    staleAfterHours: 24,
+  });
+  const line = summarize(r);
+  // ⚠️ 断言要针对**这个夹具**的数字。我第一版写 /1 个制品不全/，
+  // 而夹具实际产出「2 个制品不全」——"1 个"前面是 2，匹配不到。
+  // **脆断言本身就是一种假信号**：它红了不代表代码坏了，
+  // 绿了也不代表代码对了。
+  assert.match(line, /1 个停滞/, `停滞信号必须出现：${line}`);
+  assert.match(line, /1 个读不出来/, `坏掉信号必须出现：${line}`);
+  assert.match(line, /2 个制品不全/, `制品不全信号必须出现：${line}`);
+  assert.match(line, /1 个在等人/, `等人信号必须出现：${line}`);
+  assert.match(line, /needs_human 1/, `裁决计数必须出现：${line}`);
+});
+
+test('概览摘要：四类信号的**顺序**是"需要人动手的在前"（顺序变了看板会骗人）', () => {
+  // 顺序是这个摘要的**语义**：注释里写明"停滞与坏掉放最前：
+  // 这两个是需要人动手的信号"。顺序错了，人一眼扫过去先看到的是次要信息。
+  const r = scanTasks({
+    ...inputOf({
+      'A-STALE': {
+        'state.yaml': stateYaml({
+          task: 'A-STALE',
+          status: 'IMPLEMENTING',
+          artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+          updated: '2026-10-01T00:00:00.000Z',
+        }),
+        'i.md': 'x',
+        's.md': 'x',
+        'p.md': 'x',
+      },
+      'B-INC': {
+        'state.yaml': stateYaml({
+          task: 'B-INC',
+          status: 'SPEC',
+          artifacts: { intent: 'i.md' },
+          updated: '2026-10-09T23:00:00.000Z',
+        }),
+        'i.md': 'x',
+      },
+    }),
+    now: Date.parse('2026-10-10T00:00:00.000Z'),
+    staleAfterHours: 24,
+  });
+  const line = summarize(r);
+  const iStale = line.indexOf('停滞');
+  const iInc = line.indexOf('制品不全');
+  assert.ok(iStale >= 0 && iInc >= 0, `两类都要出现：${line}`);
+  assert.ok(iStale < iInc, `"停滞"必须排在"制品不全"之前：${line}`);
+  assert.ok(line.indexOf('个任务') < iStale, `总数在最前：${line}`);
+});
+
+test('排序：同组内**两个都是停滞**时，越久越靠前（这个分支从没被测过）', () => {
+  // 变异测试发现的真缺口：我所有的夹具里最多只有 **1 个**停滞任务，
+  // 所以 `if (a.staleness?.class === 'stale' && b... === 'stale')` 这个
+  // 条件在**任何测试里都没有同时为真过**——把 `&&` 改成 `||`、或把整个
+  // 分支删掉，全套测试仍然全绿。
+  //
+  // 而这个分支是看板排序的核心之一：同组内"越久越前"。
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z');
+  const stale = (task: string, daysAgo: number) => ({
+    'state.yaml': stateYaml({
+      task,
+      status: 'IMPLEMENTING',
+      artifacts: { intent: 'i.md', spec: 's.md', plan: 'p.md' },
+      // 比阈值（24 小时）久得多，好让年龄差远远超过阈值
+      updated: new Date(NOW - daysAgo * 86400_000).toISOString(),
+    }),
+    'i.md': 'x',
+    's.md': 'x',
+    'p.md': 'x',
+  });
+  const files: Record<string, Record<string, string>> = {
+    // 注意：**传入顺序**故意与"越久越前"相反，否则测不出排序
+    'FRESH-STALE': stale('FRESH-STALE', 2),
+    'OLD-STALE': stale('OLD-STALE', 30),
+    'MID-STALE': stale('MID-STALE', 10),
+  };
+  const r = scanTasks({
+    dirs: Object.entries(files).map(([task, f]) => ({ task, files: Object.keys(f) })),
+    readFile: (task, rel) => files[task]?.[rel],
+    now: NOW,
+    staleAfterHours: 24,
+  });
+  const order = r.tasks.map((t) => t.task);
+  assert.deepEqual(
+    order,
+    ['OLD-STALE', 'MID-STALE', 'FRESH-STALE'],
+    `三个都是停滞时，必须越久越靠前（传入顺序是反的）：${order.join(' → ')}`,
+  );
+  // 前提确认：三个都真的被判成 stale
+  for (const t of r.tasks) {
+    assert.equal(t.staleness?.class, 'stale', `${t.task} 应当是 stale`);
+  }
+});

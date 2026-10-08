@@ -131,14 +131,19 @@ function findSites(file, op) {
     const trimmed = line.trim();
     if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
     if (/^\s*(import|export)\b/.test(line)) return;
-    // 只在"看起来像代码"的行上注入
+
+    // ⚠️ 必须逐字符扫，判断每个位置**是否在字符串/注释里**。
+    //
+    // 原来我只做"紧邻引号"的粗筛，于是 tsc 把多行模板字符串合并成一行之后，
+    // 字符串**内部**的比较符被当成了代码——工具报告里出现了
+    // `src:354 [const-true] '要用 overwrite: true 明确覆盖…'` 这种
+    // "改注释/改字符串"的假存活点。**那是最典型的等价变异**，会直接把
+    // 存活数抬高、把结论带偏（我第一版结论就被它带偏了）。
+    const mask = stringAndCommentMask(line);
     let idx = line.indexOf(op.from);
     while (idx >= 0) {
-      const before = line[idx - 1] ?? ' ';
-      const after = line[idx + op.from.length] ?? ' ';
-      // 跳过字符串字面量里的出现（粗筛：紧邻引号）
-      const inString = /['"`]/.test(before) || /['"`]/.test(after);
-      if (!inString) {
+      const clean = !mask.slice(idx, idx + op.from.length).includes(true);
+      if (clean) {
         sites.push({
           file,
           line: i + 1,
@@ -154,6 +159,108 @@ function findSites(file, op) {
   });
   return sites;
 }
+
+
+/**
+ * 由编译产物的行号推回**源码**行号。
+ *
+ * tsc 会重排行与合并类型声明，所以这不是精确映射。做法是：把该行的
+ * **代码文本**（去掉缩进与尾随空白）拿到 `src/` 同名文件里去找第一处匹配。
+ * 找不到就返回 undefined —— 报告里如实标"未定位"，不猜。
+ */
+function srcLineOf(libFile, libLine) {
+  const srcFile = path.join(
+    path.dirname(path.dirname(libFile)),
+    'src',
+    path.basename(libFile).replace(/\.js$/, '.ts'),
+  );
+  if (!fs.existsSync(srcFile)) return undefined;
+  const needle = fs.readFileSync(libFile, 'utf8').split('\n')[libLine - 1]?.trim();
+  if (needle === undefined || needle === '') return undefined;
+  const lines = fs.readFileSync(srcFile, 'utf8').split('\n');
+  const hit = lines.findIndex((l) => l.trim() === needle);
+  if (hit >= 0) return hit + 1;
+  // 退化匹配：去空格后包含关系（tsc 可能合并了空格）
+  const flat = (t) => t.replace(/\s+/g, '');
+  const want = flat(needle);
+  const loose = lines.findIndex((l) => l.trim() !== '' && flat(l).includes(want));
+  return loose >= 0 ? loose + 1 : undefined;
+}
+
+
+
+/**
+ * 给一行 JS 做"位置 → 是否在字符串或注释里"的掩码。
+ *
+ * 这是变异测试里最容易被忽略、但影响最大的一个细节：**改注释、改字符串
+ * 是最典型的等价变异**——行为完全不变，却会被记为"存活"。而存活数直接
+ * 决定结论，所以这些假信号必须在一开始就挡掉。
+ *
+ * （我第一版只做"紧邻引号"的粗筛，工具报告里因此出现了
+ *   `src:354 [const-true] '要用 overwrite: true 明确覆盖…'` 这种
+ *   改字符串的假存活点，把结论带偏了。）
+ *
+ * 处理：单引号、双引号、反引号、`//` 行注释。`${}` 内插按代码处理。
+ */
+function stringAndCommentMask(line) {
+  const mask = new Array(line.length).fill(false);
+  let i = 0;
+  let quote = null;
+  while (i < line.length) {
+    const c = line[i];
+    if (quote === null) {
+      if (c === Q_SLASH && line[i + 1] === Q_SLASH) {
+        for (let j = i; j < line.length; j += 1) mask[j] = true;
+        break;
+      }
+      if (c === Q_SQ || c === Q_DQ || c === Q_BT) {
+        quote = c;
+        mask[i] = true;
+        i += 1;
+        continue;
+      }
+      i += 1;
+      continue;
+    }
+    if (c === Q_BS) {
+      mask[i] = true;
+      if (i + 1 < line.length) mask[i + 1] = true;
+      i += 2;
+      continue;
+    }
+    mask[i] = true;
+    if (c === quote) quote = null;
+    // 模板字符串里的 ${...} 是**代码**，不是字符串内容。
+    // 不处理它会把 `\`${o.ok === true ? 'A' : 'B'}\`` 里的 `===` 也掩掉，
+    // 而那是真代码——正好是 sdlc-artifact 里有一批的形态。
+    if (quote === Q_BT && c === Q_DOLLAR && line[i + 1] === Q_LB) {
+      mask[i] = false;
+      mask[i + 1] = false;
+      i += 2;
+      let depth = 1;
+      while (i < line.length && depth > 0) {
+        if (line[i] === Q_LB) depth += 1;
+        else if (line[i] === Q_RB) depth -= 1;
+        if (depth > 0) mask[i] = false;
+        i += 1;
+      }
+      if (i < line.length) mask[i] = false; // 收尾的 }
+      i += 1;
+      continue;
+    }
+    i += 1;
+  }
+  return mask;
+}
+
+const Q_SQ = String.fromCharCode(39);
+const Q_DQ = String.fromCharCode(34);
+const Q_BT = String.fromCharCode(96);
+const Q_SLASH = String.fromCharCode(47);
+const Q_BS = String.fromCharCode(92);
+const Q_DOLLAR = String.fromCharCode(36);
+const Q_LB = String.fromCharCode(123);
+const Q_RB = String.fromCharCode(125);
 
 // ─────────────────────────────────────────────── 跑测试
 
@@ -261,8 +368,21 @@ for (const pkg of packages) {
 
     if (verdict === 'SURVIVED') {
       survived += 1;
-      survivors.push({ pkg, file: path.relative(ROOT, s.file), line: s.line, op: s.op });
-      console.log(`  ⚠ 存活  ${s.op.id.padEnd(12)} ${path.relative(ROOT, s.file)}:${s.line}  ${s.op.what}`);
+      // 记下**源代码行**：编译产物（lib）的行号没法直接读，报告要能长期对比
+      // 就必须给出 src 里的位置，否则下一轮没人看得懂存活点在哪。
+      survivors.push({
+        pkg,
+        file: path.relative(ROOT, s.file),
+        line: s.line,
+        src: srcLineOf(s.file, s.line),
+        op: s.op,
+      });
+      const srcLoc = survivors[survivors.length - 1].src;
+      console.log(
+        `  ⚠ 存活  ${s.op.id.padEnd(12)} ${path.relative(ROOT, s.file)}:${s.line}` +
+          (srcLoc !== undefined ? ` (src:${srcLoc})` : ' (src:未定位)') +
+          `  ${s.op.what}`,
+      );
     } else {
       killed += 1;
     }

@@ -13,6 +13,7 @@ import {
   ARTIFACT_KINDS,
   checkArtifact,
   extractSections,
+  escapeRe,
   isArtifactKind,
   isUnmodifiedSkeleton,
   REQUIRED_SECTIONS,
@@ -227,4 +228,47 @@ test('识别是大小写与空白敏感的（逐行 trimEnd 之后比较）', ()
   assert.equal(isUnmodifiedSkeleton('plan', withTrailingSpace), true, '行尾空白应当容忍');
   const changed = skeletonFor('plan', 'T').replace('Order of work', 'ORDER OF WORK');
   assert.equal(isUnmodifiedSkeleton('plan', changed), false, '正文改动不该容忍');
+});
+
+// ───────────────────────────────── 正则转义（曾完全没测试）
+
+test('escapeRe：每个正则元字符都被转义，且拼出来的正则只匹配字面量', () => {
+  // 为什么这条重要：`escapeRe` 是这条链路上**唯一**"把字符串变成正则"的地方，
+  // 用在"state.yaml 里是否已登记某制品""在 artifacts 段里定位某个键"两处。
+  // 没有它，一个含 `.` 的制品名会让正则匹配到别的东西。
+  //
+  // 它原来住在 index.ts（私有、只能穿过工具调度去测），而且**完全没有测试**。
+  // 变异测试的存活清单里它出现过——把 `?` `+` `|` 等从字符类里删掉，
+  // 全套测试仍然全绿。这是本轮唯一被确认的**真测试缺口**。
+  const metacharacters = ['.', '*', '+', '?', '^', '$', '{', '}', '(', ')', '|', '[', ']', '\\'];
+  for (const ch of metacharacters) {
+    const input = `a${ch}b`;
+    assert.equal(
+      new RegExp(`^${escapeRe(input)}$`).test(input),
+      true,
+      `元字符 ${JSON.stringify(ch)} 必须被转义（否则正则匹配的不是字面量）`,
+    );
+  }
+});
+
+test('escapeRe：未转义时**真的会出错**——用反例证明这个函数不是装饰', () => {
+  // 一条好的测试要能证明"没有它会坏"。不转义时 `.` 会匹配任意字符。
+  const artifactKey = 'a.b';
+  // 不转义：`a.b` 匹配 "aXb"
+  assert.equal(new RegExp(`^a.b$`).test('aXb'), true, '不转义时 `.` 匹配任意字符');
+  // 转义后：只匹配字面量
+  assert.equal(new RegExp(`^${escapeRe(artifactKey)}$`).test('aXb'), false, '转义后不该匹配 aXb');
+  assert.equal(new RegExp(`^${escapeRe(artifactKey)}$`).test(artifactKey), true, '仍要匹配字面量本身');
+});
+
+test('escapeRe：不改变普通字符串（工件名都是普通的）', () => {
+  for (const plain of ['intent', 'spec', 'plan', 'verification', 'review', 'a-b_c', 'ABC123']) {
+    assert.equal(escapeRe(plain), plain, `${plain} 没有元字符，不该被改动`);
+  }
+});
+
+test('escapeRe：空串与只有元字符的串也不崩', () => {
+  assert.equal(escapeRe(''), '');
+  assert.equal(new RegExp(`^${escapeRe('.*')}$`).test('.*'), true);
+  assert.equal(new RegExp(`^${escapeRe('.*')}$`).test('anything'), false);
 });

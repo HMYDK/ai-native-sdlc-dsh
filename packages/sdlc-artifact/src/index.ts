@@ -29,6 +29,7 @@ import {
   ARTIFACT_FILENAMES,
   ARTIFACT_KINDS,
   checkArtifact,
+  escapeRe,
   isArtifactKind,
   isUnmodifiedSkeleton,
   REQUIRED_SECTIONS,
@@ -165,10 +166,6 @@ async function registerArtifact(
 }
 
 /** 转义成可用于 RegExp 的字面量（制品名是我们自己定的，但不该依赖这一点）。 */
-function escapeRe(v: string): string {
-  return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 import { requireSessionCwd, resolveOptions, writePolicy } from './helpers.js';
 
 export function apply(ctx: Context, config: SdlcArtifactConfig): void {

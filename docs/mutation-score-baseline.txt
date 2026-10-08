@@ -1,163 +1,186 @@
 # 变异得分基线（2026-10-08）
 
-由 `node tools/mutation-score.mjs` 生成。**这是当前四个包测试套件信号率的基线**。
+由 `node tools/mutation-score.mjs` 生成。**这是当前四个包测试套件信号率的基线。**
 
-## 怎么读这个数字
+## 结果
 
-变异测试往实现里注入**明确的缺陷**（`>=`→`>`、`&&`→`||`、`true`→`false` 等），
-看测试会不会红。**存活的变异 = 测试看不见的代码面。**
+    sdlc-verify    98/124   79.0%
+    sdlc-task     108/109   99.1%
+    sdlc-artifact  67/89    75.3%
+    sdlc-status   119/149   79.9%
+    合计          392/471   83.2%
 
-两阶段：先跑单测（约 0.2 秒，抓大部分），只有单测放过的才跑冒烟（起 Electron app）。
+存活的 79 个就是"测试看不见的代码面"。
 
-## ⚠️ 三个必须知道的口径
+## ⚠️ 五条必须知道的口径（不知道就会误读这个数字）
 
-1. **等价变异算存活，但不是测试漏洞**。改了一处而行为不变（例如对必然非 null 的
-   值做 `v === null` 检查）会记为存活。所以**真实缺口比存活数小**，而本报告
-   **没有做等价变异过滤**——这是这个指标最大的假信号源。
-2. **被抓住没有区分原因**。类型错误导致的编译失败也会记为被抓住。
-   只统计了退出码，没验证红的原因是**断言**而不是崩溃或超时。
-3. **不能并发跑**。实测：在后台跑全量的同时再跑单包，两个循环同时改同一批文件，
-   sdlc-task 的得分出现过 79.1% / 99.1% / 只有 1 个存活三个版本。
+1. **等价变异算存活，但不是测试漏洞。** 改了一处而行为不变（对必然非 null 的值
+   做 null 检查；`&&` 与 `||` 在"两者都成立"时等价……）会记为存活。
+   **真实缺口比存活数小。** 本工具**没有做等价变异过滤**——这是最大的假信号源。
+   实例：`scan.ts:601` 的 `a.stale && b.stale` → `||`，实测（直接跑两种实现对比）
+   **排序结果完全相同**，是等价变异，不该为它写测试。
+2. **"被抓住"没有区分原因。** 类型错误导致的编译失败也算"被抓住"——只统计退出码，
+   没验证变红的原因是**断言**。
+3. **源码行定位是文本匹配，有噪声。** tsc 会重排行，工具按"该行文本在 src 里找
+   第一处相同内容"来定位。实测会指到 schema 定义或注释上（如 `src:261`、`src:132`）。
+   `lib:` 行号是准的，`src:` 仅供参考。
+4. **不能并发跑。** 实测：后台跑全量时再并发跑同一个包，两个循环同时改同一批文件，
+   `sdlc-task` 出现过 79.1% / 99.1% / 只 1 个存活三个版本。
+   **同理，跑这个工具时不要同时跑验证。**
+5. **它是"改-还原"。** 在 `lib/` 上做文本替换，用 `tsc` 从源码还原，收尾 `git status`
+   自检。但 `lib/` 不进 git，所以自检只能证明"没动 src"。
 
-## 结果（干净的单次运行）
+## 读这份报告该看什么
+
+**不要只看总分。** 有用的信息在：
+
+- **模块之间的差异**：`sdlc-task/state.ts`（状态机核心）只有 1 个存活，
+  而 `sdlc-artifact/index.ts`、`sdlc-status/index.ts` 是几十个。
+  **纯逻辑 + 直接单测 = 几乎无盲区**；反过来，接线层与文档层薄。
+- **存活点的形态**，而不是数量。本轮人工看过一遍，多数落在
+  ①只在工具 schema 保证下成立的防御性类型守卫（不可达）
+  ②格式化代码里的 `const-*`（真假信号都有，要逐条看）
+  ③极少数真分支（本轮找到 `scan.ts:601` 的"两个都停滞"分支从未被执行过）
+
+## 本轮（做 ①②③ 那次）带来的变化
+
+    修正前基线（含字符串/注释里的假点）  475 点  384 抓住  91 存活  80.8%
+    修正工具后                          471 点  383 抓住  88 存活  81.3%
+    补测试后                            471 点  392 抓住  79 存活  83.2%（sdlc-status +6.1）
+
+补的东西：`escapeRe` 从 index.ts 搬进纯函数层并直接单测（4 条）、
+概览摘要的**条件拼接**（0 计数不得出现 / 齐全时每项都要出现 / 顺序）、
+`scan.ts:601` 那个从未执行的分支。
 
 
 === sdlc-verify：124 个变异点（4 个文件）===
-  ⚠ 存活  cmp-strict   packages/sdlc-verify/lib/index.js:171  `>=` → `>`（恰好达标被判成不达标）
+  ⚠ 存活  cmp-strict   packages/sdlc-verify/lib/index.js:171 (src:208)  `>=` → `>`（恰好达标被判成不达标）
   … 25/124（已杀 24，存活 1）
-  ⚠ 存活  cmp-loose    packages/sdlc-verify/lib/verdict.js:353  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-verify/lib/verdict.js:381  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-verify/lib/verdict.js:353 (src:454)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-verify/lib/verdict.js:381 (src:486)  `>` → `>=`（边界外的一个被判成达标）
   … 50/124（已杀 47，存活 3）
-  ⚠ 存活  cmp-eq       packages/sdlc-verify/lib/verdict.js:231  `===` → `!==`（相等判断取反）
-  ⚠ 存活  bool-or      packages/sdlc-verify/lib/index.js:159  `||` → `&&`（或变与）
-  ⚠ 存活  bool-or      packages/sdlc-verify/lib/index.js:204  `||` → `&&`（或变与）
-  ⚠ 存活  bool-or      packages/sdlc-verify/lib/index.js:337  `||` → `&&`（或变与）
-  ⚠ 存活  bool-or      packages/sdlc-verify/lib/verdict.js:231  `||` → `&&`（或变与）
+  ⚠ 存活  cmp-eq       packages/sdlc-verify/lib/verdict.js:231 (src:308)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  bool-or      packages/sdlc-verify/lib/index.js:159 (src:194)  `||` → `&&`（或变与）
+  ⚠ 存活  bool-or      packages/sdlc-verify/lib/index.js:204 (src:254)  `||` → `&&`（或变与）
+  ⚠ 存活  bool-or      packages/sdlc-verify/lib/index.js:337 (src:408)  `||` → `&&`（或变与）
+  ⚠ 存活  bool-or      packages/sdlc-verify/lib/verdict.js:231 (src:308)  `||` → `&&`（或变与）
   … 75/124（已杀 67，存活 8）
-  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:124  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:171  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:183  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:226  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-verify/lib/test-freeze.js:161  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-verify/lib/verdict.js:353  `&&` → `||`（与变或）
-  ⚠ 存活  const-true   packages/sdlc-verify/lib/index.js:467  `true` → `false`
-  ⚠ 存活  const-true   packages/sdlc-verify/lib/test-freeze.js:71  `true` → `false`
+  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:124 (src:155)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:171 (src:208)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:183 (src:222)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-verify/lib/index.js:226 (src:未定位)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-verify/lib/test-freeze.js:161 (src:未定位)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-verify/lib/verdict.js:353 (src:454)  `&&` → `||`（与变或）
+  ⚠ 存活  const-true   packages/sdlc-verify/lib/index.js:467 (src:566)  `true` → `false`
+  ⚠ 存活  const-true   packages/sdlc-verify/lib/test-freeze.js:71 (src:71)  `true` → `false`
   … 100/124（已杀 84，存活 16）
-  ⚠ 存活  const-true   packages/sdlc-verify/lib/verdict.js:259  `true` → `false`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/index.js:454  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/index.js:484  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/index.js:497  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:122  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:131  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:152  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:178  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:187  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:207  `false` → `true`
+  ⚠ 存活  const-true   packages/sdlc-verify/lib/verdict.js:259 (src:338)  `true` → `false`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/index.js:454 (src:553)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/index.js:484 (src:553)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/index.js:497 (src:602)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:122 (src:192)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:131 (src:192)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:152 (src:192)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:178 (src:192)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:187 (src:192)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-verify/lib/verdict.js:207 (src:192)  `false` → `true`
   → sdlc-verify：98/124 被抓住，**变异得分 79.0%**
 
-=== sdlc-task：110 个变异点（3 个文件）===
-  … 25/110（已杀 25，存活 0）
-  … 50/110（已杀 50，存活 0）
-  … 75/110（已杀 75，存活 0）
-  ⚠ 存活  bool-and     packages/sdlc-task/lib/state.js:176  `&&` → `||`（与变或）
-  … 100/110（已杀 99，存活 1）
-  → sdlc-task：109/110 被抓住，**变异得分 99.1%**
+=== sdlc-task：109 个变异点（3 个文件）===
+  … 25/109（已杀 25，存活 0）
+  … 50/109（已杀 50，存活 0）
+  … 75/109（已杀 75，存活 0）
+  ⚠ 存活  bool-and     packages/sdlc-task/lib/state.js:176 (src:未定位)  `&&` → `||`（与变或）
+  … 100/109（已杀 99，存活 1）
+  → sdlc-task：108/109 被抓住，**变异得分 99.1%**
 
-=== sdlc-artifact：92 个变异点（3 个文件）===
-  ⚠ 存活  cmp-strict   packages/sdlc-artifact/lib/index.js:99  `>=` → `>`（恰好达标被判成不达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-artifact/lib/artifact.js:116  `>` → `>=`（边界外的一个被判成达标）
-  … 25/92（已杀 23，存活 2）
-  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/artifact.js:221  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:159  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:240  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:241  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:244  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:285  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:296  `===` → `!==`（相等判断取反）
-  ⚠ 存活  bool-or      packages/sdlc-artifact/lib/index.js:32  `||` → `&&`（或变与）
-  … 50/92（已杀 40，存活 10）
-  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:93  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:97  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:154  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:285  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:338  `&&` → `||`（与变或）
-  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:159  `true` → `false`
-  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:190  `true` → `false`
-  … 75/92（已杀 58，存活 17）
-  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:240  `true` → `false`
-  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:241  `true` → `false`
-  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:279  `true` → `false`
-  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:292  `true` → `false`
-  ⚠ 存活  const-false  packages/sdlc-artifact/lib/index.js:140  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-artifact/lib/index.js:215  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-artifact/lib/index.js:221  `false` → `true`
-  ⚠ 存活  const-false  packages/sdlc-artifact/lib/index.js:244  `false` → `true`
-  → sdlc-artifact：67/92 被抓住，**变异得分 72.8%**
+=== sdlc-artifact：89 个变异点（3 个文件）===
+  ⚠ 存活  cmp-strict   packages/sdlc-artifact/lib/index.js:99 (src:157)  `>=` → `>`（恰好达标被判成不达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-artifact/lib/artifact.js:116 (src:132)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-artifact/lib/artifact.js:223 (src:261)  `>` → `>=`（边界外的一个被判成达标）
+  … 25/89（已杀 22，存活 3）
+  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/artifact.js:221 (src:259)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:156 (src:221)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:237 (src:308)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:238 (src:309)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:241 (src:312)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:282 (src:360)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-artifact/lib/index.js:293 (src:375)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  bool-or      packages/sdlc-artifact/lib/index.js:32 (src:68)  `||` → `&&`（或变与）
+  … 50/89（已杀 39，存活 11）
+  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:93 (src:149)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:97 (src:未定位)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:151 (src:未定位)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:282 (src:360)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-artifact/lib/index.js:335 (src:430)  `&&` → `||`（与变或）
+  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:156 (src:221)  `true` → `false`
+  … 75/89（已杀 58，存活 17）
+  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:237 (src:308)  `true` → `false`
+  ⚠ 存活  const-true   packages/sdlc-artifact/lib/index.js:238 (src:309)  `true` → `false`
+  ⚠ 存活  const-false  packages/sdlc-artifact/lib/index.js:137 (src:201)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-artifact/lib/index.js:218 (src:201)  `false` → `true`
+  ⚠ 存活  const-false  packages/sdlc-artifact/lib/index.js:241 (src:312)  `false` → `true`
+  → sdlc-artifact：67/89 被抓住，**变异得分 75.3%**
 
 === sdlc-status：149 个变异点（3 个文件）===
-  ⚠ 存活  cmp-strict   packages/sdlc-status/lib/index.js:222  `>=` → `>`（恰好达标被判成不达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:229  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:276  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:277  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:364  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:372  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:374  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:376  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:265  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-strict   packages/sdlc-status/lib/index.js:222 (src:264)  `>=` → `>`（恰好达标被判成不达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:229 (src:269)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:276 (src:318)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:277 (src:319)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:364 (src:未定位)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:372 (src:421)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:374 (src:422)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/index.js:376 (src:423)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:265 (src:414)  `>` → `>=`（边界外的一个被判成达标）
   … 25/149（已杀 16，存活 9）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:494  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:496  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:498  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:500  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:504  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:506  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:508  `>` → `>=`（边界外的一个被判成达标）
-  … 50/149（已杀 34，存活 16）
-  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:510  `>` → `>=`（边界外的一个被判成达标）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/helpers.js:58  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:339  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:340  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:342  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:344  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:355  `===` → `!==`（相等判断取反）
-  … 75/149（已杀 52，存活 23）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:186  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:431  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:435  `===` → `!==`（相等判断取反）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:441  `===` → `!==`（相等判断取反）
-  … 100/149（已杀 73，存活 27）
-  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:479  `===` → `!==`（相等判断取反）
-  ⚠ 存活  bool-or      packages/sdlc-status/lib/index.js:324  `||` → `&&`（或变与）
-  ⚠ 存活  bool-or      packages/sdlc-status/lib/scan.js:77  `||` → `&&`（或变与）
-  ⚠ 存活  bool-or      packages/sdlc-status/lib/scan.js:120  `||` → `&&`（或变与）
-  ⚠ 存活  bool-and     packages/sdlc-status/lib/index.js:179  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-status/lib/index.js:351  `&&` → `||`（与变或）
-  … 125/149（已杀 92，存活 33）
-  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:87  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:89  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:391  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:441  `&&` → `||`（与变或）
-  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:461  `&&` → `||`（与变或）
-  ⚠ 存活  const-false  packages/sdlc-status/lib/index.js:157  `false` → `true`
-  → sdlc-status：110/149 被抓住，**变异得分 73.8%**
+  … 50/149（已杀 41，存活 9）
+  ⚠ 存活  cmp-loose    packages/sdlc-status/lib/scan.js:510 (src:659)  `>` → `>=`（边界外的一个被判成达标）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/helpers.js:58 (src:109)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:339 (src:391)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:340 (src:392)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:342 (src:393)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:344 (src:394)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/index.js:355 (src:403)  `===` → `!==`（相等判断取反）
+  … 75/149（已杀 59，存活 16）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:186 (src:309)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:431 (src:592)  `===` → `!==`（相等判断取反）
+  ⚠ 存活  cmp-eq       packages/sdlc-status/lib/scan.js:435 (src:未定位)  `===` → `!==`（相等判断取反）
+  … 100/149（已杀 81，存活 19）
+  ⚠ 存活  bool-or      packages/sdlc-status/lib/index.js:324 (src:373)  `||` → `&&`（或变与）
+  ⚠ 存活  bool-or      packages/sdlc-status/lib/scan.js:77 (src:91)  `||` → `&&`（或变与）
+  ⚠ 存活  bool-or      packages/sdlc-status/lib/scan.js:120 (src:241)  `||` → `&&`（或变与）
+  ⚠ 存活  bool-and     packages/sdlc-status/lib/index.js:179 (src:214)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-status/lib/index.js:351 (src:400)  `&&` → `||`（与变或）
+  … 125/149（已杀 101，存活 24）
+  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:87 (src:103)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:89 (src:105)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:391 (src:546)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:441 (src:601)  `&&` → `||`（与变或）
+  ⚠ 存活  bool-and     packages/sdlc-status/lib/scan.js:461 (src:620)  `&&` → `||`（与变或）
+  ⚠ 存活  const-false  packages/sdlc-status/lib/index.js:157 (src:192)  `false` → `true`
+  → sdlc-status：119/149 被抓住，**变异得分 79.9%**
 
 ========================================================================
 变异得分汇总
 
   包              变异点   抓住   存活   得分
   sdlc-verify       124     98     26   79.0%
-  sdlc-task         110    109      1   99.1%
-  sdlc-artifact      92     67     25   72.8%
-  sdlc-status       149    110     39   73.8%
+  sdlc-task         109    108      1   99.1%
+  sdlc-artifact      89     67     22   75.3%
+  sdlc-status       149    119     30   79.9%
 
-  合计：384/475 被抓住 —— 变异得分 **80.8%**
-  （存活 91 个：那些就是测试看不见的代码面）
+  合计：392/471 被抓住 —— 变异得分 **83.2%**
+  （存活 79 个：那些就是测试看不见的代码面）
 
-  用时 162 秒
+  用时 139 秒
 
-  ✓ 收尾检查：packages/ 已完全还原（git status 干净）
+🔴 收尾失败：packages/ 下有未还原的改动 —— 变异没有被清理干净：
+M packages/sdlc-artifact/src/artifact.test.ts
+ M packages/sdlc-artifact/src/artifact.ts
+ M packages/sdlc-artifact/src/index.ts
+ M packages/sdlc-status/src/scan.test.ts
 
   存活变异按类型：
-    boundary   41
+    boundary   33
     boolean    27
-    constant   23
+    constant   19

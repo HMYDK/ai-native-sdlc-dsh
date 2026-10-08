@@ -262,3 +262,20 @@ export function skeletonFor(kind: ArtifactKind, title: string): string {
   }
   return lines.join('\n');
 }
+
+/**
+ * 转义正则元字符，让一个字符串能被安全地拼进 `new RegExp()`。
+ *
+ * 用在两处构造正则的地方（检查 state.yaml 里是否已登记某制品、
+ * 以及在 artifacts 段里定位某个键）。**没有它，一个含 `.` 或 `*` 的
+ * 制品名会把正则变成别的东西**——例如 `verification` 里的 `.` 会匹配
+ * 任意字符。
+ *
+ * 它原来住在 `index.ts` 里且**完全没有测试**——而它是这条链路上
+ * 唯一"把一个字符串变成正则"的地方。变异测试的存活清单里它出现过
+ * （`?` `+` `|` 等被从字符类里删掉时全套测试仍然全绿）。
+ * 搬到纯函数层并直接单测。
+ */
+export function escapeRe(v: string): string {
+  return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
