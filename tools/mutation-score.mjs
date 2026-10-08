@@ -490,11 +490,19 @@ if (updateList && !listOnly) {
 
 if (gate) {
   const allow = loadAllowlist();
-  // ⚠️ 清单不全时**只报告不阻断**。
-  // 原因：清单里 66 条是"待核实"——拿一份没核实完的清单去卡人，
-  // 结果一定是"把新存活直接加进清单了事"，那清单就变成了纸面。
-  // 等分类补齐后再切成阻断。（这是这个项目一贯的做法：先诚实，再变严。）
-  const reportOnly = typeof allow.status === 'string' && allow.status.startsWith('INCOMPLETE');
+  // ⚠️ 清单里仍有"未处理"的类别时，**只报告不阻断**。
+  //
+  // 原因：拿一份没核实完的清单去卡人，结果一定是"把新存活直接加进清单了事"，
+  // 那清单就变成纸面——正是这个项目一直在防的东西。
+  // 只有清单里每一条都落到一个**已处置**的类别上，门禁才是可信的。
+  //
+  // 已处置：equiv_by_reading / unreach_schema / unreach_own_output / unreach_type
+  //         （依据是读代码，非实测——这一点写在每条 note 里）
+  //         fixture_gap 也算已处置：它明说了"这是缺口，还没补"，不是掩盖
+  // 未处置：needs_review / unreachable_unverified / unclassified
+  const PENDING = new Set(['needs_review', 'unreachable_unverified', 'unclassified']);
+  const pending = (allow.entries ?? []).filter((e) => PENDING.has(e.reason));
+  const reportOnly = pending.length > 0;
   if ((allow.entries ?? []).length === 0 && survivors.length > 0) {
     console.error(
       `\n🔴 门禁失败：有 ${survivors.length} 个存活变异，但没有清单。\n` +
@@ -507,7 +515,10 @@ if (gate) {
       !known.has([x.pkg, x.op.id, x.file, x.site].join(' | ')),
     );
     const stillListed = survivors.length;
-    console.log(`\n  门禁：${stillListed} 个存活，${unlisted.length} 个**不在清单里**`);
+    console.log(
+      `\n  门禁：${stillListed} 个存活，${unlisted.length} 个**不在清单里**，` +
+        `清单里 ${pending.length} 条未处置`,
+    );
     if (unlisted.length > 0) {
       console.error('\n🔴 门禁失败：以下存活变异是新的 —— 要么修掉，要么写进清单并说明理由：');
       for (const u of unlisted) {
@@ -521,7 +532,11 @@ if (gate) {
           '  ③ 已知待补（写清补它的条件）',
       );
       if (reportOnly) {
-        console.error('\n  ⚠️ 清单标记为 INCOMPLETE，本次**只报告不阻断**（不判失败）。');
+        console.error(
+          `\n  ⚠️ 清单里还有 ${pending.length} 条"未处置"（needs_review / 未分类），` +
+            '本次**只报告不阻断**（不判失败）。',
+        );
+        console.error('     要切成阻断，就得把那些条目逐条落到一个已处置的类别上。');
       } else {
         process.exitCode = 1;
       }

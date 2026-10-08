@@ -8,8 +8,8 @@
       "line": 282,
       "site": ": skeletonFor(kind, typeof args.title === 'string' && args.title !== '' ? args.title : '（待填标题）');",
       "src": 360,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：: skeletonFor(kind, typeof args.title === 'string' && args.title !== '）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -28,8 +28,8 @@
       "line": 151,
       "site": "const list = (x) => Array.isArray(x) && x.length > 0 ? x.join(', ') : '（无）';",
       "src": null,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：const list = (x) => Array.isArray(x) && x.length > 0 ? x.join(', ') : ）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -38,8 +38,8 @@
       "line": 335,
       "site": "if (typeof args.task_id === 'string' && args.task_id.trim() !== '') {",
       "src": 430,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：if (typeof args.task_id === 'string' && args.task_id.trim() !== '') {）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -58,8 +58,8 @@
       "line": 32,
       "site": "if (typeof taskId !== 'string' || taskId.trim() === '') {",
       "src": 68,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：if (typeof taskId !== 'string' || taskId.trim() === '') {）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -78,8 +78,8 @@
       "line": 282,
       "site": ": skeletonFor(kind, typeof args.title === 'string' && args.title !== '' ? args.title : '（待填标题）');",
       "src": 360,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：: skeletonFor(kind, typeof args.title === 'string' && args.title !== '）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -88,8 +88,8 @@
       "line": 237,
       "site": "`${String(o.kind)} 已${o.created === true ? '创建' : o.replaced_skeleton === true ? '写入（替换了骨架）' : '更新'}：${String(o.path)}`,",
       "src": 308,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`${String(o.kind)} 已${o.created === true ? '创建' : o.replaced_skeleton ）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -98,8 +98,8 @@
       "line": 156,
       "site": "`${String(o.kind)} 结构检查：${o.ok === true ? '通过' : '**不通过**'}`,",
       "src": 221,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`${String(o.kind)} 结构检查：${o.ok === true ? '通过' : '**不通过**'}`,）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -108,8 +108,8 @@
       "line": 238,
       "site": "`结构检查：${o.structure_ok === true ? '通过' : `**不通过**（${fs.length} 项）`}`,",
       "src": 309,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`结构检查：${o.structure_ok === true ? '通过' : `**不通过**（${fs.length} 项）`}`,）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -128,8 +128,8 @@
       "line": 241,
       "site": "o.quality_checked === false",
       "src": 312,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：o.quality_checked === false）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -158,8 +158,8 @@
       "line": 99,
       "site": "if (existingAt >= 0) {",
       "src": 157,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (existingAt >= 0) {）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -168,8 +168,8 @@
       "line": 137,
       "site": "additionalProperties: false,",
       "src": 201,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -178,8 +178,8 @@
       "line": 218,
       "site": "additionalProperties: false,",
       "src": 201,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -188,8 +188,8 @@
       "line": 241,
       "site": "o.quality_checked === false",
       "src": 312,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：o.quality_checked === false）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -198,8 +198,8 @@
       "line": 237,
       "site": "`${String(o.kind)} 已${o.created === true ? '创建' : o.replaced_skeleton === true ? '写入（替换了骨架）' : '更新'}：${String(o.path)}`,",
       "src": 308,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`${String(o.kind)} 已${o.created === true ? '创建' : o.replaced_skeleton ）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -208,8 +208,8 @@
       "line": 156,
       "site": "`${String(o.kind)} 结构检查：${o.ok === true ? '通过' : '**不通过**'}`,",
       "src": 221,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`${String(o.kind)} 结构检查：${o.ok === true ? '通过' : '**不通过**'}`,）"
     },
     {
       "pkg": "sdlc-artifact",
@@ -218,8 +218,8 @@
       "line": 238,
       "site": "`结构检查：${o.structure_ok === true ? '通过' : `**不通过**（${fs.length} 项）`}`,",
       "src": 309,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`结构检查：${o.structure_ok === true ? '通过' : `**不通过**（${fs.length} 项）`}`,）"
     },
     {
       "pkg": "sdlc-status",
@@ -228,8 +228,8 @@
       "line": 179,
       "site": "const note = typeof o.note === 'string' && o.note !== '' ? o.note : undefined;",
       "src": 214,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：const note = typeof o.note === 'string' && o.note !== '' ? o.note : un）"
     },
     {
       "pkg": "sdlc-status",
@@ -298,8 +298,8 @@
       "line": 324,
       "site": "if (typeof raw !== 'number' || !Number.isInteger(raw)) {",
       "src": 373,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：if (typeof raw !== 'number' || !Number.isInteger(raw)) {）"
     },
     {
       "pkg": "sdlc-status",
@@ -338,8 +338,8 @@
       "line": 344,
       "site": "else if (st?.class === 'closed')",
       "src": 394,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "equiv_by_reading",
+      "note": "等价：改了一处而行为不变（依据：读代码——条件重叠/值域不含该分支）。**依读，非实测。**  （lib 行：else if (st?.class === 'closed')）"
     },
     {
       "pkg": "sdlc-status",
@@ -348,8 +348,8 @@
       "line": 342,
       "site": "else if (st?.class === 'waiting')",
       "src": 393,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "equiv_by_reading",
+      "note": "等价：改了一处而行为不变（依据：读代码——条件重叠/值域不含该分支）。**依读，非实测。**  （lib 行：else if (st?.class === 'waiting')）"
     },
     {
       "pkg": "sdlc-status",
@@ -358,8 +358,8 @@
       "line": 355,
       "site": "else if (st.class === 'waiting') {",
       "src": 403,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "equiv_by_reading",
+      "note": "等价：改了一处而行为不变（依据：读代码——条件重叠/值域不含该分支）。**依读，非实测。**  （lib 行：else if (st.class === 'waiting') {）"
     },
     {
       "pkg": "sdlc-status",
@@ -368,8 +368,8 @@
       "line": 340,
       "site": "if (st?.class === 'stale')",
       "src": 392,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "equiv_by_reading",
+      "note": "等价：改了一处而行为不变（依据：读代码——条件重叠/值域不含该分支）。**依读，非实测。**  （lib 行：if (st?.class === 'stale')）"
     },
     {
       "pkg": "sdlc-status",
@@ -378,8 +378,8 @@
       "line": 339,
       "site": "let mark = t.health === 'ok' ? '·' : '!';",
       "src": 391,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "equiv_by_reading",
+      "note": "等价：改了一处而行为不变（依据：读代码——条件重叠/值域不含该分支）。**依读，非实测。**  （lib 行：let mark = t.health === 'ok' ? '·' : '!';）"
     },
     {
       "pkg": "sdlc-status",
@@ -418,8 +418,8 @@
       "line": 364,
       "site": "const detail = v.criteria > 0",
       "src": null,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：const detail = v.criteria > 0）"
     },
     {
       "pkg": "sdlc-status",
@@ -428,8 +428,8 @@
       "line": 277,
       "site": "const windowEnd = sel.entries.length > 0 ? sel.start + sel.entries.length : 0;",
       "src": 319,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：const windowEnd = sel.entries.length > 0 ? sel.start + sel.entries.len）"
     },
     {
       "pkg": "sdlc-status",
@@ -438,8 +438,8 @@
       "line": 276,
       "site": "const windowStart = sel.entries.length > 0 ? sel.start + 1 : 0;",
       "src": 318,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：const windowStart = sel.entries.length > 0 ? sel.start + 1 : 0;）"
     },
     {
       "pkg": "sdlc-status",
@@ -448,8 +448,8 @@
       "line": 229,
       "site": "if (ignored.length > 0)",
       "src": 269,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (ignored.length > 0)）"
     },
     {
       "pkg": "sdlc-status",
@@ -458,8 +458,8 @@
       "line": 372,
       "site": "if (t.missingForStatus.length > 0)",
       "src": 421,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (t.missingForStatus.length > 0)）"
     },
     {
       "pkg": "sdlc-status",
@@ -468,8 +468,8 @@
       "line": 374,
       "site": "if (t.missingOnDisk.length > 0)",
       "src": 422,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (t.missingOnDisk.length > 0)）"
     },
     {
       "pkg": "sdlc-status",
@@ -478,8 +478,8 @@
       "line": 376,
       "site": "if (t.nextRequired.length > 0)",
       "src": 423,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (t.nextRequired.length > 0)）"
     },
     {
       "pkg": "sdlc-status",
@@ -508,8 +508,8 @@
       "line": 222,
       "site": "if (sel.singleIndex >= 0) {",
       "src": 264,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (sel.singleIndex >= 0) {）"
     },
     {
       "pkg": "sdlc-status",
@@ -518,8 +518,8 @@
       "line": 157,
       "site": "additionalProperties: false,",
       "src": 192,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-task",
@@ -538,8 +538,8 @@
       "line": 237,
       "site": "const list = (x) => (Array.isArray(x) && x.length ? x.join(', ') : '（无）');",
       "src": null,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：const list = (x) => (Array.isArray(x) && x.length ? x.join(', ') : '（无）"
     },
     {
       "pkg": "sdlc-task",
@@ -548,8 +548,8 @@
       "line": 264,
       "site": "const nextStatus = idx >= 0 && idx + 1 < STATUSES.length ? STATUSES[idx + 1] : undefined;",
       "src": 359,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：const nextStatus = idx >= 0 && idx + 1 < STATUSES.length ? STATUSES[id）"
     },
     {
       "pkg": "sdlc-task",
@@ -558,8 +558,8 @@
       "line": 118,
       "site": "if (typeof v === 'string' && v !== '')",
       "src": 186,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：if (typeof v === 'string' && v !== '')）"
     },
     {
       "pkg": "sdlc-task",
@@ -568,8 +568,8 @@
       "line": 99,
       "site": "out.set(rel, info !== undefined && info.type === 'file');",
       "src": 168,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：out.set(rel, info !== undefined && info.type === 'file');）"
     },
     {
       "pkg": "sdlc-task",
@@ -598,8 +598,8 @@
       "line": 243,
       "site": "`状态：${String(o.status)} 自洽：${o.consistent === true ? '是' : '**否**'}`,",
       "src": 335,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`状态：${String(o.status)}    自洽：${o.consistent === true ? '是' : '**否**'}）"
     },
     {
       "pkg": "sdlc-task",
@@ -618,8 +618,8 @@
       "line": 261,
       "site": "const report = checkConsistency(state, (rel) => presence.get(rel) === true);",
       "src": 355,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：const report = checkConsistency(state, (rel) => presence.get(rel) === ）"
     },
     {
       "pkg": "sdlc-task",
@@ -628,8 +628,8 @@
       "line": 339,
       "site": "const state = Object.keys(toRegister).length === 0",
       "src": null,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：const state = Object.keys(toRegister).length === 0）"
     },
     {
       "pkg": "sdlc-task",
@@ -648,8 +648,8 @@
       "line": 114,
       "site": "if (raw === null || typeof raw !== 'object' || Array.isArray(raw))",
       "src": 183,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：if (raw === null || typeof raw !== 'object' || Array.isArray(raw))）"
     },
     {
       "pkg": "sdlc-task",
@@ -658,8 +658,8 @@
       "line": 118,
       "site": "if (typeof v === 'string' && v !== '')",
       "src": 186,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：if (typeof v === 'string' && v !== '')）"
     },
     {
       "pkg": "sdlc-task",
@@ -688,8 +688,8 @@
       "line": 151,
       "site": "additionalProperties: false,",
       "src": 224,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-task",
@@ -698,8 +698,8 @@
       "line": 222,
       "site": "additionalProperties: false,",
       "src": 224,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-task",
@@ -708,8 +708,8 @@
       "line": 307,
       "site": "additionalProperties: false,",
       "src": 224,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-task",
@@ -728,8 +728,8 @@
       "line": 243,
       "site": "`状态：${String(o.status)} 自洽：${o.consistent === true ? '是' : '**否**'}`,",
       "src": 335,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_own_output",
+      "note": "不可达：读的是**本插件的输出结构**（渲染函数），不是外部输入（依据：读代码）。**依读，非实测。**  （lib 行：`状态：${String(o.status)}    自洽：${o.consistent === true ? '是' : '**否**'}）"
     },
     {
       "pkg": "sdlc-task",
@@ -738,8 +738,8 @@
       "line": 261,
       "site": "const report = checkConsistency(state, (rel) => presence.get(rel) === true);",
       "src": 355,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：const report = checkConsistency(state, (rel) => presence.get(rel) === ）"
     },
     {
       "pkg": "sdlc-verify",
@@ -748,8 +748,8 @@
       "line": 226,
       "site": "const registered = state !== null && typeof state === 'object' && !Array.isArray(state)",
       "src": null,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：const registered = state !== null && typeof state === 'object' && !Arr）"
     },
     {
       "pkg": "sdlc-verify",
@@ -758,8 +758,8 @@
       "line": 171,
       "site": "if (start >= 0 && /^artifacts:\\s*\\{\\s*\\}\\s*$/.test(lines[start] ?? '')) {",
       "src": 208,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (start >= 0 && /^artifacts:\\s*\\{\\s*\\}\\s*$/.test(lines[start] ?? '')）"
     },
     {
       "pkg": "sdlc-verify",
@@ -768,8 +768,8 @@
       "line": 124,
       "site": "if (typeof v === 'string' && v !== '')",
       "src": 155,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：if (typeof v === 'string' && v !== '')）"
     },
     {
       "pkg": "sdlc-verify",
@@ -818,8 +818,8 @@
       "line": 159,
       "site": "if (info === undefined || info.type !== 'file') {",
       "src": 194,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_type",
+      "note": "不可达：输入是插件内部构造的值，TS 类型已收窄（依据：读代码）。**依读，非实测。**  （lib 行：if (info === undefined || info.type !== 'file') {）"
     },
     {
       "pkg": "sdlc-verify",
@@ -828,8 +828,8 @@
       "line": 204,
       "site": "if (typeof cwdRaw !== 'string' || cwdRaw === '') {",
       "src": 254,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：if (typeof cwdRaw !== 'string' || cwdRaw === '') {）"
     },
     {
       "pkg": "sdlc-verify",
@@ -878,8 +878,8 @@
       "line": 171,
       "site": "if (start >= 0 && /^artifacts:\\s*\\{\\s*\\}\\s*$/.test(lines[start] ?? '')) {",
       "src": 208,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "fixture_gap",
+      "note": "疑似真缺口：夹具没有覆盖到该边界，应当补断言。**未补。**  （lib 行：if (start >= 0 && /^artifacts:\\s*\\{\\s*\\}\\s*$/.test(lines[start] ?? '')）"
     },
     {
       "pkg": "sdlc-verify",
@@ -888,8 +888,8 @@
       "line": 454,
       "site": "additionalProperties: false,",
       "src": 553,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-verify",
@@ -898,8 +898,8 @@
       "line": 484,
       "site": "additionalProperties: false,",
       "src": 553,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：additionalProperties: false,）"
     },
     {
       "pkg": "sdlc-verify",
@@ -978,8 +978,8 @@
       "line": 467,
       "site": "return { frozen: true, reason: args.reason };",
       "src": 566,
-      "reason": "unreachable_unverified",
-      "note": "接线/schema/格式化层。疑似 schema/类型已保证的守卫或格式化文本。**未逐条核实。**"
+      "reason": "unreach_schema",
+      "note": "不可达：输入来自工具参数，DSH 参数/输出 schema 已保证形状（依据：读 schema 与调用点）。**依读，非实测。**  （lib 行：return { frozen: true, reason: args.reason };）"
     },
     {
       "pkg": "sdlc-verify",
@@ -1002,5 +1002,5 @@
       "note": "纯逻辑模块（verdict.ts）——可独立单测，应补断言或证明等价。**未核实。**"
     }
   ],
-  "status": "INCOMPLETE：100 条只有抽样核实过。门禁暂为报告模式（不阻断 CI）。"
+  "status": "PARTIAL：分类依据是**读代码**而非实测；还有 45 条未分类。门禁仍为报告模式。"
 }
