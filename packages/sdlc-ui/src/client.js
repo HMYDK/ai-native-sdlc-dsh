@@ -128,6 +128,8 @@ window.__ModuleLoader__.load({
       if (typeof VariantA !== 'function') missing.push('VariantA');
       if (typeof VariantB !== 'function') missing.push('VariantB');
       if (typeof VariantC !== 'function') missing.push('VariantC');
+      if (typeof ArtifactViewer !== 'function') missing.push('ArtifactViewer');
+      if (typeof renderMarkdown !== 'function') missing.push('renderMarkdown');
       if (missing.length) {
         throw new Error('sdlc-ui 自检失败，这些名字没有定义 → ' + missing.join(', ') +
           '。（重写代码时被删掉了？这个文件**不经 tsc**，所以只能在这里拦；' +
@@ -248,6 +250,7 @@ window.__ModuleLoader__.load({
      */
     function Stepper(props) {
       const t = props.task;
+      const onOpen = props.onOpen || function () {};
       const cur = STAGES.indexOf(t.status);
       const cells = STAGES.map(function (stage, i) {
         const done = cur >= 0 && i < cur;
@@ -289,6 +292,37 @@ window.__ModuleLoader__.load({
               : null,
             h('span', { key: 't', style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, STAGE_CN[stage] || stage),
           ]),
+          /**
+           * ★ **这一阶段的交付物文件名**，直接显示在流程条上。
+           *
+           * 用户的原始要求就是这一条："每个阶段都产出了哪些交付物要**可以直接看出来**"。
+           * 所以它不该藏在展开的详情里 —— 流程条本身就该说清楚。
+           *
+           * 可点：点它打开这个交付物的内容。缺制品时显示一条虚线 + 警示色，
+           * 让"这一门没有产出"也是一个**看得见**的状态。
+           */
+          art
+            ? h('button', {
+                key: 'art',
+                title: '查看 ' + art.file + ' 的内容',
+                onClick: function (ev) { ev.stopPropagation(); onOpen(art.file); },
+                style: Object.assign({}, F.tiny, {
+                  textAlign: 'left', cursor: 'pointer', padding: '1px 4px', marginTop: '1px',
+                  borderRadius: '4px', background: 'transparent', border: '1px solid transparent',
+                  color: T.fg2, fontSize: '10px', lineHeight: '14px',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  textDecoration: 'underline', textDecorationColor: T.border2, textUnderlineOffset: '2px',
+                }),
+              }, art.file)
+            : STAGE_ARTIFACT[stage]
+              ? h('div', {
+                  key: 'miss',
+                  title: '这一门还没有产出物',
+                  style: Object.assign({}, F.tiny, {
+                    marginTop: '2px', borderTop: '1px dashed ' + T.border2, height: '12px',
+                  }),
+                })
+              : null,
         ]);
       });
       return h('div', {
@@ -344,7 +378,10 @@ window.__ModuleLoader__.load({
           (t.artifacts || []).map(function (a) {
             return h('div', {
               key: a.kind,
+              title: '查看 ' + a.file,
+              onClick: function (ev) { ev.stopPropagation(); if (props.onOpen) props.onOpen(a.file); },
               style: {
+                cursor: 'pointer',
                 flex: '1 1 140px', minWidth: '0', padding: '6px 8px', borderRadius: '6px',
                 background: 'var(--dsw-alias-bg-layer-1)', border: '1px solid ' + T.border,
               },
@@ -508,8 +545,8 @@ window.__ModuleLoader__.load({
         }, t.title));
       }
       if (open) {
-        body.push(h(Stepper, { key: 'st', task: t }));
-        body.push(h(Focus, { key: 'fo', task: t }));
+        body.push(h(Stepper, { key: 'st', task: t, onOpen: props.onOpen }));
+        body.push(h(Focus, { key: 'fo', task: t, onOpen: props.onOpen }));
         body.push(h(BlockedBy, { key: 'b', task: t }));
         body.push(h(Timeline, { key: 'tl', task: t }));
       } else if (t.blocked && t.blocked.length) {
@@ -573,6 +610,8 @@ window.__ModuleLoader__.load({
         try { return localStorage.getItem('sdlcUiVariant') || 'B'; } catch (e) { return 'B'; }
       });
       const [selected, setSelected] = React.useState(null);
+      // 正在查看的交付物。null = 没打开。
+      const [opened, setOpened] = React.useState(null);
 
       const load = React.useCallback(function () {
         return fetch('./api/sdlc-ui.tasks', { credentials: 'same-origin' })
@@ -640,9 +679,10 @@ window.__ModuleLoader__.load({
       } else if (data) {
         const tasks = data.tasks;
         const sel = tasks.find(function (t) { return t.id === selected; }) || tasks[0];
-        if (variant === 'B') content = h(VariantB, { tasks: tasks, sel: sel, onSelect: setSelected });
-        else if (variant === 'C') content = h(VariantC, { tasks: tasks, sel: sel, onSelect: setSelected });
-        else content = h(VariantA, { tasks: tasks, sel: sel, onSelect: setSelected });
+        const openArtifact = function (file) { setOpened({ task: sel.id, file: file }); };
+        if (variant === 'B') content = h(VariantB, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
+        else if (variant === 'C') content = h(VariantC, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
+        else content = h(VariantA, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
       }
 
       return h('div', {
@@ -651,7 +691,7 @@ window.__ModuleLoader__.load({
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           fontSize: '13px', lineHeight: '20px', color: T.fg,
         },
-      }, [bar, content]);
+      }, [bar, content, opened ? h(ArtifactViewer, { key: 'av', task: opened.task, file: opened.file, onClose: function () { setOpened(null); } }) : null]);
     }
 
     /** 一个任务行（三版共用）——紧凑。 */
@@ -693,7 +733,7 @@ window.__ModuleLoader__.load({
             return h(TaskLine, { key: t.id, task: t, active: props.sel && props.sel.id === t.id, onClick: function () { props.onSelect(t.id); } });
           })),
         h('div', { key: 'R', style: { flex: '1 1 auto', minWidth: '0' } },
-          props.sel ? h(Detail, { task: props.sel }) : null),
+          props.sel ? h(Detail, { task: props.sel, onOpen: props.onOpen }) : null),
       ]);
     }
 
@@ -748,7 +788,7 @@ window.__ModuleLoader__.load({
               return h(TaskLine, { key: t.id, task: t, active: props.sel && props.sel.id === t.id, onClick: function () { props.onSelect(t.id); } });
             })),
           h('div', { key: 'R', style: { flex: '1 1 auto', minWidth: '0' } },
-            props.sel ? h(Detail, { task: props.sel }) : null),
+            props.sel ? h(Detail, { task: props.sel, onOpen: props.onOpen }) : null),
         ]),
       ]);
     }
@@ -802,9 +842,183 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    /**
+     * ## 交付物查看器
+     *
+     * 用户的要求："**可以点击查看这些交付物的内容**"。
+     *
+     * 从 `/api/sdlc-ui.artifact?task=&file=` 取正文，按类型渲染：
+     *   · `.md`   → 极简 Markdown：标题分级、列表、引用、代码块、加粗/行内代码
+     *   · `.json` → 缩进后的等宽文本（JSON 的可读性靠缩进，不靠高亮）
+     *
+     * ⚠️ **不引入 Markdown 库**：客户端半是手写、零构建的，拖一个依赖进来
+     * 要连打包一起解决。而且这里渲染的是**我自己的**制品（标题/列表/引用/代码块
+     * 这四种），不是任意 web 内容。渲染器只覆盖这四种，遇到别的原样显示 ——
+     * **宁可少渲染，不要错渲染**。
+     */
+    function renderMarkdown(md) {
+      const out = [];
+      let inCode = false;
+      let code = [];
+      let list = [];
+      const flushList = function () {
+        if (!list.length) return;
+        out.push(h('ul', {
+          key: 'ul' + out.length,
+          style: { margin: '4px 0 8px', paddingLeft: '18px' },
+        }, list.map(function (li, k) { return h('li', { key: k, style: { marginBottom: '2px' } }, li); })));
+        list = [];
+      };
+      const inline = function (text, key) {
+        // 只处理 **加粗** 与 `行内代码` —— 够用，而且不会误伤别的字符
+        const parts = [];
+        const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+        let last = 0, m, k = 0;
+        while ((m = re.exec(text))) {
+          if (m.index > last) parts.push(text.slice(last, m.index));
+          const tok = m[0];
+          if (tok.slice(0, 2) === '**') parts.push(h('strong', { key: k++ }, tok.slice(2, -2)));
+          else parts.push(h('code', {
+            key: k++,
+            style: Object.assign({}, F.mono, { fontSize: '11px', padding: '0 3px', borderRadius: '3px', background: 'var(--dsw-alias-bg-layer-2)' }),
+          }, tok.slice(1, -1)));
+          last = m.index + tok.length;
+        }
+        if (last < text.length) parts.push(text.slice(last));
+        return h('span', { key: key }, parts);
+      };
+
+      md.split('\n').forEach(function (line, i) {
+        if (/^\s*```/.test(line)) {
+          if (inCode) {
+            out.push(h('pre', {
+              key: 'pre' + i,
+              style: Object.assign({}, F.mono, {
+                fontSize: '11px', lineHeight: '16px', padding: '8px 10px', margin: '6px 0',
+                borderRadius: '6px', background: 'var(--dsw-alias-bg-layer-2)',
+                border: '1px solid ' + T.border, overflow: 'auto', whiteSpace: 'pre',
+              }),
+            }, code.join('\n')));
+            code = [];
+          }
+          inCode = !inCode;
+          return;
+        }
+        if (inCode) { code.push(line); return; }
+        const hm = /^(#{1,4})\s+(.*)$/.exec(line);
+        if (hm) {
+          flushList();
+          const lvl = hm[1].length;
+          out.push(h('div', {
+            key: 'h' + i,
+            style: {
+              fontSize: lvl <= 2 ? '14px' : '13px', fontWeight: '600', color: T.fg,
+              margin: out.length ? '14px 0 6px' : '0 0 6px',
+              paddingBottom: lvl <= 2 ? '4px' : '0',
+              borderBottom: lvl <= 2 ? '1px solid ' + T.border : 'none',
+            },
+          }, inline(hm[2], 'i')));
+          return;
+        }
+        if (/^\s*[-*]\s+/.test(line)) { list.push(inline(line.replace(/^\s*[-*]\s+/, ''), i)); return; }
+        if (/^>\s?/.test(line)) {
+          flushList();
+          out.push(h('div', {
+            key: 'q' + i,
+            style: { borderLeft: '3px solid ' + T.border2, paddingLeft: '10px', margin: '6px 0', color: T.fg2 },
+          }, inline(line.replace(/^>\s?/, ''), 'i')));
+          return;
+        }
+        if (!line.trim()) { flushList(); return; }
+        flushList();
+        out.push(h('div', { key: 'p' + i, style: { margin: '4px 0' } }, inline(line, 'i')));
+      });
+      flushList();
+      return out;
+    }
+
+    /** 交付物弹层。 */
+    function ArtifactViewer(props) {
+      const [state, setState] = React.useState({ phase: 'loading' });
+      React.useEffect(function () {
+        let alive = true;
+        fetch('./api/sdlc-ui.artifact?task=' + encodeURIComponent(props.task) + '&file=' + encodeURIComponent(props.file),
+              { credentials: 'same-origin' })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (x) {
+            if (!alive) return;
+            if (!x.ok) throw new Error(x.d && x.d.error ? x.d.error : 'HTTP 错误');
+            setState({ phase: 'ready', text: x.d.text, bytes: x.d.bytes });
+          })
+          .catch(function (e) {
+            if (alive) setState({ phase: 'error', error: String(e && e.message ? e.message : e) });
+          });
+        return function () { alive = false; };
+      }, [props.task, props.file]);
+
+      let body;
+      if (state.phase === 'loading') {
+        body = h('div', { style: Object.assign({}, F.meta, { color: T.fg2 }) }, '读取中…');
+      } else if (state.phase === 'error') {
+        // 读不出来要说清原因，不要给一个空框
+        body = h('div', { style: Object.assign({}, F.meta, { color: T.err }) }, '读不出来：' + state.error);
+      } else if (/\.json$/i.test(props.file)) {
+        let pretty = state.text;
+        try { pretty = JSON.stringify(JSON.parse(state.text), null, 2); } catch (e) { /* 原样显示 */ }
+        body = h('pre', {
+          style: Object.assign({}, F.mono, {
+            fontSize: '11px', lineHeight: '16px', margin: '0', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }),
+        }, pretty);
+      } else {
+        body = h('div', {}, renderMarkdown(state.text));
+      }
+
+      return h('div', {
+        onClick: function (ev) { ev.stopPropagation(); },
+        style: {
+          position: 'fixed', top: '0', left: '0', right: '0', bottom: '0', zIndex: '60',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.32)',
+        },
+      }, h('div', {
+        style: {
+          width: '760px', maxWidth: '92vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column',
+          background: 'var(--dsw-alias-bg-overlay)', border: '1px solid ' + T.border2,
+          borderRadius: '12px', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+        },
+      }, [
+        h('div', {
+          key: 'head',
+          style: { display: 'flex', alignItems: 'center', gap: S.sm, padding: '10px 14px', borderBottom: '1px solid ' + T.border },
+        }, [
+          h(Icon, { key: 'i', name: 'doc', size: 13, style: { color: T.fg2 } }),
+          h('span', { key: 'f', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '600' }) }, props.file),
+          h('span', { key: 't', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, props.task),
+          state.bytes ? h('span', { key: 'b', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, Math.round(state.bytes / 100) / 10 + ' KB') : null,
+          h('span', { key: 'sp', style: { flex: '1 1 auto' } }),
+          h('button', {
+            key: 'x',
+            title: '关闭',
+            onClick: function (ev) { ev.stopPropagation(); props.onClose(); },
+            style: Object.assign({}, F.meta, {
+              cursor: 'pointer', background: 'transparent', border: '1px solid ' + T.border2,
+              borderRadius: '6px', width: '26px', height: '24px', color: T.fg2,
+            }),
+          }, '✕'),
+        ]),
+        h('div', {
+          key: 'body',
+          style: Object.assign({}, F.meta, { padding: '14px 16px', overflow: 'auto', color: T.fg }),
+        }, body),
+      ]));
+    }
+
+
     /** 详情面板（A/B 共用）：当前阶段的产出物 + 卡点 + 轨迹。 */
     function Detail(props) {
       const t = props.task;
+      const onOpen = props.onOpen;
       return h('div', {}, [
         h('div', { key: 'h', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, [
           h('span', { key: 'id', style: Object.assign({}, F.title, { color: T.fg, fontSize: '15px' }) }, t.id),
@@ -818,8 +1032,8 @@ window.__ModuleLoader__.load({
         ]),
         t.title ? h('div', { key: 't', style: Object.assign({}, F.meta, { color: T.fg2, marginTop: S.xs }) }, t.title) : null,
         h(BlockedBy, { key: 'b', task: t, roomy: true }),
-        h(Stepper, { key: 'st', task: t }),
-        h(Focus, { key: 'fo', task: t }),
+        h(Stepper, { key: 'st', task: t, onOpen: props.onOpen }),
+        h(Focus, { key: 'fo', task: t, onOpen: props.onOpen }),
         h(Timeline, { key: 'tl', task: t }),
       ]);
     }

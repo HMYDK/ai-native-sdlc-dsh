@@ -185,6 +185,60 @@ function blockedBy(status: string, artifacts: Record<string, string>): string[] 
 export function apply(ctx: Context, config: { tasksDir: string }): void {
   const dir = config.tasksDir.replace(/\/+$/, '');
 
+  /**
+   * 候选仓库根（按可靠性）：`?cwd=` → DSH 持久化的工作区列表 → 进程 cwd 及其祖先。
+   * 桌面 App 的进程 cwd 是 `~/.dsh/profiles/desktop`，**不是任何仓库**，
+   * 所以第二条（持久化）是主力。
+   */
+  const candidateRoots = async (request: Request): Promise<string[]> => {
+    const storagesRoot = join(homedir(), '.dsh', 'storages');
+    const fromStorage: string[] = [];
+    try {
+      const raw = await ctx.fs.readText(
+        await ctx.fs.resolve(join(storagesRoot, 'workspace.json'), { cwd: storagesRoot }),
+      );
+      const seen = new Set<string>();
+      const walk = (o: unknown, depth: number): void => {
+        if (depth > 5 || o === null || typeof o !== 'object') return;
+        if (Array.isArray(o)) {
+          for (const v of o.slice(0, 50)) walk(v, depth + 1);
+          return;
+        }
+        for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+          if (k === 'path' && typeof v === 'string' && v.startsWith('/')) seen.add(v);
+          else walk(v, depth + 1);
+        }
+      };
+      walk(JSON.parse(raw), 0);
+      fromStorage.push(...seen);
+    } catch {
+      // 读不到就没有这一路候选
+    }
+    const fromClient = (new URL(request.url).searchParams.get('cwd') ?? '').split(',').map((x) => x.trim());
+    const fromProcess: string[] = [];
+    for (let d = process.cwd(); d !== '/' && d.length > 1; d = dirname(d)) fromProcess.push(d);
+    return [
+      ...new Set(
+        [...fromClient, ...fromStorage, ...fromProcess]
+          .filter((x) => x.startsWith('/') && x !== '/' && !x.includes('\0'))
+          .map((x) => x.replace(/\/+$/, '')),
+      ),
+    ];
+  };
+
+  const resolveRepoRoot = async (request: Request): Promise<string | null> => {
+    for (const root of await candidateRoots(request)) {
+      try {
+        const t = await ctx.fs.resolve(`${root}/${dir}`, { cwd: root });
+        const entries = await ctx.fs.listDir(t);
+        if (entries.length > 0) return root;
+      } catch {
+        // 这个候选不行，试下一个
+      }
+    }
+    return null;
+  };
+
   const handler = async (request: Request): Promise<Response> => {
     try {
       // ⚠️ 仓库根从哪里来 —— 这里曾经有个真实的漂移。
@@ -202,61 +256,7 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
       // "能读任意目录"仍然是一个我不该给的权限。所以只接受
       // **绝对路径且不是文件系统根**的值；否则退回进程 cwd。
       // 这样最坏情况是"看了错仓库"，而不是"被当成任意文件读取器"。
-      // ── 候选路径从哪里来（按可靠性排序）
-      //
-      // 桌面 App 的进程 cwd 是 `~/.dsh/profiles/desktop` —— **不是任何仓库**。
-      // 所以只靠 process.cwd() 永远找不到任务。实测用户看到的就是
-      // 「0 个任务 · <DSH_HOME>/profiles/desktop/.ai/tasks」。
-      //
-      // 三条来源，从最可靠到最兜底：
-      //   ① ?cwd= —— 客户端传的（拿不到时为空）
-      //   ② **DSH 自己持久化的工作区列表**（`~/.dsh/storages/workspace.json`）。
-      //      这是最可靠的一条：它就是用户在侧栏里看到的那些工作区。
-      //   ③ process.cwd() 及其祖先
-      //
-      // ② 是这次的关键发现：DSH 把工作区路径存在磁盘上，
-      // 而 host 半**跑在同一个机器上**，直接读就行 —— 不用绕客户端。
-      const storagesRoot = join(homedir(), '.dsh', 'storages');
-      const fromStorage: string[] = [];
-      try {
-        const raw = await ctx.fs.readText(
-          await ctx.fs.resolve(join(storagesRoot, 'workspace.json'), { cwd: storagesRoot }),
-        );
-        // 递归收 path 字段。**对形状宽容**：存储格式不是我的契约，
-        // 改了不该让面板崩，只是少几个候选。
-        const seen = new Set<string>();
-        const walk = (o: unknown, depth: number): void => {
-          if (depth > 5 || o === null || typeof o !== 'object') return;
-          if (Array.isArray(o)) {
-            for (const v of o.slice(0, 50)) walk(v, depth + 1);
-            return;
-          }
-          for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
-            if (k === 'path' && typeof v === 'string' && v.startsWith('/')) seen.add(v);
-            else walk(v, depth + 1);
-          }
-        };
-        walk(JSON.parse(raw), 0);
-        fromStorage.push(...seen);
-      } catch {
-        // 读不到就没有这一路候选 —— 不影响别的来源
-      }
-
-      const rawCwd = new URL(request.url).searchParams.get('cwd') ?? '';
-      const fromClient = rawCwd.split(',').map((p) => p.trim());
-
-      // process.cwd() 及其祖先（覆盖"从仓库里启动"的常见情况）
-      const fromProcess: string[] = [];
-      for (let d = process.cwd(); d !== '/' && d.length > 1; d = dirname(d)) fromProcess.push(d);
-
-      const searchRoots = [
-        ...new Set(
-          [...fromClient, ...fromStorage, ...fromProcess]
-            .filter((p) => p.startsWith('/') && p !== '/' && !p.includes('\0'))
-            .map((p) => p.replace(/\/+$/, '')),
-        ),
-      ];
-
+      const searchRoots = await candidateRoots(request);
       // 逐个候选试，取第一个真的有任务目录的；都没有就用第一个候选
       //（这样 `repoRoot` 与"查过哪里"对得上，空白时能说清是查了哪儿）。
       let repoRoot = searchRoots[0] as string;
@@ -414,6 +414,69 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
       );
     }
   };
+
+  /**
+   * 读**一个交付物**的内容。
+   *
+   * ## ⚠️ 这是一个新的读取面，所以校验必须认真
+   *
+   * `task` 与 `file` 都来自查询参数。直接拼进路径，这个端点就成了
+   * "任意文件读取器" —— 而它挂在已认证通道上，意味着**任何登录的
+   * 浏览器会话都能读这台机器的任何文件**。所以三重限制：
+   *
+   *   ① `task` / `file` 只允许 `[A-Za-z0-9_.-]`，且不得含 `..`
+   *   ② **`file` 必须在 `artifacts` 登记表里** —— 白名单来自**事实来源**
+   *      （`state.yaml` 的 artifacts），不是来自我临时写的正则。
+   *      任务目录里还有别的东西（如 `verification-observations.json`），
+   *      它们**不该**被这个端点读到。
+   *   ③ 仓库根复用 tasks 端点那一套候选逻辑
+   */
+  const artifactHandler = async (request: Request): Promise<Response> => {
+    const fail = (code: number, message: string): Response =>
+      new Response(JSON.stringify({ error: message }), {
+        status: code,
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+      });
+    try {
+      const q = new URL(request.url).searchParams;
+      const task = q.get('task') ?? '';
+      const want = q.get('file') ?? '';
+      if (!/^[A-Za-z0-9_-]+$/.test(task)) return fail(400, 'task 不合法');
+      if (!/^[A-Za-z0-9_.-]+$/.test(want) || want.includes('..')) return fail(400, 'file 不合法');
+
+      const repoRoot = await resolveRepoRoot(request);
+      if (!repoRoot) return fail(404, '找不到任务目录');
+
+      const stateText = await ctx.fs.readText(
+        await ctx.fs.resolve(`${repoRoot}/${dir}/${task}/state.yaml`, { cwd: repoRoot }),
+      );
+      const st = parseStateYaml(stateText);
+
+      // ② 白名单来自 artifacts 登记表 —— 不在里面就读不到
+      const allowed = Object.values(st.artifacts);
+      if (!allowed.includes(want)) {
+        return fail(403, `"${want}" 不在该任务的 artifacts 登记表里（可读：${allowed.join(', ') || '无'}）`);
+      }
+
+      const text = await ctx.fs.readText(
+        await ctx.fs.resolve(`${repoRoot}/${dir}/${task}/${want}`, { cwd: repoRoot }),
+      );
+      return new Response(
+        JSON.stringify({ task, file: want, bytes: text.length, text: text.slice(0, 200_000) }),
+        { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } },
+      );
+    } catch (err) {
+      return fail(500, err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const registerArtifact = ctx.connection.fetch.register({
+    path: '/api/sdlc-ui.artifact',
+    methods: ['GET'],
+    requestBody: 'buffered',
+    fetch: artifactHandler,
+  });
+  ctx.effect(() => registerArtifact, 'sdlc-ui.artifact route');
 
   const register = ctx.connection.fetch.register({
     // ⚠️ 路径**必须**以 `/api/` 开头。

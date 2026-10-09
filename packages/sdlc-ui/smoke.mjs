@@ -272,6 +272,33 @@ console.log('\n== 4d. 注册的组件必须真的存在（这条是补的事故�
   }
 }
 
+console.log('\n== 4f. 交付物端点的安全（新开了一个读取面，所以要钉住）==');
+{
+  const hostSrc = fs.readFileSync(path.join(DIR, 'lib/index.js'), 'utf8');
+  const src = fs.readFileSync(bundle, 'utf8');
+  // 端点存在
+  if (hostSrc.includes("'/api/sdlc-ui.artifact'")) ok('注册了 /api/sdlc-ui.artifact');
+  else bad('没有注册交付物端点 —— 点开交付物会 404');
+  // ⚠️ 白名单必须来自 artifacts 登记表，而不是"临时写的正则"
+  if (hostSrc.includes('Object.values(st.artifacts)') && hostSrc.includes('allowed.includes')) {
+    ok('白名单来自 artifacts 登记表（事实来源），不是临时正则');
+  } else bad('白名单没有走 artifacts 登记表 —— 可能变成任意文件读取器');
+  if (hostSrc.includes('不在该任务的 artifacts 登记表里')) ok('越权时明确拒绝并说明可读清单');
+  else bad('越权时没有拒绝');
+  // 路径穿越
+  if (hostSrc.includes("want.includes('..')")) ok('拒绝含 .. 的文件名（路径穿越）');
+  else bad('没有拒绝路径穿越');
+  if (hostSrc.includes('/^[A-Za-z0-9_-]+$/.test(task)')) ok('task 名有形状校验');
+  else bad('task 名没有形状校验');
+  // 客户端必须真的会去取内容
+  if (src.includes("'./api/sdlc-ui.artifact?task='")) ok('客户端用相对路径取交付物内容');
+  else bad('客户端没有取交付物内容');
+  // 流程条上必须能直接看到交付物名（用户的原始要求）
+  if (/art\.file/.test(src) && /onOpen\(art\.file\)/.test(src)) {
+    ok('流程条上的交付物名可点（用户要求"可以直接看出来 + 可以点击查看"）');
+  } else bad('流程条上没有可点的交付物名');
+}
+
 console.log('\n== 5. 只依赖宿主提供的模块 ==');
 if (required.every((r) => r === 'react' || r === 'react/jsx-runtime')) {
   ok(`require 的模块都在宿主白名单内：[${[...new Set(required)].join(', ')}]`);
