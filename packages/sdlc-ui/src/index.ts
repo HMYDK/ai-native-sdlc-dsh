@@ -44,41 +44,142 @@ export const Config = z.object({
  * 不划算，而手写解析的风险是"遇到没见过的形状会错"——
  * 所以它对不认识的行**直接跳过**，且**任何解析失败都不抛错**（见下）。
  */
-function parseStateYaml(text: string): {
+interface HistoryEntry {
+  at: string;
+  from: string;
+  to: string;
+  reason: string;
+}
+
+interface ParsedState {
   status?: string;
   title?: string;
-  artifacts: Record<string, string>;
+  created?: string;
   updated?: string;
-} {
-  const out: { status?: string; title?: string; artifacts: Record<string, string>; updated?: string } = {
-    artifacts: {},
-  };
+  artifacts: Record<string, string>;
+  history: HistoryEntry[];
+}
+
+/**
+ * 解析 `state.yaml` 里面板需要的字段（**含 history**）。
+ *
+ * ⚠️ 这里刻意**不引入 YAML 库**：`state.yaml` 是本仓库自己写出来的固定形状，
+ * 为一屏展示拖进一个解析器不划算。风险是"遇到没见过的形状会错"，
+ * 所以：不认识的行**直接跳过**，任何解析失败都**不抛错**（读不出来就不画这个任务，
+ * 绝不伪造）。`history` 的每个条目是 `- at/from/to/reason` 四行，理由可能很长。
+ */
+function parseStateYaml(text: string): ParsedState {
+  const out: ParsedState = { artifacts: {}, history: [] };
   let inArtifacts = false;
+  let inHistory = false;
+  let cur: Partial<HistoryEntry> | null = null;
+
+  const flush = (): void => {
+    if (cur && typeof cur.at === 'string') {
+      out.history.push({
+        at: cur.at,
+        from: typeof cur.from === 'string' ? cur.from : '',
+        to: typeof cur.to === 'string' ? cur.to : '',
+        reason: typeof cur.reason === 'string' ? cur.reason : '',
+      });
+    }
+    cur = null;
+  };
+
   for (const raw of text.split('\n')) {
     const line = raw.trimEnd();
+    // 新的 history 条目
+    if (inHistory && /^\s{2}-\s/.test(line)) {
+      flush();
+      cur = {};
+      const rest = line.replace(/^\s{2}-\s*/, '');
+      const kv = /^(\w+):\s*(.*)$/.exec(rest);
+      if (kv) (cur as Record<string, string>)[kv[1] as string] = unquote(kv[2] as string);
+      continue;
+    }
+    if (/^history:\s*$/.test(line)) {
+      inHistory = true;
+      inArtifacts = false;
+      continue;
+    }
+    if (inHistory && cur && /^\s{4}(\w+):\s*(.*)$/.test(line)) {
+      const m = /^\s{4}(\w+):\s*(.*)$/.exec(line);
+      if (m) (cur as Record<string, string>)[m[1] as string] = unquote(m[2] as string);
+      continue;
+    }
+    if (/^[a-zA-Z_]/.test(line)) {
+      if (inHistory) flush();
+      inHistory = false;
+    }
     if (/^artifacts:\s*\{\s*\}\s*$/.test(line)) {
       inArtifacts = false;
       continue;
     }
     if (/^artifacts:\s*$/.test(line)) {
       inArtifacts = true;
+      inHistory = false;
       continue;
     }
-    if (/^[a-zA-Z_]/.test(line)) inArtifacts = false; // 顶层键，退出 artifacts 段
+    if (/^[a-zA-Z_]/.test(line)) inArtifacts = false;
     if (inArtifacts) {
       const m = /^\s{2}([a-zA-Z_][\w-]*):\s*"?([^"]*)"?\s*$/.exec(line);
       if (m) out.artifacts[m[1] as string] = m[2] as string;
       continue;
     }
+    if (inHistory) continue;
     const kv = /^([a-zA-Z_][\w-]*):\s*(.*)$/.exec(line);
     if (!kv) continue;
     const key = kv[1];
-    const value = (kv[2] ?? '').trim().replace(/^"(.*)"$/, '$1');
+    const value = unquote(kv[2] as string);
     if (key === 'status') out.status = value;
     else if (key === 'title') out.title = value;
+    else if (key === 'created') out.created = value;
     else if (key === 'updated') out.updated = value;
   }
+  flush();
   return out;
+}
+
+/** 去掉 YAML 标量两侧的引号。`state.yaml` 里标题与理由都可能带引号。 */
+function unquote(v: string): string {
+  const t = v.trim();
+  return /^".*"$/.test(t) ? (t.slice(1, -1) as string) : t;
+}
+
+/** 抽出一个 markdown 的**章节骨架**（一到三级标题）。 */
+function sectionsOf(md: string): string[] {
+  const out: string[] = [];
+  for (const line of md.split('\n')) {
+    const m = /^(#{1,3})\s+(.+?)\s*$/.exec(line);
+    if (m) out.push(m[2] as string);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+/** 每个阶段**应该**有哪个制品。缺了就是卡在这一门。 */
+const STAGE_ARTIFACT: Record<string, string> = {
+  INTENT: 'intent',
+  SPEC: 'spec',
+  PLANNED: 'plan',
+  IMPLEMENTING: 'plan',
+  VERIFYING: 'verification',
+  REVIEWING: 'review',
+};
+
+/** 阶段顺序（面板画流程线用）。 */
+const STAGES = ['INTENT', 'SPEC', 'PLANNED', 'IMPLEMENTING', 'VERIFYING', 'REVIEWING', 'DONE'] as const;
+
+/**
+ * 一个任务**还缺什么才能过这一门**。
+ *
+ * 这是"卡在哪"的答案。没有它，面板只能告诉你"现在是 VERIFYING"，
+ * 而人真正想知道的是"**为什么过不去**"。
+ */
+function blockedBy(status: string, artifacts: Record<string, string>): string[] {
+  const want = STAGE_ARTIFACT[status];
+  if (!want || artifacts[want]) return [];
+  return [`这一门要求制品 "${want}"，但它不在 artifacts 里`];
 }
 
 export function apply(ctx: Context, config: { tasksDir: string }): void {
@@ -191,13 +292,21 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
           continue;
         }
         const st = parseStateYaml(stateText);
-        let verdict: { status: string; met: number; notMet: number; cannotTell: number } | undefined;
+        let verdict:
+          | { status: string; met: number; notMet: number; cannotTell: number; findings: number; unverified: number; summary: string }
+          | undefined;
         try {
           const raw = await ctx.fs.readText(
               await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/verification.json`, { cwd: repoRoot }),
             );
           const doc = JSON.parse(raw) as {
-            verdict?: { status?: string; criteria_results?: { result?: string }[] };
+            verdict?: {
+              status?: string;
+              criteria_results?: { result?: string }[];
+              findings?: unknown[];
+              unverified?: unknown[];
+              summary?: string;
+            };
           };
           const results = doc.verdict?.criteria_results ?? [];
           const count = (r: string) => results.filter((x) => x.result === r).length;
@@ -207,18 +316,88 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
               met: count('met'),
               notMet: count('not_met'),
               cannotTell: count('cannot_tell'),
+              findings: Array.isArray(doc.verdict.findings) ? doc.verdict.findings.length : 0,
+              // ⚠️ unverified 必须单独报出来 —— 它是"验证者说它没复核的东西"，
+              // 而"通过"里最容易被人忽略的正是这一块。
+              unverified: Array.isArray(doc.verdict.unverified) ? doc.verdict.unverified.length : 0,
+              summary: typeof doc.verdict.summary === 'string' ? doc.verdict.summary.slice(0, 400) : '',
             };
           }
         } catch {
           verdict = undefined; // 没验证过就是没验证过
         }
+        let review: { decision?: string; rounds?: number; notAccepted?: number; notes: string[] } | undefined;
+        try {
+          const raw = await ctx.fs.readText(
+            await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/review.json`, { cwd: repoRoot }),
+          );
+          const doc = JSON.parse(raw) as {
+            decision?: string;
+            rounds?: unknown[];
+            not_accepted?: string[];
+            honest_notes?: string[];
+          };
+          review = {
+            decision: doc.decision,
+            rounds: Array.isArray(doc.rounds) ? doc.rounds.length : 0,
+            notAccepted: Array.isArray(doc.not_accepted) ? doc.not_accepted.length : 0,
+            notes: Array.isArray(doc.honest_notes) ? doc.honest_notes.slice(0, 3) : [],
+          };
+        } catch {
+          review = undefined;
+        }
+        // 每个制品的**形状**：章节骨架 + 体量。这是"交付了什么"的直接答案。
+        const artifactDetail: { kind: string; file: string; sections: string[]; bytes: number }[] = [];
+        for (const [kind, file] of Object.entries(st.artifacts)) {
+          try {
+            const text = await ctx.fs.readText(
+              await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/${file}`, { cwd: repoRoot }),
+            );
+            artifactDetail.push({
+              kind,
+              file,
+              // JSON 制品没有 markdown 标题，用顶层键当"章节"
+              sections: file.endsWith('.json')
+                ? Object.keys(JSON.parse(text)).slice(0, 12)
+                : sectionsOf(text),
+              bytes: text.length,
+            });
+          } catch {
+            // 登记了但读不出来 —— 如实报一个空形状，不假装它有内容
+            artifactDetail.push({ kind, file, sections: [], bytes: 0 });
+          }
+        }
+
+        // 历史轨迹：每次迁移的时间与**理由**。理由是人写给自己看的，价值很高。
+        const timeline = st.history.map((h) => ({
+          at: h.at,
+          from: h.from,
+          to: h.to,
+          reason: h.reason,
+        }));
+
+        // 相邻两次迁移的时间差 —— "这一门花了多久"
+        const durations: { stage: string; ms: number }[] = [];
+        for (let i = 1; i < timeline.length; i += 1) {
+          const a = Date.parse(timeline[i - 1]?.at ?? '');
+          const b = Date.parse(timeline[i]?.at ?? '');
+          if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
+            durations.push({ stage: timeline[i]?.from ?? '', ms: b - a });
+          }
+        }
+
         tasks.push({
           id,
           status: st.status ?? null,
           title: st.title ?? null,
-          artifacts: Object.keys(st.artifacts),
+          created: st.created ?? null,
           updated: st.updated ?? null,
+          artifacts: artifactDetail,
+          timeline,
+          durations,
+          blocked: blockedBy(st.status ?? '', st.artifacts),
           verdict: verdict ?? null,
+          review: review ?? null,
         });
       }
 

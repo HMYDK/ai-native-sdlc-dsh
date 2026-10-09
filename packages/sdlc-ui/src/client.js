@@ -113,66 +113,252 @@ window.__ModuleLoader__.load({
       }, props.text);
     }
 
-    /** 一个任务 = 一张卡。用卡片而不是"一条一条带下划线"，让边界自然成立。 */
+    /** 人读的时间：秒/分/时/天。面板上不该出现 "1273000ms"。 */
+    function humanMs(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return '';
+      const s = Math.round(ms / 1000);
+      if (s < 60) return s + ' 秒';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + ' 分钟';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + ' 小时 ' + (m % 60) + ' 分';
+      return Math.floor(h / 24) + ' 天 ' + (h % 24) + ' 小时';
+    }
+    function shortTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const p = (n) => String(n).padStart(2, '0');
+      return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    const STAGES = ['INTENT', 'SPEC', 'PLANNED', 'IMPLEMENTING', 'VERIFYING', 'REVIEWING', 'DONE'];
+    /** 阶段的中文名 —— 面板是给人看的，英文枚举名不该出现在正文里。 */
+    const STAGE_CN = {
+      INTENT: '意图', SPEC: '规格', PLANNED: '计划', IMPLEMENTING: '实现',
+      VERIFYING: '验证', REVIEWING: '评审', DONE: '完成',
+    };
+    const STAGE_ARTIFACT = { INTENT: 'intent', SPEC: 'spec', PLANNED: 'plan', VERIFYING: 'verification', REVIEWING: 'review' };
+
+    /**
+     * 阶段轨：一条竖线的流程，每个阶段显示**它的产出物**。
+     *
+     * 这是这个面板存在的理由。原来我只显示一个状态徽章 ——
+     * 而人真正想知道的是"**每个阶段各交付了什么、现在卡在哪一门**"。
+     */
+    function StageRail(props) {
+      const t = props.task;
+      const cur = STAGES.indexOf(t.status);
+      const byKind = {};
+      (t.artifacts || []).forEach(function (a) { byKind[a.kind] = a; });
+
+      const rows = [];
+      STAGES.forEach(function (stage, i) {
+        const done = cur >= 0 && i < cur;
+        const active = i === cur;
+        const art = STAGE_ARTIFACT[stage] ? byKind[STAGE_ARTIFACT[stage]] : null;
+        const dur = (t.durations || []).find(function (d) { return d.stage === STAGES[i - 1]; });
+
+        // 左边的点与连线
+        const dot = h('span', {
+          key: 'dot',
+          style: {
+            position: 'absolute', left: '0', top: '3px',
+            width: '9px', height: '9px', borderRadius: '50%',
+            border: '2px solid ' + (active ? T.brand : done ? T.ok : T.border2),
+            background: done || active ? (active ? T.brand : T.ok) : 'transparent',
+            boxSizing: 'border-box',
+          },
+        });
+        const line = i < STAGES.length - 1
+          ? h('span', {
+              key: 'line',
+              style: {
+                position: 'absolute', left: '4px', top: '14px', bottom: '-6px', width: '1px',
+                background: done ? T.ok : T.border,
+              },
+            })
+          : null;
+
+        const line2 = [];
+        line2.push(h('span', {
+          key: 'nm',
+          style: {
+            fontSize: '12px', fontWeight: active ? '600' : '500',
+            color: active ? T.fg : done ? T.fg : T.fg2,
+            marginRight: '6px',
+          },
+        }, STAGE_CN[stage] || stage));
+        // 这一门待了多久
+        if (dur && dur.ms > 2000) {
+          line2.push(h('span', { key: 'd', style: { fontSize: '10px', color: T.fg2, marginRight: '6px' } },
+            humanMs(dur.ms)));
+        }
+        // 产出物
+        if (art) {
+          line2.push(h('span', {
+            key: 'a',
+            title: (art.sections || []).join('  ·  '),
+            style: {
+              fontSize: '10px', color: T.fg2, padding: '0 5px', height: '16px', lineHeight: '15px',
+              borderRadius: '4px', background: 'var(--dsw-alias-bg-layer-2)',
+              border: '1px solid ' + T.border, marginRight: '4px',
+            },
+          }, art.file + '  ' + (art.bytes ? Math.round(art.bytes / 100) / 10 + 'k' : '')));
+          // 章节骨架 —— 这是"交付物长什么样"
+          if (art.sections && art.sections.length) {
+            line2.push(h('span', { key: 's', style: { fontSize: '10px', color: T.fg2 } },
+              art.sections.slice(0, 6).join(' · ') + (art.sections.length > 6 ? ' …' : '')));
+          }
+        } else if (active && STAGE_ARTIFACT[stage]) {
+          line2.push(h('span', { key: 'miss', style: { fontSize: '10px', color: T.warn } },
+            '缺 ' + STAGE_ARTIFACT[stage]));
+        }
+        // 验证门的结论
+        if (stage === 'VERIFYING' && t.verdict) {
+          const v = t.verdict;
+          const total = v.met + v.notMet + v.cannotTell;
+          line2.push(h(Pill, {
+            key: 'v',
+            text: (v.status === 'approve' ? '通过 ' : v.status === 'reject' ? '驳回 ' : '待人工 ') + v.met + '/' + total,
+            color: VERDICT_COLOR[v.status] || T.idle,
+          }));
+          if (v.unverified > 0) {
+            line2.push(h('span', { key: 'u', style: { fontSize: '10px', color: T.warn, marginLeft: '4px' } },
+              v.unverified + ' 项未复核'));
+          }
+}
+        // 评审门的结论
+        if (stage === 'REVIEWING' && t.review) {
+          line2.push(h(Pill, {
+            key: 'r',
+            text: (t.review.decision === 'accept' ? '接受' : t.review.decision || '—') + ' · ' + t.review.rounds + ' 轮',
+            color: t.review.decision === 'accept' ? T.ok : T.warn,
+          }));
+        }
+
+        rows.push(h('div', {
+          key: stage,
+          style: { position: 'relative', paddingLeft: '20px', paddingBottom: i < STAGES.length - 1 ? '10px' : '0', minHeight: '18px' },
+        }, [dot, line, h('div', { key: 'c', style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px' } }, line2)]));
+      });
+      return h('div', { style: { marginTop: '10px' } }, rows);
+    }
+
+    /** 迁移轨迹：每次状态变化的时间与**理由**（理由是人写给自己看的，价值高）。 */
+    function Timeline(props) {
+      const t = props.task;
+      const items = (t.timeline || []).slice(-6).reverse();
+      if (!items.length) return null;
+      return h('div', { style: { marginTop: '10px', paddingTop: '8px', borderTop: '1px solid ' + T.border } }, [
+        h('div', { key: 'h', style: { fontSize: '10px', color: T.fg2, marginBottom: '4px' } }, '迁移轨迹'),
+        ...items.map(function (e, i) {
+          return h('div', { key: i, style: { marginBottom: '6px', fontSize: '11px' } }, [
+            h('span', { key: 't', style: { color: T.fg2, fontVariantNumeric: 'tabular-nums', marginRight: '6px' } }, shortTime(e.at)),
+            h('span', { key: 's', style: { color: T.fg, fontWeight: '500', marginRight: '6px' } },
+              (STAGE_CN[e.to] || e.to || '创建')),
+            h('br', { key: 'br' }),
+            e.reason
+              ? h('span', { key: 'r', style: { color: T.fg2 } }, e.reason)
+              : null,
+          ]);
+        }),
+      ]);
+    }
+
+    /** 卡点：**为什么过不去**。这是"卡在哪"的直接答案。 */
+    function BlockedBy(props) {
+      const b = props.task.blocked;
+      if (!b || !b.length) return null;
+      return h('div', {
+        style: {
+          marginTop: '8px', padding: '6px 8px', borderRadius: '6px',
+          background: 'color-mix(in srgb, ' + T.warn + ' 10%, transparent)',
+          border: '1px solid ' + T.warn, fontSize: '11px', color: T.fg,
+        },
+      }, '卡住：' + b.join('；'));
+    }
+
+    /**
+     * 一个任务 = 一张卡，**默认收起**。
+     *
+     * 收起时给"一眼能看到什么"：id、状态、裁决、时长、卡点。
+     * 展开时给"交付了什么"：阶段轨 + 制品形状 + 迁移轨迹。
+     * 一屏能扫很多任务，而需要细节时又能钻进去。
+     */
     function TaskCard(props) {
       const t = props.task;
+      const [open, setOpen] = React.useState(false);
       const sc = STATUS_COLOR[t.status] || T.idle;
       const v = t.verdict;
+      const totalMs = (t.durations || []).reduce(function (a, d) { return a + d.ms; }, 0);
+      const idleMs = t.updated ? Date.now() - Date.parse(t.updated) : NaN;
+      const accepted = t.status === 'DONE';
 
-      const badges = [h(Pill, { key: 's', text: t.status || '读不出来', color: sc })];
+      // 卡片头：把"箭头+id+徽章"与"右侧的时间信息"分成两栏。
+      // 用 flex-wrap 而不是一行塞满 —— 否则窄面板下会把标题挤掉。
+      const head = [
+        h('span', {
+          key: 'arrow',
+          style: { fontSize: '9px', color: T.fg2, width: '10px', flex: '0 0 auto' },
+        }, open ? '▼' : '▶'),
+        h('span', { key: 'id', style: { fontSize: '12px', fontWeight: '600', color: T.fg, marginRight: '6px' } }, t.id),
+        h(Pill, { key: 's', text: STAGE_CN[t.status] || t.status || '读不出来', color: sc }),
+      ];
       if (v) {
-        const total = v.met + v.notMet + v.cannotTell;
-        badges.push(h(Pill, {
+        const tot = v.met + v.notMet + v.cannotTell;
+        head.push(h(Pill, {
           key: 'v',
-          text: v.status === 'approve' ? '通过 ' + v.met + '/' + total
-            : v.status === 'reject' ? '驳回'
-            : '待人工 ' + v.met + '/' + total,
+          text: (v.status === 'approve' ? '通过 ' : v.status === 'reject' ? '驳回 ' : '待人工 ') + v.met + '/' + tot,
           color: VERDICT_COLOR[v.status] || T.idle,
         }));
-      } else {
-        badges.push(h(Pill, { key: 'v', text: '未验证', color: T.idle }));
+      }
+      if (t.review && t.review.rounds > 1) {
+        head.push(h('span', { key: 'r', style: { fontSize: '10px', color: T.fg2, marginLeft: '4px' } },
+          t.review.rounds + ' 轮评审'));
+      }
+      head.push(h('span', { key: 'sp', style: { flex: '1' } }));
+      if (Number.isFinite(totalMs) && totalMs > 60000) {
+        head.push(h('span', { key: 'd', style: { fontSize: '10px', color: T.fg2, marginRight: '8px' } },
+          '历时 ' + humanMs(totalMs)));
+      }
+      if (Number.isFinite(idleMs) && t.status !== 'DONE') {
+        head.push(h('span', { key: 'i', style: { fontSize: '10px', color: idleMs > 86400000 ? T.warn : T.fg2 } },
+          humanMs(idleMs) + '未动'));
       }
 
-      const rows = [
-        h('div', { key: 'top', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, [
-          h('span', { key: 'id', style: { fontSize: '12px', fontWeight: '600', color: T.fg, letterSpacing: '0.01em' } }, t.id),
-          ...badges,
-        ]),
-      ];
+      const body = [h('div', {
+        key: 'head',
+        style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
+      }, head)];
       if (t.title) {
-        rows.push(h('div', {
+        body.push(h('div', {
           key: 'ti',
-          style: { marginTop: '4px', fontSize: '12px', lineHeight: '18px', color: T.fg2 },
+          style: {
+            marginTop: '4px', fontSize: '12px', lineHeight: '18px', color: T.fg2,
+            // 两行截断：比单行截断保留更多信息，又不会撑高卡片
+            display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          },
         }, t.title));
       }
-      if (t.artifacts && t.artifacts.length) {
-        rows.push(h('div', {
-          key: 'ar',
-          style: { marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' },
-        }, [
-          h('span', { key: 'l', style: { fontSize: '10px', color: T.fg2, marginRight: '2px' } }, '制品'),
-          ...t.artifacts.map(function (a) {
-            return h('span', {
-              key: a,
-              style: {
-                fontSize: '10px', color: T.fg2, padding: '0 5px', height: '16px', lineHeight: '16px',
-                borderRadius: '4px', background: 'var(--dsw-alias-bg-layer-2)',
-                border: '1px solid ' + T.border,
-              },
-            }, a);
-          }),
-        ]));
+      body.push(h(BlockedBy, { key: 'b', task: t }));
+      if (open) {
+        body.push(h(StageRail, { key: 'rail', task: t }));
+        body.push(h(Timeline, { key: 'tl', task: t }));
       }
 
       return h('div', {
+        onClick: function () { setOpen(!open); },
         style: {
           padding: '10px 12px',
           borderRadius: '10px',
-          background: T.layer1,
+          background: accepted ? 'transparent' : T.layer1,
           border: '1px solid ' + T.border,
           marginBottom: '8px',
+          cursor: 'pointer',
+          opacity: accepted && !open ? '0.72' : '1',
         },
-      }, rows);
+      }, body);
     }
 
     /**
@@ -307,9 +493,8 @@ window.__ModuleLoader__.load({
 
       return h('div', {
         style: {
-          padding: '20px 24px',
-          maxWidth: '760px',
-          margin: '0 auto',
+          padding: '20px 28px',
+          maxWidth: '860px',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           fontSize: '12px',
           lineHeight: '18px',
