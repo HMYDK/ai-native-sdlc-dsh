@@ -338,12 +338,31 @@ window.__ModuleLoader__.load({
 - 插件 bundle 的 URL 里有 `??`（多个插件合并成一个响应）。
   **必须从页面里取完整 URL**（含 `&rev=`）；自己拼 `plugins/??<包名>/client.js` 会 **404**
 
-### 数据通道（也已查清，未实测端到端）
+### ⚠️ 数据通道：查清了，而且**有真实的坑**
 
-`Builtin` 里给了 `host.call(method, args)` =
-"Package-private JSON RPC from Client to **this Package's Host half**"。
-所以客户端半不需要认证路由、也不需要构建期 RPC——**找自己包的 host 半即可**，
-而我们已经有一堆 host 插件。
+`Builtin` 里写着 `host.call(method, args)` = "Package-private JSON RPC from Client
+to **this Package's Host half**"，看着正是我要的。**但它在静态插件包里拿不到。**
+
+逐条查证（都是读已装产物）：
+
+| 候选 | 实际 |
+|---|---|
+| `host.call` | 只在**动态包运行器**（`cordis_run`）里成立——那里 host 半用 `harness.handle(method, fn)` 配对。注释原文：`harness.* belongs to the HOST half`。**静态插件包没有这个 harness** |
+| `ctx.remote.<ns>.<method>` | 由 host 侧的 `@Remote('methodName')` 标注、**构建期生成**。`dsh-api-workspace-files` 里的 `ClientRemote['workspaceFiles']` 就是产物。**手写拿不到** |
+| 认证 HTTP 路由（`/api/*`） | 官方有先例（`dsh-client-ui-deliverables` 用 `/api/present.host`、`/api/present.open`），但它的 host 半**自己也没注册路由**——那些路径同样是 typert/remote 协议按元数据生成的 |
+
+**所以：手写的静态客户端插件，没有现成的 host→client 数据通道。**
+可行的三条路，各有代价：
+
+1. **客户端自己读**：`ctx.uiWorkspace.listDirectory(path)` 确实存在（live Service 目录里查到）。
+   但要读 `state.yaml` 正文还需要"读文件内容"的接口 —— **未查证是否存在**
+2. **认证 HTTP 路由**：`ctx.connection` 有 authenticated URL 机制。可行但要自己处理认证，
+   而且**有真实的安全面**（自己开的端点得自己守住）
+3. **把要展示的数据变成宿主静态资源**：host 半把 `.ai/tasks/` 的摘要写成一个
+   JSON 文件，客户端按 URL 取。最土，但**没有认证面**
+
+⚠️ **这一节的结论我没有端到端验证过任何一条** —— 它们是读产物得出的。
+不要当成"能用"，要当成"候选"。
 
 ### 客户端插件的可手写格式（官方最小范例，1863 字节）
 
