@@ -173,34 +173,61 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /** 侧栏面板列表里的一个按钮，点开才显示面板（不占常驻空间）。 */
-    function SdlcPanelButton() {
-      const [open, setOpen] = React.useState(false);
-      const btn = jsx(
-        'button',
+    /**
+     * 侧栏图标。
+     *
+     * ⚠️ 槽契约（从 live Slot 树查到，不是我猜的）：
+     *   `sidebar.panellist` 是 **list**，注册要 `{id, order, label}`，
+     *   owner props 是 `{size, active}` —— 它要的是**一个图标**。
+     *   说明原文："Each list id **addresses the matching main panel**;
+     *   the sidebar owns the button and resolves its label from list metadata."
+     *
+     * 所以**按钮由侧栏负责**，我不该自己画按钮、更不该在图标里塞面板。
+     * 我第一版把整个面板塞进这里还自己做了 popover —— 架构就是错的。
+     */
+    function SdlcIcon(props) {
+      const size = props && props.size ? props.size : 16;
+      const active = !!(props && props.active);
+      return jsx(
+        'svg',
         {
-          onClick: function () { setOpen(!open); },
-          title: 'AI 原生 SDLC 看板',
-          style: {
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: open ? '#e879f9' : '#94a3b8', fontSize: '11px', padding: '2px 6px',
-          },
+          width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
+          stroke: active ? '#e879f9' : 'currentColor',
+          strokeWidth: '1.4', strokeLinecap: 'round', strokeLinejoin: 'round',
         },
-        'SDLC',
+        [
+          // 三个堆叠的方块 —— 制品链的意思
+          jsx('rect', { key: 'a', x: '1.5', y: '1.5', width: '6', height: '4', rx: '1' }),
+          jsx('rect', { key: 'b', x: '8.5', y: '6', width: '6', height: '4', rx: '1' }),
+          jsx('rect', { key: 'c', x: '1.5', y: '10.5', width: '6', height: '4', rx: '1' }),
+        ],
       );
-      if (!open) return btn;
-      return jsx('div', { style: { position: 'relative' } }, [
-        btn,
-        jsx('div', { key: 'p', style: { position: 'absolute', left: '0', top: '20px', zIndex: 50 } },
-          jsx(SdlcPanel, {})),
-      ]);
     }
 
+    /**
+     * 中央面板本体。
+     *
+     * 挂到 `main` 槽的 **key=`sdlc``** 上 —— 侧栏那个 `id='sdlc'` 的图标
+     * 按下时会 dispatch 同一个 key，于是这里被渲染。
+     * 不需要自己做开关：**选中态由侧栏与 main 槽负责**。
+     */
     const inject = ['slots'];
 
+    /** 面板的 key。侧栏的 `id` 与 `main` 的 `key` **必须是同一个字符串**。 */
+    const PANEL_ID = 'sdlc';
+
     function apply(ctx) {
+      // 两处注册，两个槽：侧栏一个图标，主列一个面板。
+      // 图标与面板靠 **同一个 id/key** 配对 —— 这是槽契约规定的，
+      // 不是我自己连的。
       ctx.slots.inject('sidebar.panellist', function* () {
-        yield ctx.slots.register({ name: 'sidebar.panellist' }, SdlcPanelButton);
+        yield ctx.slots.register(
+          { name: 'sidebar.panellist', id: PANEL_ID, order: 30, label: 'SDLC' },
+          SdlcIcon,
+        );
+      });
+      ctx.slots.inject('main', function* () {
+        yield ctx.slots.register({ name: 'main', key: PANEL_ID }, SdlcPanel);
       });
     }
 

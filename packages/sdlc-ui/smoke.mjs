@@ -108,30 +108,43 @@ const ctx = {
 };
 if (typeof mod.apply === 'function' && Array.isArray(mod.inject)) {
   mod.apply(ctx);
-  if (registered.length === 1) ok('apply() 注册了 1 个组件');
-  else bad(`应当注册 1 个，实际 ${registered.length}`);
-  const r = registered[0];
-  if (r?.opts?.name === 'sidebar.panellist') ok("注册到 'sidebar.panellist'");
-  else bad(`注册的 slot 名不对：${JSON.stringify(r?.opts)}`);
-  if (typeof r?.component === 'function') {
-    ok('注册的是一个组件函数');
-    // ── 第 5 条：那个组件必须能被调用而不崩
-    const el = r.component({});
-    if (el?.$$jsx === true) ok('组件能渲染（调用它返回了一个 React 元素）');
-    else bad(`组件返回值不像 React 元素：${JSON.stringify(el)?.slice(0, 80)}`);
-    // 现在侧栏项是个按钮（点开才显示面板，不占常驻空间）
-    if (el?.type === 'button') ok('侧栏项是按钮（点开才显示面板）');
-    else bad(`侧栏项不是按钮：${JSON.stringify(el?.type)}`);
-    if (el?.props?.title === 'AI 原生 SDLC 看板') ok('按钮带可读的 title');
-    else bad(`title 不对：${JSON.stringify(el?.props?.title)}`);
-    if (typeof el?.props?.onClick === 'function') ok('按钮有点击处理（否则面板永远打不开）');
-    else bad('按钮没有 onClick');
-    // 面板组件本身应当**不崩**地被构造出来 —— 它内部会调 hooks 与 fetch。
-    // 这里只证明"它能被构造"，不证明"它在浏览器里画对了"（那要真跑）。
-    const panelEl = r.component({});
-    if (panelEl?.$$jsx === true) ok('组件能被构造（hooks + 取数逻辑不炸）');
-    else bad('组件构造失败');
-  } else bad('注册的 component 不是函数');
+
+  // ── 契约（从 live Slot 树查到，不是猜的）：
+  //   `main` 是 **keyed**：注册要 {key}，且 side bar 的 list id 必须等于它
+  //   `sidebar.panellist` 是 **list**：注册要 {id, order, label}，画的是**图标**
+  if (registered.length === 2) ok('apply() 注册了两处（侧栏图标 + main 面板）');
+  else bad(`应当注册 2 处，实际 ${registered.length}：${JSON.stringify(registered.map((r) => r.opts))}`);
+
+  const icon = registered.find((r) => r.opts?.name === 'sidebar.panellist');
+  const panel = registered.find((r) => r.opts?.name === 'main');
+
+  if (icon) {
+    ok("注册了 'sidebar.panellist'");
+    if (typeof icon.opts.id === 'string' && icon.opts.id !== '') ok(`图标 id='${icon.opts.id}'`);
+    else bad(`图标缺少 id（list 槽的必填项）：${JSON.stringify(icon.opts)}`);
+    if (typeof icon.opts.order === 'number') ok(`order=${icon.opts.order}`);
+    if (icon.opts.label === 'SDLC') ok("label='SDLC'（侧栏按钮的显示文字）");
+    else bad(`label 不对：${JSON.stringify(icon.opts.label)}`);
+    // 图标组件的 owner props 是 {size, active}
+    const ic = icon.component({ size: 16, active: false });
+    if (ic?.$$jsx === true && ic.type === 'svg') ok('图标组件渲染出 svg（owner props {size,active} 被接受）');
+    else bad(`图标组件返回值不对：${JSON.stringify(ic?.type)}`);
+  } else bad("没有注册 'sidebar.panellist'");
+
+  if (panel) {
+    ok("注册了 'main'");
+    if (typeof panel.opts.key === 'string' && panel.opts.key !== '') ok(`main key='${panel.opts.key}'`);
+    else bad(`main 缺少 key（keyed 槽的必填项）：${JSON.stringify(panel.opts)}`);
+    // ⚠️ 关键：两处的 id/key 必须**同一个字符串**，否则按下图标什么都不会出现
+    if (icon && panel.opts.key === icon.opts.id) {
+      ok(`图标 id 与 main key 一致（'${panel.opts.key}'）—— 这就是配对的全部依据`);
+    } else {
+      bad(`图标 id(${JSON.stringify(icon?.opts.id)}) 与 main key(${JSON.stringify(panel.opts.key)}) 不一致 —— 按下图标不会有任何反应`);
+    }
+    const pe = panel.component({});
+    if (pe?.$$jsx === true) ok('面板组件能被构造（hooks + 取数逻辑不炸）');
+    else bad('面板组件构造失败');
+  } else bad("没有注册 'main'（面板没有落点）");
 } else {
   bad('apply/inject 不合法，跳过注册断言');
 }
