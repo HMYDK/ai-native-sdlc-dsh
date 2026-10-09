@@ -202,8 +202,9 @@ console.log('\n== 4d. 客户端调用宿主 hook 的形状（这一条是补的�
   //
   // 客户端半**不经 tsc**，所以这类 API 误用没有任何东西能拦。
   // 这些断言就是那个缺失的检查，能补一点是一点。
-  if (/typeof useWs !== 'function'/.test(src)) ok('先检查 useWorkspaces 确实是函数（它是槽传下来的 prop，不是全局）');
-  else bad('没有检查 useWorkspaces 是否是函数');
+  if (/typeof useWs === 'function'|typeof useWs !== 'function'/.test(src)) {
+    ok('先检查 useWorkspaces 确实是函数（它是槽传下来的 prop，不是全局）');
+  } else bad('没有检查 useWorkspaces 是否是函数');
   if (/useWs\(function \(state\)/.test(src)) ok('用 **selector 函数**调用它（真实签名要求）');
   else bad('没有用 selector 函数调用 useWorkspaces —— 签名错了');
   if (/state && state\.items/.test(src)) ok("从 `items` 取（快照里**没有** activeWorkspace）");
@@ -213,9 +214,27 @@ console.log('\n== 4d. 客户端调用宿主 hook 的形状（这一条是补的�
   // 拿不到必须**放弃**而不是崩
   // 拿不到工作区时**不允许崩**：要么退回 null，要么把错误显示出来。
   // （诊断版选择了后者 —— 显示出来比静默退回更有用，因为用户能读到原因。）
-  const safeFallback = /catch \(e\) \{\s*return null;/.test(src) || /setDetail\('读工作区失败/.test(src);
-  if (safeFallback) ok('取不到时不崩（退回 null 或把错误显示出来）');
-  else bad('取不到时没有安全兜底');
+  // 三轮改法都算合格，只要**不崩**：
+  //   ① 退回 null  ② 把错误显示出来  ③ 静默（因为 host 侧有兜底）
+  const safeFallback =
+    /catch \(e\) \{\s*return null;/.test(src) ||
+    /setDetail\('读工作区失败/.test(src) ||
+    /catch \(e\) \{ \/\* host 侧有兜底/.test(src);
+  if (safeFallback) ok('取不到工作区时不崩（有安全兜底）');
+  else bad('取不到工作区时没有安全兜底');
+}
+
+console.log('\n== 4e. 实时性：必须有轮询，且卸载时必须清掉 ==');
+{
+  const src = fs.readFileSync(bundle, 'utf8');
+  if (/setInterval\(/.test(src)) ok('有 setInterval（面板会自己更新）');
+  else bad('没有轮询 —— 任务状态变了面板不会自己变');
+  // ⚠️ 关键：不清定时器的话，每次开关面板都多一个 → 泄漏
+  if (/clearInterval\(timer\)/.test(src)) ok('卸载时 clearInterval（否则每开关一次多一个定时器）');
+  else bad('没有 clearInterval —— 定时器泄漏');
+  if (/return function \(\) \{ alive = false; clearInterval/.test(src)) {
+    ok('effect 的清理函数同时停掉轮询与在途请求的结果应用');
+  } else bad('effect 清理不完整');
 }
 
 console.log('\n== 5. 只依赖宿主提供的模块 ==');

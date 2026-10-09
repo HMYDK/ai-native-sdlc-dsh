@@ -17,6 +17,9 @@
  * authentication policy." 所以**认证不是我自己的安全面**——
  * 这正是选它而不是"自己开一个端点"的理由。
  */
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
+
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 // 显式 import 只为触发 declaration merging —— `ctx.fs` 由 dsh-fs 提供，
@@ -98,17 +101,60 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
       // "能读任意目录"仍然是一个我不该给的权限。所以只接受
       // **绝对路径且不是文件系统根**的值；否则退回进程 cwd。
       // 这样最坏情况是"看了错仓库"，而不是"被当成任意文件读取器"。
-      // 客户端可能传**多个**候选路径（逗号分隔）：它拿得到工作区列表，
-      // 但判断不了哪个是"当前"的。所以这里挑**第一个真有任务目录**的。
-      // 这比赌一个"活动工作区"字段稳。
+      // ── 候选路径从哪里来（按可靠性排序）
+      //
+      // 桌面 App 的进程 cwd 是 `~/.dsh/profiles/desktop` —— **不是任何仓库**。
+      // 所以只靠 process.cwd() 永远找不到任务。实测用户看到的就是
+      // 「0 个任务 · <DSH_HOME>/profiles/desktop/.ai/tasks」。
+      //
+      // 三条来源，从最可靠到最兜底：
+      //   ① ?cwd= —— 客户端传的（拿不到时为空）
+      //   ② **DSH 自己持久化的工作区列表**（`~/.dsh/storages/workspace.json`）。
+      //      这是最可靠的一条：它就是用户在侧栏里看到的那些工作区。
+      //   ③ process.cwd() 及其祖先
+      //
+      // ② 是这次的关键发现：DSH 把工作区路径存在磁盘上，
+      // 而 host 半**跑在同一个机器上**，直接读就行 —— 不用绕客户端。
+      const storagesRoot = join(homedir(), '.dsh', 'storages');
+      const fromStorage: string[] = [];
+      try {
+        const raw = await ctx.fs.readText(
+          await ctx.fs.resolve(join(storagesRoot, 'workspace.json'), { cwd: storagesRoot }),
+        );
+        // 递归收 path 字段。**对形状宽容**：存储格式不是我的契约，
+        // 改了不该让面板崩，只是少几个候选。
+        const seen = new Set<string>();
+        const walk = (o: unknown, depth: number): void => {
+          if (depth > 5 || o === null || typeof o !== 'object') return;
+          if (Array.isArray(o)) {
+            for (const v of o.slice(0, 50)) walk(v, depth + 1);
+            return;
+          }
+          for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+            if (k === 'path' && typeof v === 'string' && v.startsWith('/')) seen.add(v);
+            else walk(v, depth + 1);
+          }
+        };
+        walk(JSON.parse(raw), 0);
+        fromStorage.push(...seen);
+      } catch {
+        // 读不到就没有这一路候选 —— 不影响别的来源
+      }
+
       const rawCwd = new URL(request.url).searchParams.get('cwd') ?? '';
-      const candidates = rawCwd
-        .split(',')
-        .map((p) => p.trim())
-        .filter((p) => p.startsWith('/') && p !== '/' && !p.includes('\0'))
-        .map((p) => p.replace(/\/+$/, ''));
-      // 进程 cwd 永远作为兜底候选（单工作区下就是对的那个）。
-      const searchRoots = [...new Set([...candidates, process.cwd().replace(/\/+$/, '')])];
+      const fromClient = rawCwd.split(',').map((p) => p.trim());
+
+      // process.cwd() 及其祖先（覆盖"从仓库里启动"的常见情况）
+      const fromProcess: string[] = [];
+      for (let d = process.cwd(); d !== '/' && d.length > 1; d = dirname(d)) fromProcess.push(d);
+
+      const searchRoots = [
+        ...new Set(
+          [...fromClient, ...fromStorage, ...fromProcess]
+            .filter((p) => p.startsWith('/') && p !== '/' && !p.includes('\0'))
+            .map((p) => p.replace(/\/+$/, '')),
+        ),
+      ];
 
       // 逐个候选试，取第一个真的有任务目录的；都没有就用第一个候选
       //（这样 `repoRoot` 与"查过哪里"对得上，空白时能说清是查了哪儿）。
