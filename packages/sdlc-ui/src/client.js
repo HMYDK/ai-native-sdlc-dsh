@@ -53,81 +53,126 @@ window.__ModuleLoader__.load({
 
     const ENDPOINT = './api/sdlc-ui.tasks';
 
-    /** 状态 → 颜色。用固定色值而不是主题 token：token 名要查 live Theme，
-     *  等面板本身跑通再换（先解决"能不能看到"，再解决"好不好看"）。 */
-    const STATUS_COLOR = {
-      INTENT: '#94a3b8',
-      SPEC: '#60a5fa',
-      PLANNED: '#818cf8',
-      IMPLEMENTING: '#fbbf24',
-      VERIFYING: '#f472b6',
-      REVIEWING: '#c084fc',
-      DONE: '#34d399',
+    /**
+     * ## 样式：全部走主题 token，不写死任何颜色
+     *
+     * ⚠️ 我第一版写死了深色（`#0f172a` 那套），结果在浅色主题下是一块
+     * **突兀的黑块**——用户的原话是"一点审美都没有"。那不是设计，
+     * 那只是先让它能跑。而硬编码颜色的必然结果就是：**它只在一个主题下成立。**
+     *
+     * 这些 `--dsw-alias-*` token 由主题在 `<body>` 上解析，
+     * 所以**浅色/深色自动都对**，不需要我判断当前主题。
+     * 官方取值（浅色）：标题 `#0f1115`，次要 `#61666b`，
+     * 边框 `#0000000a`/`#0000001a`，成功 `#22c55e`，警告 `#f59e0b`，错误 `#ec1313`。
+     */
+    const T = {
+      fg: 'var(--dsw-alias-label-primary)',
+      fg2: 'var(--dsw-alias-label-secondary)',
+      border: 'var(--dsw-alias-border-l1)',
+      border2: 'var(--dsw-alias-border-l2)',
+      layer1: 'var(--dsw-alias-bg-layer-1)',
+      layer2: 'var(--dsw-alias-bg-layer-2)',
+      ok: 'var(--dsw-alias-state-success-primary)',
+      warn: 'var(--dsw-alias-state-warn-primary)',
+      err: 'var(--dsw-alias-state-error-primary)',
+      idle: 'var(--dsw-alias-state-idle-primary)',
+      brand: 'var(--dsw-alias-brand-primary)',
     };
-    const VERDICT_COLOR = { approve: '#34d399', reject: '#f87171', needs_human: '#fbbf24' };
 
-    function Chip(props) {
-      return h(
-        'span',
-        {
-          style: {
-            display: 'inline-block',
-            padding: '1px 6px',
-            marginRight: '6px',
-            borderRadius: '4px',
-            fontSize: '10px',
-            lineHeight: '16px',
-            border: '1px solid ' + props.color,
-            color: props.color,
-            whiteSpace: 'nowrap',
-          },
+    /** 状态 → token。用**状态色 token**，不是自己挑的紫绿蓝。 */
+    const STATUS_COLOR = {
+      INTENT: T.idle,
+      SPEC: T.fg2,
+      PLANNED: T.fg2,
+      IMPLEMENTING: T.warn,
+      VERIFYING: T.brand,
+      REVIEWING: T.brand,
+      DONE: T.ok,
+    };
+    const VERDICT_COLOR = { approve: T.ok, reject: T.err, needs_human: T.warn };
+
+    /**
+     * 小标签。
+     *
+     * 刻意做得**轻**：透明底 + 同色描边，字号比正文小一档。
+     * 一屏要放三个标签（状态/裁决/制品），实心底会糊成一片。
+     */
+    function Pill(props) {
+      return h('span', {
+        style: {
+          display: 'inline-flex', alignItems: 'center',
+          padding: '0 6px', height: '18px',
+          borderRadius: '9px',
+          border: '1px solid ' + props.color,
+          color: props.color,
+          fontSize: '11px', lineHeight: '18px', fontWeight: '500',
+          whiteSpace: 'nowrap',
+          // 同色 10% 底：够看出是个"块"，又不抢眼
+          background: 'color-mix(in srgb, ' + props.color + ' 10%, transparent)',
         },
-        props.text,
-      );
+      }, props.text);
     }
 
-    function TaskRow(props) {
+    /** 一个任务 = 一张卡。用卡片而不是"一条一条带下划线"，让边界自然成立。 */
+    function TaskCard(props) {
       const t = props.task;
-      const sc = STATUS_COLOR[t.status] || '#94a3b8';
-      const children = [
-        h('span', { key: 'id', style: { fontWeight: '600', marginRight: '6px' } }, t.id),
-        h(Chip, { key: 'st', text: t.status || '读不出来', color: sc }),
-      ];
-      if (t.verdict) {
-        const v = t.verdict;
-        children.push(
-          h(Chip, {
-            key: 'v',
-            text:
-              v.status +
-              ' (' + v.met + '/' + (v.met + v.notMet + v.cannotTell) + ')',
-            color: VERDICT_COLOR[v.status] || '#94a3b8',
-          }),
-        );
+      const sc = STATUS_COLOR[t.status] || T.idle;
+      const v = t.verdict;
+
+      const badges = [h(Pill, { key: 's', text: t.status || '读不出来', color: sc })];
+      if (v) {
+        const total = v.met + v.notMet + v.cannotTell;
+        badges.push(h(Pill, {
+          key: 'v',
+          text: v.status === 'approve' ? '通过 ' + v.met + '/' + total
+            : v.status === 'reject' ? '驳回'
+            : '待人工 ' + v.met + '/' + total,
+          color: VERDICT_COLOR[v.status] || T.idle,
+        }));
       } else {
-        children.push(h(Chip, { key: 'v', text: '未验证', color: '#64748b' }));
+        badges.push(h(Pill, { key: 'v', text: '未验证', color: T.idle }));
+      }
+
+      const rows = [
+        h('div', { key: 'top', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, [
+          h('span', { key: 'id', style: { fontSize: '12px', fontWeight: '600', color: T.fg, letterSpacing: '0.01em' } }, t.id),
+          ...badges,
+        ]),
+      ];
+      if (t.title) {
+        rows.push(h('div', {
+          key: 'ti',
+          style: { marginTop: '4px', fontSize: '12px', lineHeight: '18px', color: T.fg2 },
+        }, t.title));
       }
       if (t.artifacts && t.artifacts.length) {
-        children.push(
-          h('span', { key: 'a', style: { color: '#64748b', fontSize: '10px' } },
-            t.artifacts.join(' · ')),
-        );
+        rows.push(h('div', {
+          key: 'ar',
+          style: { marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' },
+        }, [
+          h('span', { key: 'l', style: { fontSize: '10px', color: T.fg2, marginRight: '2px' } }, '制品'),
+          ...t.artifacts.map(function (a) {
+            return h('span', {
+              key: a,
+              style: {
+                fontSize: '10px', color: T.fg2, padding: '0 5px', height: '16px', lineHeight: '16px',
+                borderRadius: '4px', background: 'var(--dsw-alias-bg-layer-2)',
+                border: '1px solid ' + T.border,
+              },
+            }, a);
+          }),
+        ]));
       }
-      if (t.title) {
-        children.push(h('div', { key: 'ti', style: { color: '#cbd5e1', marginTop: '2px' } }, t.title));
-      }
-      return h(
-        'div',
-        {
-          style: {
-            padding: '6px 8px',
-            borderBottom: '1px solid #1e293b',
-            fontSize: '11px',
-            lineHeight: '16px',
-          },
+
+      return h('div', {
+        style: {
+          padding: '10px 12px',
+          borderRadius: '10px',
+          background: T.layer1,
+          border: '1px solid ' + T.border,
+          marginBottom: '8px',
         },
-        children,
-      );
+      }, rows);
     }
 
     /**
@@ -160,7 +205,7 @@ window.__ModuleLoader__.load({
         return SdlcPanelInner(props);
       } catch (e) {
         return h('pre', {
-          style: { padding: '10px', fontSize: '11px', color: '#f87171', whiteSpace: 'pre-wrap' },
+          style: { padding: '20px 24px', fontSize: '12px', lineHeight: '18px', color: 'var(--dsw-alias-state-error-primary)', whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
         }, 'SdlcPanel 渲染抛错：\n' + (e && e.stack ? e.stack : String(e)));
       }
     }
@@ -237,31 +282,39 @@ window.__ModuleLoader__.load({
           key: 'r',
           onClick: function () { setLoading(true); load(); },
           style: {
-            background: 'transparent', color: '#94a3b8', border: '1px solid #475569',
-            borderRadius: '4px', fontSize: '10px', padding: '0 6px', cursor: 'pointer',
+            background: 'transparent', color: T.fg2, border: '1px solid ' + T.border2,
+            borderRadius: '6px', fontSize: '11px', height: '24px', padding: '0 10px', cursor: 'pointer',
           },
         }, '刷新'),
       ]));
 
       if (error) {
-        rows.push(h('div', { key: 'e', style: { color: '#f87171' } }, '取数据失败：' + error));
+        rows.push(h('div', { key: 'e', style: { color: T.err } }, '取数据失败：' + error));
       } else if (loading && !data) {
-        rows.push(h('div', { key: 'l', style: { color: '#94a3b8' } }, '读取中…'));
+        rows.push(h('div', { key: 'l', style: { color: T.fg2 } }, '读取中…'));
       } else if (data && (!data.tasks || data.tasks.length === 0)) {
         // ⚠️ 空看板**必须说清查了哪里**：事故里"空白"既可能是真没任务、
         // 也可能是查错了目录，两者在屏幕上长得一样。
         const searched = data.searched || [];
-        rows.push(h('div', { key: 'm', style: { color: '#94a3b8' } }, '没有找到任务。查过：'));
-        rows.push(h('ul', { key: 'u', style: { margin: '4px 0 0', paddingLeft: '16px', color: '#94a3b8' } },
+        rows.push(h('div', { key: 'm', style: { color: T.fg2 } }, '没有找到任务。查过：'));
+        rows.push(h('ul', { key: 'u', style: { margin: '4px 0 0', paddingLeft: '16px', color: T.fg2 } },
           searched.map(function (p) { return h('li', { key: p, style: { wordBreak: 'break-all' } }, p); })));
       } else if (data) {
-        rows.push(h('div', { key: 'n', style: { color: '#64748b', marginBottom: '4px' } },
+        rows.push(h('div', { key: 'n', style: { color: T.fg2, marginBottom: '10px', fontSize: '11px' } },
           data.tasks.length + ' 个任务'));
-        data.tasks.forEach(function (t) { rows.push(h(TaskRow, { key: t.id, task: t })); });
+        data.tasks.forEach(function (t) { rows.push(h(TaskCard, { key: t.id, task: t })); });
       }
 
       return h('div', {
-        style: { padding: '10px', fontSize: '11px', lineHeight: '16px', color: '#e2e8f0' },
+        style: {
+          padding: '20px 24px',
+          maxWidth: '760px',
+          margin: '0 auto',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          fontSize: '12px',
+          lineHeight: '18px',
+          color: T.fg,
+        },
       }, rows);
     }
 
@@ -283,7 +336,7 @@ window.__ModuleLoader__.load({
         'svg',
         {
           width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
-          stroke: active ? '#e879f9' : 'currentColor',
+          stroke: 'currentColor',
           strokeWidth: '1.4', strokeLinecap: 'round', strokeLinejoin: 'round',
         },
         [
