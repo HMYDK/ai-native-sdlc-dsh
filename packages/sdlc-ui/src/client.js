@@ -103,29 +103,43 @@ window.__ModuleLoader__.load({
     }
 
     /** 面板本体：挂载时取一次数据，带手动刷新。 */
-    function SdlcPanel() {
+    function SdlcPanel(props) {
       const [state, setState] = React.useState({ phase: 'loading', data: null, error: null });
 
-      // ⚠️ 把**当前工作区路径**一起传上去。
+      // ⚠️ 把**当前工作区路径**一起传上去 —— 这里我错过两次，都记下来。
       //
-      // 为什么必须传：host 半的另外几个兄弟插件都按 **session 的 cwd** 找任务，
-      // 而一个 HTTP 路由请求里没有会话。不传的话 host 只能退回 `process.cwd()`
-      // ——多工作区下它会指向**另一个仓库**，面板就会显示错的东西。
+      // 为什么必须传：host 半的兄弟插件都按 session 的 cwd 找任务，
+      // 而 HTTP 路由请求里没有会话。不传就只能退回 `process.cwd()`，
+      // 而桌面 App 的进程 cwd 是 `~/.dsh/profiles/desktop` —— **不是仓库**。
       //
-      // 拿不到也不影响：host 会退回进程 cwd（单工作区下相同）。
-      const workspacePath = (function () {
+      // ❌ 我第一版写的是：`useWorkspaces()`（无参）取 `snap.activeWorkspace`。
+      //    两处都错，查 `dsh-client-runtime` 的类型定义后确认：
+      //      · `useWorkspaces: <S>(selector: (state) => S) => S` —— 它要 **selector 函数**
+      //      · 快照是 `WorkspaceListState = { items: readonly WorkspaceView[], ... }`
+      //        —— **没有 `activeWorkspace` 这个字段**
+      //    症状：调用形状错 → 取不到 → 静默退回 null → 不传 cwd →
+      //    面板显示 0 个任务（**空白**）。用户看到的就是这个。
+      //
+      // ⚠️ 而且 `useWorkspaces` 是**槽传下来的 prop**（standardProps），
+      // 不是全局变量 —— 所以要从 props 里取。
+      //
+      // 拿不到就放弃（`null`）：host 会退回进程 cwd，面板至少不崩。
+      const workspacePath = (function (props) {
         try {
-          // useWorkspaces 是槽的 standardProps 之一（从 live Slot catalog 查到），
-          // 所以它一定可用；但它的快照形状我没在真浏览器里核过，
-          // 所以这里**宽泛地**取值，取不到就放弃，绝不因此崩掉面板。
-          const snap = useWorkspaces ? useWorkspaces() : null;
-          const ws = snap && snap.activeWorkspace;
-          return ws && typeof ws.path === 'string' ? ws.path : null;
+          const useWs = props && props.useWorkspaces;
+          if (typeof useWs !== 'function') return null;
+          const items = useWs(function (state) { return state && state.items; });
+          if (!Array.isArray(items) || items.length === 0) return null;
+          // 哪个是"当前"工作区我们判断不了，所以把**所有**工作区路径都传上去，
+          // 由 host 挑第一个真有 .ai/tasks 的。这比赌一个"活动工作区"字段稳。
+          const paths = items
+            .map(function (w) { return w && typeof w.path === 'string' ? w.path : null; })
+            .filter(Boolean);
+          return paths.length ? paths.join(',') : null;
         } catch (e) {
           return null;
         }
-      })();
-
+      })(props);
       const load = React.useCallback(function () {
         setState({ phase: 'loading', data: null, error: null });
         const url = workspacePath
@@ -175,8 +189,16 @@ window.__ModuleLoader__.load({
         body = jsx('div', { style: { padding: '8px', color: '#f87171', fontSize: '11px' } },
           '取数据失败：' + state.error);
       } else if (!state.data.tasks.length) {
-        body = jsx('div', { style: { padding: '8px', color: '#94a3b8', fontSize: '11px' } },
-          '这个仓库里还没有任务（.ai/tasks/*）');
+        // ⚠️ 空的看板必须**说清它查了哪里**。
+        // 事故：面板曾经一片空白，而"空白"既可能是"真的没任务"，
+        // 也可能是"查错了目录"。两者在屏幕上长得一样 —— 这就是最坏的一种失败。
+        // 所以把 host 实际试过的路径列出来。
+        const searched = state.data.searched || [];
+        body = jsx('div', { style: { padding: '8px', color: '#94a3b8', fontSize: '11px' } }, [
+          jsx('div', { key: 'm' }, '没有找到任务。查过：'),
+          jsx('ul', { key: 'l', style: { margin: '4px 0 0', paddingLeft: '16px' } },
+            searched.map(function (p) { return jsx('li', { key: p, style: { wordBreak: 'break-all' } }, p); })),
+        ]);
       } else {
         body = jsx('div', {}, state.data.tasks.map(function (t) {
           return jsx(TaskRow, { key: t.id, task: t });

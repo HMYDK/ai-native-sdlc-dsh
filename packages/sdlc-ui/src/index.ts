@@ -98,40 +98,47 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
       // "能读任意目录"仍然是一个我不该给的权限。所以只接受
       // **绝对路径且不是文件系统根**的值；否则退回进程 cwd。
       // 这样最坏情况是"看了错仓库"，而不是"被当成任意文件读取器"。
-      const rawCwd = new URL(request.url).searchParams.get('cwd');
-      const repoRoot =
-        rawCwd && rawCwd.startsWith('/') && rawCwd !== '/' && !rawCwd.includes('\0')
-          ? rawCwd.replace(/\/+$/, '')
-          : process.cwd();
-      const tasksRoot = `${repoRoot}/${dir}`;
+      // 客户端可能传**多个**候选路径（逗号分隔）：它拿得到工作区列表，
+      // 但判断不了哪个是"当前"的。所以这里挑**第一个真有任务目录**的。
+      // 这比赌一个"活动工作区"字段稳。
+      const rawCwd = new URL(request.url).searchParams.get('cwd') ?? '';
+      const candidates = rawCwd
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p.startsWith('/') && p !== '/' && !p.includes('\0'))
+        .map((p) => p.replace(/\/+$/, ''));
+      // 进程 cwd 永远作为兜底候选（单工作区下就是对的那个）。
+      const searchRoots = [...new Set([...candidates, process.cwd().replace(/\/+$/, '')])];
 
-      // ⚠️ `ctx.fs` 的方法要的是**解析过的 target**，不是字符串。
-      // 我第一版直接传了路径字符串，于是 listDir 静默失败 → tasks 恒为空
-      //（端点 200、JSON 合法、repoRoot 正确，**只有任务是 0**——这种
-      // "看起来正常但是空的"失败正是本仓库一直在防的）。
-      //
-      // ⚠️ 而且**不要造一个假 session 去问沙箱策略**。
-      // 我试过 `ctx.sandboxPolicy.resolve({ session: {…} })`，它要的是真 session
-      // 对象（报 `session.snapshotEvents is not a function`）。
-      // 本 host 半跑在**主机进程**里（不是工具调用），`process.cwd()` 就是启动
-      // 服务时所在的仓库根——把 cwd 直接显式传给 `resolve` 即可，
-      // 这既绕开了假 session，也满足了 `resolve` 必须带 cwd 的要求（pitfalls §11.1）。
-      const opts = { cwd: repoRoot };
-
+      // 逐个候选试，取第一个真的有任务目录的；都没有就用第一个候选
+      //（这样 `repoRoot` 与"查过哪里"对得上，空白时能说清是查了哪儿）。
+      let repoRoot = searchRoots[0] as string;
       let names: string[] = [];
-      try {
-        const rootTarget = await ctx.fs.resolve(tasksRoot, opts);
-        const entries = await ctx.fs.listDir(rootTarget);
-        names = entries.map((e) => e.name).sort();
-      } catch {
-        names = [];
+      const tried: string[] = [];
+      for (const root of searchRoots) {
+        tried.push(`${root}/${dir}`);
+        try {
+          const t = await ctx.fs.resolve(`${root}/${dir}`, { cwd: root });
+          const entries = await ctx.fs.listDir(t);
+          const found = entries.map((e) => e.name).sort();
+          if (found.length > 0) {
+            repoRoot = root;
+            names = found;
+            break;
+          }
+        } catch {
+          // 这个候选不行，试下一个
+        }
       }
+
 
       const tasks: unknown[] = [];
       for (const id of names) {
         let stateText = '';
         try {
-          stateText = await ctx.fs.readText(await ctx.fs.resolve(`${tasksRoot}/${id}/state.yaml`, opts));
+          stateText = await ctx.fs.readText(
+              await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/state.yaml`, { cwd: repoRoot }),
+            );
         } catch {
           // 读不出来就不把这个任务画出来——**不伪造**。看板宁可少一条，
           // 不可编一条。
@@ -140,7 +147,9 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
         const st = parseStateYaml(stateText);
         let verdict: { status: string; met: number; notMet: number; cannotTell: number } | undefined;
         try {
-          const raw = await ctx.fs.readText(await ctx.fs.resolve(`${tasksRoot}/${id}/verification.json`, opts));
+          const raw = await ctx.fs.readText(
+              await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/verification.json`, { cwd: repoRoot }),
+            );
           const doc = JSON.parse(raw) as {
             verdict?: { status?: string; criteria_results?: { result?: string }[] };
           };
@@ -167,7 +176,8 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
         });
       }
 
-      return new Response(JSON.stringify({ at: new Date().toISOString(), repoRoot, tasks }), {
+      return new Response(
+        JSON.stringify({ at: new Date().toISOString(), repoRoot, searched: tried, tasks }), {
         status: 200,
         headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
       });

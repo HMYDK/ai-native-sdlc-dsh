@@ -191,6 +191,30 @@ console.log('\n== 4c. cwd 的来源必须与兄弟插件一致（防漂移） ==
   } else bad('host 没校验 cwd —— 等于开放任意目录读取');
 }
 
+console.log('\n== 4d. 客户端调用宿主 hook 的形状（这一条是补的事故） ==');
+{
+  const src = fs.readFileSync(bundle, 'utf8');
+  // ⚠️ 事故：我第一版写 `useWorkspaces()` 取 `snap.activeWorkspace`。
+  // 查 dsh-client-runtime 的类型定义后确认两处都错：
+  //   · useWorkspaces: <S>(selector: (state) => S) => S  —— 它要 **selector 函数**
+  //   · WorkspaceListState = { items: readonly WorkspaceView[] } —— **没有 activeWorkspace**
+  // 症状：静默退回 null → 不传 cwd → 面板**空白**。用户看到的就是这个。
+  //
+  // 客户端半**不经 tsc**，所以这类 API 误用没有任何东西能拦。
+  // 这些断言就是那个缺失的检查，能补一点是一点。
+  if (/typeof useWs !== 'function'/.test(src)) ok('先检查 useWorkspaces 确实是函数（它是槽传下来的 prop，不是全局）');
+  else bad('没有检查 useWorkspaces 是否是函数');
+  if (/useWs\(function \(state\)/.test(src)) ok('用 **selector 函数**调用它（真实签名要求）');
+  else bad('没有用 selector 函数调用 useWorkspaces —— 签名错了');
+  if (/state && state\.items/.test(src)) ok("从 `items` 取（快照里**没有** activeWorkspace）");
+  else bad('没有从 items 取 —— 字段名可能又猜错了');
+  if (/props\.useWorkspaces/.test(src)) ok('从 props 取 hook（standardProps 是传给组件的）');
+  else bad('没有从 props 取 useWorkspaces');
+  // 拿不到必须**放弃**而不是崩
+  if (/catch \(e\) \{\s*return null;/.test(src)) ok('取不到时返回 null（面板不崩）');
+  else bad('取不到时没有安全兜底');
+}
+
 console.log('\n== 5. 只依赖宿主提供的模块 ==');
 if (required.every((r) => r === 'react' || r === 'react/jsx-runtime')) {
   ok(`require 的模块都在宿主白名单内：[${[...new Set(required)].join(', ')}]`);
