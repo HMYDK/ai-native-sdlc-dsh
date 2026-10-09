@@ -309,12 +309,48 @@ window.__ModuleLoader__.load({
   `shell.overlay`
 - 数据来源：`host.call(...)` 找本包自己的 host 半——**我们已经有四个 host 插件**
 
-### 仍然没验证的一件事（原始结论里唯一站得住的部分）
+### ✅ 已端到端验证（2026-10-09，探针跑通）
 
-**`dsh web`（另一个 profile）到底会不会加载 `exports["./client"]`？**
-这条从来没用实测回答过——当初是**推断**放弃的。
-需要一次探针：写一个只在 `sidebar.panellist` 挂个图标的客户端半，
-装进 web profile，起服务，看它出不出现。
+**`dsh web` 确实会加载 `exports["./client"]`。** 做法与观察到的证据：
+
+```
+1. 写一个探针包（packages/sdlc-ui）：host 半 + 手写客户端半，
+   往 sidebar.panellist 挂一个带文字 "SDLC-ui ✓" 的项
+2. dsh plugin --profile web add <tgz>
+3. dsh --profile web --port 19403 --no-open   （后台任务）
+   → 服务打印带 token 的 URL
+4. 带 token 拉页面（curl -sL -b/-c cookie）
+```
+
+**拿到的四层证据**（每一层都是硬的）：
+
+| 层 | 证据 |
+|---|---|
+| 进了 boot 清单 | 页面里 `{"id":"@ai-native-sdlc/dsh-sdlc-ui","url":"plugins/??…/client.js&rev=aeccbffea1ef","inject":["…dsh-client-ui-sidebar"]}` |
+| 被 preload | `<link rel="preload" as="script" href="plugins/??…,@ai-native-sdlc/dsh-sdlc-ui/client.js&rev=…">` |
+| 服务端真的服务了它 | 合并 bundle 10.4 MB（`plugins/??<60 个插件>`），HTTP 200 |
+| **我的代码在合并 bundle 里** | `SdlcPanelButton` ×2、样式色值 `e879f9` ×2、渲染文字 `AI 原生 SDLC：探针项` ×1 |
+
+**所以：发现 → 组合 → 服务 → 带上代码，四环全通。**
+
+⚠️ 两个操作要点（都实测过）：
+- `/` 会 **401**，随后 **303 重定向**——必须 `curl -sL` 且带 cookie jar
+- 插件 bundle 的 URL 里有 `??`（多个插件合并成一个响应）。
+  **必须从页面里取完整 URL**（含 `&rev=`）；自己拼 `plugins/??<包名>/client.js` 会 **404**
+
+### 数据通道（也已查清，未实测端到端）
+
+`Builtin` 里给了 `host.call(method, args)` =
+"Package-private JSON RPC from Client to **this Package's Host half**"。
+所以客户端半不需要认证路由、也不需要构建期 RPC——**找自己包的 host 半即可**，
+而我们已经有一堆 host 插件。
+
+### 客户端插件的可手写格式（官方最小范例，1863 字节）
+
+`@deepseek-ai/dsh-client-ui-brand-official/lib/client.js` 是范本。
+包装是普通 CJS；`Builtin` 的 `React` 明确写着
+"exposed **without JSX transformation**"，所以 `require("react/jsx-runtime")`
+直接调 `jsx(type, props, key)` 即可，**不需要任何构建步骤**。
 
 ---
 
