@@ -211,7 +211,10 @@ console.log('\n== 4d. 客户端调用宿主 hook 的形状（这一条是补的�
   if (/props\.useWorkspaces/.test(src)) ok('从 props 取 hook（standardProps 是传给组件的）');
   else bad('没有从 props 取 useWorkspaces');
   // 拿不到必须**放弃**而不是崩
-  if (/catch \(e\) \{\s*return null;/.test(src)) ok('取不到时返回 null（面板不崩）');
+  // 拿不到工作区时**不允许崩**：要么退回 null，要么把错误显示出来。
+  // （诊断版选择了后者 —— 显示出来比静默退回更有用，因为用户能读到原因。）
+  const safeFallback = /catch \(e\) \{\s*return null;/.test(src) || /setDetail\('读工作区失败/.test(src);
+  if (safeFallback) ok('取不到时不崩（退回 null 或把错误显示出来）');
   else bad('取不到时没有安全兜底');
 }
 

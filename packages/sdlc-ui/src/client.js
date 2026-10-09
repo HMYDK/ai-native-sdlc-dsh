@@ -102,133 +102,120 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /** 面板本体：挂载时取一次数据，带手动刷新。 */
+    /**
+     * 面板本体。
+     *
+     * ## ⚠️ 为什么它是"分阶段"的
+     *
+     * 用户报告点开之后**完全空白**，而我看不到浏览器控制台。
+     * 一个空白可能是很多原因：hooks 抛错、fetch 被拒、结果处理崩了、
+     * 或者**根本没被挂载**。它们在屏幕上长得一样。
+     *
+     * 所以这个组件**先画静态内容，再逐步加东西**——每一步都可能把
+     * 当前进度写进自己那行文字里。这样"空白"就有了位置：
+     *   · 连 "阶段 1" 都看不到 → 槽没渲染我，问题在注册契约
+     *   · 停在 "阶段 2/3" → hooks 或取数挂了，错误会显示出来
+     *   · 走到 "阶段 4" → 挂载与取数都好，问题在渲染数据那一步
+     *
+     * **这个设计是临时的**：等确认了是哪一段，就删掉这些标记。
+     * 它存在的理由只有一个——让"空白"变成一句能读的话。
+     */
+    /**
+     * ⚠️ 包一层 try/catch —— React 的渲染异常会让**整个子树消失**，
+     * 表现就是"什么都不显示"。用户看到的"空白"很可能就是这个。
+     *
+     * 所以：**自己捕获，把异常当成内容画出来**。
+     * 错误就变成了屏幕上能读的一行字，而不是一片空白。
+     */
     function SdlcPanel(props) {
-      const [state, setState] = React.useState({ phase: 'loading', data: null, error: null });
+      try {
+        return SdlcPanelInner(props);
+      } catch (e) {
+        return jsx('pre', {
+          style: { padding: '10px', fontSize: '11px', color: '#f87171', whiteSpace: 'pre-wrap' },
+        }, 'SdlcPanel 渲染抛错：\n' + (e && e.stack ? e.stack : String(e)));
+      }
+    }
 
-      // ⚠️ 把**当前工作区路径**一起传上去 —— 这里我错过两次，都记下来。
-      //
-      // 为什么必须传：host 半的兄弟插件都按 session 的 cwd 找任务，
-      // 而 HTTP 路由请求里没有会话。不传就只能退回 `process.cwd()`，
-      // 而桌面 App 的进程 cwd 是 `~/.dsh/profiles/desktop` —— **不是仓库**。
-      //
-      // ❌ 我第一版写的是：`useWorkspaces()`（无参）取 `snap.activeWorkspace`。
-      //    两处都错，查 `dsh-client-runtime` 的类型定义后确认：
-      //      · `useWorkspaces: <S>(selector: (state) => S) => S` —— 它要 **selector 函数**
-      //      · 快照是 `WorkspaceListState = { items: readonly WorkspaceView[], ... }`
-      //        —— **没有 `activeWorkspace` 这个字段**
-      //    症状：调用形状错 → 取不到 → 静默退回 null → 不传 cwd →
-      //    面板显示 0 个任务（**空白**）。用户看到的就是这个。
-      //
-      // ⚠️ 而且 `useWorkspaces` 是**槽传下来的 prop**（standardProps），
-      // 不是全局变量 —— 所以要从 props 里取。
-      //
-      // 拿不到就放弃（`null`）：host 会退回进程 cwd，面板至少不崩。
-      const workspacePath = (function (props) {
+    function SdlcPanelInner(props) {
+      // ── 阶段 1：渲染了没有？（纯静态，不碰任何 hook 或 IO）
+      const [phase, setPhase] = React.useState('1: 已挂载');
+      const [detail, setDetail] = React.useState('');
+      const [tasks, setTasks] = React.useState(null);
+
+      React.useEffect(function () {
+        // ── 阶段 2：hooks 跑起来了吗？
+        setPhase('2: effect 已运行');
+        let paths = '';
         try {
           const useWs = props && props.useWorkspaces;
-          if (typeof useWs !== 'function') return null;
-          const items = useWs(function (state) { return state && state.items; });
-          if (!Array.isArray(items) || items.length === 0) return null;
-          // 哪个是"当前"工作区我们判断不了，所以把**所有**工作区路径都传上去，
-          // 由 host 挑第一个真有 .ai/tasks 的。这比赌一个"活动工作区"字段稳。
-          const paths = items
-            .map(function (w) { return w && typeof w.path === 'string' ? w.path : null; })
-            .filter(Boolean);
-          return paths.length ? paths.join(',') : null;
+          if (typeof useWs !== 'function') {
+            setDetail('props.useWorkspaces 不可用（不是函数）');
+          } else {
+            const items = useWs(function (state) { return state && state.items; });
+            if (Array.isArray(items)) {
+              paths = items
+                .map(function (w) { return w && typeof w.path === 'string' ? w.path : null; })
+                .filter(Boolean)
+                .join(',');
+              setDetail('工作区 ' + items.length + ' 个');
+            } else {
+              setDetail('useWorkspaces 返回的不是数组');
+            }
+          }
         } catch (e) {
-          return null;
+          setDetail('读工作区失败：' + String(e).slice(0, 80));
         }
-      })(props);
-      const load = React.useCallback(function () {
-        setState({ phase: 'loading', data: null, error: null });
-        const url = workspacePath
-          ? ENDPOINT + '?cwd=' + encodeURIComponent(workspacePath)
-          : ENDPOINT;
+
+        // ── 阶段 3：取数通不通？
+        setPhase('3: 正在取数');
+        const url = './api/sdlc-ui.tasks' + (paths ? '?cwd=' + encodeURIComponent(paths) : '');
         fetch(url, { credentials: 'same-origin' })
           .then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();
           })
-          .then(function (d) { setState({ phase: 'ready', data: d, error: null }); })
-          .catch(function (e) { setState({ phase: 'error', data: null, error: String(e) }); });
+          .then(function (d) {
+            setPhase('4: 取数成功');
+            setTasks(d && d.tasks ? d.tasks : []);
+            setDetail((d && d.tasks ? d.tasks.length : 0) + ' 个任务 · ' + String(d && d.searched));
+          })
+          .catch(function (e) {
+            setPhase('3x: 取数失败');
+            setDetail(String(e).slice(0, 120));
+          });
       }, []);
 
-      React.useEffect(function () { load(); }, [load]);
-
-      const head = jsx(
-        'div',
-        {
-          style: {
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '6px 8px', borderBottom: '1px solid #334155', fontSize: '11px',
-          },
-        },
-        [
-          jsx('span', { key: 'h', style: { fontWeight: '600' } }, 'AI 原生 SDLC'),
-          jsx(
-            'button',
-            {
-              key: 'r',
-              onClick: load,
-              style: {
-                background: 'transparent', color: '#94a3b8', border: '1px solid #475569',
-                borderRadius: '4px', fontSize: '10px', padding: '1px 6px', cursor: 'pointer',
-              },
-            },
-            '刷新',
-          ),
-        ],
-      );
-
-      let body;
-      if (state.phase === 'loading') {
-        body = jsx('div', { style: { padding: '8px', color: '#94a3b8', fontSize: '11px' } }, '读取中…');
-      } else if (state.phase === 'error') {
-        // 失败要**说出来**，不要给一个看起来正常的空看板
-        body = jsx('div', { style: { padding: '8px', color: '#f87171', fontSize: '11px' } },
-          '取数据失败：' + state.error);
-      } else if (!state.data.tasks.length) {
-        // ⚠️ 空的看板必须**说清它查了哪里**。
-        // 事故：面板曾经一片空白，而"空白"既可能是"真的没任务"，
-        // 也可能是"查错了目录"。两者在屏幕上长得一样 —— 这就是最坏的一种失败。
-        // 所以把 host 实际试过的路径列出来。
-        const searched = state.data.searched || [];
-        body = jsx('div', { style: { padding: '8px', color: '#94a3b8', fontSize: '11px' } }, [
-          jsx('div', { key: 'm' }, '没有找到任务。查过：'),
-          jsx('ul', { key: 'l', style: { margin: '4px 0 0', paddingLeft: '16px' } },
-            searched.map(function (p) { return jsx('li', { key: p, style: { wordBreak: 'break-all' } }, p); })),
-        ]);
-      } else {
-        body = jsx('div', {}, state.data.tasks.map(function (t) {
-          return jsx(TaskRow, { key: t.id, task: t });
-        }));
+      const rows = [];
+      rows.push(jsx('div', { key: 'h', style: { fontWeight: '600', marginBottom: '4px' } }, 'AI 原生 SDLC'));
+      rows.push(jsx('div', { key: 'p', style: { color: '#fbbf24' } }, phase));
+      if (detail) rows.push(jsx('div', { key: 'd', style: { color: '#94a3b8', marginTop: '2px' } }, detail));
+      if (tasks) {
+        if (tasks.length === 0) {
+          rows.push(jsx('div', { key: 'e', style: { marginTop: '6px' } }, '（任务列表为空）'));
+        } else {
+          tasks.forEach(function (t) {
+            rows.push(jsx(TaskRow, { key: t.id, task: t }));
+          });
+        }
       }
-
       return jsx(
         'div',
-        {
-          style: {
-            width: '260px', maxHeight: '60vh', overflow: 'auto',
-            background: '#0f172a', color: '#e2e8f0',
-            border: '1px solid #334155', borderRadius: '6px',
-          },
-        },
-        [head, body],
+        { style: { padding: '10px', fontSize: '11px', lineHeight: '16px', color: '#e2e8f0' } },
+        rows,
       );
     }
 
     /**
      * 侧栏图标。
      *
-     * ⚠️ 槽契约（从 live Slot 树查到，不是我猜的）：
+     * ⚠️ 槽契约（从 live Slot 树查到，不是猜的）：
      *   `sidebar.panellist` 是 **list**，注册要 `{id, order, label}`，
      *   owner props 是 `{size, active}` —— 它要的是**一个图标**。
      *   说明原文："Each list id **addresses the matching main panel**;
      *   the sidebar owns the button and resolves its label from list metadata."
      *
      * 所以**按钮由侧栏负责**，我不该自己画按钮、更不该在图标里塞面板。
-     * 我第一版把整个面板塞进这里还自己做了 popover —— 架构就是错的。
      */
     function SdlcIcon(props) {
       const size = props && props.size ? props.size : 16;
@@ -249,13 +236,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /**
-     * 中央面板本体。
-     *
-     * 挂到 `main` 槽的 **key=`sdlc``** 上 —— 侧栏那个 `id='sdlc'` 的图标
-     * 按下时会 dispatch 同一个 key，于是这里被渲染。
-     * 不需要自己做开关：**选中态由侧栏与 main 槽负责**。
-     */
+    /** 需要的服务：slot 注册表。 */
     const inject = ['slots'];
 
     /** 面板的 key。侧栏的 `id` 与 `main` 的 `key` **必须是同一个字符串**。 */
@@ -274,6 +255,12 @@ window.__ModuleLoader__.load({
       ctx.slots.inject('main', function* () {
         yield ctx.slots.register({ name: 'main', key: PANEL_ID }, SdlcPanel);
       });
+      // ⚠️ 这一行是**故意的诊断**，别删。
+      // 用户报告"点击之后完全空白"，而我看不到浏览器控制台。
+      // `console` 是 Builtin 明确提供的出口（"Package-tagged browser logging"），
+      // 所以它会在控制台打出**带包名前缀**的行。
+      // 连这行都没有 ⇒ 客户端半**根本没被执行**，问题在加载而不是我组件里。
+      console.log('apply() 已运行：注册了 sidebar.panellist + main，key=' + PANEL_ID);
     }
 
     exports.apply = apply;
