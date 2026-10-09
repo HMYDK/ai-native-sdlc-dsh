@@ -91,6 +91,54 @@ window.__ModuleLoader__.load({
      *   · 间距只用 4 的倍数
      *   · 行高给足（1.5 左右），密集的小字是最难看的东西
      */
+    /**
+     * ## 加载期自检
+     *
+     * ⚠️ 我在这个文件上**三次**犯了同一类错：重写代码时删掉一个常量或组件，
+     * 而它还在被别处引用。React 的表现是**整个面板变成一片空白**
+     * （容器挂载了，但里面什么都没有），浏览器只给一句
+     * "slot entry crashed in 'main': ReferenceError: X is not defined"。
+     *
+     * 那些名字本该是**编译期**检查的，但这个文件**不经 tsc**（它是浏览器 bundle）。
+     * 所以退而求其次：**在 factory 执行时就检查**，让错误在加载期
+     * 带着名字抛出来，而不是等到渲染时变成空白。
+     *
+     * 加一个常量忘了登记？这里会直接告诉你。
+     */
+    function selfCheck() {
+      // ⚠️ 这里**必须**写显式的 `typeof X === 'undefined'` 判断。
+      // 不能写成表驱动 + `eval(name)`：在模块作用域里 eval 一个未声明的标识符
+      // 会直接抛 ReferenceError（实测踩到），那样自检本身就成了新的崩溃点。
+      // `typeof undeclaredVar` 是 JS 里唯一安全的探测方式 —— 它不抛。
+      const missing = [];
+      if (typeof POLL_MS === 'undefined') missing.push('POLL_MS');
+      if (typeof S === 'undefined') missing.push('S');
+      if (typeof F === 'undefined') missing.push('F');
+      if (typeof T === 'undefined') missing.push('T');
+      if (typeof STAGES === 'undefined') missing.push('STAGES');
+      if (typeof STAGE_ARTIFACT === 'undefined') missing.push('STAGE_ARTIFACT');
+      if (typeof STAGE_CN === 'undefined') missing.push('STAGE_CN');
+      if (typeof SdlcPanel !== 'function') missing.push('SdlcPanel');
+      if (typeof SdlcPanelInner !== 'function') missing.push('SdlcPanelInner');
+      if (typeof Stepper !== 'function') missing.push('Stepper');
+      if (typeof Focus !== 'function') missing.push('Focus');
+      if (typeof Timeline !== 'function') missing.push('Timeline');
+      if (typeof TaskCard !== 'function') missing.push('TaskCard');
+      if (typeof Detail !== 'function') missing.push('Detail');
+      if (typeof VariantA !== 'function') missing.push('VariantA');
+      if (typeof VariantB !== 'function') missing.push('VariantB');
+      if (typeof VariantC !== 'function') missing.push('VariantC');
+      if (missing.length) {
+        throw new Error('sdlc-ui 自检失败，这些名字没有定义 → ' + missing.join(', ') +
+          '。（重写代码时被删掉了？这个文件**不经 tsc**，所以只能在这里拦；' +
+          '不拦的话表现是一片空白。）');
+      }
+    }
+
+    /** 轮询间隔。10 秒 —— 端点在本地读几个小文件，开销可忽略；
+     *  而任务状态的真实变化频率是分钟到小时级，不需要推送。 */
+    const POLL_MS = 10000;
+
     const S = { xs: '4px', sm: '8px', md: '12px', lg: '16px', xl: '24px' };
     const F = {
       title: { fontSize: '13px', fontWeight: '600', lineHeight: '20px' },
@@ -221,9 +269,9 @@ window.__ModuleLoader__.load({
           h('div', {
             key: 'bar',
             style: {
-              height: '3px', borderRadius: '2px',
-              background: color,
-              opacity: !done && !active ? '0.35' : '1',
+              height: '4px', borderRadius: '2px',
+              background: !done && !active ? 'transparent' : color,
+              border: '1px solid ' + (!done && !active ? T.border2 : color),
             },
           }),
           h('div', {
@@ -483,93 +531,57 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 面板本体。
+     * 面板入口：包一层 try/catch。
      *
-     * ## ⚠️ 为什么它是"分阶段"的
+     * ⚠️ React 的渲染异常会让**整个子树消失**，表现就是"什么都不显示"。
+     * 用户第一次看到的"空白"很可能就是这个 —— 所以这里自己捕获，
+     * 把异常**当成内容画出来**，让错误变成屏幕上能读的一行字。
      *
-     * 用户报告点开之后**完全空白**，而我看不到浏览器控制台。
-     * 一个空白可能是很多原因：hooks 抛错、fetch 被拒、结果处理崩了、
-     * 或者**根本没被挂载**。它们在屏幕上长得一样。
-     *
-     * 所以这个组件**先画静态内容，再逐步加东西**——每一步都可能把
-     * 当前进度写进自己那行文字里。这样"空白"就有了位置：
-     *   · 连 "阶段 1" 都看不到 → 槽没渲染我，问题在注册契约
-     *   · 停在 "阶段 2/3" → hooks 或取数挂了，错误会显示出来
-     *   · 走到 "阶段 4" → 挂载与取数都好，问题在渲染数据那一步
-     *
-     * **这个设计是临时的**：等确认了是哪一段，就删掉这些标记。
-     * 它存在的理由只有一个——让"空白"变成一句能读的话。
+     * ⚠️ 这个组件本身被我删过一次：重写面板体时替换区间把它一起吃掉了，
+     * 于是 `apply` 里注册的 `SdlcPanel` 是 undefined，
+     * 客户端半**整包加载失败**（浏览器只有一句 "1 entry did not activate"）。
+     * 已加进冒烟：**必须真的调用注册的组件**，否则这种缺失测不出来。
      */
-    /**
-     * ⚠️ 包一层 try/catch —— React 的渲染异常会让**整个子树消失**，
-     * 表现就是"什么都不显示"。用户看到的"空白"很可能就是这个。
-     *
-     * 所以：**自己捕获，把异常当成内容画出来**。
-     * 错误就变成了屏幕上能读的一行字，而不是一片空白。
-     */
-    function SdlcPanel(props) {
+    function SdlcPanel() {
       try {
-        return SdlcPanelInner(props);
+        return SdlcPanelInner();
       } catch (e) {
         return h('pre', {
-          style: { padding: '20px 24px', fontSize: '12px', lineHeight: '18px', color: 'var(--dsw-alias-state-error-primary)', whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
+          style: {
+            padding: S.xl, fontSize: '12px', lineHeight: '18px', whiteSpace: 'pre-wrap',
+            color: T.err, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          },
         }, 'SdlcPanel 渲染抛错：\n' + (e && e.stack ? e.stack : String(e)));
       }
     }
 
     /**
-     * 面板本体。
+     * ## 三种信息架构（让用户挑）
      *
-     * ## 数据什么时候更新
+     * 不是换配色，而是**三种不同的组织方式**：
+     *   A 列表 + 详情   —— 左窄列任务、右宽详情（典型 issue tracker）
+     *   B 流程总览      —— 五个门 + 全局统计（看整个仓库卡在哪）
+     *   C 表格 + 内联流水 —— 高密度扫览，每行内联迷你流水线
      *
-     * **每 10 秒轮询一次**，另外有手动「刷新」按钮。
-     *
-     * 为什么选轮询而不是"实时"：端点在本地读几个小文件，开销可忽略；
-     * 而任务状态的**真实变化频率很低**（分钟到小时级），
-     * 为它上 SSE/WebSocket 是拿复杂度换一个用不上的指标。
-     *
-     * ⚠️ 轮询必须在卸载时清掉，否则每次开关面板都多一个定时器。
+     * 用 `localStorage.sdlcUiVariant` 切换，方便对比。
      */
-    const POLL_MS = 10000;
-
-    function SdlcPanelInner(props) {
+    function SdlcPanelInner() {
       const [data, setData] = React.useState(null);
       const [error, setError] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
+      const [variant, setVariant] = React.useState(function () {
+        try { return localStorage.getItem('sdlcUiVariant') || 'A'; } catch (e) { return 'A'; }
+      });
+      const [selected, setSelected] = React.useState(null);
 
       const load = React.useCallback(function () {
-        // 工作区路径：能拿到就传（host 会优先用；拿不到 host 自己会去读
-        // DSH 持久化的工作区列表，所以这里失败不影响结果）。
-        let paths = '';
-        try {
-          const useWs = props && props.useWorkspaces;
-          if (typeof useWs === 'function') {
-            const items = useWs(function (state) { return state && state.items; });
-            if (Array.isArray(items)) {
-              paths = items
-                .map(function (w) { return w && typeof w.path === 'string' ? w.path : null; })
-                .filter(Boolean)
-                .join(',');
-            }
-          }
-        } catch (e) { /* host 侧有兜底，这里静默 */ }
-
-        const url = './api/sdlc-ui.tasks' + (paths ? '?cwd=' + encodeURIComponent(paths) : '');
-        return fetch(url, { credentials: 'same-origin' })
-          .then(function (r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json();
-          })
+        return fetch('./api/sdlc-ui.tasks', { credentials: 'same-origin' })
+          .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
           .then(function (d) {
             if (d && d.error) throw new Error(d.error);
-            setData(d);
-            setError(null);
-            setLoading(false);
+            setData(d); setError(null); setLoading(false);
           })
-          .catch(function (e) {
-            setError(String(e && e.message ? e.message : e).slice(0, 160));
-            setLoading(false);
-          });
+          .catch(function (e) { setError(String(e && e.message ? e.message : e).slice(0, 160)); setLoading(false); });
       }, []);
 
       React.useEffect(function () {
@@ -579,49 +591,227 @@ window.__ModuleLoader__.load({
         return function () { alive = false; clearInterval(timer); };
       }, [load]);
 
-      const rows = [];
-      rows.push(h('div', {
-        key: 'h',
-        style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' },
+      const switchTo = function (v) {
+        setVariant(v);
+        try { localStorage.setItem('sdlcUiVariant', v); } catch (e) { /* 无所谓 */ }
+      };
+
+      // 顶栏：标题 + 版本切换 + 刷新
+      const bar = h('div', {
+        style: { display: 'flex', alignItems: 'center', gap: S.sm, marginBottom: S.lg },
       }, [
-        h('span', { key: 't', style: { fontWeight: '600' } }, 'AI 原生 SDLC'),
+        h('span', { key: 't', style: Object.assign({}, F.title, { color: T.fg, fontSize: '14px' }) }, 'AI 原生 SDLC'),
+        h('span', { key: 'sp', style: { flex: '1 1 auto' } }),
+        ...['A', 'B', 'C'].map(function (v) {
+          return h('button', {
+            key: v,
+            onClick: function () { switchTo(v); },
+            style: Object.assign({}, F.tiny, {
+              height: '24px', padding: '0 10px', borderRadius: '6px', cursor: 'pointer',
+              background: variant === v ? mix(T.brand, 12) : 'transparent',
+              color: variant === v ? T.brand : T.fg2,
+              border: '1px solid ' + (variant === v ? T.brand : T.border),
+              fontWeight: variant === v ? '600' : '400',
+            }),
+          }, v);
+        }),
         h('button', {
           key: 'r',
           onClick: function () { setLoading(true); load(); },
-          style: {
+          style: Object.assign({}, F.tiny, {
+            height: '24px', padding: '0 10px', borderRadius: '6px', cursor: 'pointer',
             background: 'transparent', color: T.fg2, border: '1px solid ' + T.border2,
-            borderRadius: '6px', fontSize: '11px', height: '24px', padding: '0 10px', cursor: 'pointer',
-          },
+          }),
         }, '刷新'),
-      ]));
+      ]);
 
+      let content;
       if (error) {
-        rows.push(h('div', { key: 'e', style: { color: T.err } }, '取数据失败：' + error));
+        content = h('div', { style: Object.assign({}, F.meta, { color: T.err }) }, '取数据失败：' + error);
       } else if (loading && !data) {
-        rows.push(h('div', { key: 'l', style: { color: T.fg2 } }, '读取中…'));
+        content = h('div', { style: Object.assign({}, F.meta, { color: T.fg2 }) }, '读取中…');
       } else if (data && (!data.tasks || data.tasks.length === 0)) {
-        // ⚠️ 空看板**必须说清查了哪里**：事故里"空白"既可能是真没任务、
-        // 也可能是查错了目录，两者在屏幕上长得一样。
         const searched = data.searched || [];
-        rows.push(h('div', { key: 'm', style: { color: T.fg2 } }, '没有找到任务。查过：'));
-        rows.push(h('ul', { key: 'u', style: { margin: '4px 0 0', paddingLeft: '16px', color: T.fg2 } },
-          searched.map(function (p) { return h('li', { key: p, style: { wordBreak: 'break-all' } }, p); })));
+        content = h('div', {}, [
+          h('div', { key: 'm', style: Object.assign({}, F.meta, { color: T.fg2 }) }, '没有找到任务。查过：'),
+          h('ul', { key: 'u', style: Object.assign({}, F.tiny, { margin: S.xs + ' 0 0', paddingLeft: S.lg, color: T.fg2 }) },
+            searched.map(function (p) { return h('li', { key: p, style: { wordBreak: 'break-all' } }, p); })),
+        ]);
       } else if (data) {
-        rows.push(h('div', { key: 'n', style: { color: T.fg2, marginBottom: '10px', fontSize: '11px' } },
-          data.tasks.length + ' 个任务'));
-        data.tasks.forEach(function (t) { rows.push(h(TaskCard, { key: t.id, task: t })); });
+        const tasks = data.tasks;
+        const sel = tasks.find(function (t) { return t.id === selected; }) || tasks[0];
+        if (variant === 'B') content = h(VariantB, { tasks: tasks, sel: sel, onSelect: setSelected });
+        else if (variant === 'C') content = h(VariantC, { tasks: tasks, sel: sel, onSelect: setSelected });
+        else content = h(VariantA, { tasks: tasks, sel: sel, onSelect: setSelected });
       }
 
       return h('div', {
         style: {
-          padding: '20px 28px',
-          maxWidth: '860px',
+          padding: S.xl + ' ' + S.xl, maxWidth: '980px',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-          fontSize: '12px',
-          lineHeight: '18px',
-          color: T.fg,
+          fontSize: '13px', lineHeight: '20px', color: T.fg,
         },
-      }, rows);
+      }, [bar, content]);
+    }
+
+    /** 一个任务行（三版共用）——紧凑。 */
+    function TaskLine(props) {
+      const t = props.task, on = props.active;
+      const sc = STATUS_COLOR[t.status] || T.idle;
+      const v = t.verdict;
+      return h('div', {
+        onClick: props.onClick,
+        style: {
+          padding: S.sm + ' ' + S.md, borderRadius: '8px', cursor: 'pointer',
+          background: on ? mix(T.brand, 8) : 'transparent',
+          border: '1px solid ' + (on ? mix(T.brand, 30) : 'transparent'),
+          marginBottom: S.xs,
+        },
+      }, [
+        h('div', { key: 'r1', style: { display: 'flex', alignItems: 'center', gap: '6px' } }, [
+          h('span', { key: 'd', style: { width: '6px', height: '6px', borderRadius: '50%', background: sc, flex: '0 0 auto' } }),
+          h('span', { key: 'id', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: on ? '600' : '500' }) }, t.id),
+          h('span', { key: 'sp', style: { flex: '1 1 auto' } }),
+          v ? h('span', { key: 'v', style: Object.assign({}, F.tiny, { color: VERDICT_COLOR[v.status] || T.fg2 }) },
+            v.met + '/' + (v.met + v.notMet + v.cannotTell)) : null,
+        ]),
+        h('div', {
+          key: 'r2',
+          style: Object.assign({}, F.tiny, {
+            color: T.fg2, marginTop: '2px', paddingLeft: '12px',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }),
+        }, t.title || ''),
+      ]);
+    }
+
+    /** A：左列表 + 右详情。 */
+    function VariantA(props) {
+      return h('div', { style: { display: 'flex', gap: S.xl, alignItems: 'flex-start' } }, [
+        h('div', { key: 'L', style: { flex: '0 0 260px' } },
+          props.tasks.map(function (t) {
+            return h(TaskLine, { key: t.id, task: t, active: props.sel && props.sel.id === t.id, onClick: function () { props.onSelect(t.id); } });
+          })),
+        h('div', { key: 'R', style: { flex: '1 1 auto', minWidth: '0' } },
+          props.sel ? h(Detail, { task: props.sel }) : null),
+      ]);
+    }
+
+    /** B：统计 + 五个门（看整个仓库卡在哪）。 */
+    function VariantB(props) {
+      const tasks = props.tasks;
+      const byStatus = {};
+      tasks.forEach(function (t) { byStatus[t.status] = (byStatus[t.status] || 0) + 1; });
+      const stuck = tasks.filter(function (t) { return t.blocked && t.blocked.length; });
+      const gates = ['VERIFYING', 'REVIEWING'];
+      return h('div', {}, [
+        h('div', { key: 'stats', style: { display: 'flex', gap: S.sm, marginBottom: S.lg, flexWrap: 'wrap' } },
+          STAGES.map(function (st) {
+            const n = byStatus[st] || 0;
+            return h('div', {
+              key: st,
+              style: {
+                flex: '1 1 110px', padding: S.md, borderRadius: '8px',
+                background: n ? mix(T.brand, 6) : 'transparent',
+                border: '1px solid ' + (n ? mix(T.brand, 25) : T.border),
+                opacity: n ? '1' : '0.5',
+              },
+            }, [
+              h('div', { key: 'n', style: Object.assign({}, F.title, { fontSize: '20px', lineHeight: '26px', color: n ? T.fg : T.fg2 }) }, String(n)),
+              h('div', { key: 'l', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, STAGE_CN[st] || st),
+            ]);
+          })),
+        stuck.length
+          ? h('div', {
+              key: 'stuck',
+              style: { padding: S.md, borderRadius: '8px', marginBottom: S.lg, background: mix(T.warn, 8), border: '1px solid ' + mix(T.warn, 40) },
+            }, [
+              h('div', { key: 'h', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '600' }) }, stuck.length + ' 个任务卡住了'),
+              ...stuck.map(function (t) {
+                return h('div', { key: t.id, style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: S.xs }) }, t.id + ' —— ' + t.blocked.join('；'));
+              }),
+            ])
+          : null,
+        h('div', { key: 'sel', style: { display: 'flex', gap: S.lg, alignItems: 'flex-start' } }, [
+          h('div', { key: 'L', style: { flex: '0 0 220px' } },
+            tasks.map(function (t) {
+              return h(TaskLine, { key: t.id, task: t, active: props.sel && props.sel.id === t.id, onClick: function () { props.onSelect(t.id); } });
+            })),
+          h('div', { key: 'R', style: { flex: '1 1 auto', minWidth: '0' } },
+            props.sel ? h(Detail, { task: props.sel }) : null),
+        ]),
+      ]);
+    }
+
+    /** C：高密度表格，每行内联迷你流水线。 */
+    function VariantC(props) {
+      const cell = Object.assign({}, F.tiny, { padding: '8px 10px', borderBottom: '1px solid ' + T.border, verticalAlign: 'top' });
+      return h('div', { style: { border: '1px solid ' + T.border, borderRadius: '8px', overflow: 'hidden' } }, [
+        h('div', { key: 'h', style: { display: 'flex', background: 'var(--dsw-alias-bg-layer-2)' } }, [
+          h('div', { key: 'a', style: Object.assign({}, cell, { flex: '0 0 130px', color: T.fg2, fontWeight: '500', borderBottom: 'none' }) }, '任务'),
+          h('div', { key: 'b', style: Object.assign({}, cell, { flex: '1 1 auto', color: T.fg2, fontWeight: '500', borderBottom: 'none' }) }, '流程'),
+          h('div', { key: 'c', style: Object.assign({}, cell, { flex: '0 0 90px', color: T.fg2, fontWeight: '500', borderBottom: 'none' }) }, '耗时'),
+        ]),
+        ...props.tasks.map(function (t) {
+          const cur = STAGES.indexOf(t.status);
+          const ms = (t.durations || []).reduce(function (a, d) { return a + d.ms; }, 0);
+          return h('div', {
+            key: t.id,
+            onClick: function () { props.onSelect(t.id); },
+            style: { display: 'flex', cursor: 'pointer', background: props.sel && props.sel.id === t.id ? mix(T.brand, 6) : 'transparent' },
+          }, [
+            h('div', { key: 'a', style: Object.assign({}, cell) }, [
+              h('div', { key: 'i', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '600' }) }, t.id),
+              h('div', { key: 't', style: { color: T.fg2, marginTop: '2px' } }, t.title || ''),
+            ]),
+            h('div', { key: 'b', style: Object.assign({}, cell, { minWidth: '260px' }) }, [
+              h('div', { key: 's', style: { display: 'flex', gap: '3px' } },
+                STAGES.map(function (st, i) {
+                  const done = i < cur, active = i === cur;
+                  // ⚠️ 未到的条不能只靠"淡灰 + 低透明" —— 在浅色主题下它会**消失**，
+                  // 于是"进度条"看起来只有一格。用**描边**表示"还没到"，
+                  // 这样任何主题下都看得见边界。
+                  return h('span', {
+                    key: st, title: (STAGE_CN[st] || st) + (active ? '（当前）' : done ? '（已过）' : '（未到）'),
+                    style: {
+                      flex: '1 1 0', height: '6px', borderRadius: '3px',
+                      background: active ? T.brand : done ? T.ok : 'transparent',
+                      border: '1px solid ' + (active ? T.brand : done ? T.ok : T.border2),
+                      minWidth: '6px',
+                    },
+                  });
+                })),
+              t.blocked && t.blocked.length
+                ? h('div', { key: 'w', style: { color: T.warn, marginTop: '4px' } }, '卡住：' + t.blocked.join('；'))
+                : null,
+            ]),
+            h('div', { key: 'c', style: Object.assign({}, cell, { color: T.fg2, fontVariantNumeric: 'tabular-nums' }) },
+              ms > 60000 ? humanMs(ms) : '—'),
+          ]);
+        }),
+      ]);
+    }
+
+    /** 详情面板（A/B 共用）：当前阶段的产出物 + 卡点 + 轨迹。 */
+    function Detail(props) {
+      const t = props.task;
+      return h('div', {}, [
+        h('div', { key: 'h', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, [
+          h('span', { key: 'id', style: Object.assign({}, F.title, { color: T.fg, fontSize: '15px' }) }, t.id),
+          h(Pill, { key: 's', text: STAGE_CN[t.status] || t.status || '—', color: STATUS_COLOR[t.status] || T.idle }),
+          t.verdict ? h(Pill, {
+            key: 'v',
+            text: (t.verdict.status === 'approve' ? '通过 ' : t.verdict.status === 'reject' ? '驳回 ' : '待人工 ') +
+              t.verdict.met + '/' + (t.verdict.met + t.verdict.notMet + t.verdict.cannotTell),
+            color: VERDICT_COLOR[t.verdict.status] || T.idle,
+          }) : null,
+        ]),
+        t.title ? h('div', { key: 't', style: Object.assign({}, F.meta, { color: T.fg2, marginTop: S.xs }) }, t.title) : null,
+        h(BlockedBy, { key: 'b', task: t, roomy: true }),
+        h(Stepper, { key: 'st', task: t }),
+        h(Focus, { key: 'fo', task: t }),
+        h(Timeline, { key: 'tl', task: t }),
+      ]);
     }
 
     /**
@@ -661,6 +851,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'sdlc';
 
     function apply(ctx) {
+      selfCheck();
       // 两处注册，两个槽：侧栏一个图标，主列一个面板。
       // 图标与面板靠 **同一个 id/key** 配对 —— 这是槽契约规定的，
       // 不是我自己连的。

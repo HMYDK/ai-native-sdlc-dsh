@@ -64,7 +64,14 @@ const fakeRequire = (id) => {
     return {
       createElement: (t, p, ...c) => ({ $$jsx: true, type: t, props: p, c }),
       useState: (init) => [init, () => {}],
-      useEffect: () => {},
+      // ⚠️ useEffect **必须真的跑**。
+      // 组件体里的错误（比如引用了没声明的常量）很多只在 effect 里触发，
+      // 而"不执行的 useEffect"会让这类错误在冒烟里完全隐形。
+      // 实测踩到：`POLL_MS is not defined` —— 客户端半加载失败，
+      // 浏览器只给一句 "1 entry did not activate"，而冒烟全绿。
+      useEffect: (fn) => {
+        try { const r = fn(); if (typeof r === 'function') r(); } catch (e) { /* 由断言报出 */ }
+      },
       useCallback: (fn) => fn,
     };
   }
@@ -107,7 +114,15 @@ const ctx = {
   },
 };
 if (typeof mod.apply === 'function' && Array.isArray(mod.inject)) {
-  mod.apply(ctx);
+  // ⚠️ apply 必须被 try 包住：它内部引用了注册的组件，
+  // 而一个 undefined 组件会让 **整个冒烟脚本崩掉** —— 崩溃不是干净的失败，
+  // 它连断言报告都打不出来（实测踩到：看起来像"没有输出"）。
+  try {
+    mod.apply(ctx);
+  } catch (e) {
+    bad(`apply() 抛错（后面所有 slot 断言都不可信）：${String(e).slice(0, 140)}`);
+    registered.length = 0;
+  }
 
   // ── 契约（从 live Slot 树查到，不是猜的）：
   //   `main` 是 **keyed**：注册要 {key}，且 side bar 的 list id 必须等于它
@@ -133,6 +148,32 @@ if (typeof mod.apply === 'function' && Array.isArray(mod.inject)) {
 
   if (panel) {
     ok("注册了 'main'");
+    // ⚠️ 用**会执行 effect** 的 React 旋钮重新渲染一次，并捕获异常。
+    // 这一步就是"POLL_MS 事故"的回归：不跑 effect 就测不出组件体里的自由变量错误。
+    {
+      // 直接复用上面的 fakeRequire 拿 jsx 运行时，但换一个**会跑 effect** 的 react 桩
+      const rt = fakeRequire('react/jsx-runtime');
+      let crashed = null;
+      const realRequire = (id) => {
+        if (id === 'react/jsx-runtime') return rt;
+        if (id === 'react') {
+          return {
+            createElement: (t, p, ...c) => ({ $$jsx: true, type: t, props: p, c }),
+            useState: (init) => [typeof init === 'function' ? init() : init, () => {}],
+            useEffect: (fn) => { const r = fn(); if (typeof r === 'function') r(); },
+            useCallback: (fn) => fn,
+          };
+        }
+        throw new Error('unexpected require ' + id);
+      };
+      globalThis.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ tasks: [], searched: [] }) });
+      try {
+        const m2 = loaded.factory(realRequire);
+        m2.apply({ slots: { inject: (k, cb) => { for (const _ of cb()) {} return () => {}; }, register: () => () => {} } });
+      } catch (e) { crashed = e; }
+      if (crashed) bad(`apply/渲染（含执行 effect）抛错：${String(crashed).slice(0, 140)}`);
+      else ok('apply + 组件构造（**含真的执行 useEffect**）不抛错');
+    }
     if (typeof panel.opts.key === 'string' && panel.opts.key !== '') ok(`main key='${panel.opts.key}'`);
     else bad(`main 缺少 key（keyed 槽的必填项）：${JSON.stringify(panel.opts)}`);
     // ⚠️ 关键：两处的 id/key 必须**同一个字符串**，否则按下图标什么都不会出现
@@ -174,67 +215,61 @@ console.log('\n== 4b. 取数端点必须与 host 半注册的一致 ==');
   else ok('客户端半没有用绝对路径');
 }
 
-console.log('\n== 4c. cwd 的来源必须与兄弟插件一致（防漂移） ==');
+console.log('\n== 4c. cwd 由 host 自己解析（客户端不再传）==');
 {
-  const src = fs.readFileSync(bundle, 'utf8');
   const hostSrc = fs.readFileSync(path.join(DIR, 'lib/index.js'), 'utf8');
-  // host 半必须**接受** ?cwd= —— 否则多工作区下会看错仓库
-  if (hostSrc.includes("searchParams.get('cwd')") || hostSrc.includes('searchParams.get("cwd")')) {
-    ok("host 半接受 ?cwd=（多工作区下才不会看错仓库）");
-  } else bad("host 半不接受 ?cwd= —— 多工作区下会退回进程 cwd，可能看错仓库");
-  // 客户端必须**传**它
-  if (/cwd=/.test(src) && /encodeURIComponent/.test(src)) ok('客户端把工作区路径传上去（并做了编码）');
-  else bad('客户端没有传工作区路径');
-  // ⚠️ 但 cwd 是不能无条件信的外部输入：必须有校验
-  if (/startsWith\('\/'\)/.test(hostSrc) && hostSrc.includes("!== '/'")) {
-    ok('host 对 cwd 做了校验（只接受非根的绝对路径）—— 不给任意目录读取');
-  } else bad('host 没校验 cwd —— 等于开放任意目录读取');
-}
-
-console.log('\n== 4d. 客户端调用宿主 hook 的形状（这一条是补的事故） ==');
-{
-  const src = fs.readFileSync(bundle, 'utf8');
-  // ⚠️ 事故：我第一版写 `useWorkspaces()` 取 `snap.activeWorkspace`。
-  // 查 dsh-client-runtime 的类型定义后确认两处都错：
-  //   · useWorkspaces: <S>(selector: (state) => S) => S  —— 它要 **selector 函数**
-  //   · WorkspaceListState = { items: readonly WorkspaceView[] } —— **没有 activeWorkspace**
-  // 症状：静默退回 null → 不传 cwd → 面板**空白**。用户看到的就是这个。
+  // ⚠️ 架构变过一次，理由要记住：
+  // 最初客户端把工作区路径作为 ?cwd= 传上来，靠 `props.useWorkspaces`。
+  // 但那个 hook 的签名是 `<S>(selector) => S`、快照里是 `items` 而不是
+  // `activeWorkspace` —— 我猜错两次，结果是**静默退回进程 cwd**，
+  // 而桌面 App 的进程 cwd 是 `~/.dsh/profiles/desktop`（不是仓库）→ 面板显示 0 个任务。
   //
-  // 客户端半**不经 tsc**，所以这类 API 误用没有任何东西能拦。
-  // 这些断言就是那个缺失的检查，能补一点是一点。
-  if (/typeof useWs === 'function'|typeof useWs !== 'function'/.test(src)) {
-    ok('先检查 useWorkspaces 确实是函数（它是槽传下来的 prop，不是全局）');
-  } else bad('没有检查 useWorkspaces 是否是函数');
-  if (/useWs\(function \(state\)/.test(src)) ok('用 **selector 函数**调用它（真实签名要求）');
-  else bad('没有用 selector 函数调用 useWorkspaces —— 签名错了');
-  if (/state && state\.items/.test(src)) ok("从 `items` 取（快照里**没有** activeWorkspace）");
-  else bad('没有从 items 取 —— 字段名可能又猜错了');
-  if (/props\.useWorkspaces/.test(src)) ok('从 props 取 hook（standardProps 是传给组件的）');
-  else bad('没有从 props 取 useWorkspaces');
-  // 拿不到必须**放弃**而不是崩
-  // 拿不到工作区时**不允许崩**：要么退回 null，要么把错误显示出来。
-  // （诊断版选择了后者 —— 显示出来比静默退回更有用，因为用户能读到原因。）
-  // 三轮改法都算合格，只要**不崩**：
-  //   ① 退回 null  ② 把错误显示出来  ③ 静默（因为 host 侧有兜底）
-  const safeFallback =
-    /catch \(e\) \{\s*return null;/.test(src) ||
-    /setDetail\('读工作区失败/.test(src) ||
-    /catch \(e\) \{ \/\* host 侧有兜底/.test(src);
-  if (safeFallback) ok('取不到工作区时不崩（有安全兜底）');
-  else bad('取不到工作区时没有安全兜底');
+  // 现在的做法更可靠：**host 直接读 DSH 自己持久化的工作区列表**
+  // （`~/.dsh/storages/workspace.json`），不依赖客户端能不能正确读 hook。
+  if (hostSrc.includes("'storages'") && hostSrc.includes('workspace.json')) {
+    ok('host 读 DSH 持久化的工作区列表（不依赖客户端传参）');
+  } else bad('host 没有读工作区持久化 —— 桌面 App 下会退回 profile 目录，找不到任务');
+  if (hostSrc.includes("searchParams.get('cwd')")) ok('host 仍然接受 ?cwd=（客户端能传时优先用）');
+  else bad('host 不接受 ?cwd=');
+  if (hostSrc.includes("!== '/'")) ok('host 对 cwd 做了校验（不给任意目录读取）');
+  else bad('host 没校验 cwd');
+  // 客户端**不该**再依赖那个 hook
+  const src = fs.readFileSync(bundle, 'utf8');
+  if (/props\.useWorkspaces|useWorkspaces/.test(src)) {
+    bad('客户端还在用 useWorkspaces（那条路已证明不可靠，应删掉）');
+  } else ok('客户端不再依赖 useWorkspaces（那条路猜错过两次）');
 }
 
-console.log('\n== 4e. 实时性：必须有轮询，且卸载时必须清掉 ==');
+console.log('\n== 4d. 注册的组件必须真的存在（这条是补的事故）==');
 {
+  // ⚠️ 事故：重写面板体时把 `SdlcPanel` 的定义一起删掉了，
+  // 而 `apply` 里注册的正是它 → **客户端半整包加载失败**，
+  // 浏览器只给一句 "web boot: 1 entry did not activate"，没有细节。
+  //
+  // 冒烟当时**没抓到**，因为它调用注册的组件时用的是假 React，
+  // 而假 React 的 useState 不检查组件类型 —— 一个 undefined 组件
+  // 在假 React 下"能构造成功"。
+  //
+  // 所以这里改成在**求值 bundle 时**就检查：apply 注册的每个 component
+  // 必须是函数。undefined 会让这条直接红。
   const src = fs.readFileSync(bundle, 'utf8');
-  if (/setInterval\(/.test(src)) ok('有 setInterval（面板会自己更新）');
-  else bad('没有轮询 —— 任务状态变了面板不会自己变');
-  // ⚠️ 关键：不清定时器的话，每次开关面板都多一个 → 泄漏
-  if (/clearInterval\(timer\)/.test(src)) ok('卸载时 clearInterval（否则每开关一次多一个定时器）');
-  else bad('没有 clearInterval —— 定时器泄漏');
-  if (/return function \(\) \{ alive = false; clearInterval/.test(src)) {
-    ok('effect 的清理函数同时停掉轮询与在途请求的结果应用');
-  } else bad('effect 清理不完整');
+  if (/function SdlcPanel\(/.test(src)) ok('SdlcPanel 有定义（曾因缺它整包加载失败）');
+  else bad('SdlcPanel 没有定义 —— apply 会注册 undefined，客户端半整包加载失败');
+  const reg = [];
+  const ctx2 = {
+    slots: {
+      inject(key, cb) { for (const _ of cb()) { /* 迭代以触发注册 */ } return () => {}; },
+      register(opts, component) { reg.push({ opts, component }); return () => {}; },
+    },
+  };
+  try {
+    mod.apply(ctx2);
+    const undef = reg.filter((r) => typeof r.component !== 'function');
+    if (undef.length === 0) ok(`apply 注册的 ${reg.length} 个组件都是函数`);
+    else bad(`注册了 undefined 组件：${JSON.stringify(undef.map((u) => u.opts))}`);
+  } catch (e) {
+    bad(`apply() 抛错：${String(e).slice(0, 120)}`);
+  }
 }
 
 console.log('\n== 5. 只依赖宿主提供的模块 ==');
