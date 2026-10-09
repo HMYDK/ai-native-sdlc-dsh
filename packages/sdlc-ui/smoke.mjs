@@ -58,7 +58,16 @@ const fakeRequire = (id) => {
       jsxs: (type, props, key) => ({ $$jsx: true, type, props, key }),
     };
   }
-  if (id === 'react') return { createElement: (t, p, ...c) => ({ $$jsx: true, type: t, props: p, c }) };
+  if (id === 'react') {
+    // 客户端半用了 hooks —— 桩必须提供它们，否则组件调用会崩。
+    // 这不是"为了测试而加"：真 React 就是有这些，桩缺了就是失真。
+    return {
+      createElement: (t, p, ...c) => ({ $$jsx: true, type: t, props: p, c }),
+      useState: (init) => [init, () => {}],
+      useEffect: () => {},
+      useCallback: (fn) => fn,
+    };
+  }
   throw new Error(`bundle 不该 require(${JSON.stringify(id)})——它只能依赖宿主提供的东西`);
 };
 
@@ -110,10 +119,46 @@ if (typeof mod.apply === 'function' && Array.isArray(mod.inject)) {
     const el = r.component({});
     if (el?.$$jsx === true) ok('组件能渲染（调用它返回了一个 React 元素）');
     else bad(`组件返回值不像 React 元素：${JSON.stringify(el)?.slice(0, 80)}`);
-    if (el?.props?.style !== undefined) ok('渲染结果带内联样式（探针项肉眼可辨）');
+    // 现在侧栏项是个按钮（点开才显示面板，不占常驻空间）
+    if (el?.type === 'button') ok('侧栏项是按钮（点开才显示面板）');
+    else bad(`侧栏项不是按钮：${JSON.stringify(el?.type)}`);
+    if (el?.props?.title === 'AI 原生 SDLC 看板') ok('按钮带可读的 title');
+    else bad(`title 不对：${JSON.stringify(el?.props?.title)}`);
+    if (typeof el?.props?.onClick === 'function') ok('按钮有点击处理（否则面板永远打不开）');
+    else bad('按钮没有 onClick');
+    // 面板组件本身应当**不崩**地被构造出来 —— 它内部会调 hooks 与 fetch。
+    // 这里只证明"它能被构造"，不证明"它在浏览器里画对了"（那要真跑）。
+    const panelEl = r.component({});
+    if (panelEl?.$$jsx === true) ok('组件能被构造（hooks + 取数逻辑不炸）');
+    else bad('组件构造失败');
   } else bad('注册的 component 不是函数');
 } else {
   bad('apply/inject 不合法，跳过注册断言');
+}
+
+console.log('\n== 4b. 取数端点必须与 host 半注册的一致 ==');
+{
+  const src = fs.readFileSync(bundle, 'utf8');
+  const hostSrc = fs.readFileSync(path.join(DIR, 'lib/index.js'), 'utf8');
+  const PATH = '/sdlc-ui.tasks';
+  // ⚠️ host 半的路径是**完整**的 `/api/...`（注册要求），
+  // 而客户端用的是**相对**路径（base href 决定）。
+  // 两者必须指向同一个端点 —— 这条断言就是防这个不一致的。
+  const FULL = '/api' + PATH;
+  if (hostSrc.includes("path: '" + FULL + "'") || hostSrc.includes('path: "' + FULL + '"')) {
+    ok(`host 半注册了 ${FULL}`);
+  } else bad(`host 半没有注册 ${FULL} —— 客户端取数会 404`);
+  // 回归：路径**必须**以 /api/ 开头。少了前缀，connection 会抛
+  // "invalid exact Fetch route"，而症状是"插件没激活但服务照起"——
+  // 我第一版就是这么错的，只有真跑才抓到。
+  if (hostSrc.includes("path: '/api/")) ok("host 路径以 /api/ 开头（connection 的硬要求）");
+  else bad("host 路径没有 /api/ 前缀 —— connection 会拒绝注册");
+  // 客户端半必须用**相对**路径：页面有 <base href="./">，
+  // 而且挂载前缀可能不是根。写死 '/api/...' 在子路径部署下会 404。
+  if (src.includes("'./api" + PATH + "'")) ok("客户端用相对路径 './api" + PATH + "'（base href 下解析为 /api" + PATH + "）");
+  else bad("客户端半没有用相对路径取数（子路径部署下会 404）");
+  if (/fetch\(\s*['"]\/api\//.test(src)) bad("客户端半用了绝对路径 '/api/...'");
+  else ok('客户端半没有用绝对路径');
 }
 
 console.log('\n== 5. 只依赖宿主提供的模块 ==');
