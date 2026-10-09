@@ -264,7 +264,63 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 
 **要真正生效，重启 App。** 重启后用运行时可见物验证，不要用文件哈希。
 
-## 13. 客户端（Web UI）插件：本机做不出来，也验证不了
+## 13. 客户端（Web UI）插件：~~做不出来~~ **订正：做得到**（2026-10-08 重查）
+
+> ⚠️ **本节的原始结论是错的，已保留原文在下方以便对照。**
+> 下面的「三条实测事实」里有两条是**推断**，而且是错的。
+
+### 订正后的三条对照
+
+| 原始理由 | 实际（用 `cordis_inspect_query` 查活的客户端） |
+|---|---|
+| ① 需要 tsdown Client preset，本机没有构建工具链 | ❌ **错。** 格式是普通 CJS 包装，**手写即可**；`Builtin` 里明确有 `React`——"React runtime exposed **without JSX transformation**"，本来就是给手写用的 |
+| ② host→client 的 RPC 是构建期生成的 | ❌ **错。** `Builtin` 里有 `host`：`host.call(method, args)` = "JSON RPC from Client to **this Package's Host half**"。**不需要路由、不需要认证** |
+| ③ **决定性的：渲染结果验证不了** | ❌ **错。** `dsh web` 是现成 profile，Web GUI 就在本机 `127.0.0.1:19387` 跑着，**能看到渲染** |
+
+### 现在知道的事实（都是查活的运行时得到的，不是读文档）
+
+```js
+// 手写的客户端 bundle 格式（取自 dsh-client-ui-brand-official，仅 1863 字节）
+window.__ModuleLoader__.load({
+  id: "<包名>",
+  factory: (require) => {
+    var module = { exports: {} }; var exports = module.exports;
+    Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+    let react = require("react");                 // 宿主提供
+    let jsx = require("react/jsx-runtime");       // 所以不需要 JSX 变换
+    const inject = ["slots"];
+    function apply(ctx) {
+      ctx.slots.inject("<slot>", function* () {
+        yield ctx.slots.register({ name: "<slot>" }, MyComponent);
+      });
+    }
+    exports.apply = apply; exports.inject = inject;
+    return module.exports;
+  }
+});
+```
+
+- `package.json`：`exports["./client"]` → `./lib/client.js`；
+  `dsh.client = { platform: 'web', inject: [...] }`
+- **`cordis_inspect_query` 客户端 side 有五个 provider**：`Service` / `Event` /
+  `Builtin` / `Slots` / `Theme`——这就是写客户端插件时的"类型定义"和"live 树"
+- 挂载点（从 live Slot 树里查到的）：`sidebar.panellist`（全局面板图标）、
+  `main`（keyed 中央面板，已占 `conversation`）、`sidebar.footer.action`、
+  `shell.overlay`
+- 数据来源：`host.call(...)` 找本包自己的 host 半——**我们已经有四个 host 插件**
+
+### 仍然没验证的一件事（原始结论里唯一站得住的部分）
+
+**`dsh web`（另一个 profile）到底会不会加载 `exports["./client"]`？**
+这条从来没用实测回答过——当初是**推断**放弃的。
+需要一次探针：写一个只在 `sidebar.panellist` 挂个图标的客户端半，
+装进 web profile，起服务，看它出不出现。
+
+---
+
+### 原始结论（保留对照，已被上面的订正取代）
+
+## 13-old. 客户端（Web UI）插件：本机做不出来，也验证不了
 
 计划里有个 `sdlc-ui`（任务看板的面板）。调研后**放弃**，理由是三条实测事实。
 
