@@ -54,7 +54,7 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 | `packages/sdlc-status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） | ✅ 已实现（真实 fs 冒烟） |
 | `sdlc-release` | Gate 前的工作（PR 描述、CI 证据汇集） | ⬜ |
 | `sdlc-workflow` | 工作流本身，作为一份 **Skill** 交付给验证者 | ✅ 已实现（12 条冒烟） |
-| ~~`sdlc-ui`~~ | 客户端制品链面板 | ❌ **本机做不出来**，见 pitfalls §13 |
+| `packages/sdlc-ui` | 客户端制品链面板（侧栏图标 + main 面板） | ✅ 已实现并端到端验证（24 条冒烟） |
 
 ### `sdlc-workflow`：为什么它算机制，而不只是一份规范
 
@@ -304,12 +304,48 @@ spec.md 的映射表枚举了 **10** 个内部状态，而我和 plan.md 五处�
       本项目已经吃过一次"两份真相漂移"的亏（sdlc-verify 的 schema 漂移）。
 - [x] 已装入 desktop profile（`make check` 21/21 通过）
 
-### 放弃 sdlc-ui 的原因（已记入 pitfalls §13）
+### ✅ sdlc-ui：**订正**——做出来了（2026-10-09）
 
-客户端 bundle 需要 `window.__ModuleLoader__.load` 格式 + tsdown Client preset，
-而本机 `dsh/package.json` 的 scripts 是 `{}`（打包发行版），**没有构建工具链**；
-host→client 的 RPC 是构建期生成的；`apps/web` 不在这里，**渲染结果验证不了**。
-交付一个连"加载"都做不到的东西违背本项目最硬的纪律。
+我早先写在这里的"做不出来"结论**是错的**，而且错的不是细节，是**方法**：
+三条理由里只有第 ③ 条（跑不了 tsdown）是实测的，①②③ 全是**推断**，
+而我用"跑不了构建"推断出了"整条路不可行"。详见 pitfalls §13（原文保留对照）。
+
+**订正后的三条对照：**
+
+| 早先的理由 | 实际 |
+|---|---|
+| ① 需要 tsdown Client preset | ❌ 客户端 bundle 是**普通 CJS 包装**，**手写即可**。`Builtin` 里明确有 `React`——"exposed **without JSX transformation**" |
+| ② host→client RPC 是构建期生成的 | ❌ 有公共接口 `ctx.connection.fetch.register(route)`，注册在**已认证的 `/api` 通道**上 |
+| ③ 渲染结果验证不了 | ❌ `dsh web` 是现成 profile；`desktop` profile 本身就挂着 `dsh-web-app`，**19387 就是它在服务 web UI** |
+
+**已实现并端到端验证：**
+
+```
+host 半   GET /api/sdlc-ui.tasks —— 读 .ai/tasks/*/state.yaml + verification.json
+客户端半   手写（零构建），注册两处：
+            main                  key='sdlc'      → 面板本体
+            sidebar.panellist     id='sdlc'       → 一个 svg 图标
+```
+
+**验证证据**（在独立的 web 服务上做，不碰用户的 App）：
+
+    端点   HTTP 200，841 字节，3 个真实任务（状态 / 裁决 / 制品）
+    boot   客户端半在 `__DSH_BOOT__` 清单里（含 id / url / rev / inject）
+    bundle 合并 10.4 MB，内含 SdlcIcon / SdlcPanel / 取数路径
+
+**过程中真跑才抓到的三个 bug**（冒烟全绿，只有真跑才现形）：
+
+1. **路由路径少了 `/api` 前缀** → `1 entry did not activate`，
+   **插件没激活但服务照起**。`endpointFromPath('/api', path)` 是硬要求
+2. **`ctx.fs` 要的是解析过的 target，不是字符串** → `listDir` 静默失败 →
+   端点 200、JSON 合法、repoRoot 正确，**只有任务是 0**
+3. **我原来的槽架构是错的**：把面板塞进了 `sidebar.panellist`（那是**图标**位，
+   owner props 是 `{size, active}`），而契约说 "Each list id **addresses the
+   matching main panel**; the sidebar owns the button"。正确做法是
+   `main`(keyed) + `sidebar.panellist`(list) **两处注册、共享同一个 id/key**
+
+⚠️ **槽契约只能从 live Slot 树查**（`cordis_inspect_query` 的 client/Slots），
+不要从别处推断——第 3 条就是这么发现的。
 
 ### sdlc-task 的状态
 
