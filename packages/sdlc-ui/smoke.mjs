@@ -174,6 +174,23 @@ console.log('\n== 4b. 取数端点必须与 host 半注册的一致 ==');
   else ok('客户端半没有用绝对路径');
 }
 
+console.log('\n== 4c. cwd 的来源必须与兄弟插件一致（防漂移） ==');
+{
+  const src = fs.readFileSync(bundle, 'utf8');
+  const hostSrc = fs.readFileSync(path.join(DIR, 'lib/index.js'), 'utf8');
+  // host 半必须**接受** ?cwd= —— 否则多工作区下会看错仓库
+  if (hostSrc.includes("searchParams.get('cwd')") || hostSrc.includes('searchParams.get("cwd")')) {
+    ok("host 半接受 ?cwd=（多工作区下才不会看错仓库）");
+  } else bad("host 半不接受 ?cwd= —— 多工作区下会退回进程 cwd，可能看错仓库");
+  // 客户端必须**传**它
+  if (/cwd=/.test(src) && /encodeURIComponent/.test(src)) ok('客户端把工作区路径传上去（并做了编码）');
+  else bad('客户端没有传工作区路径');
+  // ⚠️ 但 cwd 是不能无条件信的外部输入：必须有校验
+  if (/startsWith\('\/'\)/.test(hostSrc) && hostSrc.includes("!== '/'")) {
+    ok('host 对 cwd 做了校验（只接受非根的绝对路径）—— 不给任意目录读取');
+  } else bad('host 没校验 cwd —— 等于开放任意目录读取');
+}
+
 console.log('\n== 5. 只依赖宿主提供的模块 ==');
 if (required.every((r) => r === 'react' || r === 'react/jsx-runtime')) {
   ok(`require 的模块都在宿主白名单内：[${[...new Set(required)].join(', ')}]`);

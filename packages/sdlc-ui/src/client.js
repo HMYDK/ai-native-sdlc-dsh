@@ -106,9 +106,32 @@ window.__ModuleLoader__.load({
     function SdlcPanel() {
       const [state, setState] = React.useState({ phase: 'loading', data: null, error: null });
 
+      // ⚠️ 把**当前工作区路径**一起传上去。
+      //
+      // 为什么必须传：host 半的另外几个兄弟插件都按 **session 的 cwd** 找任务，
+      // 而一个 HTTP 路由请求里没有会话。不传的话 host 只能退回 `process.cwd()`
+      // ——多工作区下它会指向**另一个仓库**，面板就会显示错的东西。
+      //
+      // 拿不到也不影响：host 会退回进程 cwd（单工作区下相同）。
+      const workspacePath = (function () {
+        try {
+          // useWorkspaces 是槽的 standardProps 之一（从 live Slot catalog 查到），
+          // 所以它一定可用；但它的快照形状我没在真浏览器里核过，
+          // 所以这里**宽泛地**取值，取不到就放弃，绝不因此崩掉面板。
+          const snap = useWorkspaces ? useWorkspaces() : null;
+          const ws = snap && snap.activeWorkspace;
+          return ws && typeof ws.path === 'string' ? ws.path : null;
+        } catch (e) {
+          return null;
+        }
+      })();
+
       const load = React.useCallback(function () {
         setState({ phase: 'loading', data: null, error: null });
-        fetch(ENDPOINT, { credentials: 'same-origin' })
+        const url = workspacePath
+          ? ENDPOINT + '?cwd=' + encodeURIComponent(workspacePath)
+          : ENDPOINT;
+        fetch(url, { credentials: 'same-origin' })
           .then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();

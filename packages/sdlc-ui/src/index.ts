@@ -83,8 +83,26 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
 
   const handler = async (request: Request): Promise<Response> => {
     try {
-      // 仓库根从请求里拿不到会话，用进程 cwd —— 与 dsh web 从工作区启动的语义一致。
-      const repoRoot = process.cwd();
+      // ⚠️ 仓库根从哪里来 —— 这里曾经有个真实的漂移。
+      //
+      // 另外四个插件都用 **session 的 cwd**（`exec.agent?.session.header.cwd`），
+      // 而我第一版用了 `process.cwd()`。两者在**多工作区**下不同，
+      // 后果是：面板会显示**另一个仓库**的任务，而工具看的是当前会话的仓库。
+      // 本仓库刚吃过"两份真相漂移"的亏，不该再制造一处。
+      //
+      // 修法：客户端把当前工作区路径作为 `?cwd=` 传上来（它从 useWorkspaces 拿）。
+      // 请求里没有就退回 `process.cwd()`——单工作区下两者相同。
+      //
+      // ⚠️ **但 `cwd` 是不能无条件信的输入**：它是一个 HTTP 查询参数。
+      // 路由虽然在已认证通道上（认证不是我的安全面），但
+      // "能读任意目录"仍然是一个我不该给的权限。所以只接受
+      // **绝对路径且不是文件系统根**的值；否则退回进程 cwd。
+      // 这样最坏情况是"看了错仓库"，而不是"被当成任意文件读取器"。
+      const rawCwd = new URL(request.url).searchParams.get('cwd');
+      const repoRoot =
+        rawCwd && rawCwd.startsWith('/') && rawCwd !== '/' && !rawCwd.includes('\0')
+          ? rawCwd.replace(/\/+$/, '')
+          : process.cwd();
       const tasksRoot = `${repoRoot}/${dir}`;
 
       // ⚠️ `ctx.fs` 的方法要的是**解析过的 target**，不是字符串。
