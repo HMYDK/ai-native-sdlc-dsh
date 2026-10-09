@@ -570,7 +570,7 @@ window.__ModuleLoader__.load({
       const [error, setError] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
       const [variant, setVariant] = React.useState(function () {
-        try { return localStorage.getItem('sdlcUiVariant') || 'A'; } catch (e) { return 'A'; }
+        try { return localStorage.getItem('sdlcUiVariant') || 'B'; } catch (e) { return 'B'; }
       });
       const [selected, setSelected] = React.useState(null);
 
@@ -705,20 +705,30 @@ window.__ModuleLoader__.load({
       const stuck = tasks.filter(function (t) { return t.blocked && t.blocked.length; });
       const gates = ['VERIFYING', 'REVIEWING'];
       return h('div', {}, [
-        h('div', { key: 'stats', style: { display: 'flex', gap: S.sm, marginBottom: S.lg, flexWrap: 'wrap' } },
+          // ⚠️ **不要 flexWrap** —— 卡片是 flex:'1 1 0'，一旦允许换行，
+          // 七个统计卡会竖着堆满整屏（实测踩到）。
+          h('div', { key: 'stats', style: { display: 'flex', gap: S.sm, marginBottom: S.lg } },
           STAGES.map(function (st) {
             const n = byStatus[st] || 0;
             return h('div', {
               key: st,
               style: {
-                flex: '1 1 110px', padding: S.md, borderRadius: '8px',
-                background: n ? mix(T.brand, 6) : 'transparent',
-                border: '1px solid ' + (n ? mix(T.brand, 25) : T.border),
-                opacity: n ? '1' : '0.5',
+                // 统计卡：**数字是主角**，所以给它 22px；标签降到 11px 并压低对比。
+                // 内边距从四向 12 收到 10×12 —— 原来显得空。
+                flex: '1 1 0', minWidth: '84px', padding: '10px 12px', borderRadius: '8px',
+                background: n ? mix(T.brand, 7) : 'transparent',
+                border: '1px solid ' + (n ? mix(T.brand, 28) : T.border),
+                opacity: n ? '1' : '0.55',
               },
             }, [
-              h('div', { key: 'n', style: Object.assign({}, F.title, { fontSize: '20px', lineHeight: '26px', color: n ? T.fg : T.fg2 }) }, String(n)),
-              h('div', { key: 'l', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, STAGE_CN[st] || st),
+              h('div', {
+                key: 'n',
+                style: {
+                  fontSize: '22px', lineHeight: '28px', fontWeight: '600',
+                  color: n ? T.fg : T.fg2, fontVariantNumeric: 'tabular-nums',
+                },
+              }, String(n)),
+              h('div', { key: 'l', style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: '2px' }) }, STAGE_CN[st] || st),
             ]);
           })),
         stuck.length
