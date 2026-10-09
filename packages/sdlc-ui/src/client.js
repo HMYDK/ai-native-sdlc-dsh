@@ -79,6 +79,52 @@ window.__ModuleLoader__.load({
       brand: 'var(--dsw-alias-brand-primary)',
     };
 
+    /**
+     * ## 排版与间距刻度
+     *
+     * ⚠️ 我前两版的毛病是**随手写样式**：字号 10/11/12px 混用、间距凭感觉、
+     * 字号小到 10px 还要塞一长串 `·` 分隔的元数据。结果是"一坨密集的小字"，
+     * 眼睛没有落脚点。用户的原话是"小学生水平"。
+     *
+     * 所以这里把刻度**定死**，后面所有地方只准从这里取：
+     *   · 字号只用三档：13（标题/正文）/ 12（次要）/ 11（元数据，下限）
+     *   · 间距只用 4 的倍数
+     *   · 行高给足（1.5 左右），密集的小字是最难看的东西
+     */
+    const S = { xs: '4px', sm: '8px', md: '12px', lg: '16px', xl: '24px' };
+    const F = {
+      title: { fontSize: '13px', fontWeight: '600', lineHeight: '20px' },
+      body: { fontSize: '13px', fontWeight: '400', lineHeight: '20px' },
+      meta: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' },
+      tiny: { fontSize: '11px', fontWeight: '400', lineHeight: '16px' },
+      mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
+    };
+    const mix = (v, pct) => 'color-mix(in srgb, ' + v + ' ' + pct + '%, transparent)';
+
+    /**
+     * 内联小图标。
+     *
+     * 为什么加：纯文字里"文件 / 阶段 / 时长"全靠 `·` 分隔，读起来没有边界。
+     * 一个 12px 的图标给的边界，比再加一层括号都强，而且不占宽度。
+     */
+    function Icon(props) {
+      const st = Object.assign(
+        { width: props.size || 12, height: props.size || 12, viewBox: '0 0 16 16', fill: 'none',
+          stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round',
+          style: { flex: '0 0 auto', opacity: props.dim ? '0.7' : '1' } },
+        props.style || {},
+      );
+      const paths = {
+        doc: [h('path', { key: 'a', d: 'M4 1.5h5l3 3v10h-8z' }), h('path', { key: 'b', d: 'M9 1.5v3h3' })],
+        clock: [h('circle', { key: 'a', cx: '8', cy: '8', r: '6' }), h('path', { key: 'b', d: 'M8 4.5V8l2.5 1.5' })],
+        check: [h('path', { key: 'a', d: 'M3 8.5l3.5 3.5L13 5' })],
+        warn: [h('path', { key: 'a', d: 'M8 2.5l6 11H2z' }), h('path', { key: 'b', d: 'M8 6.5v3' }), h('path', { key: 'c', d: 'M8 11.5v.01' })],
+        block: [h('circle', { key: 'a', cx: '8', cy: '8', r: '6' }), h('path', { key: 'b', d: 'M4 12L12 4' })],
+        dot: [h('circle', { key: 'a', cx: '8', cy: '8', r: '3', fill: 'currentColor', stroke: 'none' })],
+      };
+      return h('svg', st, paths[props.name] || paths.dot);
+    }
+
     /** 状态 → token。用**状态色 token**，不是自己挑的紫绿蓝。 */
     const STATUS_COLOR = {
       INTENT: T.idle,
@@ -141,129 +187,176 @@ window.__ModuleLoader__.load({
     const STAGE_ARTIFACT = { INTENT: 'intent', SPEC: 'spec', PLANNED: 'plan', VERIFYING: 'verification', REVIEWING: 'review' };
 
     /**
-     * 阶段轨：一条竖线的流程，每个阶段显示**它的产出物**。
+     * 横向进度条。
      *
-     * 这是这个面板存在的理由。原来我只显示一个状态徽章 ——
-     * 而人真正想知道的是"**每个阶段各交付了什么、现在卡在哪一门**"。
+     * ⚠️ 前一版是**竖排**的：七个阶段各占一行，每行后半段塞一长串
+     * `·` 分隔的元数据。结果是"一坨密集的小字"——因为竖排把
+     * **线性的流程**画成了一份**清单**。
+     *
+     * 横向才符合它的本质：左到右 = 先到后，走过的填色、当前的高亮、
+     * 未到的留白。**一眼看全程**，不需要读。
+     *
+     * 每个阶段的可点区域下面才是细节（产出物、耗时、门的结论）。
      */
-    function StageRail(props) {
+    function Stepper(props) {
       const t = props.task;
       const cur = STAGES.indexOf(t.status);
-      const byKind = {};
-      (t.artifacts || []).forEach(function (a) { byKind[a.kind] = a; });
-
-      const rows = [];
-      STAGES.forEach(function (stage, i) {
+      const cells = STAGES.map(function (stage, i) {
         const done = cur >= 0 && i < cur;
         const active = i === cur;
-        const art = STAGE_ARTIFACT[stage] ? byKind[STAGE_ARTIFACT[stage]] : null;
-        const dur = (t.durations || []).find(function (d) { return d.stage === STAGES[i - 1]; });
+        const art = (t.artifacts || []).find(function (a) { return a.kind === STAGE_ARTIFACT[stage]; });
+        const isGate = stage === 'VERIFYING' || stage === 'REVIEWING';
+        // 门的结论：验证看裁决，评审看决定。有结论才画勾/叉。
+        let gateOk = null;
+        if (stage === 'VERIFYING' && t.verdict) gateOk = t.verdict.status === 'approve';
+        if (stage === 'REVIEWING' && t.review && t.review.decision) gateOk = t.review.decision === 'accept';
+        const color = active ? T.brand : done ? (gateOk === false ? T.err : T.ok) : T.idle;
 
-        // 左边的点与连线
-        const dot = h('span', {
-          key: 'dot',
-          style: {
-            position: 'absolute', left: '0', top: '3px',
-            width: '9px', height: '9px', borderRadius: '50%',
-            border: '2px solid ' + (active ? T.brand : done ? T.ok : T.border2),
-            background: done || active ? (active ? T.brand : T.ok) : 'transparent',
-            boxSizing: 'border-box',
-          },
-        });
-        const line = i < STAGES.length - 1
-          ? h('span', {
-              key: 'line',
-              style: {
-                position: 'absolute', left: '4px', top: '14px', bottom: '-6px', width: '1px',
-                background: done ? T.ok : T.border,
-              },
-            })
-          : null;
-
-        const line2 = [];
-        line2.push(h('span', {
-          key: 'nm',
-          style: {
-            fontSize: '12px', fontWeight: active ? '600' : '500',
-            color: active ? T.fg : done ? T.fg : T.fg2,
-            marginRight: '6px',
-          },
-        }, STAGE_CN[stage] || stage));
-        // 这一门待了多久
-        if (dur && dur.ms > 2000) {
-          line2.push(h('span', { key: 'd', style: { fontSize: '10px', color: T.fg2, marginRight: '6px' } },
-            humanMs(dur.ms)));
-        }
-        // 产出物
-        if (art) {
-          line2.push(h('span', {
-            key: 'a',
-            title: (art.sections || []).join('  ·  '),
-            style: {
-              fontSize: '10px', color: T.fg2, padding: '0 5px', height: '16px', lineHeight: '15px',
-              borderRadius: '4px', background: 'var(--dsw-alias-bg-layer-2)',
-              border: '1px solid ' + T.border, marginRight: '4px',
-            },
-          }, art.file + '  ' + (art.bytes ? Math.round(art.bytes / 100) / 10 + 'k' : '')));
-          // 章节骨架 —— 这是"交付物长什么样"
-          if (art.sections && art.sections.length) {
-            line2.push(h('span', { key: 's', style: { fontSize: '10px', color: T.fg2 } },
-              art.sections.slice(0, 6).join(' · ') + (art.sections.length > 6 ? ' …' : '')));
-          }
-        } else if (active && STAGE_ARTIFACT[stage]) {
-          line2.push(h('span', { key: 'miss', style: { fontSize: '10px', color: T.warn } },
-            '缺 ' + STAGE_ARTIFACT[stage]));
-        }
-        // 验证门的结论
-        if (stage === 'VERIFYING' && t.verdict) {
-          const v = t.verdict;
-          const total = v.met + v.notMet + v.cannotTell;
-          line2.push(h(Pill, {
-            key: 'v',
-            text: (v.status === 'approve' ? '通过 ' : v.status === 'reject' ? '驳回 ' : '待人工 ') + v.met + '/' + total,
-            color: VERDICT_COLOR[v.status] || T.idle,
-          }));
-          if (v.unverified > 0) {
-            line2.push(h('span', { key: 'u', style: { fontSize: '10px', color: T.warn, marginLeft: '4px' } },
-              v.unverified + ' 项未复核'));
-          }
-}
-        // 评审门的结论
-        if (stage === 'REVIEWING' && t.review) {
-          line2.push(h(Pill, {
-            key: 'r',
-            text: (t.review.decision === 'accept' ? '接受' : t.review.decision || '—') + ' · ' + t.review.rounds + ' 轮',
-            color: t.review.decision === 'accept' ? T.ok : T.warn,
-          }));
-        }
-
-        rows.push(h('div', {
+        return h('div', {
           key: stage,
-          style: { position: 'relative', paddingLeft: '20px', paddingBottom: i < STAGES.length - 1 ? '10px' : '0', minHeight: '18px' },
-        }, [dot, line, h('div', { key: 'c', style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px' } }, line2)]));
+          title: (STAGE_CN[stage] || stage) + (art ? ' · ' + art.file : '') + '（' + (done ? '已过' : active ? '当前' : '未到') + '）',
+          style: { flex: '1 1 0', minWidth: '0', display: 'flex', flexDirection: 'column', gap: S.xs, alignItems: 'stretch' },
+        }, [
+          // 条：走过的实心，当前的实心+亮色，未到的淡
+          h('div', {
+            key: 'bar',
+            style: {
+              height: '3px', borderRadius: '2px',
+              background: color,
+              opacity: !done && !active ? '0.35' : '1',
+            },
+          }),
+          h('div', {
+            key: 'lbl',
+            style: {
+              display: 'flex', alignItems: 'center', gap: '3px',
+              fontSize: '11px', lineHeight: '16px',
+              color: active ? T.fg : done ? T.fg : T.fg2,
+              fontWeight: active ? '600' : '400',
+              whiteSpace: 'nowrap', overflow: 'hidden',
+            },
+          }, [
+            isGate && gateOk !== null
+              ? h(Icon, { key: 'i', name: gateOk ? 'check' : 'warn', size: 11, style: { color: color } })
+              : null,
+            h('span', { key: 't', style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, STAGE_CN[stage] || stage),
+          ]),
+        ]);
       });
-      return h('div', { style: { marginTop: '10px' } }, rows);
+      return h('div', {
+        style: { display: 'flex', gap: S.sm, marginTop: S.md, marginBottom: S.md },
+      }, cells);
     }
 
-    /** 迁移轨迹：每次状态变化的时间与**理由**（理由是人写给自己看的，价值高）。 */
-    function Timeline(props) {
+    /**
+     * 焦点区：**当前阶段的产出物**。
+     *
+     * 这是"每个阶段的产出物"这个问题的正面回答：
+     * 不只是文件名，还有它的**章节骨架** —— 交付物的形状。
+     */
+    function Focus(props) {
       const t = props.task;
-      const items = (t.timeline || []).slice(-6).reverse();
-      if (!items.length) return null;
-      return h('div', { style: { marginTop: '10px', paddingTop: '8px', borderTop: '1px solid ' + T.border } }, [
-        h('div', { key: 'h', style: { fontSize: '10px', color: T.fg2, marginBottom: '4px' } }, '迁移轨迹'),
-        ...items.map(function (e, i) {
-          return h('div', { key: i, style: { marginBottom: '6px', fontSize: '11px' } }, [
-            h('span', { key: 't', style: { color: T.fg2, fontVariantNumeric: 'tabular-nums', marginRight: '6px' } }, shortTime(e.at)),
-            h('span', { key: 's', style: { color: T.fg, fontWeight: '500', marginRight: '6px' } },
-              (STAGE_CN[e.to] || e.to || '创建')),
-            h('br', { key: 'br' }),
-            e.reason
-              ? h('span', { key: 'r', style: { color: T.fg2 } }, e.reason)
-              : null,
-          ]);
+      const stage = t.status;
+      const kind = STAGE_ARTIFACT[stage];
+      const art = kind ? (t.artifacts || []).find(function (a) { return a.kind === kind; }) : null;
+      const dur = (t.durations || []).find(function (d) { return d.stage === STAGES[STAGES.indexOf(stage) - 1]; });
+      const rows = [];
+
+      // ⚠️ `DONE` 与 `IMPLEMENTING` **本来就不产出制品**。
+      // 前一版在这里写"这一门还没有产出物" —— 而那句话在已完成的任务上
+      // 会被读成"缺东西"。**说错话比不说更糟**，所以要分情况。
+      const isFinal = stage === 'DONE';
+      const isWork = stage === 'IMPLEMENTING';
+      const head = [
+        h(Icon, {
+          key: 'i',
+          name: isFinal ? 'check' : art ? 'doc' : 'warn',
+          size: 13,
+          style: { color: isFinal ? T.ok : art ? T.fg2 : T.warn },
         }),
-      ]);
+        h('span', { key: 't', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '500' }) },
+          isFinal
+            ? '已交付'
+            : isWork
+              ? '实现阶段（代码改动，不产生制品文件）'
+              : art
+                ? art.file
+                : '这一门还没有产出物'),
+      ];
+      if (art && art.bytes) head.push(h('span', { key: 'b', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, Math.round(art.bytes / 100) / 10 + ' KB'));
+      if (dur && dur.ms > 2000) {
+        head.push(h(Icon, { key: 'c', name: 'clock', size: 11, style: { color: T.fg2, marginLeft: 'auto' } }));
+        head.push(h('span', { key: 'd', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, '停留 ' + humanMs(dur.ms)));
+      }
+      rows.push(h('div', { key: 'h', style: { display: 'flex', alignItems: 'center', gap: '6px' } }, head));
+
+      // 完成的任务：把它**全部**制品列出来 —— 这才是"这个任务交付了什么"
+      if (isFinal) {
+        rows.push(h('div', { key: 'all', style: { display: 'flex', flexWrap: 'wrap', gap: S.sm, marginTop: S.sm } },
+          (t.artifacts || []).map(function (a) {
+            return h('div', {
+              key: a.kind,
+              style: {
+                flex: '1 1 140px', minWidth: '0', padding: '6px 8px', borderRadius: '6px',
+                background: 'var(--dsw-alias-bg-layer-1)', border: '1px solid ' + T.border,
+              },
+            }, [
+              h('div', { key: 'k', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, a.kind),
+              h('div', { key: 'f', style: Object.assign({}, F.meta, { color: T.fg }) }, a.file),
+            ]);
+          })));
+      }
+
+      // 章节骨架：这是"交付物长什么样"，用 chip 排开而不是一行 `·` 串
+      if (art && art.sections && art.sections.length) {
+        rows.push(h('div', {
+          key: 's',
+          style: { display: 'flex', flexWrap: 'wrap', gap: S.xs, marginTop: S.sm },
+        }, art.sections.map(function (sec) {
+          return h('span', {
+            key: sec,
+            style: Object.assign({}, F.tiny, {
+              color: T.fg2, padding: '1px 7px', borderRadius: '5px',
+              background: 'var(--dsw-alias-bg-layer-2)', border: '1px solid ' + T.border,
+            }),
+          }, sec);
+        })));
+      }
+
+      // 门的结论
+      if (stage === 'VERIFYING' && t.verdict) {
+        const v = t.verdict;
+        const tot = v.met + v.notMet + v.cannotTell;
+        const line = [
+          h(Pill, {
+            key: 'p',
+            text: v.status === 'approve' ? '通过' : v.status === 'reject' ? '驳回' : '待人工',
+            color: VERDICT_COLOR[v.status] || T.idle,
+          }),
+          h('span', { key: 'n', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, v.met + ' / ' + tot + ' 条判据通过'),
+        ];
+        if (v.findings) line.push(h('span', { key: 'f', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, v.findings + ' 条发现'));
+        if (v.unverified) {
+          line.push(h(Icon, { key: 'ui', name: 'warn', size: 11, style: { color: T.warn, marginLeft: 'auto' } }));
+          line.push(h('span', { key: 'u', style: Object.assign({}, F.tiny, { color: T.warn }) }, v.unverified + ' 项未复核'));
+        }
+        rows.push(h('div', { key: 'v', style: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: S.sm } }, line));
+      }
+      if (stage === 'REVIEWING' && t.review) {
+        rows.push(h('div', { key: 'r', style: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: S.sm } }, [
+          h(Pill, { key: 'p', text: t.review.decision === 'accept' ? '接受' : t.review.decision || '—', color: t.review.decision === 'accept' ? T.ok : T.warn }),
+          h('span', { key: 'n', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, t.review.rounds + ' 轮独立验证'),
+          t.review.notAccepted
+            ? h('span', { key: 'na', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, t.review.notAccepted + ' 项明确未接受')
+            : null,
+        ]));
+      }
+      return h('div', {
+        style: {
+          padding: S.md, borderRadius: '8px',
+          background: 'var(--dsw-alias-bg-layer-2)', border: '1px solid ' + T.border,
+        },
+      }, rows);
     }
 
     /** 卡点：**为什么过不去**。这是"卡在哪"的直接答案。 */
@@ -280,11 +373,47 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 一个任务 = 一张卡，**默认收起**。
+     * 迁移轨迹 —— 做成**真正的列表**，不是日志倾倒。
      *
-     * 收起时给"一眼能看到什么"：id、状态、裁决、时长、卡点。
-     * 展开时给"交付了什么"：阶段轨 + 制品形状 + 迁移轨迹。
-     * 一屏能扫很多任务，而需要细节时又能钻进去。
+     * ⚠️ 前一版把"时间 + 阶段 + 理由"混在一行再用 `<br>` 断开，读起来像控制台输出。
+     * 现在：左边一列固定宽度的**时间轴**（带竖线和小圆点），右边是内容。
+     * 时间最不重要，所以给它小字号、但位置固定 —— 眼睛可以整列跳过。
+     */
+    function Timeline(props) {
+      const t = props.task;
+      const items = (t.timeline || []).slice(-8).reverse();
+      if (!items.length) return null;
+      return h('div', { style: { marginTop: S.lg } }, [
+        h('div', { key: 'h', style: Object.assign({}, F.tiny, { color: T.fg2, marginBottom: S.sm, fontWeight: '500' }) }, '迁移轨迹'),
+        ...items.map(function (e, i) {
+          const last = i === items.length - 1;
+          return h('div', { key: i, style: { display: 'flex', gap: S.sm } }, [
+            h('div', { key: 'ax', style: { flex: '0 0 auto', width: '54px', textAlign: 'right' } },
+              h('span', { style: Object.assign({}, F.tiny, { color: T.fg2, fontVariantNumeric: 'tabular-nums' }) }, shortTime(e.at))),
+            h('div', { key: 'ln', style: { flex: '0 0 auto', width: '9px', position: 'relative' } }, [
+              h('span', { key: 'd', style: { position: 'absolute', left: '2px', top: '5px', width: '5px', height: '5px', borderRadius: '50%', background: last ? T.idle : T.border2 } }),
+              last ? null : h('span', { key: 'l', style: { position: 'absolute', left: '4px', top: '12px', bottom: '-4px', width: '1px', background: T.border } }),
+            ]),
+            h('div', { key: 'c', style: { flex: '1 1 auto', minWidth: '0', paddingBottom: last ? '0' : S.sm } }, [
+              h('div', { key: 's', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '500' }) }, STAGE_CN[e.to] || e.to || '创建'),
+              e.reason ? h('div', { key: 'r', style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: '2px' }) }, e.reason) : null,
+            ]),
+          ]);
+        }),
+      ]);
+    }
+
+    /**
+     * 一个任务 = 一张卡。
+     *
+     * ## 视觉层级（前一版最缺的东西）
+     *
+     * 一行里所有文字一样重 = 没有层级 = 读不出重点。现在分三层：
+     *   1. **id**（13px/600）+ 状态徽章        ← 第一眼
+     *   2. 标题（12px/次要色）                 ← 第二眼
+     *   3. 元数据（11px/最淡 + 图标，靠右）     ← 需要时才看
+     *
+     * 展开后是流程视图：横向进度条 → 当前阶段产出物 → 卡点 → 迁移轨迹。
      */
     function TaskCard(props) {
       const t = props.task;
@@ -293,70 +422,62 @@ window.__ModuleLoader__.load({
       const v = t.verdict;
       const totalMs = (t.durations || []).reduce(function (a, d) { return a + d.ms; }, 0);
       const idleMs = t.updated ? Date.now() - Date.parse(t.updated) : NaN;
-      const accepted = t.status === 'DONE';
+      const done = t.status === 'DONE';
 
-      // 卡片头：把"箭头+id+徽章"与"右侧的时间信息"分成两栏。
-      // 用 flex-wrap 而不是一行塞满 —— 否则窄面板下会把标题挤掉。
-      const head = [
-        h('span', {
-          key: 'arrow',
-          style: { fontSize: '9px', color: T.fg2, width: '10px', flex: '0 0 auto' },
-        }, open ? '▼' : '▶'),
-        h('span', { key: 'id', style: { fontSize: '12px', fontWeight: '600', color: T.fg, marginRight: '6px' } }, t.id),
-        h(Pill, { key: 's', text: STAGE_CN[t.status] || t.status || '读不出来', color: sc }),
+      const l1 = [
+        h('span', { key: 'ar', style: Object.assign({}, F.tiny, { color: T.fg2, width: '9px', flex: '0 0 auto' }) }, open ? '▾' : '▸'),
+        h('span', { key: 'id', style: Object.assign({}, F.title, { color: T.fg }) }, t.id),
+        h(Pill, { key: 's', text: STAGE_CN[t.status] || t.status || '—', color: sc }),
       ];
       if (v) {
         const tot = v.met + v.notMet + v.cannotTell;
-        head.push(h(Pill, {
+        l1.push(h(Pill, {
           key: 'v',
           text: (v.status === 'approve' ? '通过 ' : v.status === 'reject' ? '驳回 ' : '待人工 ') + v.met + '/' + tot,
           color: VERDICT_COLOR[v.status] || T.idle,
         }));
       }
-      if (t.review && t.review.rounds > 1) {
-        head.push(h('span', { key: 'r', style: { fontSize: '10px', color: T.fg2, marginLeft: '4px' } },
-          t.review.rounds + ' 轮评审'));
-      }
-      head.push(h('span', { key: 'sp', style: { flex: '1' } }));
+      l1.push(h('span', { key: 'sp', style: { flex: '1 1 auto' } }));
+      const meta = [];
       if (Number.isFinite(totalMs) && totalMs > 60000) {
-        head.push(h('span', { key: 'd', style: { fontSize: '10px', color: T.fg2, marginRight: '8px' } },
-          '历时 ' + humanMs(totalMs)));
+        meta.push(h(Icon, { key: 'ic', name: 'clock', size: 11, style: { color: T.fg2 } }));
+        meta.push(h('span', { key: 't', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, humanMs(totalMs)));
       }
-      if (Number.isFinite(idleMs) && t.status !== 'DONE') {
-        head.push(h('span', { key: 'i', style: { fontSize: '10px', color: idleMs > 86400000 ? T.warn : T.fg2 } },
-          humanMs(idleMs) + '未动'));
+      if (Number.isFinite(idleMs) && !done) {
+        const stale = idleMs > 86400000;
+        meta.push(h('span', { key: 'i', style: Object.assign({}, F.tiny, { color: stale ? T.warn : T.fg2, marginLeft: meta.length ? S.sm : '0' }) }, humanMs(idleMs) + '未动'));
       }
+      if (meta.length) l1.push(h('span', { key: 'm', style: { display: 'flex', alignItems: 'center', gap: '4px', flex: '0 0 auto' } }, meta));
 
-      const body = [h('div', {
-        key: 'head',
-        style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
-      }, head)];
+      const body = [h('div', { key: 'l1', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, l1)];
       if (t.title) {
         body.push(h('div', {
-          key: 'ti',
-          style: {
-            marginTop: '4px', fontSize: '12px', lineHeight: '18px', color: T.fg2,
-            // 两行截断：比单行截断保留更多信息，又不会撑高卡片
+          key: 'l2',
+          style: Object.assign({}, F.meta, {
+            color: T.fg2, marginTop: S.xs, paddingLeft: '15px',
             display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          },
+          }),
         }, t.title));
       }
-      body.push(h(BlockedBy, { key: 'b', task: t }));
       if (open) {
-        body.push(h(StageRail, { key: 'rail', task: t }));
+        body.push(h(Stepper, { key: 'st', task: t }));
+        body.push(h(Focus, { key: 'fo', task: t }));
+        body.push(h(BlockedBy, { key: 'b', task: t }));
         body.push(h(Timeline, { key: 'tl', task: t }));
+      } else if (t.blocked && t.blocked.length) {
+        body.push(h(BlockedBy, { key: 'b', task: t }));
       }
 
       return h('div', {
         onClick: function () { setOpen(!open); },
         style: {
-          padding: '10px 12px',
+          padding: S.md + ' ' + S.lg,
           borderRadius: '10px',
-          background: accepted ? 'transparent' : T.layer1,
-          border: '1px solid ' + T.border,
-          marginBottom: '8px',
+          background: T.layer1,
+          border: '1px solid ' + (open ? T.border2 : T.border),
+          marginBottom: S.sm,
           cursor: 'pointer',
-          opacity: accepted && !open ? '0.72' : '1',
+          opacity: done && !open ? '0.62' : '1',
         },
       }, body);
     }
