@@ -337,6 +337,97 @@ export function checkConsistency(
   return { missingForStatus: [...missingForStatus], missingOnDisk };
 }
 
+/**
+ * ## 上一轮被 reject 的判据，必须被逐条回应
+ *
+ * ### 这条规则的证据（来自一次真实任务的 trace，不是推测）
+ *
+ * 任务 `CART-22157`（问题单 #22157/#22158）走了三轮独立验证：
+ *
+ *     step 65   32.7 分   reject  —— 9 条判据，8 met，只有 R3 not_met
+ *     step 99   18.1 分   reject  —— 9 条判据，8 met，**还是 R3**
+ *     step 156  14.1 分   approve
+ *
+ * 第 2 轮 reject 的根因**不是**新问题：作者两轮之间改的是
+ * `配置对象`（配置对象的构造），而 R3 说的是
+ * "`配置文件` 的 `配置项` 真的被拦截器读到了"。
+ * 他修了**相关的地方**，没有修**判据说的那个点** —— 于是付了两次 21 分钟。
+ *
+ * 验证者自己也不便宜：独立的验证会话跑了 100+ 次工具调用、
+ * 其中 91 次是 bash，最贵的单步 602 秒（编译探针类 + 启动 运行上下文）。
+ * **一次换层验证的代价是分钟级的**，所以"同一判据被 reject 两次"是
+ * 这个流程里最贵的一种浪费。
+ *
+ * ### 这条规则**不声称**什么
+ *
+ * 它**不检查**作者的回应是否属实 —— 那正是独立验证该做的事，
+ * 硬塞进门槛里就变成了自证。它只检查**一件事：
+ * 你至少逐条点到了每一个没达标的判据**。
+ *
+ * 这是一个**强制注意**的门槛，不是真值判定。所以它很轻：
+ * 从判据文本里抽开头那个标识符（`AC1:` / `R3:` / `第2条` 这类），
+ * 要求理由里提到它。提到一个词当然可以糊弄 —— 但**糊弄的代价是
+ * 你要先知道那条判据叫什么**，而"知道"正是这里要防的东西。
+ */
+export interface PriorVerification {
+  /** 上一轮裁决的总状态（approve / reject / needs_human）。 */
+  status: string;
+  /** 逐条判据的结论。非 met 的才需要被回应。 */
+  criteria: { criterion: string; result: string }[];
+}
+
+/** 从一条判据文本里抽出它的标识符：开头的 `AC1` / `R3` / `第2条` 之类。 */
+export function criterionId(criterion: string): string | null {
+  const t = criterion.trim();
+  // AC1: / R3： / AC-2 / 第2条 / 结论1
+  // 标识符后面可能跟标点（`AC1:` `R3：`），也可能只跟一个空格（`AC-2 边界`）。
+  // 所以第二组不能用 `\b` —— `AC-2` 的末尾是数字，`\b` 在 `-` 后不成立。
+  let m = /^([A-Za-z]{1,4}[-_]?\d{1,3})(?=[\s:：.、)（(]|$)/.exec(t);
+  if (m) return m[1];
+  m = /^第\s*(\d{1,3})\s*[条项]/.exec(t);
+  if (m) return `第${m[1]}条`;
+  return null;
+}
+
+export interface PriorResponseCheck {
+  ok: boolean;
+  /** 上一轮 not_met 的判据（标识符 + 原文前缀），按出现顺序。 */
+  outstanding: { id: string | null; text: string }[];
+  /** 其中在理由里**没有**被点到的那些标识符。 */
+  unaddressed: string[];
+  /** 有 not_met 判据，但一条标识符都抽不出来 —— 那就没法机械核对。 */
+  unchecked: boolean;
+}
+
+/**
+ * 检查"重新进入验证"时，作者有没有逐条回应上一轮 not_met 的判据。
+ *
+ * @param prior - 上一轮裁决；没有（第一次验证）就传 undefined，直接放行
+ * @param reason - 本次迁移的理由
+ */
+export function checkPriorResponse(
+  prior: PriorVerification | undefined,
+  reason: string,
+): PriorResponseCheck {
+  if (!prior) return { ok: true, outstanding: [], unaddressed: [], unchecked: false };
+
+  const failed = prior.criteria.filter((c) => c.result !== 'met');
+  if (failed.length === 0) {
+    return { ok: true, outstanding: [], unaddressed: [], unchecked: false };
+  }
+
+  const outstanding = failed.map((c) => ({ id: criterionId(c.criterion), text: c.criterion.slice(0, 120) }));
+  const ids = outstanding.map((o) => o.id).filter((x): x is string => x !== null);
+  if (ids.length === 0) {
+    // 抽不出标识符就**不拦** —— 一个会误伤的门槛会被人绕开，
+    // 而"绕开"比"漏检"更糟（本项目已经记过这条）。
+    return { ok: true, outstanding, unaddressed: [], unchecked: true };
+  }
+
+  const unaddressed = ids.filter((cid) => !reason.includes(cid));
+  return { ok: unaddressed.length === 0, outstanding, unaddressed, unchecked: false };
+}
+
 export interface AdvanceCheck {
   ok: boolean;
   direction: 'forward' | 'back' | 'same';

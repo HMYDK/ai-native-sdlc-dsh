@@ -57,11 +57,25 @@ export const Config = z.object({
    * 所以"很新"不代表在推进，但"很久没动"仍然有意义：状态机没动 = 流程没往前走。
    */
   staleAfterHours: z.number().default(24),
+  /**
+   * ⚠️ **仅用于测试**：把"现在"钉成一个固定时刻（epoch 毫秒）。0 = 用真实时间。
+   *
+   * 为什么需要它：冒烟夹具里的 `updated` 是**写死的日期**，而"是否停滞"
+   * 取决于它距今多久。于是那条断言实际测的是"测试当天距离夹具日期不到一天"——
+   * 它**在写下它的当天是对的，之后必然坏**（实测：2026-10-08 通过，10-13 变红，
+   * 报"停滞计数应为 1，实际 4"）。
+   *
+   * 一个依赖墙钟的断言不是断言，是定时炸弹。把它钉住之后，
+   * "停滞分类"这件事才真的被测到。
+   */
+  nowForTests: z.number().default(0),
 });
 
 interface SdlcStatusConfig {
   tasksDir: string;
   staleAfterHours: number;
+  /** 仅测试用：把"现在"钉成固定时刻（0 = 用真实时间）。见 Config 里的说明。 */
+  nowForTests: number;
 }
 
 
@@ -238,7 +252,12 @@ export function apply(ctx: Context, config: SdlcStatusConfig): void {
             : undefined;
 
         const input = await collectScanInput(ctx, tasksRoot, exec);
-        const result = scanTasks({ ...input, staleAfterHours: cfg.staleAfterHours });
+        const result = scanTasks({
+            ...input,
+            staleAfterHours: cfg.staleAfterHours,
+            // 0 = 用真实时间；测试里钉成固定时刻，避免断言依赖墙钟
+            ...(cfg.nowForTests > 0 ? { now: cfg.nowForTests } : {}),
+          });
 
         // 选择窗口（纯函数，见 scan.ts 的 selectTasks）。
         // task_id 未命中时它会抛错——那是**有意的**：返回空数组会让调用方

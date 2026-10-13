@@ -32,6 +32,7 @@ import {
   applyAdvance,
   checkAdvance,
   checkConsistency,
+    checkPriorResponse,
   isStatus,
   KNOWN_ARTIFACTS,
   normalizeArtifactPath,
@@ -42,6 +43,7 @@ import {
   STATUSES,
   TASKS_DIR,
   taskDirFor,
+    type PriorVerification,
   type TaskState,
   type TaskStatus,
 } from './state.js';
@@ -472,6 +474,29 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           );
         }
 
+        // ── 重新进入验证前：上一轮被 reject 的判据必须被逐条回应
+        //
+        // 证据见 `state.ts` 里 `checkPriorResponse` 的注释：一次真实任务里
+        // 同一条判据（R3）被 reject 了两次，因为作者修的是"相关的地方"
+        // 而不是判据说的那个点，代价是两次 21 分钟的换层验证。
+        if (args.to === 'VERIFYING') {
+          const prior = await readPriorVerification(ctx, paths, state, exec);
+          const resp = checkPriorResponse(prior, args.reason);
+          if (!resp.ok) {
+            throw new Error(
+              `不能重新进入验证：上一轮有 ${resp.outstanding.length} 条判据没达标，` +
+                `而理由里没有逐条点到：\n` +
+                resp.unaddressed.map((id) => `- ${id}`).join('\n') +
+                '\n\n请针对每一条说明：**改了什么、怎么证明改对了、证据在哪个文件里**。' +
+                '\n（修了"相关的地方"不等于修了判据说的那件事 —— 上一轮就是这个原因多花了 20 分钟。）' +
+                '\n\n上一轮没达标的判据：\n' +
+                resp.outstanding
+                  .map((o) => `- ${o.id ?? '(无标识符)'}: ${o.text}`)
+                  .join('\n'),
+            );
+          }
+        }
+
         const next = applyAdvance(state, args.to, args.reason);
         await writeState(ctx, paths, next, exec);
         return { task: next.task, from: state.status, to: next.status, direction: verdict.direction };
@@ -496,4 +521,42 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
       '- 制品路径写在 `state.yaml` 的 `artifacts` 里，是相对任务目录的路径。',
     ].join('\n'),
   });
+}
+
+/**
+ * 读上一轮的 `verification.json`，取出裁决状态与逐条判据。
+ *
+ * 读不到（第一次验证、文件缺失、JSON 坏了）就返回 `undefined` ——
+ * **门槛只在信息齐全时生效**。一个因为"读不出来"就拦人的门槛，
+ * 会让人以为流程坏了，而它其实是好的。
+ */
+async function readPriorVerification(
+  ctx: Context,
+  paths: TaskPaths,
+  _state: TaskState,
+  exec: { agent?: unknown; signal?: AbortSignal },
+): Promise<PriorVerification | undefined> {
+  try {
+    // 与 probeArtifacts 同一套解析方式（`resolveOptions(exec)` 带 cwd），
+    // 免得又踩"resolve 不带 cwd → 落到部署 fallback 根"那个坑（pitfalls §11.1）。
+    const target = await ctx.fs.resolve(
+      `${paths.taskDir}/verification.json`,
+      resolveOptions(exec),
+    );
+    const raw = await ctx.fs.readText(target, exec.signal);
+    const doc = JSON.parse(raw) as {
+      verdict?: { status?: unknown; criteria_results?: { criterion?: unknown; result?: unknown }[] };
+    };
+    const v = doc.verdict;
+    if (!v || typeof v.status !== 'string') return undefined;
+    const criteria = (v.criteria_results ?? [])
+      .map((c) => ({
+        criterion: typeof c.criterion === 'string' ? c.criterion : '',
+        result: typeof c.result === 'string' ? c.result : '',
+      }))
+      .filter((c) => c.criterion !== '');
+    return { status: v.status, criteria };
+  } catch {
+    return undefined;
+  }
 }

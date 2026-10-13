@@ -250,6 +250,93 @@ else bad('空 reason 的迁移被放行');
   else ok(`advance → ${good.value.from} → ${good.value.to} (${good.value.direction})`);
 }
 
+// 4f-2. ★ 重新进入验证前：上一轮 not_met 的判据必须被逐条回应
+//
+// 这条门槛的依据是一次真实任务（CART-22157）：同一条判据 R3 被 reject 了
+// **两次**，因为作者修的是"相关的地方"而不是判据说的那个点，
+// 代价是两次分钟级的换层验证（实测每轮 ~21 分钟、100+ 次工具调用）。
+{
+  const { load, dump, JSON_SCHEMA } = require('js-yaml');
+  const dir = '/repo/.ai/tasks/PROJ-7';
+  const stateFile = `${dir}/state.yaml`;
+  const doc = load(files.get(stateFile), { schema: JSON_SCHEMA });
+  doc.status = 'IMPLEMENTING';
+  doc.artifacts = { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md' };
+  files.set(stateFile, dump(doc, { schema: JSON_SCHEMA, noRefs: true }));
+  files.set(`${dir}/intent.md`, '# Intent\n');
+  files.set(`${dir}/spec.md`, '# Spec\n');
+  files.set(`${dir}/plan.md`, '# Plan\n');
+
+  // 造一份"上一轮被 reject"的裁决：8 条 met，只有 R3 not_met
+  files.set(`${dir}/verification.json`, JSON.stringify({
+    task: 'PROJ-7',
+    at: '2026-10-13T06:36:31.000Z',
+    verdict: {
+      status: 'reject',
+      summary: '核心目标已独立复现，但 R3 未达标',
+      criteria_results: [
+        { criterion: 'AC1: 拦截器链存在', result: 'met' },
+        { criterion: 'AC2: 分页生效', result: 'met' },
+        { criterion: 'R3: 配置文件 的配置真的被拦截器读到', result: 'not_met' },
+      ],
+    },
+  }, null, 2));
+
+  // ① 不点到 R3 → 必须被拒
+  const blind = await dispatch('sdlc_task_advance', {
+    task_id: 'PROJ-7',
+    to: 'VERIFYING',
+    reason: '我改了配置相关的类，应该好了',
+  });
+  const blindText = JSON.stringify(blind.error ?? blind.content ?? '');
+  if (blind.isError && /R3/.test(blindText)) {
+    ok('上一轮 not_met 的判据没被点到 → 拒绝重新进入验证，并点名 R3');
+  } else {
+    bad(`没点到 R3 却被放行: ${JSON.stringify(blind.value ?? blind.error)}`);
+  }
+  if (/相关的地方|逐条/.test(blindText)) ok('拒绝信息说明了"修相关的地方≠修判据说的点"');
+  else bad('拒绝信息没有解释为什么被拦');
+
+  // ② 逐条点到 R3 → 放行
+  const informed = await dispatch('sdlc_task_advance', {
+    task_id: 'PROJ-7',
+    to: 'VERIFYING',
+    reason: 'R3：把 配置文件 改成 camelCase 并在真上下文断言 getProperty 非 null，证据 /tmp/probe5.out',
+  });
+  if (informed.isError) bad(`逐条点到 R3 后仍被拒: ${JSON.stringify(informed.error)}`);
+  else ok(`逐条回应后放行 → ${informed.value.from} → ${informed.value.to}`);
+
+  // ③ 上一轮全部 met → 不要求任何回应
+  const doc2 = load(files.get(stateFile), { schema: JSON_SCHEMA });
+  doc2.status = 'IMPLEMENTING';
+  files.set(stateFile, dump(doc2, { schema: JSON_SCHEMA, noRefs: true }));
+  files.set(`${dir}/verification.json`, JSON.stringify({
+    task: 'PROJ-7',
+    verdict: { status: 'approve', criteria_results: [{ criterion: 'AC1: x', result: 'met' }] },
+  }));
+  const clean = await dispatch('sdlc_task_advance', {
+    task_id: 'PROJ-7',
+    to: 'VERIFYING',
+    reason: '收尾后重新验证一遍',
+  });
+  if (clean.isError) bad(`上一轮全 met 却被要求回应: ${JSON.stringify(clean.error)}`);
+  else ok('上一轮全 met → 不要求逐条回应（门槛只对 not_met 生效）');
+
+  // ④ 裁决读不出来 → 不拦
+  const doc3 = load(files.get(stateFile), { schema: JSON_SCHEMA });
+  doc3.status = 'IMPLEMENTING';
+  files.set(stateFile, dump(doc3, { schema: JSON_SCHEMA, noRefs: true }));
+  files.set(`${dir}/verification.json`, '{ 这不是合法 JSON');
+  const broken = await dispatch('sdlc_task_advance', {
+    task_id: 'PROJ-7',
+    to: 'VERIFYING',
+    reason: '裁决文件坏了，先继续',
+  });
+  if (broken.isError) bad(`裁决读不出来时被拦（不该）: ${JSON.stringify(broken.error)}`);
+  else ok('上一轮裁决读不出来 → 不拦（门槛只在信息齐全时生效）');
+}
+
+
 // 4g. 回退允许
 {
   const back = await dispatch('sdlc_task_advance', {

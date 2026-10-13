@@ -15,6 +15,8 @@ import {
   applyAdvance,
   checkAdvance,
   checkConsistency,
+    checkPriorResponse,
+    criterionId,
   direction,
   isStatus,
   normalizeArtifactPath,
@@ -477,4 +479,85 @@ test('describe：null 要报成 "null"，而 undefined 报成 "undefined"（两�
   if (/artifacts/.test(msg)) {
     assert.doesNotMatch(msg, /undefined/, `null 不该被报成 undefined：${msg}`);
   }
+});
+
+// ── 重新进入验证前：上一轮 not_met 的判据必须被逐条回应 ──
+//
+// 这组用例的依据是一次真实任务（CART-22157）：同一条判据 R3 被 reject 了
+// **两次**，因为作者修的是"相关的地方"而不是判据说的那个点，
+// 代价是两次分钟级的换层验证。
+
+test('criterionId 能抽出常见形态的判据标识符', () => {
+  assert.equal(criterionId('AC1: SqlSessionFactory 的拦截器链'), 'AC1');
+  assert.equal(criterionId('R3：pagehelper 的配置属性'), 'R3');
+  assert.equal(criterionId('第2条 分页上限'), '第2条');
+  assert.equal(criterionId('AC-2 边界'), 'AC-2');
+  // 抽不出来的要返回 null —— 而不是瞎猜一个
+  assert.equal(criterionId('这个改动应该是安全的'), null);
+  assert.equal(criterionId(''), null);
+});
+
+test('没有上一轮裁决（第一次验证）→ 直接放行', () => {
+  const r = checkPriorResponse(undefined, '随便什么理由');
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.outstanding, []);
+});
+
+test('上一轮全部 met → 放行，不要求任何回应', () => {
+  const r = checkPriorResponse(
+    { status: 'approve', criteria: [{ criterion: 'AC1: x', result: 'met' }] },
+    '理由',
+  );
+  assert.equal(r.ok, true);
+});
+
+test('上一轮有 not_met 且理由没点到 → 拒绝，并列出没点到的标识符', () => {
+  const prior = {
+    status: 'reject',
+    criteria: [
+      { criterion: 'AC1: 拦截器链', result: 'met' },
+      { criterion: 'R3: 配置真的被读到', result: 'not_met' },
+      { criterion: 'R4: 幂等', result: 'not_met' },
+    ],
+  };
+  const r = checkPriorResponse(prior, '我改了 配置对象，应该好了');
+  assert.equal(r.ok, false);
+  // 只报 not_met 的，met 的不该出现
+  assert.deepEqual(r.unaddressed, ['R3', 'R4']);
+  assert.equal(r.outstanding.length, 2);
+});
+
+test('理由逐条点到 → 放行（只要求点到，不判断说得对不对）', () => {
+  const prior = {
+    status: 'reject',
+    criteria: [
+      { criterion: 'R3: 配置真的被读到', result: 'not_met' },
+      { criterion: 'R4: 幂等', result: 'not_met' },
+    ],
+  };
+  const r = checkPriorResponse(
+    prior,
+    'R3：把 配置文件 改成 camelCase 并在真上下文断言 getProperty 非 null，证据 /tmp/probe5.out；R4：加了重复注册断言',
+  );
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.unaddressed, []);
+});
+
+test('cannot_tell 也算没达标（它同样需要被回应）', () => {
+  const prior = { status: 'needs_human', criteria: [{ criterion: 'AC9: 未复核项', result: 'cannot_tell' }] };
+  const r = checkPriorResponse(prior, '我没管它');
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.unaddressed, ['AC9']);
+});
+
+test('判据里一条标识符都抽不出来 → **不拦**（会误伤的门槛会被绕开）', () => {
+  const prior = {
+    status: 'reject',
+    criteria: [{ criterion: '这个改动应该是安全的', result: 'not_met' }],
+  };
+  const r = checkPriorResponse(prior, '随便');
+  assert.equal(r.ok, true);
+  assert.equal(r.unchecked, true);
+  // 但 outstanding 仍然带出来，好让人看见
+  assert.equal(r.outstanding.length, 1);
 });

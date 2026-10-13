@@ -48,7 +48,14 @@ const plugin = await import(pathToFileURL(path.join(PLUGIN_DIR, 'lib/index.js'))
 ok(`name=${plugin.name}  inject=[${plugin.inject.join(', ')}]`);
 if (typeof plugin.Config?.['~standard']?.validate === 'function') ok('Config 是 Standard Schema 校验器');
 else bad("Config 不是 Standard Schema");
-const validated = plugin.Config['~standard'].validate({});
+// ⚠️ **把"现在"钉死**：夹具里的 `updated` 是写死的日期，而"是否停滞"
+// 取决于它距今多久。不钉的话这条断言测的其实是"测试当天距离夹具日期多远"——
+// 它在写下它的当天是对的，之后必然坏（实测：2026-10-08 通过，10-13 变红）。
+//
+// 取夹具基准日 + 1 天：于是 PROJ-6（updated 故意钉在 2020-01-01）是停滞，
+// 其余（基准日当天）不是。
+const FIXTURE_NOW = Date.parse('2026-10-08T10:00:00.000Z');
+const validated = plugin.Config['~standard'].validate({ nowForTests: FIXTURE_NOW });
 if (validated.issues) bad(`配置校验失败: ${JSON.stringify(validated.issues)}`);
 else ok(`默认配置: ${JSON.stringify(validated.value)}`);
 
@@ -271,7 +278,10 @@ if (r.isError) {
   else bad(`错误计数应为 2，实际 ${v.error}`);
 
   // ── 时间维度 ───────────────────────────────────────────────
-  if (v.stale === 1) ok('停滞计数为 1（只有 PROJ-6 是 IMPLEMENTING 且三天没动）');
+  // ⚠️ PROJ-6 的 updated 是**故意**钉在 2020-01-01 的（近 7 年前），
+  // 不是"三天前" —— 原来的描述写错了，会让人以为夹具在测边界值。
+  // 它测的是"远超阈值的必然停滞"，边界值由下面的 PROJ-7 那条覆盖。
+  if (v.stale === 1) ok('停滞计数为 1（只有 PROJ-6 是 IMPLEMENTING 且 updated 远早于阈值）');
   else bad(`停滞计数应为 1，实际 ${v.stale}`);
 
   const staleLine = lines.find((l) => l.includes('PROJ-6')) ?? '';
