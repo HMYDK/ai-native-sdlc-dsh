@@ -264,6 +264,63 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 
 **要真正生效，重启 App。** 重启后用运行时可见物验证，不要用文件哈希。
 
+### 12.2 订正：**重启本身不会加载你的新代码**——要看 profile 里装的是什么
+
+上面那条"重启就生效"**有一个前提，我当时没写出来**：
+`dsh plugin add` 建的是**符号链接**时，重启才会重新读仓库的 `lib/`。
+
+**本机 desktop profile 不是这种情况。** 它的 `package.json` 里是：
+
+    "@ai-native-sdlc/dsh-sdlc-verify": "file:.../packages/sdlc-verify/<pkg>.tgz"
+
+`file:` 指向 **tgz**，装的是**解压出来的副本**。所以：
+
+- 改仓库的 `lib/*.js` → **重启也没用**，跑的还是 tgz 里那份
+- 实测代价：2026-10-15 我在"重启了但没生效"上**白重启两轮**，
+  一度以为是代码问题，实际是装的位置不对
+
+**怎么查**（这一步必须做，不能靠"我重启了"）：
+
+    node tools/plugin-activation-check.mjs
+
+它比对 profile 里装的那份与仓库刚构建的那份**是否逐字节一致**，
+不一致就点名是哪个包、哪个文件。退出码 1 = App 跑的不是你这一版。
+它同时检查下面 §12.3 那条。
+
+**同步方式**：把 `<pkg>/lib/*.js` 拷进 profile 的
+`node_modules/@ai-native-sdlc/<pkg>/lib/`，再重启（只拷改动过的包）。
+
+⚠️ 顺带一个同类的坑：环境里的 `DSH_PROFILE` 值是 **`desktop`（名字，不是路径）**，
+绝对路径在 `DSH_PROFILE_DIR`。拿 `DSH_PROFILE` 当路径用会得到一个**相对路径**，
+于是"文件明明在却说没装"。
+
+### 12.3 `inject` 里**多**写一个服务 → 插件静默挂起，工具全部消失
+
+已知的是"**少**写一个抛 `cannot get property "X" without inject`"——
+**那个至少会报错**。实测更隐蔽的是反过来：
+
+    往 inject 加了 'logger'
+    → plugin_manager 显示： enabled: true, fiberPhase: "pending"
+    → 调用工具：Error: unknown tool "sdlc_verify"
+    → App 照常启动，其它插件全部 active，**没有报错、没有日志**
+
+机制（已实测证明）：Cordis 会**等** `inject` 里的每个服务，缺一个就不调 `apply()`。
+patch 里没有插件提供那个服务 → 永远在等。
+
+    ctx.plugin({inject:[a,b,c,d,e], apply})   五个都在 → apply 运行
+                                              缺一个   → apply 不运行
+
+⚠️ **`ctx.logger` 这类是 Context 上的内置属性，不是可注入的服务**，
+所以"读 `ctx[name]` 看有没有值"判不出来——要用 `ctx.get(name)`。
+
+⚠️ **`smoke.mjs` 抓不到这个**：它直接调 `apply()`，绕过了 Cordis 的服务等待，
+所以"缺服务"在冒烟里完全不体现（那次 86/86 全绿，而插件在 App 里根本没激活）。
+`packages/sdlc-verify/smoke.mjs` 已补一条断言（"inject 的每个名字都能被
+Cordis 解析到"），并**做过反向验证**：把 `logger` 装回去 → 冒烟红 1 条。
+
+**教训**：`fiberPhase` 的失败有两种，`failed` 会报错，**`pending` 是沉默的**——
+插件"工具不见了"时先查 `fiberPhase`。
+
 ## 13. 客户端（Web UI）插件：~~做不出来~~ **订正：做得到**（2026-10-08 重查）
 
 > ⚠️ **本节的原始结论是错的，已保留原文在下方以便对照。**
