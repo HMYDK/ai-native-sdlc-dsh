@@ -148,7 +148,7 @@ handbook/                 # 手册原文，只读
 要么另起一次调用验证产物。详见 pitfalls §11.2。
 
 **「优化之后效果如何」现在有了第一个能证伪的读数**（2026-10-15 起，
-`node tools/bench-status-page.mjs`）。这件事**比它看起来重要**，因为
+`node tools/bench/run.mjs`）。这件事**比它看起来重要**，因为
 不这么做的默认结局是"为修复写的断言向修复方案归一化、变成恒真"——
 本项目实测发生过一次（STATUS-PAGE 第三轮，验证者发现新加的冒烟夹具只有
 10 个任务，而 ≤50 时两种实现返回完全一样，**那条断言在被修好的代码和被
@@ -224,7 +224,7 @@ reject 的代码上都是绿的**）。
 
 **重试是保险，体积才是疗效。** 两者都留着——重试在体积仍然写崩时有用。
 
-**闭环**：这个 `reject` 是对的——`tools/bench-status-page.mjs` 独立证明
+**闭环**：这个 `reject` 是对的——`tools/bench/run.mjs` 独立证明
 基线版确实违反 4 条判据。验证者与基准在同一件事上互相印证。
 
 ⚠️ **两个变量的区分是诚实的推断，不是受控实验**：同时改了两样
@@ -241,19 +241,44 @@ reject 的代码上都是绿的**）。
 `verifier_sessions` / `verifier_attempts` 会如实报出"派发了几次"，
 **不把"重试过"抹掉**——那正是完成率要看的。
 
-### 三个已实测过的历史 bug（可作基准用例的种子）
+### 基准：三个用例，已固化成一套（2026-10-15）
 
-同一手法对四条候选全部跑通（2026-10-15）：把修复前后的模块各自编译，
-喂同一组输入，**看差异是否只出现在该变的那一组**。
+    node tools/bench/run.mjs
+    ✅ 成立  STATUS-PAGE-1    基线违反 4 条 / 修复版违反 0 条
+    ✅ 成立  FALSE-ALARM-1    基线违反 2 条 / 修复版违反 0 条
+    ✅ 成立  PWSH-1           基线违反 4 条 / 修复版违反 0 条
 
-| bug | 可测层 | 修复前 → 修复后 | 守恒组 |
-|---|---|---|---|
-| `47e5dae` fd 重定向被误拦 | 纯函数 `judgeTestMutation` | `make test 2>&1` **拦截 → 放行** | 真写入 8 条仍拦、只读 5 条仍放行 |
-| `ddc4241` 假求助信号 | 纯函数 `classifyStaleness` | REVIEWING+approve：**`waiting` → `active`/`stale`** | reject / needs_human / 无裁决 零溢出 |
-| `52212ad` pwsh 白名单 | **接线层**（桩服务调真实 `apply()`，不需要 Electron） | `allow` 含 `pwsh` → **`restrict()` 抛错**；去掉后通过 | — |
+| 用例 | 基线 → 修复 | 在测什么 |
+|---|---|---|
+| `STATUS-PAGE-1` | `60825a2` → `HEAD` | 看板默认页丢了"该动手的"任务 |
+| `FALSE-ALARM-1` | `671a683` → `ddc4241` | 已 `approve` 的 REVIEWING 被报成"在等人" |
+| `PWSH-1` | `896d569` → `52212ad` | 工具白名单没按平台选 |
 
-⚠️ `52212ad` 的 **win32 侧一次都没跑过**（本机 darwin，没伪造 `process.platform`），
-所以「修复没弄坏 Windows」至今无证据——这条与「已知边界」里那条 `pwsh` 是同一件事。
+`FALSE-ALARM-1` 的价值在于它测的是**误伤**（多报假求助信号），不是漏检。
+本项目反复记过"门禁的误伤和漏检一样是缺陷——误伤会让人绕开门禁走"。
+
+### ⚠️ 更正：「win32 没测过」这条**不成立**，而且障碍不是我原来以为的那个
+
+先前这里写着"`52212ad` 的 win32 侧一次都没跑过（本机 darwin，没伪造
+`process.platform`）"。**前半句是真的，后半句暴露了真正的问题**——
+我当时把"没测"归因于"没有 Windows 环境"，而实际障碍是
+**没想到 `process.platform` 可以伪造**：
+
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+
+实测 `darwin → win32 → darwin` 成功。`PWSH-1` 因此**两个平台都测了**，
+而且测出来的比原来记的更糟：
+
+    基线 896d569（bash + pwsh 都写）
+      darwin → [read, grep, glob, bash, pwsh]   不存在的: pwsh   ✗
+      win32  → [read, grep, glob, bash, pwsh]   不存在的: bash   ✗
+
+**不是"mac 上的 bug"，是"两个平台都坏"**——各被一个不存在的工具名绊倒。
+这属于「为平台 A 做的修复弄坏了平台 B」那一类（STATUS-PAGE 第二轮同形态）。
+
+⚠️ 同一个教训的一般化：**"我测不了"这句话要先验证**。
+本项目在这上面栽过不止一次（`sdlc-ui` 的"做不出来"结论也是这么错的，
+见 pitfalls §13 的订正）。说"做不到"之前，先确认试过的是**方法**而不是**结论**。
 
 - **`smoke.mjs` 是关键的那一层**：它用真实 Cordis 上下文 + 真实 `ToolRuntime`
   挂载插件并**真的调用工具**。加载成功 ≠ 可用——这个脚本就是为了防这件事。
@@ -330,6 +355,14 @@ reject 的代码上都是绿的**）。
 - **测试资产识别是名字模式表**：未覆盖的命名不会被冻结。
 - **shell 通道是文本启发式**：不落进模式的等价写法可绕过。
 - **`pwsh` 通道**：cmdlet 识别已加、纯函数层已单测，但**未在 Windows 上实测**。
+  ⚠️ **这条要分开看**（2026-10-15 订正）：
+  · **验证者工具白名单**的平台分支**已经测了**——`PWSH-1` 用伪造的
+    `process.platform` 跑了 win32 侧，见上面那节。
+  · 仍然没测的是**另一件事**：`test-freeze.ts` 里 `pwsh` 的 **cmdlet 识别**
+    （判断某条 pwsh 命令是否在改测试文件）。那需要**真的 pwsh 跑真命令**，
+    伪造 `process.platform` 不够——它只改 `verifierToolAllow()` 的分支，
+    不改 cmdlet 匹配逻辑。
+  所以「做到哪一步」要按**被验证的行为**说，不要按"是不是 Windows"说。
 - **`toolFilter` 只过滤继承面**：验证者的工具面里仍有 `subagent`。
   但我用探针（冻结 → 派子代理 → 让它写测试文件）**实测出了答案**：
   调用返回 `Error: subagent depth 2 exceeds maxDepth 1` —— 验证者本身在 depth 1，
