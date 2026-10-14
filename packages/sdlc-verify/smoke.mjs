@@ -171,6 +171,41 @@ try {
   process.exit(1);
 }
 
+// ⚠️ inject 里写了不存在的服务 → 真实运行时里插件停在 `fiberPhase: "pending"`。
+//
+// 实测（2026-10-15）：我往 inject 加了 `logger`，App 里这个插件就变成
+// `enabled: true, fiberPhase: "pending"`，**三个工具全部消失**
+// （调用报 `Error: unknown tool "sdlc_verify"`），而 App 照常启动、
+// 其它插件全是 active。没有报错、没有日志，只有工具不见了。
+//
+// 为什么必须在这里断言：冒烟是**直接调 apply()** 的，绕过了 Cordis 的服务
+// 等待——所以"缺服务"这条路径在冒烟里完全不体现。那一次 86/86 全绿，
+// 而插件在真实 App 里根本没激活。
+//
+// 判据用 `ctx.get(name)`（Cordis 的服务解析接口）而不是 `ctx[name]`：
+// 后者对 `logger` 这类**内置属性**总是有值，判不出它是不是可注入的服务。
+{
+  const names = Array.isArray(plugin.inject) ? plugin.inject : [];
+  const missing = [];
+  for (const name of names) {
+    let gotten;
+    try {
+      gotten = ctx.get(name);
+    } catch {
+      gotten = undefined;
+    }
+    if (gotten === undefined) missing.push(name);
+  }
+  if (missing.length === 0) {
+    ok(`inject 的每个名字都能被 Cordis 解析到（${names.join(', ')}）`);
+  } else {
+    bad(
+      `inject 里有 ${missing.length} 个服务解析不到：${missing.join(', ')}——` +
+        '真实运行时不会激活这个插件，而且是**静默**的（fiberPhase=pending，工具全部消失）',
+    );
+  }
+}
+
 console.log('\n== 4. 工具注册情况 ==');
 for (const n of ['sdlc_verify', 'sdlc_fix_start', 'sdlc_fix_end']) {
   const t = ctx.tools.get(n);

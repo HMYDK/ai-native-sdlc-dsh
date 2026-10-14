@@ -51,7 +51,13 @@ export const name = 'sdlc-verify';
  */
 // `sandboxPolicy` 必须有：写 verification.json 要按会话策略解析（否则会落到
 // 沙箱的部署 fallback 根，写入被误判越界——实测第二次踩到，第一次在 sdlc-task）。
-export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolicy', 'logger'];
+// ⚠️ **不要往里加 `logger`。** 实测（2026-10-15）：加了之后插件在本机
+// desktop profile 里停在 `fiberPhase: "pending"`——`apply()` 在等一个
+// 不存在的服务，于是**所有工具静默消失**（`Error: unknown tool "sdlc_verify"`），
+// 而 App 照常启动、其它插件全部 active。
+// 这条与"少写一个就抛 `cannot get property`"是同一个坑的两面：
+// **少了会抛错，多了会静默挂起**，后者更难查——没有报错，只有工具不见了。
+export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolicy'];
 
 /**
  * 验证者允许使用的工具。
@@ -534,13 +540,10 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           verdict = got.result.structured as Verdict | undefined;
           if (run !== undefined) attemptSessions.push(String(run.id));
           if (verdict !== undefined) break;
-          if (attempt < maxAttempts) {
-            ctx.logger?.warn?.(
-              `sdlc-verify：第 ${attempt} 次未产出结构化裁决（stop_reason=${String(
-                got.result.stopReason ?? 'unknown',
-              )}），重试一次`,
-            );
-          }
+          // 重试的事实**刻意不用 ctx.logger 记录**：把 logger 加进 inject 会让
+          // 插件停在 `fiberPhase=pending`（那个服务在本机 profile 里不存在），
+          // 于是所有工具静默消失。改由裁决里的 `verifier_attempts` /
+          // `verifier_sessions` 如实报出——那还会进制品，日志不会。
         }
 
         const attempts = attemptSessions.length;
