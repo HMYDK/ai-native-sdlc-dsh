@@ -75,13 +75,31 @@ const write = (p, content) => {
   fs.writeFileSync(full, content, 'utf8');
 };
 
+// ⚠️ 夹具时间一律**相对当前**，不写死日期。
+//
+// 写死的日期会让断言随时间失效——本项目已经栽过两次：
+//   · 这里：`停滞计数应为 1，实际 4`（写死日期越过 24h 阈值后自己变红）
+//   · `src/scan.test.ts`：一条不传 `now` 的测试从某个时刻起自己变红
+// 两次都是**隔几天再跑**才被发现的（其中一次是独立验证者）。
+//
+// 修法两条，这里都用：
+//   1. **夹具相对当前**（下面的 FRESH / CREATED）——治本：
+//      无论今天是几号，"刚动过的任务"永远是刚动过的
+//   2. `nowForTests` 把扫描的时钟钉死（见上面的 FIXTURE_NOW）——加保险
+//
+// ⚠️ 只有第 2 条是不够的：`nowForTests` 只钉住**扫描**用的时钟，
+// 夹具本身若写死"2026-10-07"，两者之间的距离仍随真实日期变化。
+// 实测证据：把 `nowForTests` 那行短路掉，冒烟立刻回到 `停滞计数 4`（68/69）。
+const FRESH = new Date(Date.now() - 3600_000).toISOString(); // 1 小时前 → 一定不 stale
+const CREATED = new Date(Date.now() - 30 * 86_400_000).toISOString(); // 30 天前 → 早于 updated
+
 const stateYaml = (task, status, artifacts, updated) =>
   [
     `task: ${task}`,
     `title: "${task} 的标题"`,
     `status: ${status}`,
-    'created: "2026-10-07T10:00:00.000Z"',
-    `updated: "${updated ?? '2026-10-07T10:00:00.000Z'}"`,
+    `created: "${CREATED}"`,
+    `updated: "${updated ?? FRESH}"`,
     'artifacts:',
     ...Object.entries(artifacts).map(([k, v]) => `  ${k}: "${v}"`),
     'history: []',
@@ -375,8 +393,8 @@ console.log('\n== 7. 边界情况 ==');
         `task: ${id}`,
         `title: "${id}"`,
         'status: SPEC',
-        'created: "2026-10-07T10:00:00.000Z"',
-        'updated: "2026-10-07T10:00:00.000Z"',
+        `created: "${CREATED}",`,
+        `updated: "${FRESH}",`,
         'artifacts:',
         '  intent: "intent.md"',
         '  spec: "spec.md"',
@@ -487,7 +505,7 @@ console.log('\n== 7. 边界情况 ==');
     fs.mkdirSync(path.join(bigTasks, id), { recursive: true });
     fs.writeFileSync(
       path.join(bigTasks, id, 'state.yaml'),
-      `task: ${id}\ntitle: "${id}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
+      `task: ${id}\ntitle: "${id}"\nstatus: SPEC\ncreated: \"${CREATED}\"\nupdated: \"${FRESH}\"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
       'utf8',
     );
     fs.writeFileSync(path.join(bigTasks, id, 'i.md'), '# I\n', 'utf8');
@@ -646,7 +664,7 @@ console.log('\n== 7c. note 必须真的被渲染出来（字段存在但人看�
     fs.mkdirSync(path.join(rTasks, id), { recursive: true });
     fs.writeFileSync(
       path.join(rTasks, id, 'state.yaml'),
-      `task: ${id}\ntitle: "${id}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
+      `task: ${id}\ntitle: "${id}"\nstatus: SPEC\ncreated: \"${CREATED}\"\nupdated: \"${FRESH}\"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
       'utf8',
     );
     fs.writeFileSync(path.join(rTasks, id, 'i.md'), '# I\n', 'utf8');
@@ -692,7 +710,7 @@ console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小�
   for (let i = 1; i <= 5; i += 1) {
     put(
       `ZZ-00${i}`,
-      `task: ZZ-00${i}\ntitle: "坏的 ${i}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\nhistory: []\n`,
+      `task: ZZ-00${i}\ntitle: "坏的 ${i}"\nstatus: SPEC\ncreated: \"${CREATED}\"\nupdated: \"${FRESH}\"\nartifacts:\n  intent: "i.md"\nhistory: []\n`,
     );
     fs.writeFileSync(path.join(mTasks, `ZZ-00${i}`, 'i.md'), '# I\n', 'utf8');
   }
@@ -700,7 +718,7 @@ console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小�
   for (let i = 1; i <= 5; i += 1) {
     fs.writeFileSync(
       path.join(mTasks, `ZZ-00${i}`, 'state.yaml'),
-      `task: ZZ-00${i}\ntitle: "坏的 ${i}"\nstatus: NOT_A_STATUS\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts: {}\nhistory: []\n`,
+      `task: ZZ-00${i}\ntitle: "坏的 ${i}"\nstatus: NOT_A_STATUS\ncreated: \"${CREATED}\"\nupdated: \"${FRESH}\"\nartifacts: {}\nhistory: []\n`,
       'utf8',
     );
   }
@@ -712,7 +730,7 @@ console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小�
     const id = `AA-${String(i).padStart(3, '0')}`;
     put(
       id,
-      `task: ${id}\ntitle: "好的 ${i}"\nstatus: SPEC\ncreated: "2026-10-07T10:00:00.000Z"\nupdated: "2026-10-07T10:00:00.000Z"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
+      `task: ${id}\ntitle: "好的 ${i}"\nstatus: SPEC\ncreated: \"${CREATED}\"\nupdated: \"${FRESH}\"\nartifacts:\n  intent: "i.md"\n  spec: "s.md"\nhistory: []\n`,
     );
     fs.writeFileSync(path.join(mTasks, id, 'i.md'), '# I\n', 'utf8');
     fs.writeFileSync(path.join(mTasks, id, 's.md'), '# S\n', 'utf8');
