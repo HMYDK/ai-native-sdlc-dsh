@@ -338,6 +338,28 @@ console.log('\n== 7. 从磁盘检查已有制品 ==');
   }
 }
 
+console.log('\n== 7b. `why` 必须真的出现在失败信息里');
+{
+  // ⚠️ `why` 字段的全部价值就是**在检查失败的那一刻被人读到** ——
+  // 它由 `detail: \`缺少「## X」章节。为什么需要它：${spec.why}\`` 拼出。
+  // 如果哪天有人改了那句拼接，这些提示会**静默消失**，而结构检查照样通过。
+  // 所以这里钉住它：至少 Constraints 那条（它承载"约束要边做边补"的时机提示）
+  // 必须完整出现在 findings 里。
+  const r = await dispatch('sdlc_artifact_check', {
+    kind: 'intent',
+    content: '# Intent\n\n## Problem\nx\n\n## Proposed outcome\ny\n',
+  });
+  const text = JSON.stringify(r.value?.details ?? r.content ?? r.error ?? '');
+  if (/缺少「## Constraints」章节/.test(text)) ok('缺 Constraints 时报错点名了它');
+  else bad('缺 Constraints 时没有点名');
+  if (text.includes('为什么需要它')) ok('失败信息里带上了 why（提示就在人需要它的那一刻）');
+  else bad('why 没有出现在失败信息里 —— 这些提示已经静默失效了');
+  if (text.includes('当场补进这一节') && text.includes('不要等根因')) {
+    ok('Constraints 那条 why 含"边做边补"的时机提示，且真的被回显');
+  } else bad('Constraints 的时机提示没有出现在报错里');
+}
+
+
 console.log('\n== 8. 输入校验 ==');
 {
   for (const [label, args] of [

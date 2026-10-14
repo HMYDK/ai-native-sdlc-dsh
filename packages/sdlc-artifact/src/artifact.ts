@@ -68,7 +68,12 @@ export const REQUIRED_SECTIONS: Record<ArtifactKind, readonly SectionSpec[]> = {
     {
       name: 'Constraints',
       aliases: ['constraints', 'constraint', '约束', '约束条件'],
-      why: '手册要求把"不做什么"也写进来；缺了它，后续阶段会自行发明边界',
+      why:
+        '手册要求把"不做什么"也写进来；缺了它，后续阶段会自行发明边界。' +
+        '⚠️ 约束是**边做边发现**的：探索期一碰到硬边界（环境限制、共享依赖、' +
+        '不能碰的东西），就**当场补进这一节，不要等根因**——' +
+        '约束不需要根因就能写。不补的话它会变成 plan 里的一条**假设**，' +
+        '而假设通常在验证阶段被打掉，那时返工最贵。',
     },
     {
       name: 'Open questions',
