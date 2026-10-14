@@ -20,6 +20,85 @@ const approve = (over: Partial<Verdict> = {}): Verdict => ({
 
 const met = (criterion: string) => ({ criterion, result: 'met' as const, evidence: 'e' });
 
+/** 省略 `criterion` 的形态：**新推荐写法**（按序号匹配）。 */
+const metNoEcho = { result: 'met' as const, evidence: 'e' };
+const notMetNoEcho = { result: 'not_met' as const, evidence: '实测不成立' };
+
+// ── 判据对齐：两种写法都要收，防篡改保证一样 ────────────────────────
+//
+// 背景：以前 `criterion` 必填且要逐字回抄。实测（2026-10-15）逐字回抄把
+// structured_output 的参数撑大，导致一次 5 条判据的验证**参数流整段为空**，
+// 72 次工具调用的成果全部作废。所以改成"可省"，但**不能因此丢掉防篡改**。
+
+test('省略 criterion（按序号匹配）且条数齐全时，不算漏报', () => {
+  const v = approve({ criteria_results: [metNoEcho, metNoEcho] });
+  const r = enforceCriteriaPolicy(v, ['a', 'b'], 's');
+  assert.equal(r.status, 'approve', '按序号对齐成立就该放行');
+  assert.equal(r.findings.length, 0, `不该报漏报，实际: ${JSON.stringify(r.findings)}`);
+});
+
+test('省略 criterion 但条数不足时，逐条点名缺的是哪些', () => {
+  const v = approve({ criteria_results: [metNoEcho] });
+  const r = enforceCriteriaPolicy(v, ['第一条', '第二条', '第三条'], 's');
+  const miss = r.findings.find((f) => f.category === 'missing_evidence');
+  assert.ok(miss, '必须报漏报');
+  assert.match(miss.reason, /漏报了 2 条/);
+  // ⚠️ 必须点名"第二条"和"第三条"，不能只说"漏了 2 条"——
+  //    否则调用方不知道哪条没被检查过。
+  assert.match(miss.evidence, /第二条/);
+  assert.match(miss.evidence, /第三条/);
+});
+
+test('中间漏一条也要查出来（不能只看条数）', () => {
+  // 三条标准，报了两条——条数不符好发现；但这条测的是**按序号对齐后
+  // 中间那格被跳过**的情形：报了第 1 条和第 3 条，第 2 条没报。
+  const v = approve({
+    criteria_results: [
+      { criterion: '第一条', result: 'met', evidence: 'e' },
+      { criterion: '第三条', result: 'met', evidence: 'e' },
+    ],
+  });
+  const r = enforceCriteriaPolicy(v, ['第一条', '第二条', '第三条'], 's');
+  const miss = r.findings.find((f) => f.category === 'missing_evidence');
+  assert.ok(miss, '中间漏一条必须被报出来');
+  assert.match(miss.reason, /漏报了 1 条/);
+  assert.match(miss.evidence, /第二条/);
+});
+
+test('改写标准文本不能让它匹配上（防篡改仍在）', () => {
+  // 验证者把"必须支持 offset"软化成"看起来还行"——不能算报过。
+  const v = approve({
+    criteria_results: [
+      { criterion: '看起来还行', result: 'met', evidence: 'e' },
+      { criterion: 'b', result: 'met', evidence: 'e' },
+    ],
+  });
+  const r = enforceCriteriaPolicy(v, ['a', 'b'], 's');
+  const miss = r.findings.find((f) => f.category === 'missing_evidence');
+  assert.ok(miss, '改写标准文本必须被判为漏报');
+  assert.match(miss.evidence, /a/);
+});
+
+test('两条标准报成同一条 → 另一条算漏报', () => {
+  const v = approve({
+    criteria_results: [
+      { criterion: 'a', result: 'met', evidence: 'e' },
+      { criterion: 'a', result: 'met', evidence: 'e' },
+    ],
+  });
+  const r = enforceCriteriaPolicy(v, ['a', 'b'], 's');
+  const miss = r.findings.find((f) => f.category === 'missing_evidence');
+  assert.ok(miss, '重复报同一条必须让另一条算漏报');
+  assert.match(miss.evidence, /b/);
+});
+
+test('按序号对齐时，not_met 仍然触发降级（对齐方式不影响强制策略）', () => {
+  const v = approve({ criteria_results: [metNoEcho, notMetNoEcho] });
+  const r = enforceCriteriaPolicy(v, ['a', 'b'], 's');
+  assert.equal(r.status, 'needs_human');
+  assert.match(r.summary, /已降级为 needs_human/);
+});
+
 test('没给 criteria 时，approve 被降级为 needs_human', () => {
   const r = enforceCriteriaPolicy(approve(), [], 'sess-1');
   assert.equal(r.status, 'needs_human');

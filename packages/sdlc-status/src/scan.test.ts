@@ -855,8 +855,17 @@ test('概览摘要：计数为 0 的项**不得出现**（"0 个读不出来"是
   //
   // 修法：断言"不含"。0 计数的项出现，是**假信号**：
   // 看板的价值就在"谁该动手"，多报一个 0 会稀释真信号。
-  const r = scanTasks(
-    inputOf({
+  //
+  // ⚠️ **必须传 `now`**：这条原来不传，于是"是否停滞"由**墙上时钟**决定，
+  // 而夹具的 updated 是写死的 2026-10-09T23:00:00Z。阈值 24 小时 →
+  // **从 2026-10-10T23:00Z 起，不改任何代码，这条测试自己就变红了**
+  // （实测：2026-10-15 跑 `npm test` 得到 57/58，失败的就是这条，
+  //  报 `1 !== 0` —— counts.staleness.stale 期望 0 实际 1）。
+  // 这不是"代码坏了"，是**测试结果取决于今天几号**。
+  // 传 now 之后，夹具相对基准时刻只有 1 小时，永远不 stale，也就永远可复现。
+  const NOW = Date.parse('2026-10-10T00:00:00.000Z');
+  const r = scanTasks({
+    ...inputOf({
       'ONLY-OK': {
         'state.yaml': stateYaml({
           task: 'ONLY-OK',
@@ -868,7 +877,8 @@ test('概览摘要：计数为 0 的项**不得出现**（"0 个读不出来"是
         's.md': 'x',
       },
     }),
-  );
+    now: NOW,
+  });
   const line = summarize(r);
   assert.equal(r.counts.error, 0);
   assert.equal(r.counts.incomplete, 0);

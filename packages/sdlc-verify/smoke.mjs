@@ -640,6 +640,91 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
     }
   }
 
+  // (5c) 结构化裁决没产出 → 必须重试一次，且第二次的裁决被采纳
+  //
+  // 这一条对应一个实测到的**真缺陷**（2026-10-15）：验证者把调查全做完
+  // （72 次工具调用、421 秒），却在写 structured_output 时参数流整段为空，
+  // 报 `tool input is invalid JSON`。不重试 = 整轮调查白做。
+  {
+    const original = subagentsStub.impl;
+    let calls = 0;
+    const retryChild = (over) => ({
+      id: `retry-child-${calls}`,
+      localAgent: undefined,
+      result: Promise.resolve({
+        output: [{ type: 'text', text: '重试桩输出' }],
+        structured: over,
+        stopReason: over === undefined ? 'error' : 'end_turn',
+        ...(over === undefined ? { diagnostic: 'tool input is invalid JSON' } : {}),
+      }),
+      dispose: async () => {
+        disposeCalls.push('retry-child');
+      },
+    });
+    subagentsStub.impl = async () => {
+      calls += 1;
+      // 第一次模拟"参数流为空"：structured 缺失；第二次正常返回。
+      return calls === 1
+        ? retryChild(undefined)
+        : retryChild({ status: 'reject', summary: '第二次给出了裁决', findings: [] });
+    };
+    const r = await dispatch('sdlc_verify', { intent_of_change: '重试测试' }, fakeAgent);
+    subagentsStub.impl = original;
+
+    if (calls === 2) ok('第一次没产出结构化裁决时，自动重试了一次');
+    else bad(`重试没发生，实际派发 ${calls} 次`);
+
+    if (r.value?.status === 'reject' && r.value?.summary === '第二次给出了裁决') {
+      ok('采纳的是重试那次的裁决（不是退回 needs_human）');
+    } else {
+      bad(`重试结果没被采纳: status=${r.value?.status} summary=${r.value?.summary}`);
+    }
+    if (r.value?.verifier_attempts === 2 && Array.isArray(r.value?.verifier_sessions)
+        && r.value.verifier_sessions.length === 2) {
+      ok('裁决里如实带出了"派发了 2 次"及每次的会话 id');
+    } else {
+      bad(`重试记录没带出: attempts=${r.value?.verifier_attempts} sessions=${JSON.stringify(r.value?.verifier_sessions)}`);
+    }
+  }
+
+  // (5d) 两次都没产出 → needs_human，且**不许**从自由文本猜
+  {
+    const original = subagentsStub.impl;
+    let calls = 0;
+    subagentsStub.impl = async () => {
+      calls += 1;
+      return {
+        id: `hopeless-${calls}`,
+        localAgent: undefined,
+        result: Promise.resolve({
+          // 自由文本里写着"我判 reject"——**不能**采信它去猜。
+          output: [{ type: 'text', text: '我的结论是 reject，有 3 条问题' }],
+          structured: undefined,
+          stopReason: 'error',
+          diagnostic: 'tool input is invalid JSON',
+        }),
+        dispose: async () => {
+          disposeCalls.push('hopeless');
+        },
+      };
+    };
+    const r = await dispatch('sdlc_verify', { intent_of_change: '猜不猜测试' }, fakeAgent);
+    subagentsStub.impl = original;
+
+    if (calls === 2) ok('两次都失败时确实尝试了两次（不是一次了事）');
+    else bad(`重试次数不对: ${calls}`);
+    if (r.value?.status === 'needs_human') {
+      ok('两次都拿不到裁决 → needs_human（明确失败，不猜）');
+    } else {
+      bad(`应当 needs_human，实际 ${r.value?.status}——从自由文本猜出来的结论最危险`);
+    }
+    if (/invalid JSON/.test(r.value?.diagnostic ?? '')) {
+      ok('把子代理的失败详情（diagnostic）带了出来，便于定位');
+    } else {
+      bad(`diagnostic 没带出: ${r.value?.diagnostic}`);
+    }
+  }
+
   // (6) reject 不受降级影响（降级只针对 approve）
   {
     const original = subagentsStub.impl;

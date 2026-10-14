@@ -27,8 +27,18 @@ export const CRITERION_RESULTS = ['met', 'not_met', 'cannot_tell'] as const;
 export type CriterionResultStatus = (typeof CRITERION_RESULTS)[number];
 
 export interface CriterionResult {
-  /** 原样回抄调用方给的标准文本——便于对账，也防止验证者偷偷改写标准。 */
-  criterion: string;
+  /**
+   * 原样回抄调用方给的标准文本——**可选**。
+   *
+   * 省略即按序号与传入的 `criteria` 对应（推荐做法）。以前它必填，
+   * 理由是"便于对账、防止标准在传递中被悄悄改写"；但逐字回抄会把
+   * `structured_output` 的参数撑大，实测导致一次 5 条判据的验证
+   * **参数流整段为空**，整轮调查作废。
+   *
+   * 防篡改没有丢：给了就必须与传入的标准逐字相等，否则算漏报
+   * （见 `enforceCriteriaPolicy`）。
+   */
+  criterion?: string;
   result: CriterionResultStatus;
   evidence: string;
 }
@@ -71,6 +81,21 @@ export interface Verdict {
   unverified?: string[];
   /** 逐条验收标准的裁决。调用方给了 criteria 时必须逐条覆盖。 */
   criteria_results?: CriterionResult[];
+  /**
+   * 做出本次裁决的验证者会话 id。
+   *
+   * ⚠️ 这三个字段**由插件写、不由验证者写**（验证者的 outputSchema 里也有，
+   * 是因为工具输出 schema 必须能容纳插件补充后的完整形状）。
+   * 漏在 Verdict 接口里会被 `assertSchemasAligned` 在加载时抓出来——
+   * 实测抓到过一次，就是加这三个字段的那一轮。
+   */
+  verifier_session?: string;
+  /** 重试过才出现：每次派发的会话 id，让"第一次失败过"不被抹掉。 */
+  verifier_sessions?: string[];
+  /** 实际派发了几次（1 = 一次成功；2 = 重试过）。 */
+  verifier_attempts?: number;
+  /** 子代理给的失败详情（非 assistant 文本）。失败时才有。 */
+  diagnostic?: string;
 }
 
 /**
@@ -116,8 +141,29 @@ export function enforceCriteriaPolicy(
       });
     }
   } else {
-    const reported = new Set(results.map((r) => (r.criterion ?? '').trim()));
-    const missing = criteria.filter((c) => !reported.has(c.trim()));
+    // ── 判据对齐：**不做逐字回抄** ────────────────────────────────
+    //
+    // 以前要求 `criterion` 必填且逐字相等，理由是防"标准在传递中被悄悄改写"。
+    // 但逐字回抄会把 structured_output 的参数撑大，实测导致一次 5 条判据的
+    // 验证参数流整段写崩（`tool input is invalid JSON`）。
+    //
+    // 现在两种写法都收，但**防篡改保证一样**：
+    //   · 全给 `criterion` → 必须与传入的标准逐字相等才算报了
+    //     （不能靠改写标准来让它匹配上）
+    //   · 有任一没给 → 整体按**序号**对齐，未给的取对应位标准
+    //   混用两种写法时按序号对齐，因为那时"标准文本"不可信。
+    const allEchoed = results.length === criteria.length
+      && results.every((r) => typeof r.criterion === 'string' && r.criterion.trim() !== '');
+    const reported = new Set(
+      results.map((r, i) => {
+        const echoed = typeof r.criterion === 'string' ? r.criterion.trim() : '';
+        if (allEchoed) return echoed;
+        return echoed !== '' ? echoed : (criteria[i] ?? `（第 ${i + 1} 条，无对应标准）`);
+      }).map((c) => c.trim()),
+    );
+    // ⚠️ 漏报必须**逐条比对**，不能只看条数：条数够但中间空了一格、
+    //    或者把两条标准报成同一条，只看条数都查不出来。
+    const missing = criteria.map((c) => c.trim()).filter((c) => !reported.has(c));
     if (missing.length > 0) {
       findings.push({
         severity: 'important',
@@ -126,7 +172,8 @@ export function enforceCriteriaPolicy(
         evidence: missing.map((m, i) => `${i + 1}. ${m}`).join('\n'),
         suggestion:
           '每条标准都必须给出 met / not_met / cannot_tell。`cannot_tell` 是正当答案，' +
-          '漏报不是——它会让调用方以为这条被检查过。',
+          '漏报不是——它会让调用方以为这条被检查过。' +
+          '`criteria_results` 按顺序一一对应传入的 criteria，省略 `criterion` 即按序号匹配。',
       });
     }
 
@@ -220,7 +267,15 @@ export const VERDICT_SCHEMA: ObjectJsonSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['criterion', 'result', 'evidence'],
+        // `criterion` **不是必填**：省略即按序号与传入的 criteria 对应。
+        //
+        // 曾经要求必填 + 逐字回抄，理由是"防标准在传递中被悄悄改写"。
+        // 但回抄会把 structured_output 的参数撑大，实测导致一次 5 条判据的
+        // 验证**参数流整段写崩**（`tool input is invalid JSON`），
+        // 72 次工具调用的调查成果全部作废。
+        // 防篡改的保证没有丢——见 enforceCriteriaPolicy：
+        // 给了就必须逐字相等，没给就按序号对齐，条数不符算漏报。
+        required: ['result', 'evidence'],
         properties: {
           criterion: { type: 'string' },
           result: { type: 'string', enum: [...CRITERION_RESULTS] },
@@ -277,13 +332,21 @@ export const TOOL_OUTPUT_SCHEMA = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          criterion: { type: 'string', required: true },
+          // 与 VERDICT_SCHEMA 一致：`criterion` 可选（省略即按序号匹配）。
+          // 两处必须同步——`assertSchemasAligned` 会在加载时报漂移。
+          criterion: { type: 'string' },
           result: { type: 'string', required: true, enum: [...CRITERION_RESULTS] },
           evidence: { type: 'string', required: true },
         },
       },
     },
     verifier_session: { type: 'string' },
+    // 以下三项由**插件**补写（验证者不产出），所以在 VERDICT_SCHEMA 里没有、
+    // 只能在这里。`assertSchemasAligned` 靠 PLUGIN_METADATA_FIELDS 把它们
+    // 从"验证者应该产出的形状"里排除，否则加载即报漂移。
+    verifier_sessions: { type: 'array', items: { type: 'string' } },
+    verifier_attempts: { type: 'number' },
+    diagnostic: { type: 'string' },
   },
 } as const;
 
@@ -372,10 +435,30 @@ function compareNodes(
   }
 }
 
+/**
+ * 顶层比对时排除的字段：**插件自己写的元信息**，不属于"验证者应产出的裁决"。
+ *
+ * 只出现在 `TOOL_OUTPUT_SCHEMA` 里，不出现在 `VERDICT_SCHEMA`（验证者的
+ * outputSchema）里。新增这类字段时**必须同时加进这份名单**，否则
+ * `assertSchemasAligned` 会在加载时拒绝启动——实测抓到过一次。
+ */
+const PLUGIN_METADATA_FIELDS = new Set([
+  'verifier_session',
+  'verifier_sessions',
+  'verifier_attempts',
+  'diagnostic',
+]);
+
 export function assertSchemasAligned(): void {
   const problems: string[] = [];
 
-  // 顶层比对把 verifier_session（工具自己的元信息，不属于裁决）排除在外
+  // 顶层比对排除**插件自己写的元信息**——它们不属于"验证者应该产出的裁决"。
+  //
+  // ⚠️ 这里曾经只写死 `verifier_session`。新增 `verifier_sessions` /
+  //    `verifier_attempts` / `diagnostic` 时，我一开始把它们也加进了
+  //    VERDICT_SCHEMA（那是**验证者**的 schema，它不该产出这些），
+  //    于是加载时的漂移检测直接拒绝启动——**这是它该有的行为**。
+  //    正确形状：这些字段只属于工具输出 schema，用下面这份名单统一排除。
   const verdictOnly: Record<string, unknown> = {};
   for (const [k, spec] of Object.entries(
     (VERDICT_SCHEMA.properties ?? {}) as Record<string, unknown>,
@@ -384,7 +467,7 @@ export function assertSchemasAligned(): void {
   }
   const outOnly: Record<string, unknown> = {};
   for (const [k, spec] of Object.entries(TOOL_OUTPUT_SCHEMA.properties)) {
-    if (k === 'verifier_session') continue;
+    if (PLUGIN_METADATA_FIELDS.has(k)) continue;
     outOnly[k] = spec;
   }
 
@@ -468,8 +551,11 @@ export function buildVerificationPrompt(input: VerificationPromptInput): string 
         '⚠️ 只确认了前置条件（文件在、测试跑了）**不等于**该标准成立。',
         '每条 `met` 都要说明你实际观察到了什么行为。',
         '',
-        '`criterion` 字段要**原样回抄**下面的文本——便于调用方对账，',
-        '也避免标准在传递中被悄悄改写。',
+        '`criteria_results` **按上面的顺序一一对应**，条数与顺序都必须一致。',
+        '',
+        '⚠️ **不要回抄上面这些标准的原文。** 这个字段以前要求逐字回抄，',
+        '而回抄会把工具调用的参数撑大（实测一次 5 条判据的验证因此整段写崩，',
+        '成果全部作废）。省略 `criterion` 字段即按序号匹配，这是**推荐做法**。',
         '',
         ...input.criteria.map((c, i) => `${i + 1}. ${c}`),
         '',
@@ -514,8 +600,23 @@ export function buildVerificationPrompt(input: VerificationPromptInput): string 
       '',
       '## 输出',
       '',
-      '用 structured_output 提交裁决。每条 finding 的 evidence 必须可复核。',
-      '若证据不足以判断，用 status="needs_human" 并把问题列在 unverified 里。',
+      '用 structured_output 提交裁决。若证据不足以判断，用 status="needs_human" 并把问题列在 unverified 里。',
+      '',
+      '### ⚠️ `evidence` 字段写成"命令 + 观测到的结果"，不要写成散文',
+      '',
+      '实测教训：把长段中文叙述塞进 `evidence`，会让这个工具调用的参数在生成时',
+      '**整段失败**（实测：一次 5 条判据的验证，参数流直接为空，`tool input is invalid JSON`，',
+      '验证者做了 72 次工具调用的成果全部作废，只能退回 needs_human）。',
+      '参数是逐字流式生成的，字符串越长、转义字符越多，越容易写崩。',
+      '',
+      '所以：',
+      '',
+      '- **每条 `evidence` 控制在 2-4 行**：一行可复跑的**命令**，紧跟关键**观测行**。',
+      '  这两样就够别人复核了，不需要把推理过程也写进去。',
+      '- 更长的输出、脚本内容、完整日志 → **写进文件**（你有 bash，可以写 /tmp），',
+      '  然后在 `evidence` 里写这个文件路径。人能从文件里复核，而参数不用扛着它。',
+      '- `summary` 只写结论和**最关键的那几条证据**，不要复述探索过程。',
+      '- 宁可在 `evidence` 里给出**一条命令**，也不要把命令的输出整段粘进来。',
     ].join('\n'),
   );
 

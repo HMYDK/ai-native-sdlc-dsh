@@ -28,7 +28,7 @@ import type { SandboxPolicyService as _SandboxPolicyService } from '@deepseek-ai
 import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import type { SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
+import type { SubagentResult, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
 import { judgeTestMutation } from './test-freeze.js';
 import type { Finding, Verdict } from './verdict.js';
 import {
@@ -51,7 +51,7 @@ export const name = 'sdlc-verify';
  */
 // `sandboxPolicy` 必须有：写 verification.json 要按会话策略解析（否则会落到
 // 沙箱的部署 fallback 根，写入被误判越界——实测第二次踩到，第一次在 sdlc-task）。
-export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolicy'];
+export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolicy', 'logger'];
 
 /**
  * 验证者允许使用的工具。
@@ -107,6 +107,15 @@ export interface SdlcVerifyConfig {
   verifierModel: string;
   /** 单次验证的 token 上限（0 = 不限制）。 */
   verifierMaxTokens: number;
+  /**
+   * 结构化裁决没产出时是否重试一次。默认开。
+   *
+   * 实测（2026-10-15）：验证者把调查全做完（72 次工具调用、421 秒），
+   * 却在写 `structured_output` 时参数流整段为空。那是**生成期**的偶发失败，
+   * 不是调查失败；不重试等于把整轮调查丢掉。
+   * 关掉它只应出于调试目的——正常路径上"多给一次机会"没有坏处。
+   */
+  verifierRetryOnMalformed: boolean;
 }
 
 /**
@@ -124,6 +133,7 @@ export const Config = z.object({
   verifierProvider: z.string().default('spawn'),
   verifierModel: z.string().default(''),
   verifierMaxTokens: z.number().default(0),
+  verifierRetryOnMalformed: z.boolean().default(true),
 });
 
 /**
@@ -309,6 +319,72 @@ async function resolveTask(
 
 import { resolveOptions, writePolicy } from './helpers.js';
 
+/** 子代理终局结果与句柄。用官方类型，不手写重复定义。 */
+type VerifierResult = SubagentResult;
+type VerifierRun = SubagentRun;
+
+/** 一次派发尝试的产物。`run` 用于报 session id，`result` 是终局结果。 */
+interface VerifierAttempt {
+  run: VerifierRun | undefined;
+  result: VerifierResult;
+}
+
+/**
+ * 派发一次验证者子代理并等它settle。
+ *
+ * 抽成函数是为了**重试**：实测（2026-10-15）有一次验证者把调查全做完了
+ * （72 次工具调用、421 秒），却在写 structured_output 时参数流整段为空，
+ * 报 `tool input is invalid JSON`，成果全部作废、只能退回 needs_human。
+ * 那是一次**生成期的偶发失败**，不是调查失败——重试一次是正当的处置。
+ *
+ * `SubagentRun` 的契约要求消费者**总是** dispose（取消剩余工作、达到静默）。
+ * 不 dispose 会在 abort/异常路径上泄漏子代理句柄。
+ */
+async function dispatchVerifier(
+  ctx: Context,
+  provider: string,
+  request: SubagentStartRequest,
+): Promise<VerifierAttempt> {
+  let run: VerifierAttempt['run'];
+  try {
+    run = await ctx.subagents.start(provider, request);
+    const result = await run.result;
+    return { run, result };
+  } finally {
+    if (run !== undefined) {
+      try {
+        await run.dispose();
+      } catch {
+        /* dispose 失败不应掩盖真正的结果 */
+      }
+    }
+  }
+}
+
+/**
+ * 重试时追加的指令。
+ *
+ * 只针对**上一次失败的原因**说话，不重复整份提示词：把裁决写小，
+ * 长证据落盘，别再写散文。实测的失败形态就是参数太大/太长写不出来。
+ */
+const RETRY_GUIDANCE = [
+  '',
+  '---',
+  '',
+  '## ⚠️ 上一次提交裁决失败了',
+  '',
+  '你上一次调用 structured_output 时，**参数流没有生成出来**',
+  '（`tool input is invalid JSON`），整个调查成果作废。',
+  '那是生成期的失败，不是你的结论有问题——**请只重做提交这一步**：',
+  '',
+  '- 不要重新调查。你已经查到的结论直接写。',
+  '- `evidence` 每条压到 **2-4 行**：一行可复跑的命令 + 关键观测行。',
+  '  更长的输出/脚本/日志写进文件（bash 可以写 /tmp），evidence 里写文件路径。',
+  '- `summary` 3-6 句：结论 + 最关键的两三条证据，不要复述探索过程。',
+  '- `findings` 只保留真正是缺陷的，不要把观察笔记也写进去。',
+  '- 先提交**小而完整**的裁决，比追求详尽而提交失败有价值得多。',
+].join('\n');
+
 export function apply(ctx: Context, config: SdlcVerifyConfig): void {
   // 加载即自检：工具输出 schema 与裁决 schema 一旦漂移，某条裁决路径会静默失效
   // （实测过：unverified 缺失会让 needs_human 变成工具错误）。
@@ -431,43 +507,74 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             : {}),
         };
 
-        // SubagentRun 的契约要求消费者**总是** dispose（取消剩余工作、达到静默）。
-        // 官方调用方就是这么做的（dsh-tool-subagent 的 settleForegroundRun）。
-        // 不 dispose 会在 abort/异常路径上泄漏子代理句柄。
-        let run: Awaited<ReturnType<typeof ctx.subagents.start>> | undefined;
-        let result: Awaited<ReturnType<typeof ctx.subagents.start>>['result'] extends Promise<
-          infer R
-        >
-          ? R
-          : never;
-        try {
-          run = await ctx.subagents.start(cfg.verifierProvider, request);
-          result = await run.result;
-        } finally {
-          if (run !== undefined) {
-            try {
-              await run.dispose();
-            } catch {
-              /* dispose 失败不应掩盖真正的结果 */
-            }
+        // ── 派发 + 失败重试 ────────────────────────────────────────
+        //
+        // 实测（2026-10-15）：验证者把调查全做完了（72 次工具调用、421 秒），
+        // 却在写 structured_output 时**参数流整段为空**，
+        // 报 `tool input is invalid JSON`。那是生成期的偶发失败，
+        // 不是调查失败——而且调查成果本来就已经花掉了，不重试等于全扔。
+        //
+        // 所以：结构化裁决没拿到时，**原样重派一次**，prompt 追加一段
+        // 「怎么把裁决写小」的指令。注意这不改变任何安全性质——
+        // 重试仍然是同一个只读、独立上下文的验证者，只是多给它一次机会。
+        // 两次都没拿到 → needs_human（见下方），绝不解析自由文本去猜。
+        const maxAttempts = cfg.verifierRetryOnMalformed ? 2 : 1;
+        let run: VerifierRun | undefined;
+        let result: VerifierResult | undefined;
+        let verdict: Verdict | undefined;
+        /** 每次尝试的 session id，便于事后从 trace 里复盘哪次失败。 */
+        const attemptSessions: string[] = [];
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const text = attempt === 1 ? prompt : `${prompt}${RETRY_GUIDANCE}`;
+          const attemptRequest: SubagentStartRequest = { ...request, prompt: [{ type: 'text', text }] };
+          const got = await dispatchVerifier(ctx, cfg.verifierProvider, attemptRequest);
+          run = got.run;
+          result = got.result;
+          verdict = got.result.structured as Verdict | undefined;
+          if (run !== undefined) attemptSessions.push(String(run.id));
+          if (verdict !== undefined) break;
+          if (attempt < maxAttempts) {
+            ctx.logger?.warn?.(
+              `sdlc-verify：第 ${attempt} 次未产出结构化裁决（stop_reason=${String(
+                got.result.stopReason ?? 'unknown',
+              )}），重试一次`,
+            );
           }
         }
 
-        const verdict = result.structured as Verdict | undefined;
-
+        const attempts = attemptSessions.length;
+        const firstSession = attemptSessions[0];
+        const lastSession = attemptSessions[attemptSessions.length - 1];
         if (verdict === undefined) {
           // 结构化捕获失败。**不要**退化成"解析自由文本然后猜"——
           // 那会把一个明确的失败变成一个可能错误的通过。
           // satisfies 而不是类型注解：保留字面量类型（schema 推断要求），
           // 同时仍然校验形状。
+          // ⚠️ 这里**不做"解析自由文本再猜"**：那会把一个明确的失败
+          // 变成一个可能错误的通过。两次尝试都没拿到就是没拿到。
+          const diag = result?.diagnostic;
+          const reason = String(result?.stopReason ?? 'unknown');
           return {
             status: 'needs_human',
             summary:
-              '验证者未产出结构化裁决，无法据此判断。stop_reason=' +
-              String(result.stopReason ?? 'unknown'),
+              `验证者未产出结构化裁决，无法据此判断。stop_reason=${reason}` +
+              (attempts > 1
+                ? `（已重试，共 ${attempts} 次派发；这是**生成期失败**，不是调查失败——` +
+                  '验证者可能已经把活干完了，只是裁决没写出来。' +
+                  '从 verifier_sessions 里的会话 trace 能看出它查到了什么。）'
+                : ''),
             findings: [],
-            verifier_session: run !== undefined ? String(run.id) : undefined,
-          } satisfies Verdict & { verifier_session?: string };
+            verifier_session: firstSession,
+            verifier_sessions: attemptSessions.length > 0 ? attemptSessions : undefined,
+            verifier_attempts: attempts,
+            ...(typeof diag === 'string' && diag !== '' ? { diagnostic: diag } : {}),
+          } satisfies Verdict & {
+            verifier_session?: string;
+            verifier_sessions?: string[];
+            verifier_attempts?: number;
+            diagnostic?: string;
+          };
         }
 
         // ── 强制策略：**没有验收标准就不许通过** ──────────────────────
@@ -478,14 +585,24 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         // 理由：验证者不知道"对"的定义时只能自己推断判据，于是"验证通过"
         // 退化成一句意见。这正是之前每一次验证都出现的弱点——验证者自称
         // "只覆盖了前置条件"，但那只是 summary 里的一句道歉，不是可检查的东西。
-        const enforced = enforceCriteriaPolicy(verdict, criteria, run !== undefined ? String(run.id) : undefined);
+        const enforced = enforceCriteriaPolicy(verdict, criteria, lastSession);
 
         // satisfies：保留字面量类型，让 output.schema 的推断成立。
         // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
         const finalVerdict = {
           ...enforced,
-          verifier_session: run !== undefined ? String(run.id) : undefined,
-        } satisfies Verdict & { verifier_session?: string };
+          // 报**做出裁决的那一次**（重试成功时即第二次）。
+          verifier_session: lastSession,
+          // 重试过就把每次都列出来：这样"第一次失败了"这件事不会消失，
+          // 而它正是本项目在测的那个指标（完成率）。
+          ...(attempts > 1
+            ? { verifier_sessions: attemptSessions, verifier_attempts: attempts }
+            : {}),
+        } satisfies Verdict & {
+          verifier_session?: string;
+          verifier_sessions?: string[];
+          verifier_attempts?: number;
+        };
 
         // 落盘到任务目录**并登记进 state.yaml**。
         //
