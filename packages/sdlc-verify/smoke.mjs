@@ -114,6 +114,7 @@ ctx.provide('sandboxPolicy', {
 const started = [];
 const disposeCalls = [];
 let verifyCalls = 0;
+let runHandles = 0;
 let capturedCriteriaPrompt = '';
 const subagentsStub = {
   impl: async (provider, request) => {
@@ -147,7 +148,9 @@ ctx.provide('subagents', {
     // 计数器放在这个**唯一入口**：5c 会临时替换 impl，放在 impl 里会漏计
     verifyCalls += 1;
     started.push({ provider, request });
-    return await subagentsStub.impl(provider, request);
+    const handle = await subagentsStub.impl(provider, request);
+    runHandles += 1;
+    return handle;
   },
 });
 
@@ -219,13 +222,13 @@ else bad(`提示词段注册数=${sections.length}，期望 1`);
 console.log('\n== 5. 真正调用工具（之前从没做到这一步）==');
 
 /** 用真实 registry 派发一次调用 */
-const dispatch = (name, args, agent) =>
+const dispatch = (name, args, agent, signal = new AbortController().signal) =>
   ctx.tools.execute({
     callId: `smoke-${name}-${Math.random().toString(36).slice(2, 7)}`,
     name,
     arguments: args,
     ...(agent ? { agent } : {}),
-    signal: new AbortController().signal,
+    signal,
   });
 
 // 5a. 先注册一个假的写工具，用来验证冻结 guard 真的会拒绝
@@ -929,17 +932,113 @@ console.log('\n== 7. 提供测试证据时的条件渲染 ==');
   }
 }
 
+console.log('\n== 7b. 每次验证都留下成对记录，失败不能伪装成裁决 ==');
+{
+  const records = [];
+  const unsubscribe = ctx.on('sdlc-verify/record', async (record, exec) => {
+    await Promise.resolve();
+    records.push(structuredClone(record));
+    if (!exec?.agent) throw new Error('记录事件没有传 exec.agent');
+  });
+  const original = subagentsStub.impl;
+  const resultHandle = (result, id = 'record-child') => ({
+    id, localAgent: undefined, result: Promise.resolve(result),
+    dispose: async () => { disposeCalls.push(id); },
+  });
+  const check = (label, condition) => condition ? ok(label) : bad(label);
+  const run = async (impl, args = {}, agent = fakeAgent) => {
+    records.length = 0;
+    subagentsStub.impl = impl;
+    return await dispatch('sdlc_verify', { intent_of_change: '运行记录测试', ...args }, agent);
+  };
+  const paired = () => records[0]?.kind === 'started' && records.at(-1)?.kind === 'finished'
+    && records.filter((r) => r.kind === 'finished').length === 1;
+  try {
+    const missing = { output: [{ type: 'text', text: 'approve 自由文本不能当裁决' }], stopReason: 'error', diagnostic: 'missing structured' };
+    const r = await run(async () => resultHandle(missing));
+    check('无裁决仍发出 started/finished', paired());
+    check('无裁决明确标 verification_complete=false', r.value?.verification_complete === false);
+    check('无裁决终点为 no_verdict，结果仍是 needs_human', records.at(-1)?.data.outcome === 'no_verdict' && r.value?.status === 'needs_human');
+    check('两次尝试分别留下 started/session/finished', ['attempt_started', 'attempt_session', 'attempt_finished'].every((kind) => records.filter((r) => r.kind === kind).length === 2));
+    check('运行 UUID 与返回值一致、seq 从 0 连续', typeof r.value?.verification_run_id === 'string' && records.every((record, i) => record.seq === i && record.run_id === r.value.verification_run_id && record.schema_version === 1));
+
+    await run(async () => { throw new Error('provider dispatch failed'); });
+    check('派发异常也有完整运行与尝试终点', paired() && records.at(-1)?.data.outcome === 'error' && records.some((r) => r.kind === 'attempt_finished' && /dispatch failed/.test(r.data.error)));
+
+    await run(async () => ({
+      id: 'rejected-result-child', localAgent: undefined,
+      result: Promise.resolve().then(() => { throw new Error('result infrastructure failed'); }),
+      dispose: async () => { disposeCalls.push('rejected-result-child'); },
+    }));
+    check('子代理结果拒绝有 attempt_session 与带 child id 的失败记录', paired() && records.at(-1)?.data.outcome === 'error' && records.some((r) => r.kind === 'attempt_finished' && r.data.session_id === 'rejected-result-child' && /infrastructure failed/.test(r.data.error)));
+
+    records.length = 0;
+    const controller = new AbortController();
+    let abortCalls = 0;
+    let finalSignal;
+    const observeSignal = ctx.on('sdlc-verify/record', (record, exec) => {
+      if (record.kind === 'finished') finalSignal = exec.signal;
+    });
+    subagentsStub.impl = async () => {
+      abortCalls += 1;
+      return {
+        id: 'abort-result-child', localAgent: undefined,
+        result: Promise.resolve().then(() => {
+          controller.abort();
+          throw new DOMException('用户中止验证', 'AbortError');
+        }),
+        dispose: async () => { disposeCalls.push('abort-result-child'); },
+      };
+    };
+    await dispatch('sdlc_verify', { intent_of_change: '实际信号取消' }, fakeAgent, controller.signal);
+    observeSignal();
+    check('中途 AbortSignal 取消仍成对记录且只派发一次', abortCalls === 1 && paired() && records.at(-1)?.data.outcome === 'cancelled');
+    check('取消后的结束记录没有被已取消 signal 连带阻止', finalSignal === undefined);
+
+    await run(original, { task_id: 'MISSING-RECORD-TASK' });
+    check('任务解析失败之前已记 started，之后记 error', paired() && records.at(-1)?.data.outcome === 'error' && !records.some((r) => r.kind === 'prepared'));
+
+    let cancellationCalls = 0;
+    const cancelled = await run(async () => {
+      cancellationCalls += 1;
+      return resultHandle({ output: [], stopReason: 'aborted' });
+    });
+    check('取消不再触发第二次派发', cancellationCalls === 1);
+    check('取消明确收尾为 cancelled 而非 no_verdict', paired() && records.at(-1)?.data.outcome === 'cancelled' && cancelled.value?.verification_complete === false);
+
+    const rejectingRecorder = ctx.on('sdlc-verify/record', async () => { throw new Error('record disk full'); });
+    const withRecorderError = await run(original);
+    rejectingRecorder();
+    check('记录器失败保留真正的 reject', !withRecorderError.isError && withRecorderError.value?.status === 'reject');
+    check('记录器失败在返回结果里可见', withRecorderError.value?.recording_errors?.some((e) => /record disk full/.test(e)));
+
+    files.set('spec-for-record.md', '可复核的制品正文');
+    const complete = await run(async () => resultHandle({ output: [], stopReason: 'completed', structured: { status: 'needs_human', summary: '证据不足', findings: [] } }), {
+      criteria: ['判据原文'], artifacts: { spec: 'spec-for-record.md', missing: 'missing.md' }, experimental_guidance: 'EXPERIMENT-ONLY-GUIDANCE',
+    }, { ...fakeAgent, session: { ...fakeAgent.session, id: 'actual-parent-session' } });
+    const prep = records.find((r) => r.kind === 'prepared')?.data;
+    check('有效 needs_human 裁决算结构化完成', complete.value?.verification_complete === true && records.at(-1)?.data.outcome === 'completed');
+    check('prepared 留下制品原文哈希与读取失败', prep?.artifact_snapshots?.spec?.content === '可复核的制品正文' && /^[a-f0-9]{64}$/.test(prep?.artifact_snapshots?.spec?.sha256 ?? '') && typeof prep?.artifact_snapshots?.missing?.error === 'string');
+    check('实验指导只追加提示词，判据/schema/工具权限保留', prep?.prompt?.includes('EXPERIMENT-ONLY-GUIDANCE') && JSON.stringify(prep?.criteria) === JSON.stringify(['判据原文']) && prep?.outputSchema?.type === 'object' && !started.at(-1)?.request.toolFilter.allow.includes('write'));
+    check('父会话身份来自 session.id', records[0]?.data.parent_session_id === 'actual-parent-session');
+    check('started 保留有效配置、请求模型标记与导入时指纹', records[0]?.data.config.verifierProvider === 'spawn' && records[0]?.data.requested_model?.source === 'requested' && /^[a-f0-9]{64}$/.test(records[0]?.data.verifier_fingerprint ?? ''));
+  } finally {
+    subagentsStub.impl = original;
+    unsubscribe();
+  }
+}
+
 console.log('\n== 8. SubagentRun 必须被 dispose（契约要求，原先漏了）==');
 // 断言「每次 sdlc_verify 调用都恰好 dispose 一次」——用两个实际计数比对，
 // 而不是写死数字（写死会在新增用例时假失败，而假失败会掩盖真问题）。
-if (disposeCalls.length === verifyCalls && verifyCalls > 0) {
-  ok(`dispose 次数(${disposeCalls.length}) == sdlc_verify 调用次数(${verifyCalls})`);
+if (disposeCalls.length === runHandles && runHandles > 0) {
+  ok(`dispose 次数(${disposeCalls.length}) == 取得的子代理句柄数(${runHandles})`);
 } else {
-  bad(`dispose ${disposeCalls.length} 次 vs sdlc_verify ${verifyCalls} 次，必须一一对应`);
+  bad(`dispose ${disposeCalls.length} 次 vs 子代理句柄 ${runHandles} 个，必须一一对应`);
 }
 // 第 7 节在断言前清空过 started，这里顺便记录该次请求确实带了测试证据
 {
-  const last = started[started.length - 1];
+  const last = started.find((entry) => entry.request.prompt?.some((b) => b.text?.includes('1 passed')));
   const txt = (last?.request?.prompt ?? []).map((b) => b.text ?? '').join('\n');
   if (txt.includes('1 passed')) ok('第 7 节请求确实携带了测试证据原文');
   else bad('第 7 节请求缺少测试证据原文');

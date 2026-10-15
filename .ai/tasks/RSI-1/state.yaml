@@ -1,0 +1,17 @@
+task: RSI-1
+title: "让真实验证记录成为项目改进的依据"
+status: VERIFYING
+created: 2026-10-15T14:03:17.903Z
+updated: 2026-10-15T14:03:17.903Z
+artifacts:
+  experiment_evidence: "evidence/experiment-fixture.json"
+  intent: "intent.md"
+  plan: "plan.md"
+  proof: "proof.md"
+  spec: "spec.md"
+  verification_fixture: "evidence/verification-fixture.json"
+history:
+  - at: "2026-10-15T14:03:17.903Z"
+    from: ""
+    to: "VERIFYING"
+    reason: "在实现与独立代码审查之后补登记本真实任务；测试和隔离模型接线证据已整理，但未伪造本任务的独立验证裁决。"

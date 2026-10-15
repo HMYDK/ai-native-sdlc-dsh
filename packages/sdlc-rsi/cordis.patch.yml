@@ -1,0 +1,3 @@
+- insert:
+    - id: sdlc-rsi
+      name: '@ai-native-sdlc/dsh-sdlc-rsi'

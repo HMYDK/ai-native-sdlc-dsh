@@ -1,0 +1,173 @@
+{
+  "experiment_id": "ca1e498d-7007-4e82-94b2-146b98ce641c",
+  "path": ".ai/rsi/experiments/ca1e498d-7007-4e82-94b2-146b98ce641c",
+  "report": {
+    "schema_version": 1,
+    "spec": {
+      "hypothesis": "简洁指导能否保持已知缺陷识别；仅检查真实派发接线，不据此采用",
+      "baseline_guidance": "",
+      "candidate_guidance": "直接运行判据中的检查，简洁报告观察到的结果。",
+      "repetitions": 1,
+      "cases": [
+        {
+          "id": "double-bug",
+          "source_run_id": "053e03cd-f8ee-400d-a6fa-38f121706491",
+          "expected": "reject",
+          "evidence": "double.py 实现 value * 3，python3 运行 double(3) 实得 9，违反两倍要求",
+          "holdout": true
+        }
+      ]
+    },
+    "status": "completed",
+    "rows": [
+      {
+        "case_id": "double-bug",
+        "source_run_id": "053e03cd-f8ee-400d-a6fa-38f121706491",
+        "arm": "baseline",
+        "repetition": 1,
+        "expected": "reject",
+        "holdout": true,
+        "observation": {
+          "complete": true,
+          "comparable": true,
+          "duration_ms": 16676,
+          "attempts": 1,
+          "issues": [],
+          "run_id": "3122cca2-8d47-4d22-8f7b-53d5e9b8063b",
+          "verdict": "reject",
+          "actual_config": {
+            "requests": [
+              {
+                "adapterDefaults": {
+                  "maxTokens": true
+                },
+                "config": {
+                  "maxTokens": 393216,
+                  "model": "deepseek/deepseek-flash",
+                  "provider": "magpie"
+                }
+              }
+            ],
+            "verifier_config": {
+              "verifierMaxTokens": 0,
+              "verifierModel": "",
+              "verifierProvider": "spawn",
+              "verifierRetryOnMalformed": true
+            }
+          },
+          "verifier_fingerprint": "d96bb92c4902d9687df3751133c6125b5dba86378053d089e0501ec9e99181b5"
+        }
+      },
+      {
+        "case_id": "double-bug",
+        "source_run_id": "053e03cd-f8ee-400d-a6fa-38f121706491",
+        "arm": "candidate",
+        "repetition": 1,
+        "expected": "reject",
+        "holdout": true,
+        "observation": {
+          "complete": true,
+          "comparable": true,
+          "duration_ms": 8345,
+          "attempts": 1,
+          "issues": [],
+          "run_id": "45f1161e-3bce-42e7-baad-1aa6838693fc",
+          "verdict": "reject",
+          "actual_config": {
+            "requests": [
+              {
+                "adapterDefaults": {
+                  "maxTokens": true
+                },
+                "config": {
+                  "maxTokens": 393216,
+                  "model": "deepseek/deepseek-flash",
+                  "provider": "magpie"
+                }
+              }
+            ],
+            "verifier_config": {
+              "verifierMaxTokens": 0,
+              "verifierModel": "",
+              "verifierProvider": "spawn",
+              "verifierRetryOnMalformed": true
+            }
+          },
+          "verifier_fingerprint": "d96bb92c4902d9687df3751133c6125b5dba86378053d089e0501ec9e99181b5"
+        }
+      }
+    ],
+    "metrics": {
+      "baseline": {
+        "planned": 1,
+        "observed": 1,
+        "unrun": 0,
+        "completed": 1,
+        "incomplete": 0,
+        "correct": 1,
+        "correct_help": 0,
+        "missed_defects": 0,
+        "false_alarms": 0,
+        "unsafe_approvals": 0,
+        "unresolved": 0,
+        "duration_ms": 16676,
+        "attempts": 1,
+        "completion_rate": 1,
+        "holdout": {
+          "planned": 1,
+          "observed": 1,
+          "unrun": 0,
+          "completed": 1,
+          "incomplete": 0,
+          "correct": 1,
+          "correct_help": 0,
+          "missed_defects": 0,
+          "false_alarms": 0,
+          "unsafe_approvals": 0,
+          "unresolved": 0,
+          "duration_ms": 16676,
+          "attempts": 1,
+          "completion_rate": 1
+        }
+      },
+      "candidate": {
+        "planned": 1,
+        "observed": 1,
+        "unrun": 0,
+        "completed": 1,
+        "incomplete": 0,
+        "correct": 1,
+        "correct_help": 0,
+        "missed_defects": 0,
+        "false_alarms": 0,
+        "unsafe_approvals": 0,
+        "unresolved": 0,
+        "duration_ms": 8345,
+        "attempts": 1,
+        "completion_rate": 1,
+        "holdout": {
+          "planned": 1,
+          "observed": 1,
+          "unrun": 0,
+          "completed": 1,
+          "incomplete": 0,
+          "correct": 1,
+          "correct_help": 0,
+          "missed_defects": 0,
+          "false_alarms": 0,
+          "unsafe_approvals": 0,
+          "unresolved": 0,
+          "duration_ms": 8345,
+          "attempts": 1,
+          "completion_rate": 1
+        }
+      }
+    },
+    "recommendation": "inconclusive",
+    "issues": [
+      "Exploratory small-sample comparison; this does not establish statistically proven or general improvement.",
+      "Runtime limitation: 参考答案与验证者共享文件系统，未实现盲评隔离；本次仅作探索，不能据此推荐采用。",
+      "Defect, good-change, and insufficient-evidence reference cases are all required before recommending adoption."
+    ]
+  }
+}

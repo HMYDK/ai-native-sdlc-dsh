@@ -55,6 +55,19 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 | `sdlc-release` | Gate 前的工作（PR 描述、CI 证据汇集） | ⬜ |
 | `sdlc-workflow` | 工作流本身，作为一份 **Skill** 交付给验证者 | ✅ 已实现（12 条冒烟） |
 | `packages/sdlc-ui` | 客户端制品链面板（侧栏图标 + main 面板） | ✅ 已实现并端到端验证（24 条冒烟） |
+| `packages/sdlc-rsi` | 真实验证记录、复盘、指导文字对照实验 | ✅ 首版已实现；实验为探索用途 |
+
+### RSI 首版（2026-10-15）
+
+实现与实测证据见 `.ai/tasks/RSI-1/`，用法见 `packages/sdlc-rsi/README.md`。
+
+- `sdlc-verify/record` 是 awaited 事件，按 run_id 记录 started/prepared/attempts/finished；异常、取消与无裁决均留下记录。原任务最新裁决与完整运行历史分开。
+- `sdlc-rsi` 保存代码与制品快照、实际 request 配置、有界会话 trace，提供 runs/analyze/experiment/feedback 四个工具与改进方法 Skill。
+- 实验真实调用验证器，首版只改变附加指导。结束时也要核对制品；用 call_id 关联异常，不能猜“最近一次”；同次请求配置变化不得靠集合去重掩盖。
+- **更快失败不算改善。参考答案不在 prompt 里也不代表隔离。** 同一文件系统可读协议答案，当前运行时必须保留限制并禁止推荐候选。只有隔离执行环境解决盲评后才能放开正向建议。
+- 本次实测：RSI 单测 38、真实运行时冒烟 62；verify 单测 48、冒烟 106。真实模型已返回 reject 并记录完整输入/配置/trace，详见 proof；确定性冒烟不等于模型效果提升。
+- 原始 `.ai/rsi/` 默认忽略，因其含完整输入、代码与工具输出且无通用脱敏。核对后的真实任务结论仍应提交。
+- **重复安装同路径同版本 tarball 可能复用旧文件**：本次 pnpm 报 Already up to date，安装文件却未含最后修复。换带内容哈希的 tarball 路径后才更新；应对比安装文件与构建文件，不以安装成功作版本证明。
 
 ### `sdlc-workflow`：为什么它算机制，而不只是一份规范
 

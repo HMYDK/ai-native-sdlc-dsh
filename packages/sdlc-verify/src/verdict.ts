@@ -96,6 +96,12 @@ export interface Verdict {
   verifier_attempts?: number;
   /** 子代理给的失败详情（非 assistant 文本）。失败时才有。 */
   diagnostic?: string;
+  /** One invocation, including every retry and terminal failure. */
+  verification_run_id?: string;
+  /** True for an actual structured verdict, including needs_human. */
+  verification_complete?: boolean;
+  /** Observer failures are diagnostics, never a replacement verdict. */
+  recording_errors?: string[];
 }
 
 /**
@@ -347,6 +353,9 @@ export const TOOL_OUTPUT_SCHEMA = {
     verifier_sessions: { type: 'array', items: { type: 'string' } },
     verifier_attempts: { type: 'number' },
     diagnostic: { type: 'string' },
+    verification_run_id: { type: 'string' },
+    verification_complete: { type: 'boolean' },
+    recording_errors: { type: 'array', items: { type: 'string' } },
   },
 } as const;
 
@@ -447,6 +456,9 @@ const PLUGIN_METADATA_FIELDS = new Set([
   'verifier_sessions',
   'verifier_attempts',
   'diagnostic',
+  'verification_run_id',
+  'verification_complete',
+  'recording_errors',
 ]);
 
 export function assertSchemasAligned(): void {

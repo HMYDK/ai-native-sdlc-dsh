@@ -8,12 +8,17 @@
   "exports": {
     ".": "./lib/index.js",
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./locale/*.json": "./locale/*.json",
+    "./recording": {
+      "types": "./lib/recording.d.ts",
+      "default": "./lib/recording.js"
+    }
   },
   "files": [
     "lib/**/*.js",
+    "lib/**/*.d.ts",
     "!lib/**/*.test.js",
-    "!lib/**/*.d.ts",
+    "!lib/**/*.test.d.ts",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg"

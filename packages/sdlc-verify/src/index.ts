@@ -19,6 +19,7 @@
  * 不把流程状态存在插件里（制品与状态属于 Git）。
  */
 
+import { createHash } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 // 显式 import：ctx.fs 由 dsh-fs 的 declaration merging 提供
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
@@ -30,6 +31,7 @@ import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { SubagentResult, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
 import { judgeTestMutation } from './test-freeze.js';
+import { errorMessages, isCancellation, recordVerificationRun, VERIFIER_FINGERPRINT, type VerificationRecording } from './recording.js';
 import type { Finding, Verdict } from './verdict.js';
 import {
   assertSchemasAligned,
@@ -350,12 +352,36 @@ async function dispatchVerifier(
   ctx: Context,
   provider: string,
   request: SubagentStartRequest,
+  recording: VerificationRecording,
+  attempt: number,
 ): Promise<VerifierAttempt> {
   let run: VerifierAttempt['run'];
+  await recording.record('attempt_started', {
+    attempt, prompt: request.prompt?.map((block) => 'text' in block ? block.text : '').join('\n') ?? '',
+  });
   try {
+    request.signal?.throwIfAborted();
     run = await ctx.subagents.start(provider, request);
-    const result = await run.result;
+    // Observe rejection immediately: recording the session may itself require I/O.
+    const pending = run.result.then(
+      (result) => ({ ok: true as const, result }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    await recording.record('attempt_session', { attempt, session_id: String(run.id) });
+    const settled = await pending;
+    if (!settled.ok) throw settled.error;
+    const result = settled.result;
+    await recording.record('attempt_finished', {
+      attempt, session_id: String(run.id), result,
+      structured: result.structured, stopReason: result.stopReason, diagnostic: result.diagnostic,
+    });
     return { run, result };
+  } catch (error) {
+    await recording.record('attempt_finished', {
+      attempt, ...(run ? { session_id: String(run.id) } : {}),
+      error: errorMessages(error).join('; '), cancelled: isCancellation(error, request.signal),
+    });
+    throw error;
   } finally {
     if (run !== undefined) {
       try {
@@ -448,6 +474,10 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             'is downgraded to needs_human by the plugin, because "verified" without a stated definition of ' +
             'correct is just an opinion.',
         },
+        experimental_guidance: {
+          type: 'string',
+          description: 'Additional verifier guidance for controlled experiments. Does not change criteria, schema, or tool permissions.',
+        },
         task_id: {
           type: 'string',
           description:
@@ -463,200 +493,238 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args, exec) {
-        const agent = exec.agent;
-        if (agent === undefined) {
-          throw new Error('sdlc_verify requires a calling agent');
-        }
+        const parentSession = (exec.agent as { session?: { id?: unknown }; id?: unknown } | undefined)?.session?.id;
+        return recordVerificationRun(
+          (record, recordExec) => ctx.parallel('sdlc-verify/record', record, recordExec),
+          exec,
+          {
+            call_id: exec.callId, inputs: args, config: cfg, verifier_fingerprint: VERIFIER_FINGERPRINT,
+            requested_model: { source: 'requested', model: cfg.verifierModel || null, inherited: cfg.verifierModel === '' },
+            ...(typeof parentSession === 'string' ? { parent_session_id: parentSession } : {}),
+          },
+          async (recording) => {
+            const agent = exec.agent;
+            if (agent === undefined) {
+              throw new Error('sdlc_verify requires a calling agent');
+            }
 
-        // 任务身份（可选）：给了就从 state.yaml 解析已登记的制品，
-        // 显式传入的 artifacts 优先级更高（允许针对单次验证覆盖）。
-        const explicit = coerceArtifactMap(args.artifacts);
-        const task = await resolveTask(ctx, exec, args.task_id, exec.signal);
-        const artifacts = task === undefined ? explicit : { ...task.artifacts, ...explicit };
+            // 任务身份（可选）：给了就从 state.yaml 解析已登记的制品，
+            // 显式传入的 artifacts 优先级更高（允许针对单次验证覆盖）。
+            const explicit = coerceArtifactMap(args.artifacts);
+            const task = await resolveTask(ctx, exec, args.task_id, exec.signal);
+            const artifacts = task === undefined ? explicit : { ...task.artifacts, ...explicit };
 
-        const criteria = coerceStringList(args.criteria);
-        const prompt = buildVerificationPrompt({
-          intentOfChange: args.intent_of_change,
-          artifacts,
-          diff: args.diff,
-          testEvidence: args.test_evidence,
-          scope: args.scope,
-          criteria,
-        });
-
-        // agentOptions 在 SubagentStartRequest 上是 readonly，
-        // 所以一次性构造完整请求，而不是先建对象再补字段。
-        //
-        // maxTokens 只要 >0 就生效，**不依赖** verifierModel 是否设置——
-        // 之前把它放在 model 非空的分支里，导致单独配置 maxTokens 静默无效。
-        const wantsTokens = cfg.verifierMaxTokens > 0;
-        const wantsRoute = cfg.verifierModel !== '';
-        const request: SubagentStartRequest = {
-          label: 'sdlc-verify',
-          prompt: [{ type: 'text', text: prompt }],
-          parent: agent,
-          signal: exec.signal,
-          outputSchema: VERDICT_SCHEMA,
-          // 只读：摘掉 write/edit。注意 bash 仍在白名单里（验证者需要跑测试来
-          // 复核证据），而 bash 技术上能写文件——所以 persona 里如实说明了这一点，
-          // 而不是声称"改不了任何东西"。
-          toolFilter: { allow: verifierToolAllow() },
-          // 独立角色：新上下文 + 明确"你没有写这段代码，也别相信关于它的说法"。
-          persona: VERIFIER_PERSONA,
-          ...(wantsRoute || wantsTokens
-            ? {
-                agentOptions: {
-                  ...(wantsRoute ? { model: cfg.verifierModel } : {}),
-                  ...(wantsTokens ? { maxTokens: cfg.verifierMaxTokens } : {}),
-                },
+            const criteria = coerceStringList(args.criteria);
+            const basePrompt = buildVerificationPrompt({
+              intentOfChange: args.intent_of_change,
+              artifacts,
+              diff: args.diff,
+              testEvidence: args.test_evidence,
+              scope: args.scope,
+              criteria,
+            });
+            const prompt = args.experimental_guidance?.trim()
+              ? `${basePrompt}\n\n## 实验附加指导\n\n${args.experimental_guidance}` : basePrompt;
+            const artifactSnapshots: Record<string, unknown> = {};
+            for (const [name, artifactPath] of Object.entries(artifacts)) {
+              try {
+                const target = await ctx.fs.resolve(artifactPath, resolveOptions(exec));
+                const content = await ctx.fs.readText(target, exec.signal);
+                artifactSnapshots[name] = {
+                  path: artifactPath, content, sha256: createHash('sha256').update(content).digest('hex'),
+                };
+              } catch (error) {
+                artifactSnapshots[name] = { path: artifactPath, error: errorMessages(error).join('; ') };
               }
-            : {}),
-        };
+            }
+            await recording.record('prepared', {
+              prompt, persona: VERIFIER_PERSONA, outputSchema: VERDICT_SCHEMA, criteria, artifacts,
+              artifact_snapshots: artifactSnapshots, config: cfg, verifier_fingerprint: VERIFIER_FINGERPRINT,
+            });
 
-        // ── 派发 + 失败重试 ────────────────────────────────────────
-        //
-        // 实测（2026-10-15）：验证者把调查全做完了（72 次工具调用、421 秒），
-        // 却在写 structured_output 时**参数流整段为空**，
-        // 报 `tool input is invalid JSON`。那是生成期的偶发失败，
-        // 不是调查失败——而且调查成果本来就已经花掉了，不重试等于全扔。
-        //
-        // 所以：结构化裁决没拿到时，**原样重派一次**，prompt 追加一段
-        // 「怎么把裁决写小」的指令。注意这不改变任何安全性质——
-        // 重试仍然是同一个只读、独立上下文的验证者，只是多给它一次机会。
-        // 两次都没拿到 → needs_human（见下方），绝不解析自由文本去猜。
-        const maxAttempts = cfg.verifierRetryOnMalformed ? 2 : 1;
-        let run: VerifierRun | undefined;
-        let result: VerifierResult | undefined;
-        let verdict: Verdict | undefined;
-        /** 每次尝试的 session id，便于事后从 trace 里复盘哪次失败。 */
-        const attemptSessions: string[] = [];
+            // agentOptions 在 SubagentStartRequest 上是 readonly，
+            // 所以一次性构造完整请求，而不是先建对象再补字段。
+            //
+            // maxTokens 只要 >0 就生效，**不依赖** verifierModel 是否设置——
+            // 之前把它放在 model 非空的分支里，导致单独配置 maxTokens 静默无效。
+            const wantsTokens = cfg.verifierMaxTokens > 0;
+            const wantsRoute = cfg.verifierModel !== '';
+            const request: SubagentStartRequest = {
+              label: 'sdlc-verify',
+              prompt: [{ type: 'text', text: prompt }],
+              parent: agent,
+              signal: exec.signal,
+              outputSchema: VERDICT_SCHEMA,
+              // 只读：摘掉 write/edit。注意 bash 仍在白名单里（验证者需要跑测试来
+              // 复核证据），而 bash 技术上能写文件——所以 persona 里如实说明了这一点，
+              // 而不是声称"改不了任何东西"。
+              toolFilter: { allow: verifierToolAllow() },
+              // 独立角色：新上下文 + 明确"你没有写这段代码，也别相信关于它的说法"。
+              persona: VERIFIER_PERSONA,
+              ...(wantsRoute || wantsTokens
+                ? {
+                    agentOptions: {
+                      ...(wantsRoute ? { model: cfg.verifierModel } : {}),
+                      ...(wantsTokens ? { maxTokens: cfg.verifierMaxTokens } : {}),
+                    },
+                  }
+                : {}),
+            };
 
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          const text = attempt === 1 ? prompt : `${prompt}${RETRY_GUIDANCE}`;
-          const attemptRequest: SubagentStartRequest = { ...request, prompt: [{ type: 'text', text }] };
-          const got = await dispatchVerifier(ctx, cfg.verifierProvider, attemptRequest);
-          run = got.run;
-          result = got.result;
-          verdict = got.result.structured as Verdict | undefined;
-          if (run !== undefined) attemptSessions.push(String(run.id));
-          if (verdict !== undefined) break;
-          // 重试的事实**刻意不用 ctx.logger 记录**：把 logger 加进 inject 会让
-          // 插件停在 `fiberPhase=pending`（那个服务在本机 profile 里不存在），
-          // 于是所有工具静默消失。改由裁决里的 `verifier_attempts` /
-          // `verifier_sessions` 如实报出——那还会进制品，日志不会。
-        }
+            // ── 派发 + 失败重试 ────────────────────────────────────────
+            //
+            // 实测（2026-10-15）：验证者把调查全做完了（72 次工具调用、421 秒），
+            // 却在写 structured_output 时**参数流整段为空**，
+            // 报 `tool input is invalid JSON`。那是生成期的偶发失败，
+            // 不是调查失败——而且调查成果本来就已经花掉了，不重试等于全扔。
+            //
+            // 所以：结构化裁决没拿到时，**原样重派一次**，prompt 追加一段
+            // 「怎么把裁决写小」的指令。注意这不改变任何安全性质——
+            // 重试仍然是同一个只读、独立上下文的验证者，只是多给它一次机会。
+            // 两次都没拿到 → needs_human（见下方），绝不解析自由文本去猜。
+            const maxAttempts = cfg.verifierRetryOnMalformed ? 2 : 1;
+            let run: VerifierRun | undefined;
+            let result: VerifierResult | undefined;
+            let verdict: Verdict | undefined;
+            /** 每次尝试的 session id，便于事后从 trace 里复盘哪次失败。 */
+            const attemptSessions: string[] = [];
 
-        const attempts = attemptSessions.length;
-        const firstSession = attemptSessions[0];
-        const lastSession = attemptSessions[attemptSessions.length - 1];
-        if (verdict === undefined) {
-          // 结构化捕获失败。**不要**退化成"解析自由文本然后猜"——
-          // 那会把一个明确的失败变成一个可能错误的通过。
-          // satisfies 而不是类型注解：保留字面量类型（schema 推断要求），
-          // 同时仍然校验形状。
-          // ⚠️ 这里**不做"解析自由文本再猜"**：那会把一个明确的失败
-          // 变成一个可能错误的通过。两次尝试都没拿到就是没拿到。
-          const diag = result?.diagnostic;
-          const reason = String(result?.stopReason ?? 'unknown');
-          return {
-            status: 'needs_human',
-            summary:
-              `验证者未产出结构化裁决，无法据此判断。stop_reason=${reason}` +
-              (attempts > 1
-                ? `（已重试，共 ${attempts} 次派发；这是**生成期失败**，不是调查失败——` +
-                  '验证者可能已经把活干完了，只是裁决没写出来。' +
-                  '从 verifier_sessions 里的会话 trace 能看出它查到了什么。）'
-                : ''),
-            findings: [],
-            verifier_session: firstSession,
-            verifier_sessions: attemptSessions.length > 0 ? attemptSessions : undefined,
-            verifier_attempts: attempts,
-            ...(typeof diag === 'string' && diag !== '' ? { diagnostic: diag } : {}),
-          } satisfies Verdict & {
-            verifier_session?: string;
-            verifier_sessions?: string[];
-            verifier_attempts?: number;
-            diagnostic?: string;
-          };
-        }
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              exec.signal?.throwIfAborted();
+              const text = attempt === 1 ? prompt : `${prompt}${RETRY_GUIDANCE}`;
+              const attemptRequest: SubagentStartRequest = { ...request, prompt: [{ type: 'text', text }] };
+              const got = await dispatchVerifier(ctx, cfg.verifierProvider, attemptRequest, recording, attempt);
+              run = got.run;
+              result = got.result;
+              verdict = got.result.structured as Verdict | undefined;
+              if (run !== undefined) attemptSessions.push(String(run.id));
+              if (verdict !== undefined) {
+                recording.complete = true;
+                break;
+              }
+              if (result.stopReason === 'aborted' || exec.signal?.aborted) {
+                recording.cancelled = true;
+                break;
+              }
+              // 重试的事实**刻意不用 ctx.logger 记录**：把 logger 加进 inject 会让
+              // 插件停在 `fiberPhase=pending`（那个服务在本机 profile 里不存在），
+              // 于是所有工具静默消失。改由裁决里的 `verifier_attempts` /
+              // `verifier_sessions` 如实报出——那还会进制品，日志不会。
+            }
 
-        // ── 强制策略：**没有验收标准就不许通过** ──────────────────────
-        //
-        // 这一条由**代码**执行，不是靠提示词请求——本项目已经反复证明
-        // 提示词请求没有约束力（"Skill 只是建议性控制"）。
-        //
-        // 理由：验证者不知道"对"的定义时只能自己推断判据，于是"验证通过"
-        // 退化成一句意见。这正是之前每一次验证都出现的弱点——验证者自称
-        // "只覆盖了前置条件"，但那只是 summary 里的一句道歉，不是可检查的东西。
-        const enforced = enforceCriteriaPolicy(verdict, criteria, lastSession);
+            const attempts = attemptSessions.length;
+            const firstSession = attemptSessions[0];
+            const lastSession = attemptSessions[attemptSessions.length - 1];
+            if (verdict === undefined) {
+              // 结构化捕获失败。**不要**退化成"解析自由文本然后猜"——
+              // 那会把一个明确的失败变成一个可能错误的通过。
+              // satisfies 而不是类型注解：保留字面量类型（schema 推断要求），
+              // 同时仍然校验形状。
+              // ⚠️ 这里**不做"解析自由文本再猜"**：那会把一个明确的失败
+              // 变成一个可能错误的通过。两次尝试都没拿到就是没拿到。
+              const diag = result?.diagnostic;
+              const reason = String(result?.stopReason ?? 'unknown');
+              return {
+                status: 'needs_human',
+                summary:
+                  `验证者未产出结构化裁决，无法据此判断。stop_reason=${reason}` +
+                  (attempts > 1
+                    ? `（已重试，共 ${attempts} 次派发；这是**生成期失败**，不是调查失败——` +
+                      '验证者可能已经把活干完了，只是裁决没写出来。' +
+                      '从 verifier_sessions 里的会话 trace 能看出它查到了什么。）'
+                    : ''),
+                findings: [],
+                verifier_session: firstSession,
+                verifier_sessions: attemptSessions.length > 0 ? attemptSessions : undefined,
+                verifier_attempts: attempts,
+                ...(typeof diag === 'string' && diag !== '' ? { diagnostic: diag } : {}),
+              } satisfies Verdict & {
+                verifier_session?: string;
+                verifier_sessions?: string[];
+                verifier_attempts?: number;
+                diagnostic?: string;
+              };
+            }
 
-        // satisfies：保留字面量类型，让 output.schema 的推断成立。
-        // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
-        const finalVerdict = {
-          ...enforced,
-          // 报**做出裁决的那一次**（重试成功时即第二次）。
-          verifier_session: lastSession,
-          // 重试过就把每次都列出来：这样"第一次失败了"这件事不会消失，
-          // 而它正是本项目在测的那个指标（完成率）。
-          ...(attempts > 1
-            ? { verifier_sessions: attemptSessions, verifier_attempts: attempts }
-            : {}),
-        } satisfies Verdict & {
-          verifier_session?: string;
-          verifier_sessions?: string[];
-          verifier_attempts?: number;
-        };
+            // ── 强制策略：**没有验收标准就不许通过** ──────────────────────
+            //
+            // 这一条由**代码**执行，不是靠提示词请求——本项目已经反复证明
+            // 提示词请求没有约束力（"Skill 只是建议性控制"）。
+            //
+            // 理由：验证者不知道"对"的定义时只能自己推断判据，于是"验证通过"
+            // 退化成一句意见。这正是之前每一次验证都出现的弱点——验证者自称
+            // "只覆盖了前置条件"，但那只是 summary 里的一句道歉，不是可检查的东西。
+            const enforced = enforceCriteriaPolicy(verdict, criteria, lastSession);
 
-        // 落盘到任务目录**并登记进 state.yaml**。
-        //
-        // 只写文件是不够的：`sdlc_task_advance` 的门槛看的是 state.yaml 的
-        // `artifacts`，不是"磁盘上碰巧有这个文件"。不登记的话，状态机到
-        // REVIEWING 时会说"缺 verification 制品"——而它明明就在旁边。
-        // （这条是独立验证者指出的，它比我更早看到了这个不一致。）
-        //
-        // 写失败不掩盖裁决本身（裁决已经拿到了，先把它交出去）。
-        if (task !== undefined) {
-          try {
-            const policy = await writePolicy(ctx, exec);
-            await ctx.fs.writeText(
-              await ctx.fs.resolve(
-                `${task.dir}/verification.json`,
-                resolveOptions(exec, policy?.workspaceRoot),
-              ),
-              JSON.stringify(
-                {
-                  task: task.id,
-                  at: new Date().toISOString(),
-                  intent_of_change: args.intent_of_change,
-                  scope: args.scope,
-                  criteria,
-                  artifacts,
-                  verdict: finalVerdict,
-                },
-                null,
-                2,
-              ) + '\n',
-              undefined,
-              exec.signal,
-              policy,
-            );
-            const registrationNote = await registerVerificationArtifact(ctx, exec, task);
-            return {
-              ...finalVerdict,
-              summary: `${finalVerdict.summary}\n\n${registrationNote}`,
-            } satisfies Verdict & { verifier_session?: string };
-          } catch (e) {
-            return {
-              ...finalVerdict,
-              summary:
-                finalVerdict.summary +
-                `\n\n⚠ 裁决未能写入 ${task.dir}/verification.json：` +
-                `${e instanceof Error ? e.message : String(e)}`,
-            } satisfies Verdict & { verifier_session?: string };
-          }
-        }
+            // satisfies：保留字面量类型，让 output.schema 的推断成立。
+            // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
+            const finalVerdict = {
+              ...enforced,
+              // 报**做出裁决的那一次**（重试成功时即第二次）。
+              verifier_session: lastSession,
+              // 重试过就把每次都列出来：这样"第一次失败了"这件事不会消失，
+              // 而它正是本项目在测的那个指标（完成率）。
+              ...(attempts > 1
+                ? { verifier_sessions: attemptSessions, verifier_attempts: attempts }
+                : {}),
+            } satisfies Verdict & {
+              verifier_session?: string;
+              verifier_sessions?: string[];
+              verifier_attempts?: number;
+            };
 
-        return finalVerdict;
+            // 落盘到任务目录**并登记进 state.yaml**。
+            //
+            // 只写文件是不够的：`sdlc_task_advance` 的门槛看的是 state.yaml 的
+            // `artifacts`，不是"磁盘上碰巧有这个文件"。不登记的话，状态机到
+            // REVIEWING 时会说"缺 verification 制品"——而它明明就在旁边。
+            // （这条是独立验证者指出的，它比我更早看到了这个不一致。）
+            //
+            // 写失败不掩盖裁决本身（裁决已经拿到了，先把它交出去）。
+            if (task !== undefined) {
+              try {
+                const policy = await writePolicy(ctx, exec);
+                await ctx.fs.writeText(
+                  await ctx.fs.resolve(
+                    `${task.dir}/verification.json`,
+                    resolveOptions(exec, policy?.workspaceRoot),
+                  ),
+                  JSON.stringify(
+                    {
+                      task: task.id,
+                      at: new Date().toISOString(),
+                      intent_of_change: args.intent_of_change,
+                      scope: args.scope,
+                      criteria,
+                      artifacts,
+                      verdict: finalVerdict,
+                    },
+                    null,
+                    2,
+                  ) + '\n',
+                  undefined,
+                  exec.signal,
+                  policy,
+                );
+                const registrationNote = await registerVerificationArtifact(ctx, exec, task);
+                return {
+                  ...finalVerdict,
+                  summary: `${finalVerdict.summary}\n\n${registrationNote}`,
+                } satisfies Verdict & { verifier_session?: string };
+              } catch (e) {
+                return {
+                  ...finalVerdict,
+                  summary:
+                    finalVerdict.summary +
+                    `\n\n⚠ 裁决未能写入 ${task.dir}/verification.json：` +
+                    `${e instanceof Error ? e.message : String(e)}`,
+                } satisfies Verdict & { verifier_session?: string };
+              }
+            }
+
+            return finalVerdict;
+          },
+        );
       },
     }),
   );

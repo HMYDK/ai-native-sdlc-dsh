@@ -20,3 +20,6 @@ packages/*/lib/
 
 # 冒烟测试用的临时任务（真实任务应当提交，见 packages/sdlc-task/README.md）
 .ai/tasks/SMOKE-*/
+
+# RSI 的完整输入、代码快照与会话记录留在本机；经核对的结论进入真实任务制品。
+.ai/rsi/
