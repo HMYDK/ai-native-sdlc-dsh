@@ -19,7 +19,7 @@
 
 ## 打包与隔离安装
 
-`npm pack`：verify 15 个文件，RSI 12 个文件；包含 bundle patch 和全部运行 JS，不含测试。安装到独立 headless profile，未改 desktop profile；检查未发现第二份 dsh-tools。
+`npm pack`：verify 15 个文件，RSI 12 个文件；包含 bundle patch 和全部运行 JS，不含测试。安装到独立 headless profile，未改 desktop profile；全部 27 个安装文件已逐字节与 tarball 核对一致，检查未发现第二份 dsh-tools。
 
 最终 RSI tarball SHA-1：`cd009c9c7bfd6985f5571119ba9d96c9468d0d7d`。
 验证器 tarball SHA-1：`eb911540d82a376f84ac9a64300d349f10f0f34d`。
@@ -53,3 +53,7 @@
 两次观测的实际模型配置与验证器指纹一致，代码/制品复查 issues=[]。实验状态 completed，recommendation=inconclusive；报告保留小样本、参考答案未隔离、缺少好改动与证据不足两类用例的说明。不能把这一次候选更快解释为已经提升能力。
 
 最终报告原样摘自工具返回，见 `evidence/experiment-fixture.json`。协议先落盘，结果目录有 4 份递增快照（开始、两次观测、结束）；两条 run_id 均能追到完整生命周期与 capture。
+
+## 交付
+
+实现提交 `865ec90` 已推送至 `origin/codex/rsi-real-task-learning`。本任务仍保留 VERIFYING 状态：实现者检查、独立代码审查与模型接线实测均已完成，但没有将夹具裁决冒充本任务的正式独立验证裁决。后续合入或采用仍按正常开发流程处理。
