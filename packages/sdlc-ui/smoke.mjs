@@ -299,6 +299,108 @@ console.log('\n== 4f. 交付物端点的安全（新开了一个读取面，所�
   } else bad('流程条上没有可点的交付物名');
 }
 
+console.log('\n== 4g. 聚合之后，每个任务必须标出**来源工作区** ==');
+{
+  // ⚠️ 为什么单开一节：看板现在**跨工作区聚合**。任务不带来源的话，
+  // 一列里混着几个仓库的任务就分不清谁是谁 —— 而"看板显示的到底是哪个仓库"
+  // 正是这次事故的起点：面板只显示 workspace-a 的残留任务 RSI-1，
+  // 另外两个工作区里的 8 个真实任务一条都没出现，用户以为自己的任务没人管。
+  //
+  // ⚠️ 而且上面 4d 那次渲染用的是**空任务列表**（data 初始为 null），
+  // 标签这条渲染路径从来没被执行过。"加载 ≠ 可用"本仓库已经吃过一次亏，
+  // 所以这里把 data **预置**成聚合结果，真的把标签画出来再断言。
+  const rt2 = fakeRequire('react/jsx-runtime');
+  const mk = (id, label, root, status, title) => ({
+    id, repoRoot: root, repoLabel: label, status, title,
+    // ⚠️ 夹具的形状必须**照抄服务端下发的形状**：`artifacts` 是数组
+    // （`{kind,file,sections,bytes}`），不是 state.yaml 里那个 map。
+    // 写成对象时 Stepper 会当场 `(t.artifacts||[]).find is not a function` ——
+    // 这是夹具的错，不是产品的错，但它照样能把面板变成一屏堆栈。
+    artifacts: [], timeline: [], durations: [], blocked: [], verdict: null, review: null,
+  });
+  const payload = {
+    at: '', repoRoot: '/tmp/wsB', searched: [],
+    roots: [
+      { root: '/tmp/wsB', label: '工作区B', taskCount: 1 },
+      { root: '/tmp/wsA', label: '工作区A', taskCount: 1 },
+    ],
+    tasks: [
+      mk('BBB-2', '工作区B', '/tmp/wsB', 'DONE', 'B 的任务'),
+      mk('AAA-1', '工作区A', '/tmp/wsA', 'SPEC', 'A 的任务'),
+    ],
+  };
+  globalThis.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve(payload) });
+
+  /** 采集渲染树里的所有文字。 */
+  const textsOf = (node, out, depth) => {
+    if (depth > 40) return; // 组件互相引用成环时的保险，不是正常路径
+    if (node === null || node === undefined || typeof node === 'boolean') return;
+    if (typeof node === 'string' || typeof node === 'number') { out.push(String(node)); return; }
+    if (Array.isArray(node)) { for (const n of node) textsOf(n, out, depth + 1); return; }
+    if (node.$$jsx) {
+      // ⚠️ 这里的 jsx 桩只产出**元素描述**，不会调用子组件。
+      // 不主动展开 `type` 是函数的那种节点，断言就只看得见面板体直接写出来的
+      // 文字，看不到 TaskLine / VariantA 里画的任何东西 —— 我第一次就是这么
+      // 写出一个"永远红"的断言的。
+      if (typeof node.type === 'function') { textsOf(node.type(node.props || {}), out, depth + 1); return; }
+      const p = node.props || {};
+      textsOf(p.children, out, depth + 1);
+      textsOf(node.c, out, depth + 1);
+    }
+  };
+
+  /**
+   * 用**预置 state**渲染面板：data(0) 有值、loading(2)=false、variant(3)=要测的，
+   * 于是第一次渲染就走数据分支 —— 标签那条路径真的被执行。
+   * 其余 hook 与 4d 一致（`useEffect` 必须真的跑，跑完立刻清理，免得定时器吊住进程）。
+   */
+  const render = (variant) => {
+    const store = [payload, null, false, variant, null, null];
+    let i = 0;
+    const req = (id) => {
+      if (id === 'react/jsx-runtime') return rt2;
+      if (id === 'react') {
+        return {
+          createElement: (t, p, ...c) => ({ $$jsx: true, type: t, props: p, c }),
+          useState: (init) => {
+            const n = i++;
+            if (!(n in store)) store[n] = typeof init === 'function' ? init() : init;
+            return [store[n], (v) => { store[n] = typeof v === 'function' ? v(store[n]) : v; }];
+          },
+          useEffect: (fn) => { const r = fn(); if (typeof r === 'function') r(); },
+          useCallback: (fn) => fn,
+        };
+      }
+      throw new Error('unexpected require ' + id);
+    };
+    const m = loaded.factory(req);
+    let comp = null;
+    m.apply({
+      slots: {
+        inject: (k, cb) => { for (const _ of cb()) {} return () => {}; },
+        register: (opts, c) => { if (opts.name === 'main') comp = c; return () => {}; },
+      },
+    });
+    if (typeof comp !== 'function') throw new Error('main 槽没拿到组件');
+    return comp({});
+  };
+
+  for (const v of ['A', 'C']) {
+    let tree = null;
+    let err = null;
+    try { tree = render(v); } catch (e) { err = e; }
+    if (err) { bad(`变体 ${v}：带数据渲染抛错（面板会变成一屏错误堆栈）：${String(err).slice(0, 140)}`); continue; }
+    const out = [];
+    textsOf(tree, out);
+    const all = out.join('\n');
+    if (all.includes('工作区A') && all.includes('工作区B')) {
+      ok(`变体 ${v}：两条任务的**来源工作区**都画出来了`);
+    } else bad(`变体 ${v}：来源标签没画出来 —— 聚合之后分不清任务属于哪个仓库`);
+    if (all.includes('2 个工作区')) ok(`变体 ${v}：顶栏报出聚合范围（几个工作区 / 几个任务）`);
+    else bad(`变体 ${v}：顶栏没报聚合范围 —— 用户无法知道看板在看哪儿`);
+  }
+}
+
 console.log('\n== 5. 只依赖宿主提供的模块 ==');
 if (required.every((r) => r === 'react' || r === 'react/jsx-runtime')) {
   ok(`require 的模块都在宿主白名单内：[${[...new Set(required)].join(', ')}]`);

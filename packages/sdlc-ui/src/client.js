@@ -635,11 +635,22 @@ window.__ModuleLoader__.load({
         try { localStorage.setItem('sdlcUiVariant', v); } catch (e) { /* 无所谓 */ }
       };
 
-      // 顶栏：标题 + 版本切换 + 刷新
+      // 顶栏：标题 + 聚合范围 + 版本切换 + 刷新
+      const agg = data && Array.isArray(data.roots) && data.roots.length
+        ? h('span', {
+            key: 'agg',
+            title: data.roots.map(function (r) { return r.label + ' → ' + r.root; }).join('\n'),
+            style: Object.assign({}, F.tiny, {
+              color: T.fg2, maxWidth: '420px', overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }),
+          }, data.roots.length + ' 个工作区 · ' + (data.tasks ? data.tasks.length : 0) + ' 个任务')
+        : null;
       const bar = h('div', {
         style: { display: 'flex', alignItems: 'center', gap: S.sm, marginBottom: S.lg },
       }, [
         h('span', { key: 't', style: Object.assign({}, F.title, { color: T.fg, fontSize: '14px' }) }, 'AI 原生 SDLC'),
+        agg,
         h('span', { key: 'sp', style: { flex: '1 1 auto' } }),
         ...['A', 'B', 'C'].map(function (v) {
           return h('button', {
@@ -679,7 +690,7 @@ window.__ModuleLoader__.load({
       } else if (data) {
         const tasks = data.tasks;
         const sel = tasks.find(function (t) { return t.id === selected; }) || tasks[0];
-        const openArtifact = function (file) { setOpened({ task: sel.id, file: file }); };
+        const openArtifact = function (file) { setOpened({ task: sel.id, root: sel.repoRoot, file: file }); };
         if (variant === 'B') content = h(VariantB, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
         else if (variant === 'C') content = h(VariantC, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
         else content = h(VariantA, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
@@ -691,7 +702,7 @@ window.__ModuleLoader__.load({
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           fontSize: '13px', lineHeight: '20px', color: T.fg,
         },
-      }, [bar, content, opened ? h(ArtifactViewer, { key: 'av', task: opened.task, file: opened.file, onClose: function () { setOpened(null); } }) : null]);
+      }, [bar, content, opened ? h(ArtifactViewer, { key: 'av', task: opened.task, root: opened.root, file: opened.file, onClose: function () { setOpened(null); } }) : null]);
     }
 
     /** 一个任务行（三版共用）——紧凑。 */
@@ -719,9 +730,27 @@ window.__ModuleLoader__.load({
           key: 'r2',
           style: Object.assign({}, F.tiny, {
             color: T.fg2, marginTop: '2px', paddingLeft: '12px',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            display: 'flex', alignItems: 'baseline', gap: '4px', minWidth: '0',
           }),
-        }, t.title || ''),
+        }, [
+          // ⚠️ 看板现在**跨工作区聚合**，所以每条任务都要说清自己从哪来。
+          // 没有这枚标签，两个仓库的任务在同一列里长得一模一样，
+          // "为什么别人的任务在我的看板上"就会再发生一次。
+          // 标签同时挂 title= 完整路径，鼠标停一下能看到是哪个仓库。
+          t.repoLabel ? h('span', {
+            key: 'w',
+            title: t.repoRoot || '',
+            style: {
+              flex: '0 0 auto', padding: '0 4px', borderRadius: '4px',
+              background: mix(T.brand, 10), color: T.brand,
+              maxWidth: '92px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            },
+          }, t.repoLabel) : null,
+          h('span', {
+            key: 't',
+            style: { minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          }, t.title || ''),
+        ]),
       ]);
     }
 
@@ -813,6 +842,11 @@ window.__ModuleLoader__.load({
             h('div', { key: 'a', style: Object.assign({}, cell) }, [
               h('div', { key: 'i', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '600' }) }, t.id),
               h('div', { key: 't', style: { color: T.fg2, marginTop: '2px' } }, t.title || ''),
+              // 表格里也要标来源：否则同一张表里混着几个仓库的任务，读不出谁是谁
+              t.repoLabel ? h('div', {
+                key: 'w', title: t.repoRoot || '',
+                style: { color: T.brand, marginTop: '2px', fontSize: '11px' },
+              }, t.repoLabel) : null,
             ]),
             h('div', { key: 'b', style: Object.assign({}, cell, { minWidth: '260px' }) }, [
               h('div', { key: 's', style: { display: 'flex', gap: '3px' } },
@@ -942,7 +976,12 @@ window.__ModuleLoader__.load({
       const [state, setState] = React.useState({ phase: 'loading' });
       React.useEffect(function () {
         let alive = true;
-        fetch('./api/sdlc-ui.artifact?task=' + encodeURIComponent(props.task) + '&file=' + encodeURIComponent(props.file),
+        // `root` 让服务端去**这个任务自己的**仓库里读。不传也能用
+        // （服务端会按 task 搜各个根），但传了才在两个工作区有同名任务时不会读错。
+        const qs = './api/sdlc-ui.artifact?task=' + encodeURIComponent(props.task) +
+          '&file=' + encodeURIComponent(props.file) +
+          (props.root ? '&root=' + encodeURIComponent(props.root) : '');
+        fetch(qs,
               { credentials: 'same-origin' })
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (x) {
@@ -1031,6 +1070,13 @@ window.__ModuleLoader__.load({
           }) : null,
         ]),
         t.title ? h('div', { key: 't', style: Object.assign({}, F.meta, { color: T.fg2, marginTop: S.xs }) }, t.title) : null,
+        // 来源仓库写全路径（聚合之后"这个任务属于哪个仓库"必须能一眼查到，
+        // 而不是靠猜 —— 这次"看板显示的是别的仓库"就是这么发现的）
+        t.repoRoot ? h('div', {
+          key: 'src',
+          title: t.repoRoot,
+          style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: '2px', wordBreak: 'break-all' }),
+        }, '来源：' + (t.repoLabel || '') + ' · ' + t.repoRoot) : null,
         h(BlockedBy, { key: 'b', task: t, roomy: true }),
         h(Stepper, { key: 'st', task: t, onOpen: props.onOpen }),
         h(Focus, { key: 'fo', task: t, onOpen: props.onOpen }),

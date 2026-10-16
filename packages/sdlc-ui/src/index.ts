@@ -18,7 +18,7 @@
  * 这正是选它而不是"自己开一个端点"的理由。
  */
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
@@ -58,6 +58,12 @@ interface ParsedState {
   updated?: string;
   artifacts: Record<string, string>;
   history: HistoryEntry[];
+}
+
+/** 一个候选仓库根，外加它给人看的名字（工作区标题或目录名）。 */
+interface RootInfo {
+  root: string;
+  label: string;
 }
 
 /**
@@ -189,10 +195,14 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
    * 候选仓库根（按可靠性）：`?cwd=` → DSH 持久化的工作区列表 → 进程 cwd 及其祖先。
    * 桌面 App 的进程 cwd 是 `~/.dsh/profiles/desktop`，**不是任何仓库**，
    * 所以第二条（持久化）是主力。
+   *
+   * 每个根带一个**显示名**：持久化列表里工作区行有 `title`，就用它；
+   * 没有（`?cwd=` 与进程 cwd 这两路）就退回目录名。
    */
-  const candidateRoots = async (request: Request): Promise<string[]> => {
+  const candidateRoots = async (request: Request): Promise<RootInfo[]> => {
     const storagesRoot = join(homedir(), '.dsh', 'storages');
     const fromStorage: string[] = [];
+    const labels = new Map<string, string>();
     try {
       const raw = await ctx.fs.readText(
         await ctx.fs.resolve(join(storagesRoot, 'workspace.json'), { cwd: storagesRoot }),
@@ -204,9 +214,17 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
           for (const v of o.slice(0, 50)) walk(v, depth + 1);
           return;
         }
-        for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
-          if (k === 'path' && typeof v === 'string' && v.startsWith('/')) seen.add(v);
-          else walk(v, depth + 1);
+        const own = o as Record<string, unknown>;
+        for (const [k, v] of Object.entries(own)) {
+          if (k === 'path' && typeof v === 'string' && v.startsWith('/')) {
+            seen.add(v);
+            // 工作区行里 `title` 与 `path` 是兄弟键。读不到就退回目录名，
+            // 不因为缺一个显示名而丢掉这个工作区。
+            const title = own['title'];
+            if (typeof title === 'string' && title.trim() !== '' && !labels.has(v)) {
+              labels.set(v, title.trim());
+            }
+          } else walk(v, depth + 1);
         }
       };
       walk(JSON.parse(raw), 0);
@@ -217,23 +235,81 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
     const fromClient = (new URL(request.url).searchParams.get('cwd') ?? '').split(',').map((x) => x.trim());
     const fromProcess: string[] = [];
     for (let d = process.cwd(); d !== '/' && d.length > 1; d = dirname(d)) fromProcess.push(d);
-    return [
+    const roots = [
       ...new Set(
         [...fromClient, ...fromStorage, ...fromProcess]
           .filter((x) => x.startsWith('/') && x !== '/' && !x.includes('\0'))
           .map((x) => x.replace(/\/+$/, '')),
       ),
     ];
+    return roots.map((root) => ({ root, label: labels.get(root) ?? basename(root) }));
   };
 
-  const resolveRepoRoot = async (request: Request): Promise<string | null> => {
-    for (const root of await candidateRoots(request)) {
+  /**
+   * **所有**真的有任务目录的候选根 —— 不是"第一个"。
+   *
+   * ⚠️ 这里曾经是 `break`：找到第一个非空候选就停。多工作区下后果是
+   * 面板**永远只显示那一个仓库**，而且切换工作区也不影响它（客户端半
+   * 不传 `?cwd=`）。实测：面板只显示 `workspace-a` 的残留任务
+   * RSI-1，另外两个工作区里的 8 个真实任务从来没出现过。
+   *
+   * 看板的职责是"用 SDLC 流程处理过的任务都在场"，所以必须**全扫**。
+   * 顺序不在这里决定（见 handler 末尾按 `updated` 排序）。
+   *
+   * ⚠️ 全扫带来一个新的坑：**去重必须按目录身份，不能按路径字符串**。
+   * 同一个工作区可能以两种写法出现在候选里（软链路径 vs 解析后的真实路径；
+   * 大小写、尾斜杠同理），字符串不等 → 被当成两个候选 → 同一个任务被扫两遍
+   * → 看板上出现两条一模一样的卡片。旧代码"找到第一个就 break"看不到这个问题，
+   * 所以它是全扫**引入**的回归，独立验证用软链夹具抓到了。
+   * `FsTarget.targetKey` 就是为此存在的：同一个文件必然给出同一个 key
+   *（dsh-fs 类型注释原文），本地后端在 resolve 时会 normalize + realpath。
+   */
+  const taskRoots = async (request: Request): Promise<{ roots: RootInfo[]; tried: string[] }> => {
+    const tried: string[] = [];
+    const roots: RootInfo[] = [];
+    const seen = new Set<string>();
+    for (const info of await candidateRoots(request)) {
+      tried.push(`${info.root}/${dir}`);
       try {
-        const t = await ctx.fs.resolve(`${root}/${dir}`, { cwd: root });
+        const t = await ctx.fs.resolve(`${info.root}/${dir}`, { cwd: info.root });
+        // 先看去重集合再决定要不要列目录：同一个目录列两次没有意义。
+        const key = String(t.targetKey);
+        if (seen.has(key)) continue;
         const entries = await ctx.fs.listDir(t);
-        if (entries.length > 0) return root;
+        if (entries.length > 0) {
+          seen.add(key);
+          roots.push(info);
+        }
       } catch {
-        // 这个候选不行，试下一个
+        // 这个候选没有任务目录：跳过，但**不因为已经找到一个就停**
+      }
+    }
+    return { roots, tried };
+  };
+
+  /**
+   * 读某个任务的制品时该用哪个仓库根。
+   *
+   * 聚合之后根不止一个，"这个任务在哪个根里"必须**按任务找**，
+   * 不能再用"第一个非空根"：否则另一个工作区里的任务会被拿到
+   * 错误的仓库去读，症状是"制品打不开"或**读到同名任务的别人的文件**。
+   */
+  const rootForTask = async (request: Request, task: string): Promise<RootInfo | null> => {
+    const wanted = (new URL(request.url).searchParams.get('root') ?? '').trim();
+    const { roots } = await taskRoots(request);
+    // 客户端指定的根优先，但**必须**在候选集合里 —— 不校验的话
+    // 这个参数就成了"任意路径读取"的入口（本端点挂在已认证通道上）。
+    const ordered = wanted === ''
+      ? roots
+      : [...roots.filter((r) => r.root === wanted), ...roots.filter((r) => r.root !== wanted)];
+    for (const info of ordered) {
+      try {
+        const text = await ctx.fs.readText(
+          await ctx.fs.resolve(`${info.root}/${dir}/${task}/state.yaml`, { cwd: info.root }),
+        );
+        if (text !== undefined) return info;
+      } catch {
+        // 这个根里没有这个任务（或读不出来）
       }
     }
     return null;
@@ -256,153 +332,170 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
       // "能读任意目录"仍然是一个我不该给的权限。所以只接受
       // **绝对路径且不是文件系统根**的值；否则退回进程 cwd。
       // 这样最坏情况是"看了错仓库"，而不是"被当成任意文件读取器"。
-      const searchRoots = await candidateRoots(request);
-      // 逐个候选试，取第一个真的有任务目录的；都没有就用第一个候选
-      //（这样 `repoRoot` 与"查过哪里"对得上，空白时能说清是查了哪儿）。
-      let repoRoot = searchRoots[0] as string;
-      let names: string[] = [];
-      const tried: string[] = [];
-      for (const root of searchRoots) {
-        tried.push(`${root}/${dir}`);
-        try {
-          const t = await ctx.fs.resolve(`${root}/${dir}`, { cwd: root });
-          const entries = await ctx.fs.listDir(t);
-          const found = entries.map((e) => e.name).sort();
-          if (found.length > 0) {
-            repoRoot = root;
-            names = found;
-            break;
-          }
-        } catch {
-          // 这个候选不行，试下一个
-        }
-      }
+      const { roots, tried } = await taskRoots(request);
+      const scanned: { root: string; label: string; taskCount: number }[] = [];
 
 
       const tasks: unknown[] = [];
-      for (const id of names) {
-        let stateText = '';
+      for (const info of roots) {
+        const repoRoot = info.root;
+        let names: string[] = [];
         try {
-          stateText = await ctx.fs.readText(
-              await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/state.yaml`, { cwd: repoRoot }),
-            );
+          const t = await ctx.fs.resolve(`${repoRoot}/${dir}`, { cwd: repoRoot });
+          names = (await ctx.fs.listDir(t)).map((e) => e.name).sort();
         } catch {
-          // 读不出来就不把这个任务画出来——**不伪造**。看板宁可少一条，
-          // 不可编一条。
-          continue;
+          continue; // 列不出来就跳过这个根，不影响别的根
         }
-        const st = parseStateYaml(stateText);
-        let verdict:
-          | { status: string; met: number; notMet: number; cannotTell: number; findings: number; unverified: number; summary: string }
-          | undefined;
-        try {
-          const raw = await ctx.fs.readText(
-              await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/verification.json`, { cwd: repoRoot }),
-            );
-          const doc = JSON.parse(raw) as {
-            verdict?: {
-              status?: string;
-              criteria_results?: { result?: string }[];
-              findings?: unknown[];
-              unverified?: unknown[];
-              summary?: string;
-            };
-          };
-          const results = doc.verdict?.criteria_results ?? [];
-          const count = (r: string) => results.filter((x) => x.result === r).length;
-          if (typeof doc.verdict?.status === 'string') {
-            verdict = {
-              status: doc.verdict.status,
-              met: count('met'),
-              notMet: count('not_met'),
-              cannotTell: count('cannot_tell'),
-              findings: Array.isArray(doc.verdict.findings) ? doc.verdict.findings.length : 0,
-              // ⚠️ unverified 必须单独报出来 —— 它是"验证者说它没复核的东西"，
-              // 而"通过"里最容易被人忽略的正是这一块。
-              unverified: Array.isArray(doc.verdict.unverified) ? doc.verdict.unverified.length : 0,
-              summary: typeof doc.verdict.summary === 'string' ? doc.verdict.summary.slice(0, 400) : '',
-            };
-          }
-        } catch {
-          verdict = undefined; // 没验证过就是没验证过
-        }
-        let review: { decision?: string; rounds?: number; notAccepted?: number; notes: string[] } | undefined;
-        try {
-          const raw = await ctx.fs.readText(
-            await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/review.json`, { cwd: repoRoot }),
-          );
-          const doc = JSON.parse(raw) as {
-            decision?: string;
-            rounds?: unknown[];
-            not_accepted?: string[];
-            honest_notes?: string[];
-          };
-          review = {
-            decision: doc.decision,
-            rounds: Array.isArray(doc.rounds) ? doc.rounds.length : 0,
-            notAccepted: Array.isArray(doc.not_accepted) ? doc.not_accepted.length : 0,
-            notes: Array.isArray(doc.honest_notes) ? doc.honest_notes.slice(0, 3) : [],
-          };
-        } catch {
-          review = undefined;
-        }
-        // 每个制品的**形状**：章节骨架 + 体量。这是"交付了什么"的直接答案。
-        const artifactDetail: { kind: string; file: string; sections: string[]; bytes: number }[] = [];
-        for (const [kind, file] of Object.entries(st.artifacts)) {
+        const before = tasks.length;
+        for (const id of names) {
+          let stateText = '';
           try {
-            const text = await ctx.fs.readText(
-              await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/${file}`, { cwd: repoRoot }),
-            );
-            artifactDetail.push({
-              kind,
-              file,
-              // JSON 制品没有 markdown 标题，用顶层键当"章节"
-              sections: file.endsWith('.json')
-                ? Object.keys(JSON.parse(text)).slice(0, 12)
-                : sectionsOf(text),
-              bytes: text.length,
-            });
+            stateText = await ctx.fs.readText(
+                await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/state.yaml`, { cwd: repoRoot }),
+              );
           } catch {
-            // 登记了但读不出来 —— 如实报一个空形状，不假装它有内容
-            artifactDetail.push({ kind, file, sections: [], bytes: 0 });
+            // 读不出来就不把这个任务画出来——**不伪造**。看板宁可少一条，
+            // 不可编一条。
+            continue;
           }
-        }
-
-        // 历史轨迹：每次迁移的时间与**理由**。理由是人写给自己看的，价值很高。
-        const timeline = st.history.map((h) => ({
-          at: h.at,
-          from: h.from,
-          to: h.to,
-          reason: h.reason,
-        }));
-
-        // 相邻两次迁移的时间差 —— "这一门花了多久"
-        const durations: { stage: string; ms: number }[] = [];
-        for (let i = 1; i < timeline.length; i += 1) {
-          const a = Date.parse(timeline[i - 1]?.at ?? '');
-          const b = Date.parse(timeline[i]?.at ?? '');
-          if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
-            durations.push({ stage: timeline[i]?.from ?? '', ms: b - a });
+          const st = parseStateYaml(stateText);
+          let verdict:
+            | { status: string; met: number; notMet: number; cannotTell: number; findings: number; unverified: number; summary: string }
+            | undefined;
+          try {
+            const raw = await ctx.fs.readText(
+                await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/verification.json`, { cwd: repoRoot }),
+              );
+            const doc = JSON.parse(raw) as {
+              verdict?: {
+                status?: string;
+                criteria_results?: { result?: string }[];
+                findings?: unknown[];
+                unverified?: unknown[];
+                summary?: string;
+              };
+            };
+            const results = doc.verdict?.criteria_results ?? [];
+            const count = (r: string) => results.filter((x) => x.result === r).length;
+            if (typeof doc.verdict?.status === 'string') {
+              verdict = {
+                status: doc.verdict.status,
+                met: count('met'),
+                notMet: count('not_met'),
+                cannotTell: count('cannot_tell'),
+                findings: Array.isArray(doc.verdict.findings) ? doc.verdict.findings.length : 0,
+                // ⚠️ unverified 必须单独报出来 —— 它是"验证者说它没复核的东西"，
+                // 而"通过"里最容易被人忽略的正是这一块。
+                unverified: Array.isArray(doc.verdict.unverified) ? doc.verdict.unverified.length : 0,
+                summary: typeof doc.verdict.summary === 'string' ? doc.verdict.summary.slice(0, 400) : '',
+              };
+            }
+          } catch {
+            verdict = undefined; // 没验证过就是没验证过
           }
-        }
+          let review: { decision?: string; rounds?: number; notAccepted?: number; notes: string[] } | undefined;
+          try {
+            const raw = await ctx.fs.readText(
+              await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/review.json`, { cwd: repoRoot }),
+            );
+            const doc = JSON.parse(raw) as {
+              decision?: string;
+              rounds?: unknown[];
+              not_accepted?: string[];
+              honest_notes?: string[];
+            };
+            review = {
+              decision: doc.decision,
+              rounds: Array.isArray(doc.rounds) ? doc.rounds.length : 0,
+              notAccepted: Array.isArray(doc.not_accepted) ? doc.not_accepted.length : 0,
+              notes: Array.isArray(doc.honest_notes) ? doc.honest_notes.slice(0, 3) : [],
+            };
+          } catch {
+            review = undefined;
+          }
+          // 每个制品的**形状**：章节骨架 + 体量。这是"交付了什么"的直接答案。
+          const artifactDetail: { kind: string; file: string; sections: string[]; bytes: number }[] = [];
+          for (const [kind, file] of Object.entries(st.artifacts)) {
+            try {
+              const text = await ctx.fs.readText(
+                await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/${file}`, { cwd: repoRoot }),
+              );
+              artifactDetail.push({
+                kind,
+                file,
+                // JSON 制品没有 markdown 标题，用顶层键当"章节"
+                sections: file.endsWith('.json')
+                  ? Object.keys(JSON.parse(text)).slice(0, 12)
+                  : sectionsOf(text),
+                bytes: text.length,
+              });
+            } catch {
+              // 登记了但读不出来 —— 如实报一个空形状，不假装它有内容
+              artifactDetail.push({ kind, file, sections: [], bytes: 0 });
+            }
+          }
 
-        tasks.push({
-          id,
-          status: st.status ?? null,
-          title: st.title ?? null,
-          created: st.created ?? null,
-          updated: st.updated ?? null,
-          artifacts: artifactDetail,
-          timeline,
-          durations,
-          blocked: blockedBy(st.status ?? '', st.artifacts),
-          verdict: verdict ?? null,
-          review: review ?? null,
-        });
+          // 历史轨迹：每次迁移的时间与**理由**。理由是人写给自己看的，价值很高。
+          const timeline = st.history.map((h) => ({
+            at: h.at,
+            from: h.from,
+            to: h.to,
+            reason: h.reason,
+          }));
+
+          // 相邻两次迁移的时间差 —— "这一门花了多久"
+          const durations: { stage: string; ms: number }[] = [];
+          for (let i = 1; i < timeline.length; i += 1) {
+            const a = Date.parse(timeline[i - 1]?.at ?? '');
+            const b = Date.parse(timeline[i]?.at ?? '');
+            if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
+              durations.push({ stage: timeline[i]?.from ?? '', ms: b - a });
+            }
+          }
+
+          tasks.push({
+            id,
+            // ⚠️ 聚合之后 `id` 只在**一个工作区内**唯一。不带来源的话，
+            // 面板里两个仓库的同名任务分不清，点开制品也会读错仓库。
+            repoRoot,
+            repoLabel: info.label,
+            status: st.status ?? null,
+            title: st.title ?? null,
+            created: st.created ?? null,
+            updated: st.updated ?? null,
+            artifacts: artifactDetail,
+            timeline,
+            durations,
+            blocked: blockedBy(st.status ?? '', st.artifacts),
+            verdict: verdict ?? null,
+            review: review ?? null,
+          });
+        }
+        // 只报**真的画出来**的条数：目录里可能有不含 state.yaml 的杂物，
+        // 报目录数会让"看板少了一条"变成说不清的事。
+        scanned.push({ root: repoRoot, label: info.label, taskCount: tasks.length - before });
       }
 
+      // 最新的排前面。
+      // 为什么不按根的顺序：候选顺序来自 workspace.json 的创建顺序，与
+      // "我现在在做什么"无关 —— 真实项目的 8 个任务因此会被排到最后。
+      // 看板的第一眼应当是最近动过的那些。
+      tasks.sort((a, b) => {
+        const au = (a as { updated?: string | null }).updated;
+        const bu = (b as { updated?: string | null }).updated;
+        return String(bu ?? '').localeCompare(String(au ?? ''));
+      });
+
       return new Response(
-        JSON.stringify({ at: new Date().toISOString(), repoRoot, searched: tried, tasks }), {
+        JSON.stringify({
+          at: new Date().toISOString(),
+          // `repoRoot` 保留为"第一个有任务的根"，只为兼容；
+          // 真正的来源看每个任务自己的 `repoRoot`，全局看 `roots`。
+          repoRoot: roots[0]?.root ?? null,
+          roots: scanned,
+          searched: tried,
+          tasks,
+        }), {
         status: 200,
         headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
       });
@@ -444,8 +537,9 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
       if (!/^[A-Za-z0-9_-]+$/.test(task)) return fail(400, 'task 不合法');
       if (!/^[A-Za-z0-9_.-]+$/.test(want) || want.includes('..')) return fail(400, 'file 不合法');
 
-      const repoRoot = await resolveRepoRoot(request);
-      if (!repoRoot) return fail(404, '找不到任务目录');
+      const hit = await rootForTask(request, task);
+      if (!hit) return fail(404, `在任何工作区里都找不到任务 ${task}`);
+      const repoRoot = hit.root;
 
       const stateText = await ctx.fs.readText(
         await ctx.fs.resolve(`${repoRoot}/${dir}/${task}/state.yaml`, { cwd: repoRoot }),
