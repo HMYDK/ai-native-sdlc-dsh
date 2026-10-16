@@ -131,6 +131,32 @@ for (const n of ['sdlc_task_create', 'sdlc_task_status', 'sdlc_task_advance']) {
 if (sections.length === 1) ok(`提示词段: ${sections[0].name} order=${sections[0].order}`);
 else bad(`提示词段数量=${sections.length}，期望 1`);
 
+console.log('\n== 3b. 提示词段：不许把一项工作拆成两个任务');
+{
+  // 依据：真实任务链 CART-22440（复现）→ CART-22440-FIX（修复）。
+  // 两个任务都对**同一份测试文件**做了独立验证 —— 4 次裁决全 approve、
+  // 共约 25 分钟，而第二个任务的改动只有 1 行。上游的 approve 对新任务
+  // 没有效力，因为任务之间不继承验证结论。
+  const sec = sections.find((x) => x && x.name === 'sdlc:task-policy');
+  if (!sec) {
+    bad('没有注册 sdlc:task-policy 提示词段');
+  } else {
+    ok('注册了 sdlc:task-policy 提示词段');
+    const t = String(sec.text ?? '');
+    if (t.includes('不要拆成两个')) ok('提示词里有"不要拆成两个任务"的引导');
+    else bad('提示词里缺这条引导 —— 拆任务的行为没有任何东西劝阻');
+    if (t.includes('回退') && t.includes('表示范围变化')) {
+      ok('说明了中途范围变化的正确做法是回退，而不是另开任务');
+    } else bad('没有说明"范围变化用回退"');
+    if (t.includes('换了对象') && t.includes('而不是换了阶段')) {
+      ok('给出了何时才该另开任务的判据（换对象，不是换阶段）');
+    } else bad('没有给出另开任务的判据 —— 只有禁令没有边界，会被过度套用');
+    if (t.includes('history') && t.includes('验证了几轮')) {
+      ok('说明了同一任务里多轮验证是正常的、且 history 会留痕');
+    } else bad('没有说明多轮验证在 history 里留痕 —— 会让人以为重验会丢记录');
+  }
+}
+
 console.log('\n== 4. 真正调用工具（create → status → advance）==');
 let seq = 0;
 const dispatch = (name, args) =>
