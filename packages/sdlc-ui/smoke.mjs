@@ -350,12 +350,12 @@ console.log('\n== 4g. 聚合之后，每个任务必须标出**来源工作区**
   };
 
   /**
-   * 用**预置 state**渲染面板：data(0) 有值、loading(2)=false、variant(3)=要测的，
+   * 用**预置 state**渲染面板：data(0) 有值、loading(2)=false、filter(3)=all，
    * 于是第一次渲染就走数据分支 —— 标签那条路径真的被执行。
    * 其余 hook 与 4d 一致（`useEffect` 必须真的跑，跑完立刻清理，免得定时器吊住进程）。
    */
-  const render = (variant) => {
-    const store = [payload, null, false, variant, null, null];
+  const render = () => {
+    const store = [payload, null, false, 'all', null, null];
     let i = 0;
     const req = (id) => {
       if (id === 'react/jsx-runtime') return rt2;
@@ -385,19 +385,19 @@ console.log('\n== 4g. 聚合之后，每个任务必须标出**来源工作区**
     return comp({});
   };
 
-  for (const v of ['A', 'C']) {
+  for (const v of ['工作台']) {
     let tree = null;
     let err = null;
-    try { tree = render(v); } catch (e) { err = e; }
-    if (err) { bad(`变体 ${v}：带数据渲染抛错（面板会变成一屏错误堆栈）：${String(err).slice(0, 140)}`); continue; }
+    try { tree = render(); } catch (e) { err = e; }
+    if (err) { bad(`${v}：带数据渲染抛错（面板会变成一屏错误堆栈）：${String(err).slice(0, 140)}`); continue; }
     const out = [];
     textsOf(tree, out);
     const all = out.join('\n');
     if (all.includes('工作区A') && all.includes('工作区B')) {
-      ok(`变体 ${v}：两条任务的**来源工作区**都画出来了`);
-    } else bad(`变体 ${v}：来源标签没画出来 —— 聚合之后分不清任务属于哪个仓库`);
-    if (all.includes('2 个工作区')) ok(`变体 ${v}：顶栏报出聚合范围（几个工作区 / 几个任务）`);
-    else bad(`变体 ${v}：顶栏没报聚合范围 —— 用户无法知道看板在看哪儿`);
+      ok(`${v}：两条任务的**来源工作区**都画出来了`);
+    } else bad(`${v}：来源标签没画出来 —— 聚合之后分不清任务属于哪个仓库`);
+    if (all.includes('2 个工作区')) ok(`${v}：顶栏报出聚合范围（几个工作区 / 几个任务）`);
+    else bad(`${v}：顶栏没报聚合范围 —— 用户无法知道看板在看哪儿`);
   }
 }
 

@@ -1,895 +1,296 @@
 /**
- * @ai-native-sdlc/dsh-sdlc-ui —— **客户端半**（手写，零构建）。
- *
- * 格式见 `@deepseek-ai/dsh-client-ui-brand-official`（官方最小客户端插件，1863 字节）。
- * `Builtin` 的 React 是 "exposed **without JSX transformation**"，
- * 所以 `require("react/jsx-runtime")` 直接调 `h(...)` 即可。
- *
- * ## 数据从哪来
- *
- * 从本包 **host 半**注册的认证路由取：`GET ./sdlc-ui.tasks`
- *（注册在已认证的 `/api` 通道上，见 `src/index.ts` 的说明）。
- *
- * 相对路径（`./api/...`）而不是绝对路径：页面有 `<base href="./">`，
- * 所以相对写法在任何挂载前缀下都对。
+ * SDLC 客户端：宿主提供 React，插件提供单一的列表 / 详情工作台。
+ * 不把列表的固有内容宽度交给 flex 算：长标题不应挤掉详情。
+ * 所有样式限于 .sdlc-app / .sdlc-dialog，不影响宿主或其他插件。
  */
 window.__ModuleLoader__.load({
   id: '@ai-native-sdlc/dsh-sdlc-ui',
   factory: (require) => {
-    var module = { exports: {} };
-    var exports = module.exports;
-    Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
-    // ⚠️ 必须同时拿 jsx 与 jsxs，**不能只用 jsx**。
-    //
-    // 事故：面板渲染出一个**空的 div**，零错误、零警告。
-    // 根因：React 的 `h(type, props)` 是**两参数**的 ——
-    // `jsx(type, props, key)` 的第三个位置是 **key**，而 `children` 必须放在
-    // props 里。我写 `h('div', { style }, rows)` 把 children 放在了第三个位置，
-    // 于是 React **静默丢弃**了整个 children。不报错，只是什么都不画。
-    //
-    // `h(type, props, key)` 是**接受数组 children** 的那个变体。
-    // 官方包用的是命名空间调用 `runtime.h(...)` 并把 children 放进 props ——
-    // 两种都对，但**不能**把数组塞进 `jsx` 的第三个参数。
-    let jsxRuntime = require('react/jsx-runtime');
-
-    /**
-     * `h(type, props, children)` —— **children 放进 props**，不依赖第三个参数。
-     *
-     * 为什么不直接用 runtime 的 `jsx`：它的签名是 `h(type, props, key)`，
-     * 第三个位置是 **key**，`children` **必须在 props 里**。
-     * 我原来的代码把 children 放在第三个位置，React **静默丢弃**——
-     * 面板渲染出一个空 div，零错误零警告。这个助手就是为了让那种写法不可能再出现。
-     *
-     * children 是数组时走 `jsxs`（它才是接受数组的那个变体）。
-     */
+    const React = require('react');
+    const runtime = require('react/jsx-runtime');
     function h(type, props, children) {
-      const merged = props ? Object.assign({}, props) : {};
+      const merged = Object.assign({}, props);
+      const key = merged.key;
+      delete merged.key;
       if (children !== undefined) merged.children = children;
-      const use = Array.isArray(children) ? jsxRuntime.jsxs : jsxRuntime.jsx;
-      return use(type, merged);
+      return (Array.isArray(children) ? runtime.jsxs : runtime.jsx)(type, merged, key);
     }
-    let React = require('react');
-
-    const ENDPOINT = './api/sdlc-ui.tasks';
-
-    /**
-     * ## 样式：全部走主题 token，不写死任何颜色
-     *
-     * ⚠️ 我第一版写死了深色（`#0f172a` 那套），结果在浅色主题下是一块
-     * **突兀的黑块**——用户的原话是"一点审美都没有"。那不是设计，
-     * 那只是先让它能跑。而硬编码颜色的必然结果就是：**它只在一个主题下成立。**
-     *
-     * 这些 `--dsw-alias-*` token 由主题在 `<body>` 上解析，
-     * 所以**浅色/深色自动都对**，不需要我判断当前主题。
-     * 官方取值（浅色）：标题 `#0f1115`，次要 `#61666b`，
-     * 边框 `#0000000a`/`#0000001a`，成功 `#22c55e`，警告 `#f59e0b`，错误 `#ec1313`。
-     */
-    const T = {
-      fg: 'var(--dsw-alias-label-primary)',
-      fg2: 'var(--dsw-alias-label-secondary)',
-      border: 'var(--dsw-alias-border-l1)',
-      border2: 'var(--dsw-alias-border-l2)',
-      layer1: 'var(--dsw-alias-bg-layer-1)',
-      layer2: 'var(--dsw-alias-bg-layer-2)',
-      ok: 'var(--dsw-alias-state-success-primary)',
-      warn: 'var(--dsw-alias-state-warn-primary)',
-      err: 'var(--dsw-alias-state-error-primary)',
-      idle: 'var(--dsw-alias-state-idle-primary)',
-      brand: 'var(--dsw-alias-brand-primary)',
-    };
-
-    /**
-     * ## 排版与间距刻度
-     *
-     * ⚠️ 我前两版的毛病是**随手写样式**：字号 10/11/12px 混用、间距凭感觉、
-     * 字号小到 10px 还要塞一长串 `·` 分隔的元数据。结果是"一坨密集的小字"，
-     * 眼睛没有落脚点。用户的原话是"小学生水平"。
-     *
-     * 所以这里把刻度**定死**，后面所有地方只准从这里取：
-     *   · 字号只用三档：13（标题/正文）/ 12（次要）/ 11（元数据，下限）
-     *   · 间距只用 4 的倍数
-     *   · 行高给足（1.5 左右），密集的小字是最难看的东西
-     */
-    /**
-     * ## 加载期自检
-     *
-     * ⚠️ 我在这个文件上**三次**犯了同一类错：重写代码时删掉一个常量或组件，
-     * 而它还在被别处引用。React 的表现是**整个面板变成一片空白**
-     * （容器挂载了，但里面什么都没有），浏览器只给一句
-     * "slot entry crashed in 'main': ReferenceError: X is not defined"。
-     *
-     * 那些名字本该是**编译期**检查的，但这个文件**不经 tsc**（它是浏览器 bundle）。
-     * 所以退而求其次：**在 factory 执行时就检查**，让错误在加载期
-     * 带着名字抛出来，而不是等到渲染时变成空白。
-     *
-     * 加一个常量忘了登记？这里会直接告诉你。
-     */
-    function selfCheck() {
-      // ⚠️ 这里**必须**写显式的 `typeof X === 'undefined'` 判断。
-      // 不能写成表驱动 + `eval(name)`：在模块作用域里 eval 一个未声明的标识符
-      // 会直接抛 ReferenceError（实测踩到），那样自检本身就成了新的崩溃点。
-      // `typeof undeclaredVar` 是 JS 里唯一安全的探测方式 —— 它不抛。
-      const missing = [];
-      if (typeof POLL_MS === 'undefined') missing.push('POLL_MS');
-      if (typeof S === 'undefined') missing.push('S');
-      if (typeof F === 'undefined') missing.push('F');
-      if (typeof T === 'undefined') missing.push('T');
-      if (typeof STAGES === 'undefined') missing.push('STAGES');
-      if (typeof STAGE_ARTIFACT === 'undefined') missing.push('STAGE_ARTIFACT');
-      if (typeof STAGE_CN === 'undefined') missing.push('STAGE_CN');
-      if (typeof SdlcPanel !== 'function') missing.push('SdlcPanel');
-      if (typeof SdlcPanelInner !== 'function') missing.push('SdlcPanelInner');
-      if (typeof Stepper !== 'function') missing.push('Stepper');
-      if (typeof Focus !== 'function') missing.push('Focus');
-      if (typeof Timeline !== 'function') missing.push('Timeline');
-      if (typeof TaskCard !== 'function') missing.push('TaskCard');
-      if (typeof Detail !== 'function') missing.push('Detail');
-      if (typeof VariantA !== 'function') missing.push('VariantA');
-      if (typeof VariantB !== 'function') missing.push('VariantB');
-      if (typeof VariantC !== 'function') missing.push('VariantC');
-      if (typeof ArtifactViewer !== 'function') missing.push('ArtifactViewer');
-      if (typeof renderMarkdown !== 'function') missing.push('renderMarkdown');
-      if (missing.length) {
-        throw new Error('sdlc-ui 自检失败，这些名字没有定义 → ' + missing.join(', ') +
-          '。（重写代码时被删掉了？这个文件**不经 tsc**，所以只能在这里拦；' +
-          '不拦的话表现是一片空白。）');
-      }
-    }
-
-    /** 轮询间隔。10 秒 —— 端点在本地读几个小文件，开销可忽略；
-     *  而任务状态的真实变化频率是分钟到小时级，不需要推送。 */
     const POLL_MS = 10000;
-
-    const S = { xs: '4px', sm: '8px', md: '12px', lg: '16px', xl: '24px' };
-    const F = {
-      title: { fontSize: '13px', fontWeight: '600', lineHeight: '20px' },
-      body: { fontSize: '13px', fontWeight: '400', lineHeight: '20px' },
-      meta: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' },
-      tiny: { fontSize: '11px', fontWeight: '400', lineHeight: '16px' },
-      mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
-    };
-    const mix = (v, pct) => 'color-mix(in srgb, ' + v + ' ' + pct + '%, transparent)';
-
-    /**
-     * 内联小图标。
-     *
-     * 为什么加：纯文字里"文件 / 阶段 / 时长"全靠 `·` 分隔，读起来没有边界。
-     * 一个 12px 的图标给的边界，比再加一层括号都强，而且不占宽度。
-     */
-    function Icon(props) {
-      const st = Object.assign(
-        { width: props.size || 12, height: props.size || 12, viewBox: '0 0 16 16', fill: 'none',
-          stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round',
-          style: { flex: '0 0 auto', opacity: props.dim ? '0.7' : '1' } },
-        props.style || {},
-      );
-      const paths = {
-        doc: [h('path', { key: 'a', d: 'M4 1.5h5l3 3v10h-8z' }), h('path', { key: 'b', d: 'M9 1.5v3h3' })],
-        clock: [h('circle', { key: 'a', cx: '8', cy: '8', r: '6' }), h('path', { key: 'b', d: 'M8 4.5V8l2.5 1.5' })],
-        check: [h('path', { key: 'a', d: 'M3 8.5l3.5 3.5L13 5' })],
-        warn: [h('path', { key: 'a', d: 'M8 2.5l6 11H2z' }), h('path', { key: 'b', d: 'M8 6.5v3' }), h('path', { key: 'c', d: 'M8 11.5v.01' })],
-        block: [h('circle', { key: 'a', cx: '8', cy: '8', r: '6' }), h('path', { key: 'b', d: 'M4 12L12 4' })],
-        dot: [h('circle', { key: 'a', cx: '8', cy: '8', r: '3', fill: 'currentColor', stroke: 'none' })],
-      };
-      return h('svg', st, paths[props.name] || paths.dot);
-    }
-
-    /** 状态 → token。用**状态色 token**，不是自己挑的紫绿蓝。 */
-    const STATUS_COLOR = {
-      INTENT: T.idle,
-      SPEC: T.fg2,
-      PLANNED: T.fg2,
-      IMPLEMENTING: T.warn,
-      VERIFYING: T.brand,
-      REVIEWING: T.brand,
-      DONE: T.ok,
-    };
-    const VERDICT_COLOR = { approve: T.ok, reject: T.err, needs_human: T.warn };
-
-    /**
-     * 小标签。
-     *
-     * 刻意做得**轻**：透明底 + 同色描边，字号比正文小一档。
-     * 一屏要放三个标签（状态/裁决/制品），实心底会糊成一片。
-     */
-    function Pill(props) {
-      return h('span', {
-        style: {
-          display: 'inline-flex', alignItems: 'center',
-          padding: '0 6px', height: '18px',
-          borderRadius: '9px',
-          border: '1px solid ' + props.color,
-          color: props.color,
-          fontSize: '11px', lineHeight: '18px', fontWeight: '500',
-          whiteSpace: 'nowrap',
-          // 同色 10% 底：够看出是个"块"，又不抢眼
-          background: 'color-mix(in srgb, ' + props.color + ' 10%, transparent)',
-        },
-      }, props.text);
-    }
-
-    /** 人读的时间：秒/分/时/天。面板上不该出现 "1273000ms"。 */
-    function humanMs(ms) {
-      if (!Number.isFinite(ms) || ms < 0) return '';
-      const s = Math.round(ms / 1000);
-      if (s < 60) return s + ' 秒';
-      const m = Math.floor(s / 60);
-      if (m < 60) return m + ' 分钟';
-      const h = Math.floor(m / 60);
-      if (h < 24) return h + ' 小时 ' + (m % 60) + ' 分';
-      return Math.floor(h / 24) + ' 天 ' + (h % 24) + ' 小时';
-    }
-    function shortTime(iso) {
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return '';
-      const p = (n) => String(n).padStart(2, '0');
-      return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-    }
-
+    const ENDPOINT = './api/sdlc-ui.tasks';
     const STAGES = ['INTENT', 'SPEC', 'PLANNED', 'IMPLEMENTING', 'VERIFYING', 'REVIEWING', 'DONE'];
-    /** 阶段的中文名 —— 面板是给人看的，英文枚举名不该出现在正文里。 */
-    const STAGE_CN = {
-      INTENT: '意图', SPEC: '规格', PLANNED: '计划', IMPLEMENTING: '实现',
-      VERIFYING: '验证', REVIEWING: '评审', DONE: '完成',
-    };
+    const STAGE_CN = { INTENT: '意图', SPEC: '规格', PLANNED: '计划', IMPLEMENTING: '实现', VERIFYING: '验证', REVIEWING: '评审', DONE: '完成' };
     const STAGE_ARTIFACT = { INTENT: 'intent', SPEC: 'spec', PLANNED: 'plan', VERIFYING: 'verification', REVIEWING: 'review' };
-
-    /**
-     * 横向进度条。
-     *
-     * ⚠️ 前一版是**竖排**的：七个阶段各占一行，每行后半段塞一长串
-     * `·` 分隔的元数据。结果是"一坨密集的小字"——因为竖排把
-     * **线性的流程**画成了一份**清单**。
-     *
-     * 横向才符合它的本质：左到右 = 先到后，走过的填色、当前的高亮、
-     * 未到的留白。**一眼看全程**，不需要读。
-     *
-     * 每个阶段的可点区域下面才是细节（产出物、耗时、门的结论）。
-     */
-    function Stepper(props) {
-      const t = props.task;
-      const onOpen = props.onOpen || function () {};
-      const cur = STAGES.indexOf(t.status);
-      const cells = STAGES.map(function (stage, i) {
-        const done = cur >= 0 && i < cur;
-        const active = i === cur;
-        const art = (t.artifacts || []).find(function (a) { return a.kind === STAGE_ARTIFACT[stage]; });
-        const isGate = stage === 'VERIFYING' || stage === 'REVIEWING';
-        // 门的结论：验证看裁决，评审看决定。有结论才画勾/叉。
-        let gateOk = null;
-        if (stage === 'VERIFYING' && t.verdict) gateOk = t.verdict.status === 'approve';
-        if (stage === 'REVIEWING' && t.review && t.review.decision) gateOk = t.review.decision === 'accept';
-        const color = active ? T.brand : done ? (gateOk === false ? T.err : T.ok) : T.idle;
-
-        return h('div', {
-          key: stage,
-          title: (STAGE_CN[stage] || stage) + (art ? ' · ' + art.file : '') + '（' + (done ? '已过' : active ? '当前' : '未到') + '）',
-          style: { flex: '1 1 0', minWidth: '0', display: 'flex', flexDirection: 'column', gap: S.xs, alignItems: 'stretch' },
-        }, [
-          // 条：走过的实心，当前的实心+亮色，未到的淡
-          h('div', {
-            key: 'bar',
-            style: {
-              height: '4px', borderRadius: '2px',
-              background: !done && !active ? 'transparent' : color,
-              border: '1px solid ' + (!done && !active ? T.border2 : color),
-            },
-          }),
-          h('div', {
-            key: 'lbl',
-            style: {
-              display: 'flex', alignItems: 'center', gap: '3px',
-              fontSize: '11px', lineHeight: '16px',
-              color: active ? T.fg : done ? T.fg : T.fg2,
-              fontWeight: active ? '600' : '400',
-              whiteSpace: 'nowrap', overflow: 'hidden',
-            },
-          }, [
-            isGate && gateOk !== null
-              ? h(Icon, { key: 'i', name: gateOk ? 'check' : 'warn', size: 11, style: { color: color } })
-              : null,
-            h('span', { key: 't', style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, STAGE_CN[stage] || stage),
-          ]),
-          /**
-           * ★ **这一阶段的交付物文件名**，直接显示在流程条上。
-           *
-           * 用户的原始要求就是这一条："每个阶段都产出了哪些交付物要**可以直接看出来**"。
-           * 所以它不该藏在展开的详情里 —— 流程条本身就该说清楚。
-           *
-           * 可点：点它打开这个交付物的内容。缺制品时显示一条虚线 + 警示色，
-           * 让"这一门没有产出"也是一个**看得见**的状态。
-           */
-          art
-            ? h('button', {
-                key: 'art',
-                title: '查看 ' + art.file + ' 的内容',
-                onClick: function (ev) { ev.stopPropagation(); onOpen(art.file); },
-                style: Object.assign({}, F.tiny, {
-                  textAlign: 'left', cursor: 'pointer', padding: '1px 4px', marginTop: '1px',
-                  borderRadius: '4px', background: 'transparent', border: '1px solid transparent',
-                  color: T.fg2, fontSize: '10px', lineHeight: '14px',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  textDecoration: 'underline', textDecorationColor: T.border2, textUnderlineOffset: '2px',
-                }),
-              }, art.file)
-            : STAGE_ARTIFACT[stage]
-              ? h('div', {
-                  key: 'miss',
-                  title: '这一门还没有产出物',
-                  style: Object.assign({}, F.tiny, {
-                    marginTop: '2px', borderTop: '1px dashed ' + T.border2, height: '12px',
-                  }),
-                })
-              : null,
-        ]);
-      });
-      return h('div', {
-        style: { display: 'flex', gap: S.sm, marginTop: S.md, marginBottom: S.md },
-      }, cells);
+    const ARTIFACT_CN = { intent: '意图', spec: '规格', plan: '计划', verification: '验证', review: '评审', proof: '验证证据' };
+    const T = {
+      fg: 'var(--dsw-alias-label-primary)', fg2: 'var(--dsw-alias-label-secondary)',
+      border: 'var(--dsw-alias-border-l1)', border2: 'var(--dsw-alias-border-l2)',
+    };
+    const F = { mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' } };
+    // 任务编号只在一个工作区内唯一。选中、React key、制品请求共用这个身份。
+    const taskKey = (t) => JSON.stringify([t.repoRoot || '', t.id]);
+    const stageName = (s) => STAGE_CN[s] || s || '未知状态';
+    const toneOf = (t) => t.status === 'DONE' ? 'success' : t.status === 'VERIFYING' ? 'accent' : t.status === 'IMPLEMENTING' || t.status === 'REVIEWING' ? 'warning' : 'muted';
+    function shortTime(iso) {
+      const d = new Date(iso);
+      if (!iso || isNaN(d.getTime())) return '时间未记录';
+      return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     }
-
-    /**
-     * 焦点区：**当前阶段的产出物**。
-     *
-     * 这是"每个阶段的产出物"这个问题的正面回答：
-     * 不只是文件名，还有它的**章节骨架** —— 交付物的形状。
-     */
-    function Focus(props) {
-      const t = props.task;
-      const stage = t.status;
-      const kind = STAGE_ARTIFACT[stage];
-      const art = kind ? (t.artifacts || []).find(function (a) { return a.kind === kind; }) : null;
-      const dur = (t.durations || []).find(function (d) { return d.stage === STAGES[STAGES.indexOf(stage) - 1]; });
-      const rows = [];
-
-      // ⚠️ `DONE` 与 `IMPLEMENTING` **本来就不产出制品**。
-      // 前一版在这里写"这一门还没有产出物" —— 而那句话在已完成的任务上
-      // 会被读成"缺东西"。**说错话比不说更糟**，所以要分情况。
-      const isFinal = stage === 'DONE';
-      const isWork = stage === 'IMPLEMENTING';
-      const head = [
-        h(Icon, {
-          key: 'i',
-          name: isFinal ? 'check' : art ? 'doc' : 'warn',
-          size: 13,
-          style: { color: isFinal ? T.ok : art ? T.fg2 : T.warn },
-        }),
-        h('span', { key: 't', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '500' }) },
-          isFinal
-            ? '已交付'
-            : isWork
-              ? '实现阶段（代码改动，不产生制品文件）'
-              : art
-                ? art.file
-                : '这一门还没有产出物'),
-      ];
-      if (art && art.bytes) head.push(h('span', { key: 'b', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, Math.round(art.bytes / 100) / 10 + ' KB'));
-      if (dur && dur.ms > 2000) {
-        head.push(h(Icon, { key: 'c', name: 'clock', size: 11, style: { color: T.fg2, marginLeft: 'auto' } }));
-        head.push(h('span', { key: 'd', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, '停留 ' + humanMs(dur.ms)));
-      }
-      rows.push(h('div', { key: 'h', style: { display: 'flex', alignItems: 'center', gap: '6px' } }, head));
-
-      // 完成的任务：把它**全部**制品列出来 —— 这才是"这个任务交付了什么"
-      if (isFinal) {
-        rows.push(h('div', { key: 'all', style: { display: 'flex', flexWrap: 'wrap', gap: S.sm, marginTop: S.sm } },
-          (t.artifacts || []).map(function (a) {
-            return h('div', {
-              key: a.kind,
-              title: '查看 ' + a.file,
-              onClick: function (ev) { ev.stopPropagation(); if (props.onOpen) props.onOpen(a.file); },
-              style: {
-                cursor: 'pointer',
-                flex: '1 1 140px', minWidth: '0', padding: '6px 8px', borderRadius: '6px',
-                background: 'var(--dsw-alias-bg-layer-1)', border: '1px solid ' + T.border,
-              },
-            }, [
-              h('div', { key: 'k', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, a.kind),
-              h('div', { key: 'f', style: Object.assign({}, F.meta, { color: T.fg }) }, a.file),
-            ]);
-          })));
-      }
-
-      // 章节骨架：这是"交付物长什么样"，用 chip 排开而不是一行 `·` 串
-      if (art && art.sections && art.sections.length) {
-        rows.push(h('div', {
-          key: 's',
-          style: { display: 'flex', flexWrap: 'wrap', gap: S.xs, marginTop: S.sm },
-        }, art.sections.map(function (sec) {
-          return h('span', {
-            key: sec,
-            style: Object.assign({}, F.tiny, {
-              color: T.fg2, padding: '1px 7px', borderRadius: '5px',
-              background: 'var(--dsw-alias-bg-layer-2)', border: '1px solid ' + T.border,
-            }),
-          }, sec);
-        })));
-      }
-
-      // 门的结论
-      if (stage === 'VERIFYING' && t.verdict) {
-        const v = t.verdict;
-        const tot = v.met + v.notMet + v.cannotTell;
-        const line = [
-          h(Pill, {
-            key: 'p',
-            text: v.status === 'approve' ? '通过' : v.status === 'reject' ? '驳回' : '待人工',
-            color: VERDICT_COLOR[v.status] || T.idle,
-          }),
-          h('span', { key: 'n', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, v.met + ' / ' + tot + ' 条判据通过'),
-        ];
-        if (v.findings) line.push(h('span', { key: 'f', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, v.findings + ' 条发现'));
-        if (v.unverified) {
-          line.push(h(Icon, { key: 'ui', name: 'warn', size: 11, style: { color: T.warn, marginLeft: 'auto' } }));
-          line.push(h('span', { key: 'u', style: Object.assign({}, F.tiny, { color: T.warn }) }, v.unverified + ' 项未复核'));
-        }
-        rows.push(h('div', { key: 'v', style: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: S.sm } }, line));
-      }
-      if (stage === 'REVIEWING' && t.review) {
-        rows.push(h('div', { key: 'r', style: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: S.sm } }, [
-          h(Pill, { key: 'p', text: t.review.decision === 'accept' ? '接受' : t.review.decision || '—', color: t.review.decision === 'accept' ? T.ok : T.warn }),
-          h('span', { key: 'n', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, t.review.rounds + ' 轮独立验证'),
-          t.review.notAccepted
-            ? h('span', { key: 'na', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, t.review.notAccepted + ' 项明确未接受')
-            : null,
-        ]));
-      }
-      return h('div', {
-        style: {
-          padding: S.md, borderRadius: '8px',
-          background: 'var(--dsw-alias-bg-layer-2)', border: '1px solid ' + T.border,
-        },
-      }, rows);
+    function Icon({ name, size = 16 }) {
+      const paths = {
+        search: ['M10.5 10.5 14 14', 'M12 7a5 5 0 1 1-10 0 5 5 0 0 1 10 0'],
+        refresh: ['M13 5a5.5 5.5 0 1 0 .5 5', 'M13 1v4H9'],
+        doc: ['M4 1.5h5l3 3v10H4z', 'M9 1.5v3h3', 'M6 8h4M6 11h4'],
+        arrow: ['M3 8h10M9 4l4 4-4 4'], back: ['M13 8H3m4-4L3 8l4 4'],
+        check: ['m3 8 3 3 7-7'], close: ['m4 4 8 8M12 4l-8 8'],
+        warn: ['M8 2 14 14H2z', 'M8 6v4m0 2v.1'], folder: ['M2 4h5l1.5 2H14v7H2z'],
+      };
+      return h('svg', { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
+        (paths[name] || paths.doc).map((d, i) => h('path', { key: i, d })));
     }
+    const CSS = `
+.sdlc-app,.sdlc-dialog{--sdlc-fg:var(--dsw-alias-label-primary,#17202e);--sdlc-muted:var(--dsw-alias-label-secondary,#637083);--sdlc-bg:var(--dsw-alias-bg-layer-1,#fff);--sdlc-soft:color-mix(in srgb,var(--sdlc-fg) 2.4%,var(--sdlc-bg));--sdlc-border:color-mix(in srgb,var(--sdlc-fg) 11%,transparent);--sdlc-accent:var(--dsw-alias-state-info-primary,#2563eb);--sdlc-success:color-mix(in srgb,var(--dsw-alias-state-success-primary,#21805b) 70%,var(--sdlc-fg));--sdlc-warning:color-mix(in srgb,var(--dsw-alias-state-warn-primary,#b7791f) 65%,var(--sdlc-fg));--sdlc-error:var(--dsw-alias-state-error-primary,#d04444);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;font-size:14px;line-height:1.6;color:var(--sdlc-fg);text-align:left}
+body[data-ds-dark-theme] .sdlc-app,body[data-ds-dark-theme] .sdlc-dialog{--sdlc-accent:#8baaff;color-scheme:dark}
+.sdlc-app{container-type:inline-size;width:100%;min-width:0;height:100%;overflow:auto;background:var(--sdlc-bg)}
+.sdlc-app *,.sdlc-dialog *{box-sizing:border-box}
+.sdlc-app button,.sdlc-app input,.sdlc-app select,.sdlc-dialog button{font:inherit;color:inherit}
+.sdlc-app button,.sdlc-dialog button{cursor:pointer}
+.sdlc-app button:disabled{cursor:wait;opacity:.6}
+.sdlc-app svg,.sdlc-dialog svg{flex-shrink:0}
+.sdlc-app :focus-visible,.sdlc-dialog :focus-visible{outline:2px solid var(--sdlc-accent);outline-offset:3px}
+.sdlc-page{max-width:1500px;margin:0 auto;padding:28px 32px 32px}
+.sdlc-header{display:flex;align-items:center;gap:18px;margin-bottom:22px}
+.sdlc-header h1{font-size:24px;letter-spacing:-.5px;line-height:1.4;margin:0;font-weight:650}
+.sdlc-caption{color:var(--sdlc-muted);font-size:13px}
+.sdlc-refresh{margin-left:auto}
+.sdlc-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--sdlc-border);border-radius:7px;background:var(--sdlc-bg);padding:7px 12px;min-height:36px}
+.sdlc-button:hover{background:var(--sdlc-soft)}
+.sdlc-toolbar{display:flex;align-items:center;gap:16px;margin-bottom:20px;border-bottom:1px solid var(--sdlc-border);min-width:0}
+.sdlc-filters{display:flex;gap:24px;min-width:0}
+.sdlc-filter,.sdlc-tab{border:0;border-bottom:2px solid transparent;padding:10px 1px 12px;background:transparent;color:var(--sdlc-muted)!important;white-space:nowrap}
+.sdlc-filter[aria-pressed=true],.sdlc-tab[aria-pressed=true]{color:var(--sdlc-accent)!important;border-bottom-color:var(--sdlc-accent);font-weight:600}
+.sdlc-count{font-size:12px;margin-left:7px;font-variant-numeric:tabular-nums;opacity:.8}
+.sdlc-workspace{margin-left:auto;max-width:230px;min-width:0;margin-bottom:8px;border:1px solid var(--sdlc-border);border-radius:7px;background:var(--sdlc-bg);padding:7px 28px 7px 10px;font-size:13px!important;text-overflow:ellipsis}
+.sdlc-board{display:grid;grid-template-columns:minmax(260px,32%) minmax(0,1fr);border:1px solid var(--sdlc-border);border-radius:12px;overflow:hidden;height:calc(100dvh - 166px);min-height:480px;max-height:1100px;background:var(--sdlc-bg)}
+.sdlc-list{min-width:0;background:var(--sdlc-soft);border-right:1px solid var(--sdlc-border);display:flex;flex-direction:column;overflow:hidden}
+.sdlc-search{display:flex;align-items:center;gap:9px;margin:16px;padding:8px 11px;border:1px solid var(--sdlc-border);border-radius:7px;background:var(--sdlc-bg);color:var(--sdlc-muted)}
+.sdlc-search:focus-within{border-color:var(--sdlc-accent)}
+.sdlc-search input{width:100%;min-width:0;border:0;background:transparent;outline:none;font-size:13px}
+.sdlc-search input::placeholder{color:var(--sdlc-muted)}
+.sdlc-rows{overflow:auto;min-height:0;flex:1}
+.sdlc-task{width:100%;text-align:left;border:0;border-bottom:1px solid var(--sdlc-border);border-left:3px solid transparent;background:transparent;display:block;padding:16px 18px;transition:background .15s}
+.sdlc-task:hover{background:color-mix(in srgb,var(--sdlc-fg) 4%,transparent)}
+.sdlc-task[aria-pressed=true]{background:color-mix(in srgb,var(--sdlc-accent) 8%,var(--sdlc-bg));border-left-color:var(--sdlc-accent)}
+.sdlc-task-meta{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:6px;font-size:12px;color:var(--sdlc-muted)}
+.sdlc-task-id{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.sdlc-task-title{font-size:14px;font-weight:550;line-height:1.65;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sdlc-task-workspace{display:flex;align-items:center;gap:5px;color:var(--sdlc-muted);font-size:12px;margin-top:7px;overflow:hidden}
+.sdlc-task-workspace span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sdlc-status{display:inline-flex;align-items:center;gap:5px;border-radius:5px;padding:1px 7px;font-size:12px;font-weight:500;white-space:nowrap;color:var(--tone,var(--sdlc-muted));background:color-mix(in srgb,var(--tone,var(--sdlc-muted)) 9%,transparent)}
+.sdlc-tone-accent{--tone:var(--sdlc-accent)}.sdlc-tone-success{--tone:var(--sdlc-success)}.sdlc-tone-warning{--tone:var(--sdlc-warning)}.sdlc-tone-error{--tone:var(--sdlc-error)}.sdlc-tone-muted{--tone:var(--sdlc-muted)}
+.sdlc-list-footer{font-size:12px;color:var(--sdlc-muted);padding:10px 18px;border-top:1px solid var(--sdlc-border)}
+.sdlc-detail{padding:26px 28px 36px;min-width:0;overflow:auto;scrollbar-gutter:stable}
+.sdlc-detail-meta{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--sdlc-muted)}
+.sdlc-detail h2{font-size:22px;line-height:1.5;font-weight:650;letter-spacing:-.3px;margin:12px 0 10px;overflow-wrap:anywhere}
+.sdlc-source{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;color:var(--sdlc-muted);font-size:12px}
+.sdlc-source-name{display:inline-flex;align-items:center;gap:6px}
+.sdlc-step-scroll{overflow-x:auto;margin:28px 0 18px;padding-bottom:6px}
+.sdlc-steps{display:grid;grid-template-columns:repeat(7,minmax(70px,1fr));list-style:none;padding:0;margin:0;gap:8px;min-width:560px}
+.sdlc-step{text-align:center;min-width:0;color:var(--sdlc-muted);font-size:12px}
+.sdlc-step-label{font-weight:550}
+.sdlc-step-bar{display:block;height:3px;border-radius:2px;margin:12px 0;background:var(--sdlc-border)}
+.sdlc-step.is-done .sdlc-step-bar{background:color-mix(in srgb,var(--sdlc-muted) 65%,transparent)}
+.sdlc-step[aria-current=step]{color:var(--sdlc-accent)}.sdlc-step[aria-current=step] .sdlc-step-bar{background:var(--sdlc-accent)}
+.sdlc-step button{border:0;background:transparent;font-size:11px;color:var(--sdlc-muted);padding:2px 0;overflow-wrap:anywhere;line-height:1.5}
+.sdlc-step button:hover{color:var(--sdlc-accent);text-decoration:underline}
+.sdlc-step-missing{font-size:11px;opacity:.7}
+.sdlc-tabs{display:flex;gap:26px;border-bottom:1px solid var(--sdlc-border);margin-bottom:24px}
+.sdlc-tab{font-size:13px!important}
+.sdlc-section{margin:0 0 26px}
+.sdlc-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sdlc-section h3{font-size:14px;font-weight:600;margin:0}
+.sdlc-link{display:inline-flex;align-items:center;gap:5px;border:0;padding:0;background:transparent;color:var(--sdlc-accent)!important;font-size:12px!important}
+.sdlc-verdict{display:flex;gap:12px;align-items:flex-start;background:color-mix(in srgb,var(--tone,var(--sdlc-muted)) 6%,var(--sdlc-bg));border:1px solid color-mix(in srgb,var(--tone,var(--sdlc-muted)) 22%,transparent);border-radius:8px;padding:14px 16px}
+.sdlc-verdict>svg{color:var(--tone);margin-top:3px}
+.sdlc-verdict-title{font-size:14px;font-weight:550;color:var(--tone)}
+.sdlc-verdict .sdlc-link{margin-top:8px}.sdlc-verdict p{margin:4px 0 0;font-size:13px;color:var(--sdlc-muted);overflow-wrap:anywhere}
+.sdlc-artifacts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sdlc-artifact{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;min-width:0;border:1px solid var(--sdlc-border);border-radius:7px;background:var(--sdlc-bg)}
+.sdlc-artifact:hover{border-color:var(--sdlc-accent);background:color-mix(in srgb,var(--sdlc-accent) 3%,var(--sdlc-bg))}
+.sdlc-artifact>svg{color:var(--sdlc-muted)}.sdlc-artifact>span{min-width:0}
+.sdlc-artifact-name{display:block;font-size:13px;font-weight:550}.sdlc-artifact-file{display:block;font-size:12px;color:var(--sdlc-muted);overflow-wrap:anywhere}
+.sdlc-artifact-sections{display:block;font-size:12px;color:var(--sdlc-muted);margin-top:6px;overflow-wrap:anywhere}
+.sdlc-progress{font-size:13px;color:var(--sdlc-muted);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;line-height:1.8}
+.sdlc-history{list-style:none;padding:0;margin:0}
+.sdlc-history-item{padding:0 0 20px 22px;border-left:1px solid var(--sdlc-border);position:relative;margin-left:5px}
+.sdlc-history-item::before{content:'';position:absolute;left:-4px;top:6px;width:7px;height:7px;border-radius:50%;background:var(--sdlc-muted)}
+.sdlc-history-item:last-child{border-left-color:transparent;padding-bottom:0}
+.sdlc-history-heading{display:flex;gap:12px;align-items:center;margin-bottom:6px;font-size:13px}
+.sdlc-history time{font-size:12px;color:var(--sdlc-muted);margin-left:auto;white-space:nowrap}
+.sdlc-history summary{font-size:13px;color:var(--sdlc-muted);cursor:pointer}.sdlc-history summary span{display:inline;overflow-wrap:anywhere}
+.sdlc-history details:not([open]) summary span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sdlc-history details[open] summary{line-height:1.8}
+.sdlc-empty{padding:42px 24px;text-align:center;color:var(--sdlc-muted);font-size:13px}.sdlc-empty h2{font-size:17px;color:var(--sdlc-fg);margin:0 0 8px}.sdlc-empty p{margin:0 0 14px;overflow-wrap:anywhere}
+.sdlc-notice{padding:10px 14px;margin-bottom:16px;border:1px solid var(--sdlc-border);border-radius:7px;color:var(--sdlc-muted);font-size:13px}
+.sdlc-back{display:none;margin-bottom:18px}
+.sdlc-dialog{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:24px}
+.sdlc-dialog-panel{width:860px;max-width:100%;max-height:88dvh;display:flex;flex-direction:column;background:var(--dsw-alias-bg-overlay,var(--sdlc-bg));border:1px solid var(--sdlc-border);border-radius:12px;box-shadow:0 20px 80px #0003;overflow:hidden}
+.sdlc-dialog-head{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--sdlc-border)}
+.sdlc-dialog-head strong{font-size:14px;overflow-wrap:anywhere}.sdlc-dialog-head span{font-size:12px;color:var(--sdlc-muted)}
+.sdlc-dialog-close{margin-left:auto;border:1px solid var(--sdlc-border);background:transparent;border-radius:6px;display:flex;padding:6px}
+.sdlc-document{overflow:auto;padding:24px 30px;font-size:14px;line-height:1.85;overflow-wrap:anywhere}
+.sdlc-document pre{font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+@container (max-width:1000px){.sdlc-page{padding:24px}.sdlc-board{grid-template-columns:minmax(240px,32%) minmax(0,1fr)}.sdlc-detail{padding:22px}.sdlc-detail h2{font-size:20px}.sdlc-header{gap:12px}.sdlc-artifact{padding:10px}}
+@container (max-width:760px){.sdlc-page{padding:18px 16px}.sdlc-header{flex-wrap:wrap;gap:6px 12px;margin-bottom:14px}.sdlc-header h1{font-size:22px}.sdlc-caption{order:3;width:100%}.sdlc-toolbar{gap:12px;flex-wrap:wrap}.sdlc-filters{gap:20px}.sdlc-workspace{margin-left:0;max-width:100%;width:100%}.sdlc-board{display:block;height:calc(100dvh - 224px);min-height:420px}.sdlc-list{height:100%;border:0}.sdlc-detail{display:none;height:100%;padding:20px}.sdlc-board.is-detail .sdlc-list{display:none}.sdlc-board.is-detail .sdlc-detail{display:block}.sdlc-back{display:inline-flex}.sdlc-detail h2{font-size:19px}.sdlc-artifacts{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.sdlc-task{transition:none}}
+`;
 
-    /** 卡点：**为什么过不去**。这是"卡在哪"的直接答案。 */
-    function BlockedBy(props) {
-      const b = props.task.blocked;
-      if (!b || !b.length) return null;
-      return h('div', {
-        style: {
-          marginTop: '8px', padding: '6px 8px', borderRadius: '6px',
-          background: 'color-mix(in srgb, ' + T.warn + ' 10%, transparent)',
-          border: '1px solid ' + T.warn, fontSize: '11px', color: T.fg,
-        },
-      }, '卡住：' + b.join('；'));
+    function Status({ task }) {
+      return h('span', { className: 'sdlc-status sdlc-tone-' + toneOf(task) }, stageName(task.status));
     }
-
-    /**
-     * 迁移轨迹 —— 做成**真正的列表**，不是日志倾倒。
-     *
-     * ⚠️ 前一版把"时间 + 阶段 + 理由"混在一行再用 `<br>` 断开，读起来像控制台输出。
-     * 现在：左边一列固定宽度的**时间轴**（带竖线和小圆点），右边是内容。
-     * 时间最不重要，所以给它小字号、但位置固定 —— 眼睛可以整列跳过。
-     */
-    function Timeline(props) {
-      const t = props.task;
-      const items = (t.timeline || []).slice(-8).reverse();
-      if (!items.length) return null;
-      return h('div', { style: { marginTop: S.lg } }, [
-        h('div', { key: 'h', style: Object.assign({}, F.tiny, { color: T.fg2, marginBottom: S.sm, fontWeight: '500' }) }, '迁移轨迹'),
-        ...items.map(function (e, i) {
-          const last = i === items.length - 1;
-          return h('div', { key: i, style: { display: 'flex', gap: S.sm } }, [
-            h('div', { key: 'ax', style: { flex: '0 0 auto', width: '54px', textAlign: 'right' } },
-              h('span', { style: Object.assign({}, F.tiny, { color: T.fg2, fontVariantNumeric: 'tabular-nums' }) }, shortTime(e.at))),
-            h('div', { key: 'ln', style: { flex: '0 0 auto', width: '9px', position: 'relative' } }, [
-              h('span', { key: 'd', style: { position: 'absolute', left: '2px', top: '5px', width: '5px', height: '5px', borderRadius: '50%', background: last ? T.idle : T.border2 } }),
-              last ? null : h('span', { key: 'l', style: { position: 'absolute', left: '4px', top: '12px', bottom: '-4px', width: '1px', background: T.border } }),
-            ]),
-            h('div', { key: 'c', style: { flex: '1 1 auto', minWidth: '0', paddingBottom: last ? '0' : S.sm } }, [
-              h('div', { key: 's', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '500' }) }, STAGE_CN[e.to] || e.to || '创建'),
-              e.reason ? h('div', { key: 'r', style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: '2px' }) }, e.reason) : null,
-            ]),
-          ]);
-        }),
-      ]);
+    function Empty({ title, message, children }) {
+      return h('div', { className: 'sdlc-empty' }, [h('h2', { key: 't' }, title), h('p', { key: 'm' }, message), children]);
     }
-
-    /**
-     * 一个任务 = 一张卡。
-     *
-     * ## 视觉层级（前一版最缺的东西）
-     *
-     * 一行里所有文字一样重 = 没有层级 = 读不出重点。现在分三层：
-     *   1. **id**（13px/600）+ 状态徽章        ← 第一眼
-     *   2. 标题（12px/次要色）                 ← 第二眼
-     *   3. 元数据（11px/最淡 + 图标，靠右）     ← 需要时才看
-     *
-     * 展开后是流程视图：横向进度条 → 当前阶段产出物 → 卡点 → 迁移轨迹。
-     */
-    function TaskCard(props) {
-      const t = props.task;
-      const [open, setOpen] = React.useState(false);
-      const sc = STATUS_COLOR[t.status] || T.idle;
-      const v = t.verdict;
-      const totalMs = (t.durations || []).reduce(function (a, d) { return a + d.ms; }, 0);
-      const idleMs = t.updated ? Date.now() - Date.parse(t.updated) : NaN;
-      const done = t.status === 'DONE';
-
-      const l1 = [
-        h('span', { key: 'ar', style: Object.assign({}, F.tiny, { color: T.fg2, width: '9px', flex: '0 0 auto' }) }, open ? '▾' : '▸'),
-        h('span', { key: 'id', style: Object.assign({}, F.title, { color: T.fg }) }, t.id),
-        h(Pill, { key: 's', text: STAGE_CN[t.status] || t.status || '—', color: sc }),
-      ];
-      if (v) {
-        const tot = v.met + v.notMet + v.cannotTell;
-        l1.push(h(Pill, {
-          key: 'v',
-          text: (v.status === 'approve' ? '通过 ' : v.status === 'reject' ? '驳回 ' : '待人工 ') + v.met + '/' + tot,
-          color: VERDICT_COLOR[v.status] || T.idle,
-        }));
-      }
-      l1.push(h('span', { key: 'sp', style: { flex: '1 1 auto' } }));
-      const meta = [];
-      if (Number.isFinite(totalMs) && totalMs > 60000) {
-        meta.push(h(Icon, { key: 'ic', name: 'clock', size: 11, style: { color: T.fg2 } }));
-        meta.push(h('span', { key: 't', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, humanMs(totalMs)));
-      }
-      if (Number.isFinite(idleMs) && !done) {
-        const stale = idleMs > 86400000;
-        meta.push(h('span', { key: 'i', style: Object.assign({}, F.tiny, { color: stale ? T.warn : T.fg2, marginLeft: meta.length ? S.sm : '0' }) }, humanMs(idleMs) + '未动'));
-      }
-      if (meta.length) l1.push(h('span', { key: 'm', style: { display: 'flex', alignItems: 'center', gap: '4px', flex: '0 0 auto' } }, meta));
-
-      const body = [h('div', { key: 'l1', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, l1)];
-      if (t.title) {
-        body.push(h('div', {
-          key: 'l2',
-          style: Object.assign({}, F.meta, {
-            color: T.fg2, marginTop: S.xs, paddingLeft: '15px',
-            display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }),
-        }, t.title));
-      }
-      if (open) {
-        body.push(h(Stepper, { key: 'st', task: t, onOpen: props.onOpen }));
-        body.push(h(Focus, { key: 'fo', task: t, onOpen: props.onOpen }));
-        body.push(h(BlockedBy, { key: 'b', task: t }));
-        body.push(h(Timeline, { key: 'tl', task: t }));
-      } else if (t.blocked && t.blocked.length) {
-        body.push(h(BlockedBy, { key: 'b', task: t }));
-      }
-
-      return h('div', {
-        onClick: function () { setOpen(!open); },
-        style: {
-          padding: S.md + ' ' + S.lg,
-          borderRadius: '10px',
-          background: T.layer1,
-          border: '1px solid ' + (open ? T.border2 : T.border),
-          marginBottom: S.sm,
-          cursor: 'pointer',
-          opacity: done && !open ? '0.62' : '1',
-        },
-      }, body);
-    }
-
-    /**
-     * 面板入口：包一层 try/catch。
-     *
-     * ⚠️ React 的渲染异常会让**整个子树消失**，表现就是"什么都不显示"。
-     * 用户第一次看到的"空白"很可能就是这个 —— 所以这里自己捕获，
-     * 把异常**当成内容画出来**，让错误变成屏幕上能读的一行字。
-     *
-     * ⚠️ 这个组件本身被我删过一次：重写面板体时替换区间把它一起吃掉了，
-     * 于是 `apply` 里注册的 `SdlcPanel` 是 undefined，
-     * 客户端半**整包加载失败**（浏览器只有一句 "1 entry did not activate"）。
-     * 已加进冒烟：**必须真的调用注册的组件**，否则这种缺失测不出来。
-     */
-    function SdlcPanel() {
-      try {
-        return SdlcPanelInner();
-      } catch (e) {
-        return h('pre', {
-          style: {
-            padding: S.xl, fontSize: '12px', lineHeight: '18px', whiteSpace: 'pre-wrap',
-            color: T.err, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          },
-        }, 'SdlcPanel 渲染抛错：\n' + (e && e.stack ? e.stack : String(e)));
-      }
-    }
-
-    /**
-     * ## 三种信息架构（让用户挑）
-     *
-     * 不是换配色，而是**三种不同的组织方式**：
-     *   A 列表 + 详情   —— 左窄列任务、右宽详情（典型 issue tracker）
-     *   B 流程总览      —— 五个门 + 全局统计（看整个仓库卡在哪）
-     *   C 表格 + 内联流水 —— 高密度扫览，每行内联迷你流水线
-     *
-     * 用 `localStorage.sdlcUiVariant` 切换，方便对比。
-     */
+    function SdlcPanel() { return h(SdlcPanelInner, {}); }
     function SdlcPanelInner() {
       const [data, setData] = React.useState(null);
       const [error, setError] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
-      const [variant, setVariant] = React.useState(function () {
-        try { return localStorage.getItem('sdlcUiVariant') || 'B'; } catch (e) { return 'B'; }
-      });
+      const [filter, setFilter] = React.useState('all');
       const [selected, setSelected] = React.useState(null);
-      // 正在查看的交付物。null = 没打开。
       const [opened, setOpened] = React.useState(null);
-
-      const load = React.useCallback(function () {
-        return fetch('./api/sdlc-ui.tasks', { credentials: 'same-origin' })
-          .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-          .then(function (d) {
-            if (d && d.error) throw new Error(d.error);
-            setData(d); setError(null); setLoading(false);
-          })
-          .catch(function (e) { setError(String(e && e.message ? e.message : e).slice(0, 160)); setLoading(false); });
-      }, []);
-
+      const [query, setQuery] = React.useState('');
+      const [workspace, setWorkspace] = React.useState('');
+      const [refresh, setRefresh] = React.useState(0);
       React.useEffect(function () {
         let alive = true;
+        let timer;
+        const controller = new AbortController();
+        async function load() {
+          try {
+            const response = await fetch(ENDPOINT, { credentials: 'same-origin', signal: controller.signal });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const result = await response.json();
+            if (result.error) throw new Error(result.error);
+            if (alive) { setData(result); setError(null); }
+          } catch (e) {
+            if (alive) setError(String(e.message || e).slice(0, 160));
+          } finally {
+            if (alive) { setLoading(false); timer = setTimeout(load, POLL_MS); }
+          }
+        }
         load();
-        const timer = setInterval(function () { if (alive) load(); }, POLL_MS);
-        return function () { alive = false; clearInterval(timer); };
-      }, [load]);
-
-      const switchTo = function (v) {
-        setVariant(v);
-        try { localStorage.setItem('sdlcUiVariant', v); } catch (e) { /* 无所谓 */ }
-      };
-
-      // 顶栏：标题 + 聚合范围 + 版本切换 + 刷新
-      const agg = data && Array.isArray(data.roots) && data.roots.length
-        ? h('span', {
-            key: 'agg',
-            title: data.roots.map(function (r) { return r.label + ' → ' + r.root; }).join('\n'),
-            style: Object.assign({}, F.tiny, {
-              color: T.fg2, maxWidth: '420px', overflow: 'hidden',
-              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }),
-          }, data.roots.length + ' 个工作区 · ' + (data.tasks ? data.tasks.length : 0) + ' 个任务')
-        : null;
-      const bar = h('div', {
-        style: { display: 'flex', alignItems: 'center', gap: S.sm, marginBottom: S.lg },
-      }, [
-        h('span', { key: 't', style: Object.assign({}, F.title, { color: T.fg, fontSize: '14px' }) }, 'AI 原生 SDLC'),
-        agg,
-        h('span', { key: 'sp', style: { flex: '1 1 auto' } }),
-        ...['A', 'B', 'C'].map(function (v) {
-          return h('button', {
-            key: v,
-            onClick: function () { switchTo(v); },
-            style: Object.assign({}, F.tiny, {
-              height: '24px', padding: '0 10px', borderRadius: '6px', cursor: 'pointer',
-              background: variant === v ? mix(T.brand, 12) : 'transparent',
-              color: variant === v ? T.brand : T.fg2,
-              border: '1px solid ' + (variant === v ? T.brand : T.border),
-              fontWeight: variant === v ? '600' : '400',
-            }),
-          }, v);
-        }),
-        h('button', {
-          key: 'r',
-          onClick: function () { setLoading(true); load(); },
-          style: Object.assign({}, F.tiny, {
-            height: '24px', padding: '0 10px', borderRadius: '6px', cursor: 'pointer',
-            background: 'transparent', color: T.fg2, border: '1px solid ' + T.border2,
-          }),
-        }, '刷新'),
+        return () => { alive = false; controller.abort(); clearTimeout(timer); };
+      }, [refresh]);
+      const tasks = data && Array.isArray(data.tasks) ? data.tasks : [];
+      const roots = data && Array.isArray(data.roots) ? data.roots : [];
+      const scoped = tasks.filter(t => !workspace || t.repoRoot === workspace);
+      const counts = { all: scoped.length, active: scoped.filter(t => t.status !== 'DONE').length, done: scoped.filter(t => t.status === 'DONE').length };
+      const needle = query.trim().toLocaleLowerCase();
+      const visible = scoped.filter(t => (filter === 'all' || (filter === 'done' ? t.status === 'DONE' : t.status !== 'DONE')) &&
+        (!needle || [t.id, t.title, t.repoLabel].join(' ').toLocaleLowerCase().includes(needle)));
+      const sel = visible.find(t => taskKey(t) === selected) || visible[0];
+      const reset = () => { setQuery(''); setWorkspace(''); setFilter('all'); setSelected(null); };
+      return h('main', { className: 'sdlc-app', 'aria-label': 'SDLC 任务看板' }, [
+        h('style', { key: 'css' }, CSS),
+        h('div', { key: 'page', className: 'sdlc-page' }, [
+          h('header', { key: 'header', className: 'sdlc-header' }, [
+            h('h1', { key: 'title' }, '任务看板'),
+            h('span', { key: 'scope', className: 'sdlc-caption' }, data ? roots.length + ' 个工作区 · ' + tasks.length + ' 个任务' : '加载任务与交付物'),
+            h('button', { key: 'refresh', type: 'button', className: 'sdlc-button sdlc-refresh', disabled: loading, onClick: () => { setLoading(true); setRefresh(n => n + 1); } }, [h(Icon, { key: 'i', name: 'refresh' }), loading ? '读取中…' : '刷新']),
+          ]),
+          error ? h('div', { key: 'error', role: 'alert', className: 'sdlc-notice' }, '刷新失败：' + error + (data ? '。当前保留上次读取的结果。' : '。请重试。')) : null,
+          data ? h('div', { key: 'tools', className: 'sdlc-toolbar' }, [
+            h('nav', { key: 'filters', className: 'sdlc-filters', 'aria-label': '任务状态筛选' }, [['all', '全部'], ['active', '进行中'], ['done', '已完成']].map(([value, label]) =>
+              h('button', { key: value, type: 'button', className: 'sdlc-filter', 'aria-pressed': filter === value, onClick: () => { setFilter(value); setSelected(null); } }, [label, h('span', { key: 'n', className: 'sdlc-count' }, counts[value])]))),
+            h('select', { key: 'workspace', className: 'sdlc-workspace', 'aria-label': '工作区', value: workspace, onChange: e => { setWorkspace(e.target.value); setSelected(null); } }, [
+              h('option', { key: 'all', value: '' }, '所有工作区'),
+              ...roots.map(r => h('option', { key: r.root, value: r.root }, r.label)),
+            ]),
+          ]) : null,
+          !data ? h(Empty, { key: 'loading', title: error ? '暂时无法读取看板' : '正在读取任务', message: error ? '点击刷新，再试一次。' : '正在整理工作区中的任务与交付物。' }) :
+            !tasks.length ? h(Empty, { key: 'empty', title: '还没有任务', message: '创建第一个 SDLC 任务后，它会出现在这里。', children: h('details', {}, [h('summary', { key: 's' }, '已检查的工作区'), ...(data.searched || []).map(p => h('p', { key: p }, p))]) }) :
+              h('div', { key: 'board', className: 'sdlc-board' + (selected && sel && taskKey(sel) === selected ? ' is-detail' : '') }, [
+                h('aside', { key: 'list', className: 'sdlc-list', 'aria-label': '任务列表' }, [
+                  h('label', { key: 'search', className: 'sdlc-search' }, [h(Icon, { key: 'i', name: 'search' }), h('input', { key: 'input', type: 'search', placeholder: '搜索任务…', 'aria-label': '搜索任务', value: query, onChange: e => { setQuery(e.target.value); setSelected(null); } })]),
+                  h('div', { key: 'rows', className: 'sdlc-rows' }, visible.length ? visible.map(t => h(TaskLine, { key: taskKey(t), task: t, active: sel && taskKey(t) === taskKey(sel), onClick: () => setSelected(taskKey(t)) })) : h(Empty, { title: '没有匹配的任务', message: '试试其他关键词或工作区。', children: h('button', { className: 'sdlc-link', onClick: reset }, '清除筛选') })),
+                  h('div', { key: 'footer', className: 'sdlc-list-footer', role: 'status' }, '显示 ' + visible.length + ' 个任务'),
+                ]),
+                sel ? h(Detail, { key: taskKey(sel), task: sel, onBack: () => setSelected(null), onOpen: file => setOpened({ task: sel.id, root: sel.repoRoot, file }) }) : h('div', { key: 'none', className: 'sdlc-detail' }, h(Empty, { title: '没有匹配的任务', message: '调整左侧筛选后，任务详情会显示在这里。' })),
+              ]),
+        ]),
+        opened ? h(ArtifactViewer, { key: JSON.stringify(opened), ...opened, onClose: () => setOpened(null) }) : null,
       ]);
-
-      let content;
-      if (error) {
-        content = h('div', { style: Object.assign({}, F.meta, { color: T.err }) }, '取数据失败：' + error);
-      } else if (loading && !data) {
-        content = h('div', { style: Object.assign({}, F.meta, { color: T.fg2 }) }, '读取中…');
-      } else if (data && (!data.tasks || data.tasks.length === 0)) {
-        const searched = data.searched || [];
-        content = h('div', {}, [
-          h('div', { key: 'm', style: Object.assign({}, F.meta, { color: T.fg2 }) }, '没有找到任务。查过：'),
-          h('ul', { key: 'u', style: Object.assign({}, F.tiny, { margin: S.xs + ' 0 0', paddingLeft: S.lg, color: T.fg2 }) },
-            searched.map(function (p) { return h('li', { key: p, style: { wordBreak: 'break-all' } }, p); })),
+    }
+    function TaskLine({ task: t, active, onClick }) {
+      return h('button', { type: 'button', className: 'sdlc-task', 'aria-pressed': !!active, onClick }, [
+        h('span', { key: 'meta', className: 'sdlc-task-meta' }, [h('span', { key: 'id', className: 'sdlc-task-id' }, t.id), h(Status, { key: 'status', task: t })]),
+        h('span', { key: 'title', className: 'sdlc-task-title' }, t.title || t.id),
+        h('span', { key: 'source', className: 'sdlc-task-workspace', title: t.repoRoot || '' }, [h(Icon, { key: 'i', name: 'folder', size: 12 }), h('span', { key: 'label' }, t.repoLabel || '工作区未记录')]),
+      ]);
+    }
+    function Stepper({ task: t, onOpen }) {
+      const cur = STAGES.indexOf(t.status);
+      return h('div', { className: 'sdlc-step-scroll', 'aria-label': '任务阶段与交付物' }, h('ol', { className: 'sdlc-steps' }, STAGES.map((stage, i) => {
+        const art = (t.artifacts || []).find(a => a.kind === STAGE_ARTIFACT[stage]);
+        return h('li', { key: stage, className: 'sdlc-step' + (i < cur ? ' is-done' : ''), 'aria-current': i === cur ? 'step' : undefined }, [
+          h('span', { key: 'label', className: 'sdlc-step-label' }, stageName(stage)), h('span', { key: 'bar', className: 'sdlc-step-bar', 'aria-hidden': true }),
+          art ? h('button', { key: 'file', type: 'button', title: '查看 ' + art.file, onClick: () => onOpen(art.file) }, art.file) : STAGE_ARTIFACT[stage] ? h('span', { key: 'missing', className: 'sdlc-step-missing' }, '未登记') : null,
         ]);
-      } else if (data) {
-        const tasks = data.tasks;
-        const sel = tasks.find(function (t) { return t.id === selected; }) || tasks[0];
-        const openArtifact = function (file) { setOpened({ task: sel.id, root: sel.repoRoot, file: file }); };
-        if (variant === 'B') content = h(VariantB, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
-        else if (variant === 'C') content = h(VariantC, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
-        else content = h(VariantA, { tasks: tasks, sel: sel, onSelect: setSelected, onOpen: openArtifact });
-      }
-
-      return h('div', {
-        style: {
-          padding: S.xl + ' ' + S.xl, maxWidth: '980px',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-          fontSize: '13px', lineHeight: '20px', color: T.fg,
-        },
-      }, [bar, content, opened ? h(ArtifactViewer, { key: 'av', task: opened.task, root: opened.root, file: opened.file, onClose: function () { setOpened(null); } }) : null]);
+      })));
     }
-
-    /** 一个任务行（三版共用）——紧凑。 */
-    function TaskLine(props) {
-      const t = props.task, on = props.active;
-      const sc = STATUS_COLOR[t.status] || T.idle;
+    function ArtifactList({ task, onOpen, expanded }) {
+      const order = Object.keys(ARTIFACT_CN);
+      const artifacts = (task.artifacts || []).slice().sort((a, b) => {
+        const rank = kind => order.includes(kind) ? order.indexOf(kind) : order.length;
+        return rank(a.kind) - rank(b.kind);
+      });
+      return artifacts.length ? h('div', { className: 'sdlc-artifacts' }, artifacts.map(a => h('button', { key: a.kind + ':' + a.file, type: 'button', className: 'sdlc-artifact', onClick: () => onOpen(a.file) }, [
+        h(Icon, { key: 'i', name: 'doc', size: 24 }),
+        h('span', { key: 'text' }, [h('span', { key: 'kind', className: 'sdlc-artifact-name' }, ARTIFACT_CN[a.kind] || a.kind), h('span', { key: 'file', className: 'sdlc-artifact-file' }, a.file),
+          expanded ? h('span', { key: 'sections', className: 'sdlc-artifact-sections' }, [a.bytes ? (a.bytes / 1024).toFixed(1) + ' KB' : '', ...(a.sections || [])].filter(Boolean).join(' · ')) : null]),
+      ]))) : h('p', { className: 'sdlc-caption' }, '还没有登记交付物。');
+    }
+    function Verdict({ task: t, onOpen }) {
       const v = t.verdict;
-      return h('div', {
-        onClick: props.onClick,
-        style: {
-          padding: S.sm + ' ' + S.md, borderRadius: '8px', cursor: 'pointer',
-          background: on ? mix(T.brand, 8) : 'transparent',
-          border: '1px solid ' + (on ? mix(T.brand, 30) : 'transparent'),
-          marginBottom: S.xs,
-        },
-      }, [
-        h('div', { key: 'r1', style: { display: 'flex', alignItems: 'center', gap: '6px' } }, [
-          h('span', { key: 'd', style: { width: '6px', height: '6px', borderRadius: '50%', background: sc, flex: '0 0 auto' } }),
-          h('span', { key: 'id', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: on ? '600' : '500' }) }, t.id),
-          h('span', { key: 'sp', style: { flex: '1 1 auto' } }),
-          v ? h('span', { key: 'v', style: Object.assign({}, F.tiny, { color: VERDICT_COLOR[v.status] || T.fg2 }) },
-            v.met + '/' + (v.met + v.notMet + v.cannotTell)) : null,
-        ]),
-        h('div', {
-          key: 'r2',
-          style: Object.assign({}, F.tiny, {
-            color: T.fg2, marginTop: '2px', paddingLeft: '12px',
-            display: 'flex', alignItems: 'baseline', gap: '4px', minWidth: '0',
-          }),
-        }, [
-          // ⚠️ 看板现在**跨工作区聚合**，所以每条任务都要说清自己从哪来。
-          // 没有这枚标签，两个仓库的任务在同一列里长得一模一样，
-          // "为什么别人的任务在我的看板上"就会再发生一次。
-          // 标签同时挂 title= 完整路径，鼠标停一下能看到是哪个仓库。
-          t.repoLabel ? h('span', {
-            key: 'w',
-            title: t.repoRoot || '',
-            style: {
-              flex: '0 0 auto', padding: '0 4px', borderRadius: '4px',
-              background: mix(T.brand, 10), color: T.brand,
-              maxWidth: '92px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            },
-          }, t.repoLabel) : null,
-          h('span', {
-            key: 't',
-            style: { minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-          }, t.title || ''),
+      const tone = v ? v.status === 'approve' ? 'success' : v.status === 'reject' ? 'error' : 'warning' : 'muted';
+      const title = v ? v.status === 'approve' ? '验证通过' : v.status === 'reject' ? '验证未通过' : '需要人工确认' : '尚无验证结论';
+      return h('div', { className: 'sdlc-verdict sdlc-tone-' + tone }, [
+        h(Icon, { key: 'i', name: v ? v.status === 'approve' ? 'check' : 'warn' : 'doc', size: 20 }),
+        h('div', { key: 'body' }, [h('div', { key: 'title', className: 'sdlc-verdict-title' }, title),
+          h('p', { key: 'numbers' }, v ? (v.met || 0) + ' 条通过 · ' + (v.notMet || 0) + ' 条未通过 · ' + (v.cannotTell || 0) + ' 条待确认' : '运行独立验证后，在这里查看结论。'),
+          v && v.summary ? h('p', { key: 'summary', className: 'sdlc-progress' }, v.summary) : null,
+          v && (t.artifacts || []).some(a => a.kind === 'verification') ? h('button', { key: 'full', className: 'sdlc-link', onClick: () => onOpen(t.artifacts.find(a => a.kind === 'verification').file) }, '查看完整裁决') : null,
+          v && (v.findings || v.unverified) ? h('p', { key: 'findings' }, (v.findings || 0) + ' 条发现 · ' + (v.unverified || 0) + ' 项未复核') : null,
         ]),
       ]);
     }
-
-    /** A：左列表 + 右详情。 */
-    function VariantA(props) {
-      return h('div', { style: { display: 'flex', gap: S.xl, alignItems: 'flex-start' } }, [
-        h('div', { key: 'L', style: { flex: '0 0 260px' } },
-          props.tasks.map(function (t) {
-            return h(TaskLine, { key: t.id, task: t, active: props.sel && props.sel.id === t.id, onClick: function () { props.onSelect(t.id); } });
-          })),
-        h('div', { key: 'R', style: { flex: '1 1 auto', minWidth: '0' } },
-          props.sel ? h(Detail, { task: props.sel, onOpen: props.onOpen }) : null),
+    function Timeline({ task }) {
+      const items = (task.timeline || []).slice().reverse();
+      if (!items.length) return h('p', { className: 'sdlc-caption' }, '还没有迁移记录。');
+      return h('ol', { className: 'sdlc-history' }, items.map((e, i) => h('li', { key: i, className: 'sdlc-history-item' }, [
+        h('div', { key: 'head', className: 'sdlc-history-heading' }, [h('strong', { key: 'stage' }, stageName(e.to)), h('time', { key: 'time', dateTime: e.at }, shortTime(e.at))]),
+        e.reason ? h('details', { key: 'reason' }, h('summary', { title: '展开或收起完整记录' }, h('span', {}, e.reason))) : null,
+      ])));
+    }
+    function Detail({ task: t, onOpen, onBack }) {
+      const [tab, setTab] = React.useState('overview');
+      const latest = (t.timeline || []).slice(-1)[0];
+      return h('section', { className: 'sdlc-detail', 'aria-label': '任务详情' }, [
+        h('button', { key: 'back', className: 'sdlc-button sdlc-back', onClick: onBack }, [h(Icon, { key: 'i', name: 'back' }), '返回任务列表']),
+        h('div', { key: 'meta', className: 'sdlc-detail-meta' }, [h('span', { key: 'id' }, t.id), h(Status, { key: 's', task: t })]),
+        h('h2', { key: 'title' }, t.title || t.id),
+        h('div', { key: 'source', className: 'sdlc-source' }, [h('span', { key: 'repo', className: 'sdlc-source-name', title: t.repoRoot || '' }, [h(Icon, { key: 'i', name: 'folder', size: 14 }), t.repoLabel || '工作区未记录']), h('span', { key: 'updated' }, shortTime(t.updated) + ' 更新')]),
+        h(Stepper, { key: 'steps', task: t, onOpen }),
+        h('nav', { key: 'tabs', className: 'sdlc-tabs', 'aria-label': '任务详情视图' }, [['overview', '概览'], ['artifacts', '交付物'], ['history', '迁移记录']].map(([value, label]) => h('button', { key: value, className: 'sdlc-tab', 'aria-pressed': tab === value, onClick: () => setTab(value) }, label))),
+        tab === 'overview' ? h('div', { key: 'overview' }, [
+          t.blocked && t.blocked.length ? h('section', { key: 'blocked', className: 'sdlc-section' }, h('div', { className: 'sdlc-verdict sdlc-tone-warning' }, [h(Icon, { key: 'i', name: 'warn' }), h('div', { key: 'b' }, [h('strong', { key: 'title' }, '还需要完成'), h('p', { key: 'text' }, t.blocked.join('；'))])])) : null,
+          h('section', { key: 'verdict', className: 'sdlc-section' }, [h('div', { key: 'head', className: 'sdlc-section-head' }, h('h3', {}, '验证结论')), h(Verdict, { key: 'body', task: t, onOpen })]),
+          t.review && (t.review.decision || t.review.rounds) ? h('p', { key: 'review', className: 'sdlc-caption' }, '评审：' + (t.review.decision === 'accept' ? '接受' : t.review.decision || '尚无结论') + ' · ' + (t.review.rounds || 0) + ' 轮独立验证' + (t.review.notAccepted ? ' · ' + t.review.notAccepted + ' 项未接受' : '')) : null,
+          h('section', { key: 'artifacts', className: 'sdlc-section' }, [h('div', { key: 'head', className: 'sdlc-section-head' }, h('h3', {}, '交付物')), h(ArtifactList, { key: 'body', task: t, onOpen })]),
+          latest ? h('section', { key: 'latest', className: 'sdlc-section' }, [h('div', { key: 'head', className: 'sdlc-section-head' }, [h('h3', { key: 'title' }, '最新进展'), h('button', { key: 'all', className: 'sdlc-link', onClick: () => setTab('history') }, ['查看全部记录', h(Icon, { key: 'i', name: 'arrow', size: 14 })])]), h('p', { key: 'text', className: 'sdlc-progress' }, latest.reason || stageName(latest.to))]) : null,
+        ]) : tab === 'artifacts' ? h(ArtifactList, { key: 'artifacts', task: t, onOpen, expanded: true }) : h(Timeline, { key: 'history', task: t }),
       ]);
     }
-
-    /** B：统计 + 五个门（看整个仓库卡在哪）。 */
-    function VariantB(props) {
-      const tasks = props.tasks;
-      const byStatus = {};
-      tasks.forEach(function (t) { byStatus[t.status] = (byStatus[t.status] || 0) + 1; });
-      const stuck = tasks.filter(function (t) { return t.blocked && t.blocked.length; });
-      const gates = ['VERIFYING', 'REVIEWING'];
-      return h('div', {}, [
-          // ⚠️ **不要 flexWrap** —— 卡片是 flex:'1 1 0'，一旦允许换行，
-          // 七个统计卡会竖着堆满整屏（实测踩到）。
-          h('div', { key: 'stats', style: { display: 'flex', gap: S.sm, marginBottom: S.lg } },
-          STAGES.map(function (st) {
-            const n = byStatus[st] || 0;
-            return h('div', {
-              key: st,
-              style: {
-                // 统计卡：**数字是主角**，所以给它 22px；标签降到 11px 并压低对比。
-                // 内边距从四向 12 收到 10×12 —— 原来显得空。
-                flex: '1 1 0', minWidth: '84px', padding: '10px 12px', borderRadius: '8px',
-                background: n ? mix(T.brand, 7) : 'transparent',
-                border: '1px solid ' + (n ? mix(T.brand, 28) : T.border),
-                opacity: n ? '1' : '0.55',
-              },
-            }, [
-              h('div', {
-                key: 'n',
-                style: {
-                  fontSize: '22px', lineHeight: '28px', fontWeight: '600',
-                  color: n ? T.fg : T.fg2, fontVariantNumeric: 'tabular-nums',
-                },
-              }, String(n)),
-              h('div', { key: 'l', style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: '2px' }) }, STAGE_CN[st] || st),
-            ]);
-          })),
-        stuck.length
-          ? h('div', {
-              key: 'stuck',
-              style: { padding: S.md, borderRadius: '8px', marginBottom: S.lg, background: mix(T.warn, 8), border: '1px solid ' + mix(T.warn, 40) },
-            }, [
-              h('div', { key: 'h', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '600' }) }, stuck.length + ' 个任务卡住了'),
-              ...stuck.map(function (t) {
-                return h('div', { key: t.id, style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: S.xs }) }, t.id + ' —— ' + t.blocked.join('；'));
-              }),
-            ])
-          : null,
-        h('div', { key: 'sel', style: { display: 'flex', gap: S.lg, alignItems: 'flex-start' } }, [
-          h('div', { key: 'L', style: { flex: '0 0 220px' } },
-            tasks.map(function (t) {
-              return h(TaskLine, { key: t.id, task: t, active: props.sel && props.sel.id === t.id, onClick: function () { props.onSelect(t.id); } });
-            })),
-          h('div', { key: 'R', style: { flex: '1 1 auto', minWidth: '0' } },
-            props.sel ? h(Detail, { task: props.sel, onOpen: props.onOpen }) : null),
-        ]),
-      ]);
-    }
-
-    /** C：高密度表格，每行内联迷你流水线。 */
-    function VariantC(props) {
-      const cell = Object.assign({}, F.tiny, { padding: '8px 10px', borderBottom: '1px solid ' + T.border, verticalAlign: 'top' });
-      return h('div', { style: { border: '1px solid ' + T.border, borderRadius: '8px', overflow: 'hidden' } }, [
-        h('div', { key: 'h', style: { display: 'flex', background: 'var(--dsw-alias-bg-layer-2)' } }, [
-          h('div', { key: 'a', style: Object.assign({}, cell, { flex: '0 0 130px', color: T.fg2, fontWeight: '500', borderBottom: 'none' }) }, '任务'),
-          h('div', { key: 'b', style: Object.assign({}, cell, { flex: '1 1 auto', color: T.fg2, fontWeight: '500', borderBottom: 'none' }) }, '流程'),
-          h('div', { key: 'c', style: Object.assign({}, cell, { flex: '0 0 90px', color: T.fg2, fontWeight: '500', borderBottom: 'none' }) }, '耗时'),
-        ]),
-        ...props.tasks.map(function (t) {
-          const cur = STAGES.indexOf(t.status);
-          const ms = (t.durations || []).reduce(function (a, d) { return a + d.ms; }, 0);
-          return h('div', {
-            key: t.id,
-            onClick: function () { props.onSelect(t.id); },
-            style: { display: 'flex', cursor: 'pointer', background: props.sel && props.sel.id === t.id ? mix(T.brand, 6) : 'transparent' },
-          }, [
-            h('div', { key: 'a', style: Object.assign({}, cell) }, [
-              h('div', { key: 'i', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '600' }) }, t.id),
-              h('div', { key: 't', style: { color: T.fg2, marginTop: '2px' } }, t.title || ''),
-              // 表格里也要标来源：否则同一张表里混着几个仓库的任务，读不出谁是谁
-              t.repoLabel ? h('div', {
-                key: 'w', title: t.repoRoot || '',
-                style: { color: T.brand, marginTop: '2px', fontSize: '11px' },
-              }, t.repoLabel) : null,
-            ]),
-            h('div', { key: 'b', style: Object.assign({}, cell, { minWidth: '260px' }) }, [
-              h('div', { key: 's', style: { display: 'flex', gap: '3px' } },
-                STAGES.map(function (st, i) {
-                  const done = i < cur, active = i === cur;
-                  // ⚠️ 未到的条不能只靠"淡灰 + 低透明" —— 在浅色主题下它会**消失**，
-                  // 于是"进度条"看起来只有一格。用**描边**表示"还没到"，
-                  // 这样任何主题下都看得见边界。
-                  return h('span', {
-                    key: st, title: (STAGE_CN[st] || st) + (active ? '（当前）' : done ? '（已过）' : '（未到）'),
-                    style: {
-                      flex: '1 1 0', height: '6px', borderRadius: '3px',
-                      background: active ? T.brand : done ? T.ok : 'transparent',
-                      border: '1px solid ' + (active ? T.brand : done ? T.ok : T.border2),
-                      minWidth: '6px',
-                    },
-                  });
-                })),
-              t.blocked && t.blocked.length
-                ? h('div', { key: 'w', style: { color: T.warn, marginTop: '4px' } }, '卡住：' + t.blocked.join('；'))
-                : null,
-            ]),
-            h('div', { key: 'c', style: Object.assign({}, cell, { color: T.fg2, fontVariantNumeric: 'tabular-nums' }) },
-              ms > 60000 ? humanMs(ms) : '—'),
-          ]);
-        }),
-      ]);
-    }
-
-    /**
-     * ## 交付物查看器
-     *
-     * 用户的要求："**可以点击查看这些交付物的内容**"。
-     *
-     * 从 `/api/sdlc-ui.artifact?task=&file=` 取正文，按类型渲染：
-     *   · `.md`   → 极简 Markdown：标题分级、列表、引用、代码块、加粗/行内代码
-     *   · `.json` → 缩进后的等宽文本（JSON 的可读性靠缩进，不靠高亮）
-     *
-     * ⚠️ **不引入 Markdown 库**：客户端半是手写、零构建的，拖一个依赖进来
-     * 要连打包一起解决。而且这里渲染的是**我自己的**制品（标题/列表/引用/代码块
-     * 这四种），不是任意 web 内容。渲染器只覆盖这四种，遇到别的原样显示 ——
-     * **宁可少渲染，不要错渲染**。
-     */
     function renderMarkdown(md) {
       const out = [];
       let inCode = false;
@@ -914,7 +315,7 @@ window.__ModuleLoader__.load({
           if (tok.slice(0, 2) === '**') parts.push(h('strong', { key: k++ }, tok.slice(2, -2)));
           else parts.push(h('code', {
             key: k++,
-            style: Object.assign({}, F.mono, { fontSize: '11px', padding: '0 3px', borderRadius: '3px', background: 'var(--dsw-alias-bg-layer-2)' }),
+            style: Object.assign({}, F.mono, { fontSize: '13px', padding: '0 3px', borderRadius: '3px', background: 'var(--dsw-alias-bg-layer-2)' }),
           }, tok.slice(1, -1)));
           last = m.index + tok.length;
         }
@@ -928,7 +329,7 @@ window.__ModuleLoader__.load({
             out.push(h('pre', {
               key: 'pre' + i,
               style: Object.assign({}, F.mono, {
-                fontSize: '11px', lineHeight: '16px', padding: '8px 10px', margin: '6px 0',
+                fontSize: '13px', lineHeight: '22px', padding: '8px 10px', margin: '6px 0',
                 borderRadius: '6px', background: 'var(--dsw-alias-bg-layer-2)',
                 border: '1px solid ' + T.border, overflow: 'auto', whiteSpace: 'pre',
               }),
@@ -971,130 +372,40 @@ window.__ModuleLoader__.load({
       return out;
     }
 
-    /** 交付物弹层。 */
+
+    /** 原生 dialog 提供焦点圈定和 Escape；关闭后归还触发按钮焦点。 */
     function ArtifactViewer(props) {
       const [state, setState] = React.useState({ phase: 'loading' });
-      React.useEffect(function () {
+      React.useEffect(() => {
         let alive = true;
-        // `root` 让服务端去**这个任务自己的**仓库里读。不传也能用
-        // （服务端会按 task 搜各个根），但传了才在两个工作区有同名任务时不会读错。
-        const qs = './api/sdlc-ui.artifact?task=' + encodeURIComponent(props.task) +
-          '&file=' + encodeURIComponent(props.file) +
-          (props.root ? '&root=' + encodeURIComponent(props.root) : '');
-        fetch(qs,
-              { credentials: 'same-origin' })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-          .then(function (x) {
-            if (!alive) return;
-            if (!x.ok) throw new Error(x.d && x.d.error ? x.d.error : 'HTTP 错误');
-            setState({ phase: 'ready', text: x.d.text, bytes: x.d.bytes });
-          })
-          .catch(function (e) {
-            if (alive) setState({ phase: 'error', error: String(e && e.message ? e.message : e) });
-          });
-        return function () { alive = false; };
-      }, [props.task, props.file]);
-
+        const controller = new AbortController();
+        const qs = './api/sdlc-ui.artifact?task=' + encodeURIComponent(props.task) + '&file=' + encodeURIComponent(props.file) + (props.root ? '&root=' + encodeURIComponent(props.root) : '');
+        fetch(qs, { credentials: 'same-origin', signal: controller.signal })
+          .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status); return d; }))
+          .then(d => { if (alive) setState({ phase: 'ready', text: d.text, bytes: d.bytes }); })
+          .catch(e => { if (alive) setState({ phase: 'error', error: String(e.message || e) }); });
+        return () => { alive = false; controller.abort(); };
+      }, [props.task, props.root, props.file]);
+      React.useEffect(() => {
+        const dialog = document.getElementById('sdlc-artifact-dialog');
+        const trigger = document.activeElement;
+        if (dialog && !dialog.open) dialog.showModal();
+        return () => { if (dialog) dialog.close(); if (trigger && trigger.isConnected && trigger.focus) trigger.focus(); };
+      }, []);
       let body;
-      if (state.phase === 'loading') {
-        body = h('div', { style: Object.assign({}, F.meta, { color: T.fg2 }) }, '读取中…');
-      } else if (state.phase === 'error') {
-        // 读不出来要说清原因，不要给一个空框
-        body = h('div', { style: Object.assign({}, F.meta, { color: T.err }) }, '读不出来：' + state.error);
-      } else if (/\.json$/i.test(props.file)) {
-        let pretty = state.text;
-        try { pretty = JSON.stringify(JSON.parse(state.text), null, 2); } catch (e) { /* 原样显示 */ }
-        body = h('pre', {
-          style: Object.assign({}, F.mono, {
-            fontSize: '11px', lineHeight: '16px', margin: '0', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          }),
-        }, pretty);
-      } else {
-        body = h('div', {}, renderMarkdown(state.text));
-      }
-
-      return h('div', {
-        onClick: function (ev) { ev.stopPropagation(); },
-        style: {
-          position: 'fixed', top: '0', left: '0', right: '0', bottom: '0', zIndex: '60',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.32)',
-        },
-      }, h('div', {
-        style: {
-          width: '760px', maxWidth: '92vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column',
-          background: 'var(--dsw-alias-bg-overlay)', border: '1px solid ' + T.border2,
-          borderRadius: '12px', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
-        },
-      }, [
-        h('div', {
-          key: 'head',
-          style: { display: 'flex', alignItems: 'center', gap: S.sm, padding: '10px 14px', borderBottom: '1px solid ' + T.border },
-        }, [
-          h(Icon, { key: 'i', name: 'doc', size: 13, style: { color: T.fg2 } }),
-          h('span', { key: 'f', style: Object.assign({}, F.meta, { color: T.fg, fontWeight: '600' }) }, props.file),
-          h('span', { key: 't', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, props.task),
-          state.bytes ? h('span', { key: 'b', style: Object.assign({}, F.tiny, { color: T.fg2 }) }, Math.round(state.bytes / 100) / 10 + ' KB') : null,
-          h('span', { key: 'sp', style: { flex: '1 1 auto' } }),
-          h('button', {
-            key: 'x',
-            title: '关闭',
-            onClick: function (ev) { ev.stopPropagation(); props.onClose(); },
-            style: Object.assign({}, F.meta, {
-              cursor: 'pointer', background: 'transparent', border: '1px solid ' + T.border2,
-              borderRadius: '6px', width: '26px', height: '24px', color: T.fg2,
-            }),
-          }, '✕'),
-        ]),
-        h('div', {
-          key: 'body',
-          style: Object.assign({}, F.meta, { padding: '14px 16px', overflow: 'auto', color: T.fg }),
-        }, body),
-      ]));
+      if (state.phase === 'loading') body = h('p', { role: 'status' }, '读取中…');
+      else if (state.phase === 'error') body = h('p', { role: 'alert' }, '读不出来：' + state.error);
+      else if (/\.json$/i.test(props.file)) {
+        let text = state.text;
+        try { text = JSON.stringify(JSON.parse(text), null, 2); } catch (e) { /* 非 JSON 内容原样展示。 */ }
+        body = h('pre', { style: F.mono }, text);
+      } else body = h('div', {}, renderMarkdown(state.text || ''));
+      return h('dialog', { id: 'sdlc-artifact-dialog', className: 'sdlc-dialog', 'aria-label': '交付物 ' + props.file, onCancel: e => { e.preventDefault(); props.onClose(); }, onClick: e => { if (e.target === e.currentTarget) props.onClose(); }, style: { width: '100%', height: '100%', maxWidth: 'none', maxHeight: 'none', margin: 0, border: 0 } },
+        h('div', { className: 'sdlc-dialog-panel' }, [
+          h('header', { key: 'header', className: 'sdlc-dialog-head' }, [h(Icon, { key: 'i', name: 'doc', size: 20 }), h('strong', { key: 'file' }, props.file), h('span', { key: 'task' }, props.task), h('button', { key: 'close', className: 'sdlc-dialog-close', 'aria-label': '关闭交付物', onClick: props.onClose }, h(Icon, { name: 'close' }))]),
+          h('div', { key: 'body', className: 'sdlc-document' }, body),
+        ]));
     }
-
-
-    /** 详情面板（A/B 共用）：当前阶段的产出物 + 卡点 + 轨迹。 */
-    function Detail(props) {
-      const t = props.task;
-      const onOpen = props.onOpen;
-      return h('div', {}, [
-        h('div', { key: 'h', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, [
-          h('span', { key: 'id', style: Object.assign({}, F.title, { color: T.fg, fontSize: '15px' }) }, t.id),
-          h(Pill, { key: 's', text: STAGE_CN[t.status] || t.status || '—', color: STATUS_COLOR[t.status] || T.idle }),
-          t.verdict ? h(Pill, {
-            key: 'v',
-            text: (t.verdict.status === 'approve' ? '通过 ' : t.verdict.status === 'reject' ? '驳回 ' : '待人工 ') +
-              t.verdict.met + '/' + (t.verdict.met + t.verdict.notMet + t.verdict.cannotTell),
-            color: VERDICT_COLOR[t.verdict.status] || T.idle,
-          }) : null,
-        ]),
-        t.title ? h('div', { key: 't', style: Object.assign({}, F.meta, { color: T.fg2, marginTop: S.xs }) }, t.title) : null,
-        // 来源仓库写全路径（聚合之后"这个任务属于哪个仓库"必须能一眼查到，
-        // 而不是靠猜 —— 这次"看板显示的是别的仓库"就是这么发现的）
-        t.repoRoot ? h('div', {
-          key: 'src',
-          title: t.repoRoot,
-          style: Object.assign({}, F.tiny, { color: T.fg2, marginTop: '2px', wordBreak: 'break-all' }),
-        }, '来源：' + (t.repoLabel || '') + ' · ' + t.repoRoot) : null,
-        h(BlockedBy, { key: 'b', task: t, roomy: true }),
-        h(Stepper, { key: 'st', task: t, onOpen: props.onOpen }),
-        h(Focus, { key: 'fo', task: t, onOpen: props.onOpen }),
-        h(Timeline, { key: 'tl', task: t }),
-      ]);
-    }
-
-    /**
-     * 侧栏图标。
-     *
-     * ⚠️ 槽契约（从 live Slot 树查到，不是猜的）：
-     *   `sidebar.panellist` 是 **list**，注册要 `{id, order, label}`，
-     *   owner props 是 `{size, active}` —— 它要的是**一个图标**。
-     *   说明原文："Each list id **addresses the matching main panel**;
-     *   the sidebar owns the button and resolves its label from list metadata."
-     *
-     * 所以**按钮由侧栏负责**，我不该自己画按钮、更不该在图标里塞面板。
-     */
     function SdlcIcon(props) {
       const size = props && props.size ? props.size : 16;
       const active = !!(props && props.active);
@@ -1114,36 +425,15 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /** 需要的服务：slot 注册表。 */
     const inject = ['slots'];
-
-    /** 面板的 key。侧栏的 `id` 与 `main` 的 `key` **必须是同一个字符串**。 */
-    const PANEL_ID = 'sdlc';
-
     function apply(ctx) {
-      selfCheck();
-      // 两处注册，两个槽：侧栏一个图标，主列一个面板。
-      // 图标与面板靠 **同一个 id/key** 配对 —— 这是槽契约规定的，
-      // 不是我自己连的。
       ctx.slots.inject('sidebar.panellist', function* () {
-        yield ctx.slots.register(
-          { name: 'sidebar.panellist', id: PANEL_ID, order: 30, label: 'SDLC' },
-          SdlcIcon,
-        );
+        yield ctx.slots.register({ name: 'sidebar.panellist', id: 'sdlc', order: 30, label: 'SDLC' }, SdlcIcon);
       });
       ctx.slots.inject('main', function* () {
-        yield ctx.slots.register({ name: 'main', key: PANEL_ID }, SdlcPanel);
+        yield ctx.slots.register({ name: 'main', key: 'sdlc' }, SdlcPanel);
       });
-      // ⚠️ 这一行是**故意的诊断**，别删。
-      // 用户报告"点击之后完全空白"，而我看不到浏览器控制台。
-      // `console` 是 Builtin 明确提供的出口（"Package-tagged browser logging"），
-      // 所以它会在控制台打出**带包名前缀**的行。
-      // 连这行都没有 ⇒ 客户端半**根本没被执行**，问题在加载而不是我组件里。
-      console.log('apply() 已运行：注册了 sidebar.panellist + main，key=' + PANEL_ID);
     }
-
-    exports.apply = apply;
-    exports.inject = inject;
-    return module.exports;
+    return { apply, inject };
   },
 });
