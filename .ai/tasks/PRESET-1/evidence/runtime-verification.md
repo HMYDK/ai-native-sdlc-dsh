@@ -43,7 +43,7 @@ __DSH_BOOT__ entry:
   {"id":"@ai-native-sdlc/dsh-sdlc",
    "url":"plugins/??@ai-native-sdlc/dsh-sdlc/client.js&rev=ca10afcab19f",
    "inject":["@deepseek-ai/dsh-client-ui-sidebar"]}
-GET /api/sdlc-ui.tasks → 200（字节数随 .ai/tasks 数据变化：写入时 89760，独立验证复跑时 90350）
+GET /api/sdlc-ui.tasks → 200（字节数随 .ai/tasks 数据变化：写入时 89760，独立复验 90350 / 91214）
 ```
 
 ## 2. Host RPC：preset 名册、内容、会话绑定
@@ -149,8 +149,11 @@ node tools/plugin-activation-check.mjs（隔离 profile）→ 宿主 2 行 + 本
   [sdlc-ui, preset-sdlc]"与"机制组件仍在宿主行"。
 - 改坏 standard 副本一个值（`maxBytes: 65536 → 65535`）→
   `preset-sync-check` exit 1，点名"第 2 行（agent-instructions）不一致：字段 config"。
-- 改坏 `isolate`（把 compaction 的隔离值改成 false）→ `preset-sync-check` exit 1
-  （第一版只比四个字段，会漏掉 group/isolate；独立验证指出后已改为整行比较）。
+- 改坏 `isolate`（把 planning 的 `isolate.planMode` 改成 false）→ `preset-sync-check`
+  exit 1，点名「第 14 行（planning）不一致：字段 isolate」（第一版只比四个字段，
+  会漏掉 group/isolate；独立验证指出后已改为整行比较）。
+- 键序不敏感：把某行的 `id`/`name` 键顺序交换 → exit 0（不误报）；给行加一个
+  `futureNull: null` → exit 1 且点名该字段（不再出现"字段 "为空的报告）。
 - 把 `tool-web` 改名 → preset 冒烟 18/19：点名"preset 缺 standard 基础工具：tool-web"。
 - 六行-only 的第一版（保留为历史读数）：sdlc 会话 toolsTokens 3265、无基础工具
   ——说明"preset 不继承"这条必须先解决。

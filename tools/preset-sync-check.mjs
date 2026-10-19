@@ -79,7 +79,16 @@ const stdRows = parse(stdText)[0].insert[0].config.plugins;
 // 整行比较：preset 行的语义不只在 id/name/config——`group: true` 决定它是嵌套组、
 // `isolate` 决定服务/状态隔离 realm。第一版只比四个字段，App 升级若只改 group/isolate
 // 会静默放行（独立验证抓到的门禁盲区）。这里直接序列化整行，新增字段也会被发现。
-const normalize = (row) => JSON.stringify(row);
+// 对象键先排序：YAML 解析出的键顺序不是语义，键序不同不该误报（独立验证第二轮补充）。
+const canonical = (value) => {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical(value[k])]));
+  }
+  return value;
+};
+const normalize = (row) => JSON.stringify(canonical(row));
+const fieldJson = (value) => JSON.stringify(canonical(value));
 const rowKey = (row) => (row && typeof row.id === 'string' ? row.id : `(无 id: ${JSON.stringify(row)})`);
 
 const startMarker = '==== 以下为 DSH standard preset 的副本';
@@ -139,9 +148,12 @@ for (let i = 0; i < max; i++) {
   }
   if (normalize(a) !== normalize(b)) {
     const fields = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(
-      (f) => JSON.stringify(a[f] ?? null) !== JSON.stringify(b[f] ?? null),
+      (f) => (f in a) !== (f in b) || fieldJson(a[f]) !== fieldJson(b[f]),
     );
-    problems.push(`第 ${i + 1} 行（${rowKey(a)}）不一致：字段 ${fields.join(', ')}`);
+    problems.push(
+      `第 ${i + 1} 行（${rowKey(a)}）不一致：` +
+        (fields.length > 0 ? `字段 ${fields.join(', ')}` : '整行表示不同（无可命名字段差异）'),
+    );
   }
 }
 
@@ -149,7 +161,7 @@ console.log(`App standard preset: ${stdRows.length} 行（${STD_PATCH}）`);
 console.log(`本套件 preset: ${copy.length} 行副本 + ${tail.length} 行 SDLC 组件 = ${allRows.length} 行`);
 
 if (problems.length === 0) {
-  console.log('\n✅ preset-sdlc 内嵌的 standard 副本与当前 App 一致（行序、id、name、disabled、config 逐行相同）。');
+  console.log('\n✅ preset-sdlc 内嵌的 standard 副本与当前 App 一致（整行逐行相同：id/name/config/disabled/group/isolate 及未来新增字段，键序不敏感）。');
   console.log('   注意：这只证明副本没漂移，不证明 preset 选得到 / 工具在会话里可见。');
   process.exit(0);
 }
