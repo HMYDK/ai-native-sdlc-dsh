@@ -20,7 +20,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 let pass = 0;
@@ -38,6 +38,30 @@ if (pkg.exports?.['./client'] === './lib/ui/client.js') ok("exports['./client'] 
 else bad("exports['./client'] 不对");
 if (pkg.dsh?.client?.platform === 'web') ok("dsh.client.platform = 'web'");
 else bad('dsh.client.platform 不是 web');
+
+console.log('\n== 1b. UI 行必须挂在包根（否则浏览器半会被静默丢弃）==');
+{
+  // `@deepseek-ai/dsh-client-modules` 只扫描**精确包名**的 loader 行：
+  // `exactPackageSpecifier('@scope/name/sub')` 返回 undefined，于是该包的
+  // `dsh.client` 不会被编进 `window.__DSH_BOOT__`。host 半的端点照常工作，
+  // 只有面板不出现——本轮合并实测踩过（boot payload 里没有该 entry）。
+  const hostFile = path.join(DIR, '..', 'lib', 'index.js');
+  const hostMod = await import(pathToFileURL(hostFile).href);
+  if (typeof hostMod.apply === 'function') ok('包根 lib/index.js 导出 apply');
+  else bad('包根 lib/index.js 没有 apply —— loader 会挂不上 sdlc-ui 行');
+  if (hostMod.name === 'sdlc-ui') ok(`包根插件 name=${hostMod.name}`);
+  else bad(`包根插件 name 应为 sdlc-ui，实际 ${JSON.stringify(hostMod.name)}`);
+  if (Array.isArray(hostMod.inject) && hostMod.inject.includes('connection')) {
+    ok(`包根插件 inject=[${hostMod.inject.join(', ')}]`);
+  } else bad('包根插件 inject 不含 connection（host 起不来）');
+
+  const patch = fs.readFileSync(path.join(DIR, '..', 'cordis.patch.yml'), 'utf8');
+  if (/\n\s+- id: sdlc-ui\n\s+name: '@ai-native-sdlc\/dsh-sdlc'\n/.test(patch)) {
+    ok("patch 里 sdlc-ui 行的 name 是精确包名（客户端发现的前提）");
+  } else {
+    bad("patch 里 sdlc-ui 行不是精确包名 '@ai-native-sdlc/dsh-sdlc'——浏览器半会被静默丢弃");
+  }
+}
 
 // ── 提供 window.__ModuleLoader__ 的桩，真的求值
 let loaded = null;

@@ -26,3 +26,6 @@ packages/*/lib/
 
 # 合并探针的隔离 DSH_HOME 与 fixture（可丢弃，永不提交）
 .probe/
+
+# 隔离验证用的 DSH_HOME（真实 tarball 安装验证，可丢弃）
+.verify-home/

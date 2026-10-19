@@ -20,5 +20,7 @@
       name: '@ai-native-sdlc/dsh-sdlc/workflow'
     - id: sdlc-rsi
       name: '@ai-native-sdlc/dsh-sdlc/rsi'
+    # ui 行指向**包名本身**（不是 ./ui 子路径）：dsh-client-modules 只扫描
+    # 精确包名的 loader 行来发现 dsh.client，否则浏览器半会静默消失。
     - id: sdlc-ui
-      name: '@ai-native-sdlc/dsh-sdlc/ui'
+      name: '@ai-native-sdlc/dsh-sdlc'

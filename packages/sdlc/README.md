@@ -23,10 +23,14 @@ DSH 里有两个不同层次的单位，这里刻意让它们各归其位：
 | `sdlc-status` | `@ai-native-sdlc/dsh-sdlc/status` | 任务看板（一次盘出全部任务状态/缺失/裁决） |
 | `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流 Skill：给验证者的判据清单 |
 | `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 |
-| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc/ui` | 客户端制品链面板（`./client` 是浏览器半） |
+| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**包根**，不是子路径） | 客户端制品链面板（`./client` 是浏览器半） |
 
 验证者 preset 内部还挂了一行 `@ai-native-sdlc/dsh-sdlc/verify/preset-filter`
 （只在 preset 里生效，不是 bundle 行）。
+
+⚠️ `sdlc-ui` 行的 name 必须是**精确包名**：`@deepseek-ai/dsh-client-modules` 只扫描
+精确包名的 loader 行来发现 `dsh.client`；写成 `./ui` 子路径会让浏览器半**静默消失**
+（host 端点照常工作、只有面板不出现）。本轮合并实测踩过，`smoke/ui.mjs` 有回归断言。
 
 ## 安装
 

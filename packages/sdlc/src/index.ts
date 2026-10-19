@@ -1,13 +1,19 @@
 /**
- * 包入口模块。它本身**不是**被挂载的插件。
+ * 包入口模块 —— 也就是 **sdlc-ui 组件的 host 半**。
  *
- * 合并后的分发单位是「一个包 / 一个 bundle」，执行单位仍是七个组件行：
- * `cordis.patch.yml` 里的每一行指向本包的一个子路径导出
- * （`./task`、`./artifact`、`./verify`、`./status`、`./workflow`、`./rsi`、`./ui`）。
- * 每个组件仍拥有自己的 `inject` / `Config` / `apply` / fiber，因此故障域、
- * `fiberPhase` 诊断、行级开关与 profile 按 id 覆盖都不变。
+ * ## 为什么 UI 组件必须挂在包根，而不是 `./ui` 子路径
  *
- * 保留 `exports["."]` 只是包解析的常规要求（`main`/`exports["."]` 是必需的）；
- * 没有任何 loader 行指向它。
+ * `@deepseek-ai/dsh-client-modules` 只扫描**精确包名**的 loader 行
+ * （`exactPackageSpecifier`：`@scope/name` 恰好两段；子路径返回 undefined），
+ * 用它定位该包的 `dsh.client` 声明并把客户端 bundle 编进 `window.__DSH_BOOT__`。
+ * 合并前 sdlc-ui 是独立包、行名就是包名，所以没问题；合并后如果 `sdlc-ui` 行
+ * 仍指向 `./ui` 子路径，浏览器半会**静默消失**（host 半的端点照常工作，
+ * 只有面板不出现）——本轮实测抓到过一次（boot payload 里没有该 entry）。
+ *
+ * 所以七行里 `sdlc-ui` 这一行的 name 是包名本身，模块就是这里：重新导出
+ * `ui/index.ts` 的插件定义。其余六个组件仍用子路径导出，不受影响。
+ *
+ * 这也符合 DSH 文档里 `dsh.client` 包的常规形态：package 的 host 半边必须
+ * 出现在 Loader 里，客户端半才能被发现。
  */
-export const name = 'sdlc-bundle';
+export * from './ui/index.js';
