@@ -18,14 +18,18 @@
     "./client": "./lib/ui/client.js",
     "./rsi": "./lib/rsi/index.js",
     "./package.json": "./package.json",
-    "./locale/*/*.json": "./locale/*/*.json"
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json",
+    "./*/locale/en.json": "./locale/*/en.json",
+    "./*/locale/zh.json": "./locale/*/zh.json",
+    "./*/icon": "./icon.svg"
   },
   "files": [
     "lib/**/*.js",
     "!lib/**/*.test.js",
     "!lib/**/*.d.ts",
     "cordis.patch.yml",
-    "locale/*/*.json",
+    "locale/**/*.json",
     "icon.svg",
     "README.md",
     "TASK.md",

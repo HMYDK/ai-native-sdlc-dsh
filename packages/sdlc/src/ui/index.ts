@@ -1,9 +1,9 @@
 /**
- * @ai-native-sdlc/dsh-sdlc-ui —— **host 半**。
+ * @ai-native-sdlc/dsh-sdlc/ui —— **host 半**。
  *
  * 它做两件事：
  *   1. 注册一条**认证路由** `GET /api/sdlc-ui.tasks`，返回当前仓库的任务看板数据
- *   2. 让客户端半把那份数据画出来（客户端半见 `src/client.js`，手写）
+ *   2. 让客户端半把那份数据画出来（客户端半见 `src/ui/client.js`，手写）
  *
  * ## 数据通道为什么是"认证路由"
  *

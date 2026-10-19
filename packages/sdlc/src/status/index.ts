@@ -1,5 +1,5 @@
 /**
- * @ai-native-sdlc/dsh-sdlc-status
+ * @ai-native-sdlc/dsh-sdlc/status
  *
  * AI 原生 SDLC 的**任务看板**。
  *

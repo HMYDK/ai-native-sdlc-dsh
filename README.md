@@ -213,7 +213,7 @@ ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --p
 | 检查 | 读数 |
 |---|---|
 | `npm run test --workspace packages/sdlc` | 单测 **210**（lib 202 + UI 客户端交互 8；看板宿主测试 24 另计） |
-| `npm run smoke --workspace packages/sdlc` | 七脚本全过：artifact 39 / rsi 62 / status 69 / task 40 / ui 44 / verify 109 / workflow 12（共 375 条断言） |
+| `npm run smoke --workspace packages/sdlc` | 七脚本全过：artifact 39 / rsi 62 / status 69 / task 40 / ui 46 / verify 109 / workflow 12（共 377 条断言） |
 | `npm run compat` | 根工作区 + `@ai-native-sdlc/dsh-sdlc`（8 条 peer）全部接受 `0.2.1-rc.2` |
 | `npm pack --dry-run --workspace packages/sdlc` | `ai-native-sdlc-dsh-sdlc-0.2.0.tgz`，40 个文件 |
 

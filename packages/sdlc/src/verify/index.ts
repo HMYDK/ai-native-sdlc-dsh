@@ -1,5 +1,5 @@
 /**
- * @ai-native-sdlc/dsh-sdlc-verify
+ * @ai-native-sdlc/dsh-sdlc/verify
  *
  * AI 原生 SDLC 的**独立验证**能力。这个插件只做一件事：让"验证"成为一个
  * 不由实现者自己宣布的、有证据要求的、机器可读的动作。

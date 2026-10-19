@@ -61,6 +61,22 @@ console.log('\n== 1b. UI 行必须挂在包根（否则浏览器半会被静默�
   } else {
     bad("patch 里 sdlc-ui 行不是精确包名 '@ai-native-sdlc/dsh-sdlc'——浏览器半会被静默丢弃");
   }
+
+  // 插件页展示元数据：宿主 app-boot 的 readPluginMeta 只读 <specifier>/locale/en.json。
+  // 合并后旧包的包根 locale 变成了嵌套目录，如果 exports 不覆盖，卡片与子路径行
+  // 会退化为裸 specifier（本轮独立验证抓到过的 minor，加断言防回归）。
+  const rootLocalesOk = ['en', 'zh'].every((lang) => {
+    const file = path.join(DIR, '..', 'locale', `${lang}.json`);
+    if (!fs.existsSync(file)) return false;
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return typeof parsed?.meta?.title === 'string' && typeof parsed?.meta?.description === 'string';
+  });
+  if (rootLocalesOk) ok('包根 locale/en.json + zh.json 有 meta 标题/描述（插件页卡片元数据）');
+  else bad('包根缺 locale/en.json 或 zh.json 的 meta 文案——插件页卡片会退化');
+  const needExports = ['./locale/en.json', './locale/zh.json', './*/locale/en.json', './*/locale/zh.json', './*/icon'];
+  const missingExports = needExports.filter((key) => pkg.exports?.[key] === undefined);
+  if (missingExports.length === 0) ok('exports 覆盖包根/组件 locale 与组件 icon（七行都有展示元数据）');
+  else bad(`exports 缺 ${missingExports.join(', ')}——插件页行会退化为裸 specifier`);
 }
 
 // ── 提供 window.__ModuleLoader__ 的桩，真的求值

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "AI 原生 SDLC",
+    "description": "把 AI 原生 SDLC 方法论落成一个 DeepSeek Harness 插件包：任务状态机、制品链、独立验证、任务看板、工作流 Skill、客户端面板与 RSI，共七个机制组件。"
+  }
+}

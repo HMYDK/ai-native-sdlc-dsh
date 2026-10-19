@@ -30,36 +30,111 @@
 
 发布授权、分支保护、密钥属于后者，**不要试图在插件里实现它们**。
 
-## 交付形态：插件 bundle，不是仓库脚本
+## 交付形态：一个插件 bundle，不是仓库脚本
 
 第一版我错误地做成了「git 仓库 + shell 脚本 + md 约定」，
 那不是 DSH 插件，只是一个跑在 DSH 里的外部工具集。已废弃。
 
 正确形态：**npm 包 + `dsh.bundle.patch`**，`dsh plugin add` 即自动挂载。
+2026-10-19 起是**一个**包（`packages/sdlc`，`@ai-native-sdlc/dsh-sdlc@0.2.0`），
+不再是七个包——原因见下一节与 `packages/sdlc/README.md`。
 
-## 拆分原则：按机制，不按阶段
+## 拆分原则：分发按套件合一，执行按机制拆行
 
 DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提示词组装 / 客户端 UI），
-与 SDLC 六个阶段**完全不正交**。按阶段拆会让一个制品链跨六个包、
-一个拦截点被六个插件注册。
+与 SDLC 六个阶段**完全不正交**。按阶段拆会让一个制品链跨多个包、
+一个拦截点被多个插件注册。
 
-规划 6 个插件，MVP 2 个。**顺序是「先 verifier」**——它输出结构化 PASS/FAIL，
-是唯一能被严格自动验证的插件。
+「按机制拆」决定的是**执行单位**；**分发单位**是另一个层次，刻意收敛成一个。
+判据是：**边界只能放在真实差异存在的地方。**
 
-| 插件 | 机制 | 状态 |
+| 层次 | 选择 | 为什么 |
 |---|---|---|
-| `packages/sdlc-verify` | 独立验证 + 测试冻结 | ✅ 已实现并端到端验证 |
-| `packages/sdlc-task` | 任务状态机 + 制品链（state.yaml 在 git） | ✅ 已实现并端到端跑通 |
-| `packages/sdlc-artifact` | 制品撰写 + 结构检查（只查结构） | ✅ 已实现并端到端跑通 |
-| `packages/sdlc-status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） | ✅ 已实现（真实 fs 冒烟） |
-| `sdlc-release` | Gate 前的工作（PR 描述、CI 证据汇集） | ⬜ |
-| `sdlc-workflow` | 工作流本身，作为一份 **Skill** 交付给验证者 | ✅ 已实现（12 条冒烟） |
-| `packages/sdlc-ui` | 客户端制品链面板（侧栏图标 + main 面板） | ✅ 已实现并端到端验证（24 条冒烟） |
-| `packages/sdlc-rsi` | 真实验证记录、复盘、指导文字对照实验 | ✅ 首版已实现；实验为探索用途 |
+| 分发单位：npm 包 / bundle / `dsh.profile.bundles` 条目 / tarball / 插件页卡片 | **一个** | 七个组件永远同装同升；制品链（`state.yaml` / `verification.json` / artifacts 语义）是跨组件协议，必须同版本发布 |
+| 执行单位：Cordis 插件行 / fiber | **七个** | 每行独立 `inject` / `Config` / fiber：故障域、`fiberPhase` 诊断、行级开关、profile 按 id 覆盖都靠它 |
+
+`packages/sdlc/cordis.patch.yml` 是**一条 `insert`、七行**；行 id 与合并前完全一致
+（`sdlc-task`、`sdlc-verify`……），旧 profile 里的按 id 覆盖继续匹配。
+
+| 行 id | 行 name | 机制 | 状态 |
+|---|---|---|---|
+| `sdlc-task` | `@ai-native-sdlc/dsh-sdlc/task` | 任务状态机 + 制品链（state.yaml 在 git） | ✅ 已实现并端到端跑通 |
+| `sdlc-artifact` | `@ai-native-sdlc/dsh-sdlc/artifact` | 制品撰写 + 结构检查（只查结构） | ✅ 已实现并端到端跑通 |
+| `sdlc-status` | `@ai-native-sdlc/dsh-sdlc/status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） | ✅ 已实现（真实 fs 冒烟） |
+| `sdlc-verify` | `@ai-native-sdlc/dsh-sdlc/verify` | 独立验证 + 测试冻结 | ✅ 已实现并端到端验证 |
+| `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流本身，作为 **Skill** 交付给验证者 | ✅ 已实现（12 条冒烟） |
+| `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 | ✅ 首版已实现；实验为探索用途 |
+| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**精确包名**） | 客户端制品链面板（侧栏图标 + main 面板） | ✅ 已实现并端到端验证（46 条冒烟） |
+
+⚠️ **`sdlc-ui` 行必须写精确包名**，不能写 `.../ui` 子路径：
+`@deepseek-ai/dsh-client-modules` 只扫描**精确包名**的 loader 行来发现 `dsh.client`
+（`exactPackageSpecifier` 对子路径返回 `undefined`）。写成子路径的后果是浏览器半
+**不进 `window.__DSH_BOOT__`**，而 host 端点照常 200——面板不出现、日志无错。
+本轮合并真实启动抓到过一次，修法是包根入口重新导出 ui 定义；`smoke/ui.mjs` 加了
+4 条回归断言。其余六个组件仍走子路径导出。
+
+**不要**把七行压成「一个插件行 + `ctx.plugin()` 子插件」：那会把唯一真正在
+起作用的隔离边界（fiber）压掉，而分发粒度并不因此变化，是纯粹变差。
+
+**顺序上先做 verifier，不是先做 plan**（历史决策，仍然成立）：verifier 输出结构化
+PASS/FAIL，是唯一能被严格自动验证的机制；`plan` 输出给人看的 markdown，
+很难自动判断好坏。而且手册自己说"Verification 是最值得优先建设的部分"。
+
+### 2026-10-19 合并：为什么是正确的事（证据）
+
+一个包、一个 bundle、一条 `dsh.profile.bundles` 条目、一个 tarball；
+七个组件行原样保留。合并前的七包形态实测代价全在分发层：
+
+1. **七份 `peerDependencies`**：0.2.1 升级时七个包被版本门禁一起跳过、静默消失
+   （见下面 §0.2.1）。合并后只有一份 peer 范围、一条 compat 检查。
+2. **七个 tarball、七条 bundles 条目、七次安装**，还要操心安装顺序。
+3. **跨包 import 走不通**（装好之后解析不到）：`sessionCwd` / `requireSessionCwd` /
+   `resolveOptions` / `writePolicy` 在 verify/task/artifact/status 里是**四份逐字相同**
+   的副本，靠四份"漂移检测"测试盯着；`sdlc-status` 还复制了一份状态机常量，
+   再用读源码文本的契约测试盯漂移。合并后 `src/shared/helpers.ts` 一份、
+   状态常量直接 import——**同一份代码不可能和自己漂移**。
+4. 插件页七张卡暗示七个可独立选择的东西，而它们其实是一套。
+
+**机制成立性先做了探针**（`.probe/repro.sh`，PASS=32，可复跑）：第三方 tgz bundle
+的 patch 两行分别指向**自己包的子路径导出**时，真实 `dsh` 启动中两行都激活
+（marker 由该次启动进程写出、dump-config 两行 name 逐字正确、
+`dsh.profile.bundles` 自动追加、无 `entry did not activate`、行级
+`disabled: true` 只关对应一行且可逆）。探针只证明了行级机制与子路径解析，
+未外推到 peer/依赖形态。
+
+**真实 tarball 的隔离验证**（`.verify-home`，gitignore，不碰用户 profile）：
+模板 profile 先建、再 `plugin add`；bundles 变成
+`["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app","@ai-native-sdlc/dsh-sdlc"]`；
+dump-config 七行；真实启动无激活警告；`__DSH_BOOT__.entries` 含
+`{"id":"@ai-native-sdlc/dsh-sdlc","url":"plugins/??…/client.js","inject":["…client-ui-sidebar"]}`；
+`GET /api/sdlc-ui.tasks` 200 / 81975 字节（3 个工作区 / 13 个任务；最终复验
+86773 字节，因为新增了 BUNDLE-1）。
+
+**desktop profile live 验证**：`dsh plugin --profile desktop add <tgz>` 后
+**无需重启**，`plugin_manager list_plugins` 里七行全部 `fiberPhase: active`
+（`sdlc-ui` 行 moduleName 是 `@ai-native-sdlc/dsh-sdlc`）；当前会话直接出现了
+`sdlc_status` / `sdlc_verify` / `sdlc_artifact_*` 等工具与
+`sdlc-verification-discipline` Skill；`sdlc_status` 返回真实任务
+（RSI-1，VERIFYING，停滞 4 天）。随后已把旧七个依赖从 profile 移除，
+现在 profile 里只有一个 SDLC bundle、一个依赖。
+
+**读数（2026-10-19 全量）**：单测 **210**（lib 202 + UI 客户端 8；合并前 251，
+减少的 41 = 3 份重复 helpers.test 副本 36 条 + 1 条漂移检测 + status/contract.test
+4 条重复契约）；冒烟 7 个脚本共 **377 条**（artifact 39 / rsi 62 / status 69 /
+task 40 / ui 46 / verify 109 / workflow 12）；`npm run compat` 2 个 manifest 通过；
+bench 三用例全部成立；activation-check 在隔离 profile 上七行一致 + 26 个发布文件
+sha256 全一致；time-travel 5 个时点一致。
+
+**插件页展示元数据要单独修**（第一次独立验证的 minor，已修）：宿主
+`dsh-app-boot` 的 `readPluginMeta` 只读 `<specifier>/locale/en.json`，所以合并后
+必须在**包根**放套件 locale，并给六个子路径行补 `./<comp>/locale/en.json` 与
+`./<comp>/icon` 的 exports；多星 pattern（`./locale/*/*.json`）不解析。
+`smoke/ui.mjs` 有两条回归断言（ui 冒烟 44 → 46，总冒烟 375 → 377）。
+
 
 ### RSI 首版（2026-10-15）
 
-实现与实测证据见 `.ai/tasks/RSI-1/`，用法见 `packages/sdlc-rsi/README.md`。
+实现与实测证据见 `.ai/tasks/RSI-1/`，用法见 `packages/sdlc/RSI.md`。
 
 - `sdlc-verify/record` 是 awaited 事件，按 run_id 记录 started/prepared/attempts/finished；异常、取消与无裁决均留下记录。原任务最新裁决与完整运行历史分开。
 - `sdlc-rsi` 保存代码与制品快照、实际 request 配置、有界会话 trace，提供 runs/analyze/experiment/feedback 四个工具与改进方法 Skill。
@@ -112,18 +187,26 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 ## 目录
 
 ```
-packages/sdlc-verify/     # 独立验证 + 测试冻结
-  src/index.ts            #   插件入口：工具 + guard + 提示词段
-  src/verdict.ts          #   裁决 schema、persona、提示词构造
-  src/test-freeze.ts      #   测试冻结判定（纯函数，可脱离 DSH 单测）
-packages/sdlc-task/       # 任务状态机 + 制品链
-  src/index.ts            #   三个工具 + 提示词段（文件走 ctx.fs）
-  src/state.ts            #   状态机与 state.yaml 形状（纯函数，可脱离 DSH 单测）
-packages/sdlc-artifact/   # 制品撰写 + 结构检查（只查结构，不查质量）
-packages/sdlc-status/     # 任务看板（只读；坏任务不拖垮全局）
-  src/scan.ts             #   跨任务扫描与聚合（纯函数，可脱离 DSH 单测）
-docs/                     # DSH 契约与调研（改代码前必查）
-handbook/                 # 手册原文，只读
+packages/sdlc/              # 唯一的插件包（一个 bundle、七个组件行）
+  package.json              #   dsh.bundle.patch + dsh.client + exports 子路径
+  cordis.patch.yml          #   一条 insert、七行（sdlc-ui 行是精确包名）
+  src/index.ts              #   包根：重新导出 ui 组件（客户端半被发现的前提）
+  src/task/                 #   任务状态机 + 制品链（state.ts 纯函数可脱离 DSH 单测）
+  src/artifact/             #   制品撰写 + 结构检查（只查结构，不查质量）
+  src/status/               #   任务看板（scan.ts 纯函数；坏任务不拖垮全局）
+  src/verify/               #   独立验证 + 测试冻结（verdict / test-freeze / preset）
+  src/workflow/             #   工作流 Skill
+  src/rsi/                  #   真实验证记录、复盘、指导文字对照实验
+  src/ui/                   #   客户端面板（index.ts host 半 + 手写 client.js）
+  src/shared/helpers.ts     #   四个组件共用的沙箱/cwd 辅助函数（合并前是四份副本）
+  smoke/<组件>.mjs          #   七个运行时冒烟脚本（run-all.mjs 统一驱动）
+  test/                     #   UI 的纯 Node 行为测试
+packages/sdlc/README.md     #   包总览（分发/执行两层、行表、安装）
+packages/sdlc/TASK.md       #   任务状态机文档（原 sdlc-task/README.md）
+packages/sdlc/RSI.md        #   RSI 文档（原 sdlc-rsi/README.md）
+docs/                       # DSH 契约与调研（改代码前必查）
+tools/                      # bench / mutation / activation / time-travel / compat
+handbook/                   # 手册原文，只读
 ```
 
 ## 工程约定
@@ -149,6 +232,10 @@ handbook/                 # 手册原文，只读
 
 ### 0.2.1 兼容性（2026-10-19 实测，别再踩）
 
+> 下面几条是**合并前**七包形态的读数（保留因为它是合并理由之一）：
+> 当时七个独立包各自钉 peer，一次 App 升级让七个一起静默消失。
+> 合并后只有一份 peer 范围（见上文「2026-10-19 合并」）。
+
 - App 在 2026-10-17 自动从 `0.2.0-rc.2` 升到 `0.2.1-rc.2`。七个插件的
   peer 都钉着精确的 `0.2.0-rc.2`，被插件管理器判为 `incompatible-version`，
   启动时 bundle 被 **skip**——**App 照常启动，插件全部静默消失**。
@@ -164,7 +251,7 @@ handbook/                 # 手册原文，只读
 - 0.2.1 从 `SubagentStartRequest` 删除了 `persona` / `toolFilter`；官方
   `dsh-tool-subagent` 传这两个配置会直接抛。迁移为 **Agent Preset**：
   `ctx.agentPresets.register({id, plugins})` + request 带 `agentPreset`。
-  见 `packages/sdlc-verify/src/preset.ts`。
+  见 `packages/sdlc/src/verify/preset.ts`。
 - ⚠️ **preset 不会自动隔离宿主全局工具。** 只挂 preset 时，真实验证者的
   工具面里仍有 `sdlc_task_create` / `sdlc_fix_end` / `sdlc_verify`——它能解冻
   测试、推进任务。必须在 preset 里放一行
@@ -181,16 +268,18 @@ handbook/                 # 手册原文，只读
   · 真实验证者工具面：`bash glob grep read read_image skill structured_output`
     （无 write/edit、无 `sdlc_*`、无 subagent）；
   · 无模型凭据时 `sdlc_verify` 仍走完 2 次派发并返回 `needs_human`，未崩。
-- **装进 desktop profile 后实测**：当前会话**无需重启**就出现了
+- （合并前七包形态的 live 读数）**装进 desktop profile 后实测**：当前会话
+  **无需重启**就出现了
   `sdlc_status` / `sdlc_verify` / `sdlc_task_*` 等工具，Skill 目录出现
   `sdlc-verification-discipline`；`sdlc_status` 直接返回了真实任务
   （RSI-1，VERIFYING，停滞 4 天）。这是“插件真的挂上了”的最直接读数。
-- ⚠️ **`dsh plugin add` 只装包，不写 `dsh.profile.bundles`**。实测：
-  CLI 把七个依赖升到 0.1.1+ 之后，profile 的 bundles 仍只有 base + web-app；
-  此时重启仍然不会加载插件。必须同时把七个包名写进
-  `dsh.profile.bundles`（GUI 插件管理器会做这一步，CLI 不会）。
-  本次是手动补的；顺序把 task/status 放在 workflow/verify/ui 之前。
-- **重启后的 live 读数（2026-10-19 17:31）**：
+  合并后的同一读数见上文「2026-10-19 合并」。
+- ⚠️ **`dsh plugin add` 会不会写 `dsh.profile.bundles`，取决于版本/安装形态**：
+  旧记录说"只装包不写 bundles"；2026-10-19 在 `0.2.1-rc.2` + `npm pack` tgz 上
+  **两次复测都自动追加**了（详见 `docs/dsh-pitfalls.md` §2.1）。**不要再用绝对句**，
+  装完读 profile 的 `package.json` 核对；没出现就手补。
+  另：`plugin add` 用的是 App 自带 pnpm，**不要求 PATH 上有 pnpm**（同节 §2.2）。
+- **（合并前的历史 live 读数，2026-10-19 17:31）**：
   · `sdlc_status` 不再把 RSI-1 的 `evidence/*.json` 报成“文件不在”
     （status 0.1.2 生效），只报停滞与缺 verification；
   · **真实调用 `sdlc_verify` 成功**：返回完整结构化 `needs_human`
@@ -392,10 +481,12 @@ reject 的代码上都是绿的**）。
 
 ## 当前状态
 
-> 下面各条是**当时**的读数，保留作为历史；最新全量读数以本条为准（2026-10-19，
-> DSH `0.2.1-rc.2`）：单测 artifact 35 / rsi 38 / status 58 / task 48 / ui 8 /
-> verify 57 / workflow 7；冒烟 status 69 / task 40 / verify 109 / workflow 12 /
-> rsi 62 / ui 40；`npm run compat` 8 个包全部接受当前运行时。
+> 下面各条是**合并前**的读数，保留作为历史。**当前全量读数以本段为准**
+> （2026-10-19 单包合并后，DSH `0.2.1-rc.2`）：单测 **210**（lib 202 +
+> UI 客户端 8）；冒烟 7 个脚本共 **377 条**（artifact 39 / rsi 62 / status 69 /
+> task 40 / ui 46 / verify 109 / workflow 12）；`npm run compat` **2 个 manifest**
+> 通过；bench 3/3；`plugin_manager list_plugins` 里七行全部 `fiberPhase: active`；
+> 安装形态与全部证据见上文「2026-10-19 合并」一节。
 
 - [x] `sdlc-verify` 插件：TypeScript 严格模式零错误
 - [x] 单测 **23/23**（纯函数层，含 criteria 强制策略 10 条）
@@ -441,6 +532,17 @@ reject 的代码上都是绿的**）。
   实测工具面是 `bash glob grep read read_image skill structured_output`，
   `subagent` 与全部 `sdlc_*` 都不在了。这条只适用于 0.2.0，不要再当现状引用。
 - 真正的硬约束应落在工具限制/沙箱层，或服务端分支保护。
+- **合并后 mutation 基线只做了路径迁移，没有重新测量**（2026-10-19，
+  见 `docs/mutation-score-baseline.txt` 文件头）。`tools/mutation-score.mjs
+  sdlc-task --gate` 局部实测：102/126 抓住、24 存活，其中 4 条不在迁移后清单里
+  ——属代码演化 + helpers 归并后的真实读数。**没有**用 `--update-allowlist`
+  掩盖。全量重测 + 逐条评审是**未完成**工作，不要当成"已通过"。
+- **测试场仓库已跟随单包布局并推送**：`sdlc-playground` 的
+  `tools/playground-check.mjs` 改为 import `packages/sdlc/lib/<comp>/index.js`，
+  并加了单包布局前置检查（缺失 exit 2，不写 `.ai`）；commit `348bff2` 已推
+  `main`，从远端 clone 复跑 `make check` **21/21 通过**（断言数未削弱）。
+  ⚠️ 真实测试场里仍有旧 `make check` 残留的 `.ai/tasks/CHK-1`（gitignore），
+  设计上要在干净隔离副本跑；不要把它当成插件缺陷。
 
 ### 本轮真实会话暴露的 4 个 bug（都只在重启加载新模块后才出现）
 

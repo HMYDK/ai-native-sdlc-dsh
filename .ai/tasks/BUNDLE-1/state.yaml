@@ -1,0 +1,31 @@
+task: BUNDLE-1
+title: "七个插件合并为一个包：一个 bundle、七个组件行"
+status: VERIFYING
+created: 2026-10-19T10:38:22.080Z
+updated: 2026-10-19T10:39:33.031Z
+artifacts:
+  intent: "intent.md"
+  plan: "plan.md"
+  spec: "spec.md"
+  verification: "verification.json"
+history:
+  - at: "2026-10-19T10:38:22.080Z"
+    from: ""
+    to: "INTENT"
+    reason: "任务创建"
+  - at: "2026-10-19T10:39:09.709Z"
+    from: "INTENT"
+    to: "SPEC"
+    reason: "意图与规格已登记；规格把\"分发合、执行分\"落成 R1–R8 可验收判据。"
+  - at: "2026-10-19T10:39:12.909Z"
+    from: "SPEC"
+    to: "PLANNED"
+    reason: "规格与计划均已登记；计划列出改动文件、顺序、风险与可复核证据。"
+  - at: "2026-10-19T10:39:15.961Z"
+    from: "PLANNED"
+    to: "IMPLEMENTING"
+    reason: "实现已在提交 959f3ee/a6ac82d/f7e1ade 落地并完成构建、单测、七组件冒烟、隔离 profile 与 desktop live 验证；进入实现完成态。"
+  - at: "2026-10-19T10:39:33.031Z"
+    from: "IMPLEMENTING"
+    to: "VERIFYING"
+    reason: "实现、测试、工具链适配与隔离/desktop 运行时证据均已就绪；进入独立验证，判据为 spec 的 R1–R8。"
