@@ -181,6 +181,15 @@ handbook/                 # 手册原文，只读
   · 真实验证者工具面：`bash glob grep read read_image skill structured_output`
     （无 write/edit、无 `sdlc_*`、无 subagent）；
   · 无模型凭据时 `sdlc_verify` 仍走完 2 次派发并返回 `needs_human`，未崩。
+- **装进 desktop profile 后实测**：当前会话**无需重启**就出现了
+  `sdlc_status` / `sdlc_verify` / `sdlc_task_*` 等工具，Skill 目录出现
+  `sdlc-verification-discipline`；`sdlc_status` 直接返回了真实任务
+  （RSI-1，VERIFYING，停滞 4 天）。这是“插件真的挂上了”的最直接读数。
+- ⚠️ **`dsh plugin add` 只装包，不写 `dsh.profile.bundles`**。实测：
+  CLI 把七个依赖升到 0.1.1+ 之后，profile 的 bundles 仍只有 base + web-app；
+  此时重启仍然不会加载插件。必须同时把七个包名写进
+  `dsh.profile.bundles`（GUI 插件管理器会做这一步，CLI 不会）。
+  本次是手动补的；顺序把 task/status 放在 workflow/verify/ui 之前。
 
 ### 验证纪律
 
