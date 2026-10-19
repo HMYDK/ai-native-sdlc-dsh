@@ -596,12 +596,19 @@ App 升级会漂移，所以必须有 `tools/preset-sync-check.mjs` 门禁与 `-
 树，官方 README 明说）。所以 UI 的浏览器半**不能**从 preset 里来：要么留在宿主行，
 要么面板静默消失。这是方案 A「UI 常驻、其余进 preset」的直接原因。
 
-### 14.3 坑三：eager activation 的副作用
+### 14.3 坑三：内部 preset 不要常驻注册——它会变成用户可选的"模式"
 
-preset 声明会**提前激活**（「声明会提前加载」/「preset 修订被选择它的 Agents 共享」），
-所以 `sdlc-verify` 在 preset scope 内注册的 `sdlc-verifier` preset 会出现在全局
-`agentPresets/list` 里（改动前也是全局注册，非本次引入）。这不是"工具泄漏"——工具
-注册仍在 preset 层，标准会话看不到。
+`agentPresets/list` 会把**每一条声明**都列进新会话/设置页的模式选择器。所以
+`sdlc-verify` 常驻注册的验证者 preset（`sdlc-verifier`）会以一张可选卡片出现在
+用户面前——用户实际截图问「为什么还有一个 SDLC Verifier」。它不是泄漏（工具
+仍只在验证者 scope 生效），但它是内部实现细节，不该成为可选模式。
+
+修法（0.3.1）：**按需注册、跑完归还**。`withVerifierPreset(ctx, run)` 在
+`sdlc_verify` 开始时 `registry.register(VERIFIER_PRESET)`，结束时 dispose；
+并发验证用 depth 计数共享一次注册。断言：verify 冒烟里「加载时未常驻注册」
+与「结束后已归还」两条，mock registry 用 active 计数验证。
+
+更一般的规则：**任何给内部子代理用的 preset，都不要在 `apply` 里注册**。
 
 ### 14.4 怎么取得"真的按会话生效"的运行时证据
 

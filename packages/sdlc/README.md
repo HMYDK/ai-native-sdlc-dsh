@@ -51,8 +51,9 @@ preset 内的六行仍是各自独立的 Cordis 行（各有 `inject` / `Config`
 | `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流 Skill：给验证者的判据清单 |
 | `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 |
 
-验证者 preset 内部还挂了一行 `@ai-native-sdlc/dsh-sdlc/verify/preset-filter`
-（只在 `sdlc-verifier` preset 里生效，由 `sdlc-verify` 注册）。
+验证者 preset（`sdlc-verifier`）是内部实现细节：它只在 `sdlc_verify` 运行期间
+临时注册、跑完归还，**不会**作为可选模式出现在新会话/设置页的选择器里。
+该 preset 内部还挂了一行 `@ai-native-sdlc/dsh-sdlc/verify/preset-filter`。
 
 ⚠️ `sdlc-ui` 行的 name 必须是**精确包名**：写成 `./ui` 子路径会让浏览器半
 **静默消失**（host 端点照常工作、只有面板不出现）。`smoke/ui.mjs` 有回归断言。

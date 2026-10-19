@@ -180,7 +180,10 @@ npm run smoke --workspace packages/sdlc
    面板渲染）。
 2. standard 副本是静态复制：App 升级后需 `node tools/preset-sync-check.mjs` 对账，
    漂移时 `--write` 同步并复跑冒烟。这是官方不支持 preset 继承的接缝。
-3. `sdlc-verifier` preset 因 eager activation 出现在全局名册（与 0.2.x 相同）。
+3. ~~`sdlc-verifier` preset 因 eager activation 出现在全局名册~~ —— **0.3.1 已修**：
+   `sdlc-verify` 改为在每次验证运行期间临时注册、跑完归还（租约 + depth 计数），
+   空闲时模式选择器里只有「AI 原生 SDLC」。verify 冒烟新增两条断言
+   （加载时不注册 / 结束后已归还，registry 用 active 计数）。
 4. 已有会话保留创建时的组合；本次迁移后当前会话失去 `sdlc_*` 工具是预期行为。
 5. migration 到 desktop profile 的 live 读数单列在实现提交之后的证据中。
 
@@ -214,3 +217,40 @@ dsh plugin --profile desktop add packages/sdlc/ai-native-sdlc-dsh-sdlc-0.3.0.tgz
 
 **未做**：GUI 层人工验收（在新建会话的选择器里点选「AI 原生 SDLC」并看到工具/
 面板渲染）。这一步需要用户在 GUI 里操作；协议层证据见 §2.5。
+
+## 7. 后续修复：验证者 preset 不再出现在模式选择器（0.3.1）
+
+用户实际截图发现新会话/设置页的模式列表里除了「AI 原生 SDLC」还有一张
+「SDLC Verifier」卡片，问"为什么还有一个 SDLC verify"。
+
+根因：`agentPresets/list` 会把**每条声明**都列进模式选择器；`sdlc-verify`
+原先在 `apply` 时就把内部验证者 preset 常驻注册给 registry（0.2.x 全局模式
+时代就如此，0.3.0 方案 A 后更显眼）。
+
+修法（0.3.1）：`withVerifierPreset(ctx, run)` 租约——每次 `sdlc_verify` 运行
+开始时注册 `sdlc-verifier`，结束后 dispose；并发验证用 depth 计数共享一次注册。
+空闲时选择器里只有「AI 原生 SDLC」。
+
+验证：
+
+```
+npm run build --workspace packages/sdlc                 → 通过
+npm test                                               → 202 + 8 pass
+npm run smoke                                          → 8 脚本 398 条全过
+  verify 冒烟 111/111，新增两条断言：
+    · 加载时未常驻注册验证者 preset（否则会出现在模式选择器）
+    · sdlc_verify 结束后 preset 已归还（presetActive===0）
+隔离 profile（.verify-home，0.3.1 tarball sha 947a6390…，52 文件）：
+  boot rev c538c0d0075f、0 条 entry did not activate
+  GET /api/sdlc-ui.tasks 200/91661
+  agentPresets/list = [standard, ptc, minimal, cordis, sdlc]
+  sdlc-verifier present: False
+desktop：0.3.1 已安装、patch sha 85f7410f… 与仓库一致；
+  plugin_manager 仍为 include:sdlc-ui + include:preset-sdlc active、六条宿主行不存在；
+  activation-check 26 发布文件 sha256 全一致。
+```
+
+⚠️ 「运行中的 sdlc_verify 期间注册、结束归还」的注册/退役时序由冒烟的
+active 计数覆盖；真实 registry 的注册/退役语义见 `dsh-agent-preset-registry`
+README（"更新或移除声明会让旧代际退役；Agent 持有引用时不会提前销毁"）。
+本次没有模型凭据，未在真实会话里跑完整验证链来观察运行中的列表变化。

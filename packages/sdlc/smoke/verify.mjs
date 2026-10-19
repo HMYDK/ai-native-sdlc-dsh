@@ -113,13 +113,17 @@ ctx.provide('sandboxPolicy', {
 // 验证者 preset 的注册记录。0.2.1 起只读工具面由 preset 承担，
 // 冒烟必须同时断言「插件注册了 preset」和「派发时选中了它」。
 const presetRegistrations = [];
+let presetActive = 0;
 ctx.provide('agentPresets', {
   async register(definition) {
     presetRegistrations.push(definition);
-    return async () => {};
+    presetActive += 1;
+    return async () => {
+      presetActive -= 1;
+    };
   },
   async resolve(id) {
-    return presetRegistrations.some((definition) => definition.id === id)
+    return presetActive > 0 && presetRegistrations.some((definition) => definition.id === id)
       ? { id, name: 'SDLC Verifier' }
       : undefined;
   },
@@ -184,6 +188,14 @@ else ok('真实 ToolRuntime 已挂载到 ctx.tools');
 try {
   plugin.apply(ctx, validated.value);
   ok('apply() 正常返回，未抛错');
+  // registry 会把每条声明都列进新会话/设置页的模式选择器。验证者 preset 是
+  // 内部实现细节，常驻注册会让用户看到一个可选的「SDLC Verifier 模式」
+  // （实测截图）。所以加载时**不得**注册，只在 sdlc_verify 运行期间临时注册。
+  if (presetRegistrations.length === 0 && presetActive === 0) {
+    ok('加载时未常驻注册验证者 preset（不会出现在模式选择器里）');
+  } else {
+    bad(`加载时注册了 ${presetRegistrations.length} 条 validation preset——会作为可选模式出现在选择器里`);
+  }
 } catch (e) {
   bad(`apply() 抛错: ${e.message}`);
   process.exit(1);
@@ -840,6 +852,8 @@ console.log('\n== 6. 插件传给验证者的请求是否正确 ==');
     },
     fakeAgent,
   );
+  if (presetActive === 0) ok('sdlc_verify 结束后验证者 preset 已归还（空闲时不可选）');
+  else bad(`验证结束后 preset 仍注册着（presetActive=${presetActive}）——会常驻出现在模式选择器里`);
 }
 if (started.length < 1) {
   bad('subagents.startActivation 从未被调用');

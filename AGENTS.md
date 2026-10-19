@@ -36,7 +36,7 @@
 那不是 DSH 插件，只是一个跑在 DSH 里的外部工具集。已废弃。
 
 正确形态：**npm 包 + `dsh.bundle.patch`**，`dsh plugin add` 即自动挂载。
-2026-10-19 起是**一个**包（`packages/sdlc`，现为 `@ai-native-sdlc/dsh-sdlc@0.3.0`），
+2026-10-19 起是**一个**包（`packages/sdlc`，现为 `@ai-native-sdlc/dsh-sdlc@0.3.1`），
 不再是七个包——原因见下一节与 `packages/sdlc/README.md`。
 `0.3.0` 起它默认**不生效**：六个机制组件放进一个名为「AI 原生 SDLC」的 Agent
 Preset，只有新建会话选择该模式才挂载；只有只读看板 UI 常驻（见「方案 A」一节）。
@@ -211,8 +211,8 @@ standard 会话 31 个、`sdlc_*` 为 0；两条 SDLC Skill 也只在 sdlc 会�
 ⚠️ 仍未做的只有 **GUI 层人工确认**（在新建会话选择器里真的点选「AI 原生 SDLC」并
 看到工具列表/面板渲染）；协议层与日志层的集合证据已拿到。
 
-**desktop profile 已迁移（2026-10-19 21:49:24，独立验证通过后执行）**：
-依赖只剩 `@ai-native-sdlc/dsh-sdlc@0.3.0`（file tgz），已安装 patch sha256 前 16 位
+**desktop profile 已迁移（2026-10-19 21:49:24 到 0.3.0；22:04:54 更新到 0.3.1）**：
+依赖只剩 `@ai-native-sdlc/dsh-sdlc@0.3.1`（file tgz），已安装 patch sha256 前 16 位
 `85f7410f1f855681` 与仓库一致；`plugin_manager list_plugins` 里
 `include:sdlc-ui` 与 `include:preset-sdlc` 都是 `fiberPhase: active`，而
 `include:sdlc-task/artifact/status/verify/workflow/rsi` 六条宿主行**不再存在**。
@@ -220,9 +220,15 @@ standard 会话 31 个、`sdlc_*` 为 0；两条 SDLC Skill 也只在 sdlc 会�
 Skill 目录里也没有两条 SDLC Skill——这正是"已有会话保留原组合 + 全局行卸载"的
 预期表现，不是故障。**新建会话选「AI 原生 SDLC」模式即可使用整套工具。**
 
+0.3.1 修复了用户实测截图发现的「为什么还有一个 SDLC Verifier」：验证者 preset
+不再常驻注册，只在 `sdlc_verify` 运行期间临时存在。隔离 profile 重启后
+`agentPresets/list` = `[standard, ptc, minimal, cordis, sdlc]`（无 `sdlc-verifier`），
+boot rev `c538c0d0075f`、API 200/91661、0 条激活警告；verify 冒烟 111/111。
+
 **工具与读数**：单测 210 不变（`src/` 组件代码未改）；冒烟新增
-`smoke/preset.mjs` 19 条 → **8 个脚本共 396 条**；负向实测：组件放回宿主行
-（17/19）、改坏 standard 副本（sync exit 1，含 isolate 字段）、改名 `tool-web`（18/19）都会红。
+`smoke/preset.mjs` 19 条、verify 冒烟 +2 条（验证者 preset 懒注册/归还）
+→ **8 个脚本共 398 条**；负向实测：组件放回宿主行（17/19）、
+改坏 standard 副本（sync exit 1，含 isolate 字段）、改名 `tool-web`（18/19）都会红。
 `plugin-activation-check` 改为只 import 本套件的行（第一版把 standard 副本行也拿
 本包 exports 解析，全部误报"解析失败"——`!!js` 标签也让默认 js-yaml 直接抛，
 两处都要自定义处理）。
@@ -578,8 +584,8 @@ reject 的代码上都是绿的**）。
 
 > 下面各条是**合并前**的读数，保留作为历史。**当前全量读数以本段为准**
 > （2026-10-19 单包 + 方案 A 后，DSH `0.2.1-rc.2`）：单测 **210**（lib 202 +
-> UI 客户端 8）；冒烟 **8 个脚本共 396 条**（artifact 39 / rsi 62 / status 69 /
-> task 40 / ui 46 / verify 109 / workflow 12 / preset 19）；`npm run compat`
+> UI 客户端 8）；冒烟 **8 个脚本共 398 条**（artifact 39 / rsi 62 / status 69 /
+> task 40 / ui 46 / verify 111 / workflow 12 / preset 19）；`npm run compat`
 > **2 个 manifest** 通过；bench 3/3；隔离 profile 里宿主两行可解析、preset 内
 > 六行可装配、`sdlc` preset 在 `agentPresets/list` 中可组合；安装形态与全部证据
 > 见上文「2026-10-19 合并」与「方案 A」两节。
@@ -620,8 +626,12 @@ reject 的代码上都是绿的**）。
   不要把"协议层已证实"写成"GUI 已人工验收"。
 - **preset-sync 门禁比较整行字段**（id/name/config/disabled/group/isolate 及未来
   新增字段）；第一版只比四个字段，被独立验证指出漏了 `group`/`isolate`。
-- **preset 的 eager activation 有副作用**：`sdlc-verify` 注册的 `sdlc-verifier`
-  preset 会出现在全局 `agentPresets/list`（0.2.x 全局模式时同样存在，非新引入）。
+- **内部验证者 preset 不常驻注册（0.3.1 修正）**：`agentPresets/list` 会把每条
+  声明都列进新会话/设置页的模式选择器，所以 `sdlc-verify` 不再在 apply 时注册
+  `sdlc-verifier`，而是**只在 `sdlc_verify` 运行期间临时注册、跑完归还**
+  （`withVerifierPreset` 租约；并发调用按 depth 共享一次注册）。空闲时选择器里
+  只有「AI 原生 SDLC」。这是用户实测截图发现「为什么还有一个 SDLC Verifier」后
+  的修复：常驻注册是 0.2.x 就有的行为，0.3.0 方案 A 后它更显眼。
 - **已有会话不会切换组合**：选择只影响之后创建的会话，这是官方语义，不是缺陷。
 - **冻结不是防篡改边界**：Actor 自己调一次 `sdlc_fix_end` 即可解冻。
   它是流程摩擦 + 留痕，不是硬约束。

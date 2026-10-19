@@ -161,7 +161,7 @@ Bug → 写失败的测试 → 确认复现 → sdlc_fix_start（冻结）→ �
 ```sh
 npm install
 npm run build --workspace packages/sdlc
-npm pack --workspace packages/sdlc        # → ai-native-sdlc-dsh-sdlc-0.3.0.tgz
+npm pack --workspace packages/sdlc        # → ai-native-sdlc-dsh-sdlc-0.3.1.tgz
 dsh plugin --profile <你的-profile> add <生成的.tgz>
 ```
 
@@ -206,7 +206,7 @@ npm run preset-sync                         # standard preset 副本是否仍与
 ```sh
 npm pack --workspace packages/sdlc
 # APP / CLI 同「安装与打包」
-ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile verifytest add "$PWD"/ai-native-sdlc-dsh-sdlc-0.3.0.tgz
+ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile verifytest add "$PWD"/ai-native-sdlc-dsh-sdlc-0.3.1.tgz
 ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --port 19999
 # 看启动输出：出现 "entry did not activate" 就是失败
 # 再查 plugin_manager list_plugins 的 fiberPhase；它才是运行时真相
@@ -232,7 +232,7 @@ ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --p
 | `npm run test --workspace packages/sdlc` | 单测 **210**（lib 202 + UI 客户端交互 8；看板宿主测试 24 另计） |
 | `npm run smoke --workspace packages/sdlc` | 八脚本全过：artifact 39 / rsi 62 / status 69 / task 40 / ui 46 / verify 109 / workflow 12 / preset 19（共 396 条断言） |
 | `npm run compat` | 根工作区 + `@ai-native-sdlc/dsh-sdlc`（9 条 peer）全部接受 `0.2.1-rc.2` |
-| `npm pack --dry-run --workspace packages/sdlc` | `ai-native-sdlc-dsh-sdlc-0.3.0.tgz`，52 个文件 |
+| `npm pack --dry-run --workspace packages/sdlc` | `ai-native-sdlc-dsh-sdlc-0.3.1.tgz`，52 个文件 |
 
 单测从合并前 **251** 降到 **210**，减少的 41 条**全是重复覆盖**：
 3 份逐字相同的 `helpers.test` 副本（36 条）+ 1 条跨包漂移检测

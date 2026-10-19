@@ -323,32 +323,84 @@ interface VerifierAttempt {
  * 验证者，Actor ≠ Verifier 的核心保证当场消失。宿主没有 preset registry，
  * 或 preset 激活失败时，宁可让 `sdlc_verify` 报错，也不静默放宽。
  */
-async function assertVerifierPreset(
-  ctx: Context,
-  registrationError: () => string | undefined,
-): Promise<void> {
+const NO_PRESET_REGISTRY_MESSAGE =
+  '当前宿主没有 agent preset registry（ctx.agentPresets），无法启动只读验证者。' +
+  '0.2.1 起独立验证要求 dsh-agent-preset-registry（web/desktop 自带；headless 没有）。' +
+  '不会降级为继承全部工具的子代理——那会让验证者重新拿到 write/edit。';
+
+/**
+ * 一次验证运行对验证者 preset 的租约。
+ *
+ * 为什么不常驻注册：`agentPresets/list` 会把**每一条声明**都列进新会话/设置页
+ * 的模式选择器。验证者 preset 是内部实现细节，常驻注册会让用户看到一个可选的
+ * 「SDLC Verifier 模式」（实测截图）。改成**按需注册、跑完归还**：
+ * 空闲时选择器里只有「AI 原生 SDLC」，验证期间才短暂存在。
+ *
+ * 用 depth 计数支持并发验证：同一个插件实例里重叠的 sdlc_verify 共享一次注册，
+ * 最后一个离开时才 dispose；disposer 交给 registry 的代际退役处理，
+ * 仍被验证者 Agent 持有的引用不会失效。
+ */
+interface VerifierPresetLease {
+  depth: number;
+  release: () => Promise<void> | void;
+}
+
+const verifierPresetLeases = new WeakMap<Context, VerifierPresetLease>();
+
+async function withVerifierPreset<T>(ctx: Context, run: () => Promise<T>): Promise<T> {
   const registry = ctx.get('agentPresets');
-  if (registry === undefined) {
-    throw new Error(
-      '当前宿主没有 agent preset registry（ctx.agentPresets），无法启动只读验证者。' +
-        '0.2.1 起独立验证要求 dsh-agent-preset-registry（web/desktop 自带；headless 没有）。' +
-        '不会降级为继承全部工具的子代理——那会让验证者重新拿到 write/edit。',
-    );
+  if (registry === undefined) throw new Error(NO_PRESET_REGISTRY_MESSAGE);
+
+  let lease = verifierPresetLeases.get(ctx);
+  if (lease === undefined) {
+    let release: (() => Promise<void> | void) | undefined;
+    try {
+      release = await registry.register(VERIFIER_PRESET);
+    } catch (error) {
+      throw new Error(
+        `验证者 preset "${VERIFIER_PRESET_ID}" 注册失败：${errorMessages(error).join('; ')}` +
+          '。独立验证需要 read/grep/glob/shell/skill；修好 preset 再验证，不要绕过。',
+      );
+    }
+    if (typeof release !== 'function') {
+      throw new Error(
+        `验证者 preset "${VERIFIER_PRESET_ID}" 注册没有返回 disposer（registry 契约不匹配）`,
+      );
+    }
+    lease = { depth: 0, release };
+    verifierPresetLeases.set(ctx, lease);
   }
+
+  lease.depth += 1;
+  try {
+    return await run();
+  } finally {
+    lease.depth -= 1;
+    if (lease.depth === 0) {
+      verifierPresetLeases.delete(ctx);
+      try {
+        await lease.release();
+      } catch {
+        // 归还失败不应掩盖这次验证的结果：preset 代际退役是 registry 的职责，
+        // 最坏情况只是下一次注册前旧代际仍在（registry 会按更新处理）。
+      }
+    }
+  }
+}
+
+async function assertVerifierPreset(ctx: Context): Promise<void> {
+  const registry = ctx.get('agentPresets');
+  if (registry === undefined) throw new Error(NO_PRESET_REGISTRY_MESSAGE);
   let preset;
   try {
     preset = await registry.resolve(VERIFIER_PRESET_ID);
   } catch (error) {
     throw new Error(
-      `验证者 preset "${VERIFIER_PRESET_ID}" 解析失败：${errorMessages(error).join('; ')}` +
-        (registrationError() === undefined ? '' : `（注册时：${registrationError()}）`),
+      `验证者 preset "${VERIFIER_PRESET_ID}" 解析失败：${errorMessages(error).join('; ')}`,
     );
   }
   if (preset === undefined || preset.id !== VERIFIER_PRESET_ID) {
-    throw new Error(
-      `验证者 preset "${VERIFIER_PRESET_ID}" 没有注册成功` +
-        (registrationError() === undefined ? '' : `：${registrationError()}`),
-    );
+    throw new Error(`验证者 preset "${VERIFIER_PRESET_ID}" 没有注册成功`);
   }
   if (preset.broken !== undefined) {
     throw new Error(
@@ -460,25 +512,12 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
   // `agentPresets` 是**可选**服务：web/desktop 的 dsh-web-app 提供 registry，
   // headless 没有。故意不写进 `inject`——写进去会让插件在 headless 停在
   // pending，连冻结门禁一起消失。缺服务时只影响 `sdlc_verify`，而且它
-  // 会 fail closed（见 assertVerifierPreset）。
-  let presetRegistrationError: string | undefined;
-  const presetRegistry = ctx.get('agentPresets');
-  if (presetRegistry === undefined) {
-    presetRegistrationError = '宿主没有 agentPresets 服务（通常是 headless profile）';
-  } else {
-    // register() 返回 disposer，必须交给 ctx.effect 托管；异步 effect 会在
-    // 插件激活期间被等待，卸载时归还注册。
-    ctx.effect(async () => {
-      try {
-        return await presetRegistry.register(VERIFIER_PRESET);
-      } catch (error) {
-        presetRegistrationError = errorMessages(error).join('; ');
-        // 不让 preset 注册失败拖垮插件：冻结门禁仍然可用。
-        return () => {};
-      }
-    }, 'sdlc-verify: verifier preset');
-  }
-
+  // 会 fail closed。
+  //
+  // ⚠️ preset **不在 apply 时常驻注册**。registry 会把每条声明都列进模式
+  // 选择器；常驻注册会让用户看到一个可选的「SDLC Verifier 模式」（实测）。
+  // 改为每次 `sdlc_verify` 运行期间临时注册、跑完归还（withVerifierPreset），
+  // 空闲时选择器里只有「AI 原生 SDLC」。
   // ────────────────────────────────────────────────────────────── 机制 1
   // 独立验证：新上下文 + 只读 + 强制结构化裁决
   ctx.tools.register(
@@ -557,14 +596,14 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             requested_model: { source: 'requested', model: cfg.verifierModel || null, inherited: cfg.verifierModel === '' },
             ...(typeof parentSession === 'string' ? { parent_session_id: parentSession } : {}),
           },
-          async (recording) => {
+          async (recording) => withVerifierPreset(ctx, async () => {
             const agent = exec.agent;
             if (agent === undefined) {
               throw new Error('sdlc_verify requires a calling agent');
             }
 
             // fail closed：没有可用的只读 preset 就不启动验证者，绝不降级。
-            await assertVerifierPreset(ctx, () => presetRegistrationError);
+            await assertVerifierPreset(ctx);
 
             // 任务身份（可选）：给了就从 state.yaml 解析已登记的制品，
             // 显式传入的 artifacts 优先级更高（允许针对单次验证覆盖）。
@@ -778,7 +817,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             }
 
             return finalVerdict;
-          },
+          }),
         );
       },
     }),
