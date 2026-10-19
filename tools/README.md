@@ -236,7 +236,8 @@ DSH runtime (from /Applications/DeepSeek Harness.app): 0.2.1-rc.2
 - 六个机制组件不再出现在宿主层，标准会话不会加载它们；
 - **`preset` 不继承、不合并**，所以副本必须手动同步：`preset-sync-check.mjs`
   读 App 的 `dsh-web-app/presets/standard.patch.yml` 与仓库 patch 逐行比对
-  （id/name/disabled/config），`--write` 用 App 当前 standard 重写副本区域；
+  （**整行**：id/name/config/disabled/group/isolate 及未来新增字段），
+  `--write` 用 App 当前 standard 重写副本区域；
   App 升级后必须跑；
 - `plugin-activation-check.mjs` 相应改为：只 import **本套件的行**（`sdlc-ui` 宿主行
   + preset 内六行），**不**拿本包的 `exports` 去解析 standard 副本里的
@@ -249,7 +250,7 @@ DSH runtime (from /Applications/DeepSeek Harness.app): 0.2.1-rc.2
 ```
 --dump-config           宿主 2 行；preset 子行 28（22 standard 副本 + 6 本套件）
 启动                    0 条 entry did not activate；boot entry rev=ca10afcab19f
-GET /api/sdlc-ui.tasks  200 / 89760 字节
+GET /api/sdlc-ui.tasks  200（字节数随 .ai/tasks 数据变化，写入时 89760）
 agentPresets/list       standard / ptc / minimal / cordis / sdlc / sdlc-verifier；
                         sdlc 的 broken 字段缺失（可组合）
 agentPresets/read sdlc  末尾六个本套件行
@@ -257,5 +258,7 @@ session/create          指定 agentPreset=sdlc → 返回 agentPreset=sdlc；�
 会话投影 toolsTokens    sdlc 会话 10072 > standard 会话 6902（standard 没有多出来的工具）
 ```
 
-⚠️ `toolsTokens` 是"最新请求 envelope 的工具 schema 启发式 token 数"，是**间接**
-读数；它证明两边工具集合不同，不能替代人工在新建会话里确认工具列表。
+⚠️ `toolsTokens` 是"最新请求 envelope 的工具 schema 启发式 token 数"（间接）；
+**更直接**的读数是会话日志里的 `request/header`：sdlc 会话 44 工具（31 standard +
+13 个 `sdlc_*`）、standard 会话 31 工具 0 个 `sdlc_*`。两者都只是协议层证据，
+GUI 选择器/面板的人工验收仍单列。

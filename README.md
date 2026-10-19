@@ -225,13 +225,13 @@ ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --p
 - 核对 `node --test` 数字用 `grep -E "^[#ℹ] (pass|fail)"`，不要写 `^#`：
   这个 Node 版本用 `ℹ` 前缀，写 `^#` 会零匹配、退出码 1，看起来像"测试失败"。
 
-### 当前实测读数（2026-10-19，DSH `0.2.1-rc.2`，合并后）
+### 当前实测读数（2026-10-19，DSH `0.2.1-rc.2`，合并 + 方案 A 后）
 
 | 检查 | 读数 |
 |---|---|
 | `npm run test --workspace packages/sdlc` | 单测 **210**（lib 202 + UI 客户端交互 8；看板宿主测试 24 另计） |
-| `npm run smoke --workspace packages/sdlc` | 七脚本全过：artifact 39 / rsi 62 / status 69 / task 40 / ui 46 / verify 109 / workflow 12（共 377 条断言） |
-| `npm run compat` | 根工作区 + `@ai-native-sdlc/dsh-sdlc`（8 条 peer）全部接受 `0.2.1-rc.2` |
+| `npm run smoke --workspace packages/sdlc` | 八脚本全过：artifact 39 / rsi 62 / status 69 / task 40 / ui 46 / verify 109 / workflow 12 / preset 19（共 396 条断言） |
+| `npm run compat` | 根工作区 + `@ai-native-sdlc/dsh-sdlc`（9 条 peer）全部接受 `0.2.1-rc.2` |
 | `npm pack --dry-run --workspace packages/sdlc` | `ai-native-sdlc-dsh-sdlc-0.3.0.tgz`，52 个文件 |
 
 单测从合并前 **251** 降到 **210**，减少的 41 条**全是重复覆盖**：

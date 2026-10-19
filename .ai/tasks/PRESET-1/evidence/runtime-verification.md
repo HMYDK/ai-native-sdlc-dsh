@@ -43,7 +43,7 @@ __DSH_BOOT__ entry:
   {"id":"@ai-native-sdlc/dsh-sdlc",
    "url":"plugins/??@ai-native-sdlc/dsh-sdlc/client.js&rev=ca10afcab19f",
    "inject":["@deepseek-ai/dsh-client-ui-sidebar"]}
-GET /api/sdlc-ui.tasks → 200 / 89760 字节
+GET /api/sdlc-ui.tasks → 200（字节数随 .ai/tasks 数据变化：写入时 89760，独立验证复跑时 90350）
 ```
 
 ## 2. Host RPC：preset 名册、内容、会话绑定
@@ -99,7 +99,7 @@ POST session/create {"args":{"request":{"cwd":"<本机临时截图>/"}}}
 session/projections 的 values.agentPreset 分别为 sdlc / standard。
 ```
 
-### 2.4 工具面差异（经 `session/prompt` 触发请求 envelope 后读投影）
+### 2.4 工具面差异（两种读数）
 
 对两个会话各发一条 `session/prompt`（内容 `只回复 ok`，`mode:"queue"`），
 等待后读 `session/projections` 的 `contextBreakdown.toolsTokens`
@@ -112,8 +112,27 @@ standard 会话 toolsTokens =  6902   agentPreset = standard
 
 - 差值 ≈ 3170 ≈ 六个组件的工具 schema；standard 会话的 6902 与"六行-only 版本"
   时的 standard 读数一致，说明没有 sdlc 工具漏进标准会话。
-- ⚠️ **这是间接读数**：它证明两个会话的工具 schema 集合不同；最终的"在新建会话里
-  看到工具列表"仍需人工在 GUI 新建会话选择「AI 原生 SDLC」确认（见 §6）。
+- 这是**间接**读数。**直接读数**见 §2.5：会话日志的 `request/header` 记录模型实际
+  收到的工具 schema。
+
+### 2.5 直接读数：会话日志 request/header
+
+隔离 profile 的会话日志 `$DSH_HOME/sessions/<cwd>/<session>/session.v4.jsonl.zstd`
+里，`request/header` 事件的 `data.header.tools` 是模型实际收到的工具 schema 列表。
+用 `zstd -d` 解开后统计：
+
+```
+sdlc 会话（session-b7d190e2-…）     44 个工具，其中 13 个 sdlc_*：
+  sdlc_task_create / sdlc_task_status / sdlc_task_advance
+  sdlc_artifact_write / sdlc_artifact_check
+  sdlc_verify / sdlc_fix_start / sdlc_fix_end / sdlc_status
+  sdlc_rsi_runs / sdlc_rsi_analyze / sdlc_rsi_experiment / sdlc_rsi_feedback
+standard 会话（session-06bcb0e8-…）31 个工具，0 个 sdlc_*
+```
+
+两个会话都出现了同一条 prompt（`只回复 ok`），说明 header 差别来自 preset 组合而不是
+prompt。独立验证者（verifier_session `c883e918-…`）也独立读到了同一组数字，并额外
+确认两条 SDLC Skill 只在 sdlc 会话的 `skills/list` 里。
 
 ## 3. 门禁与冒烟（负向实测）
 
@@ -126,10 +145,12 @@ node tools/plugin-activation-check.mjs（隔离 profile）→ 宿主 2 行 + 本
 
 负向实测（每条断言都必须真的会失败）：
 
-- 把 `sdlc-task` 放回宿主行 → preset 冒烟 16/18：点名"宿主行应为
+- 把 `sdlc-task` 放回宿主行 → preset 冒烟 17/19：点名"宿主行应为
   [sdlc-ui, preset-sdlc]"与"机制组件仍在宿主行"。
 - 改坏 standard 副本一个值（`maxBytes: 65536 → 65535`）→
   `preset-sync-check` exit 1，点名"第 2 行（agent-instructions）不一致：字段 config"。
+- 改坏 `isolate`（把 compaction 的隔离值改成 false）→ `preset-sync-check` exit 1
+  （第一版只比四个字段，会漏掉 group/isolate；独立验证指出后已改为整行比较）。
 - 把 `tool-web` 改名 → preset 冒烟 18/19：点名"preset 缺 standard 基础工具：tool-web"。
 - 六行-only 的第一版（保留为历史读数）：sdlc 会话 toolsTokens 3265、无基础工具
   ——说明"preset 不继承"这条必须先解决。
@@ -151,8 +172,9 @@ npm run smoke --workspace packages/sdlc
 
 ## 5. 已知边界（不要当成"已验证"）
 
-1. `toolsTokens` 只能证明"工具 schema 集合不同"，不能列出工具名；最终工具列表要用
-   GUI 新会话人工确认。
+1. `toolsTokens` 只是旁证；**直接证据**是会话日志 `request/header`（sdlc 44 工具 /
+   13 个 sdlc_*，standard 31 / 0）。仍未做 GUI 层人工确认（新建会话选择器点选 +
+   面板渲染）。
 2. standard 副本是静态复制：App 升级后需 `node tools/preset-sync-check.mjs` 对账，
    漂移时 `--write` 同步并复跑冒烟。这是官方不支持 preset 继承的接缝。
 3. `sdlc-verifier` preset 因 eager activation 出现在全局名册（与 0.2.x 相同）。

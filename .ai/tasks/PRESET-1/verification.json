@@ -1,0 +1,110 @@
+{
+  "task": "PRESET-1",
+  "at": "2026-10-19T13:39:54.164Z",
+  "intent_of_change": "按用户要求把 SDLC 套件从\"装到 profile 后所有会话全局生效\"改为\"只有新建会话明确选择「AI 原生 SDLC」Agent Preset 时才挂载六个机制组件\"（方案 A）：bundle 顶层只留 sdlc-ui 宿主行（常驻只读看板）与 preset-sdlc 声明行；preset 内是 DSH standard preset 的完整副本 + 六个本套件组件行。同时保持组件源码行为、工具名、Skill、state.yaml/verification.json 契约与验证者隔离策略不变，并新增副本漂移门禁与真实运行证据。",
+  "scope": "独立验证本次 0.3.0 方案 A 改动：patch 形状与 preset 装配、standard 副本同步门禁（含负向可失败性）、UI 客户端半常驻、既有测试与冒烟不退化、隔离 profile 的真实运行读数（dump-config/启动/RPC/两会话 toolsTokens）、文档与已知边界如实。重点核对\"标准会话不会加载六个组件、选定 preset 的会话才会\"这一核心主张的证据强度；不要只信提交信息与证据文件，尽量复跑命令（.verify-home 已安装 0.3.0，isolated web 可重启）。",
+  "criteria": [
+    "R1 宿主层收敛：packages/sdlc/cordis.patch.yml 的一条 insert 里恰好两条宿主行——sdlc-ui（name 精确等于 @ai-native-sdlc/dsh-sdlc）与 preset-sdlc（name 为 @deepseek-ai/dsh-agent-preset）；六个机制组件的行 id 都不在宿主行里（否则标准会话会全局加载它们）。",
+    "R2 preset 声明正确且模式可用：preset-sdlc 的 config.id=sdlc、有展示名与描述；config.plugins 包含一份完整的 DSH standard preset 副本（22 个顶层行，含 persona/tool-fs/tool-bash/skill-filesystem/delegation 等基础工具）并追加六个本套件组件行（sdlc-task/artifact/status/verify/workflow/rsi，name 指向本包子路径）；六个 name 都能用 package.json exports 解析到真实模块且导出 apply/inject/Config/name。",
+    "R3 UI 常驻且客户端半可被发现：sdlc-ui 留在宿主层且 name 是精确包名（不是子路径）；隔离 profile 真实启动的 window.__DSH_BOOT__.entries 含该包客户端条目（inject 含 sidebar），认证后 GET /api/sdlc-ui.tasks 返回 200；文档明确说明为什么 UI 不能搬进 preset。",
+    "R4 版本与依赖：包版本 0.3.0；peerDependencies 含 @deepseek-ai/dsh-agent-preset 且 marked optional（不向 profile 装第二份运行时）；dependencies 不含任何 @deepseek-ai/dsh-*；node tools/compat-check.mjs 对真实 App 0.2.1-rc.2 通过。",
+    "R5 standard 副本漂移门禁真实有效：tools/preset-sync-check.mjs 读取真实 App 的 dsh-web-app/presets/standard.patch.yml，与本仓库 preset 内副本逐行比对 id/name/disabled/config；当前一致时退出 0；--write 可从 App 重新生成副本；负向实测（把副本里 maxBytes 改一个值）退出 1 并点名具体行；该工具与 npm run preset-sync 已接入文档。",
+    "R6 测试与既有行为不退化：src/ 组件代码未改（git diff 可证）；npm test 为 lib 202 + UI 8 = 210 全过；冒烟 8 个脚本共 396 条全过（含新增 smoke/preset.mjs 19 条）；preset 冒烟覆盖宿主两行、standard 基础工具锚点、六行在末尾、六行不在宿主层，并有负向实测（组件放回宿主行 16/18、改名 tool-web 18/19 会红）；plugin-activation-check 只 import 本套件行（不拿本包 exports 解析 standard 副本行）且对隔离 profile 通过。",
+    "R7 真实运行证据可复跑：隔离 profile 安装 0.3.0 tarball 后 dump-config 只有两条宿主行且 preset 有 28 个顶层行；真实启动 0 条 entry did not activate、boot entry rev=ca10afcab19f、GET /api/sdlc-ui.tasks 200/89760；Host RPC agentPresets/list 返回 sdlc 且无 broken 字段；agentPresets/read sdlc 的末尾是六个本套件行；session/create 指定 agentPreset=sdlc 返回 sdlc、默认返回 standard；两个会话各发一条 prompt 后 session/projections 的 toolsTokens 为 sdlc 10072 > standard 6902。命令与原始输出见 .ai/tasks/PRESET-1/evidence/runtime-verification.md。",
+    "R8 迁移安全与如实边界：desktop profile 尚未迁移，文档/证据明确写出去全局化后已有会话会失去 sdlc_* 工具、迁移放在独立验证之后；已知边界如实列出 standard 副本静态漂移、toolsTokens 只是间接读数（最终需人工在 GUI 新会话确认）、eager activation 使 sdlc-verifier 出现在全局名单。",
+    "R9 文档如实：packages/sdlc/README.md、根 README.md、docs/dsh-plugin-contracts.md §1.1、docs/dsh-pitfalls.md §14、AGENTS.md「方案 A」一节都描述新形态（两条宿主行 + preset = standard 副本 + 六组件）、如何新建会话选择模式、UI 常驻的取舍、App 升级后运行 preset-sync；没有把未验证项写成已验证。"
+  ],
+  "artifacts": {
+    "intent": "<REPO>/.ai/tasks/PRESET-1/intent.md",
+    "plan": "<REPO>/.ai/tasks/PRESET-1/plan.md",
+    "spec": "<REPO>/.ai/tasks/PRESET-1/spec.md"
+  },
+  "verdict": {
+    "status": "approve",
+    "summary": "核心主张成立，且我用比作者更强的直接证据证实了它：我重启隔离 profile 并自建两个真实会话，从会话日志的 request/header 读到实际请求 envelope——sdlc 会话 44 个工具（standard 的 31 个 + 恰好 13 个 sdlc_*），standard 会话 31 个、0 个 sdlc_*；skills/list 的两条 SDLC Skill 只在 sdlc 会话；系统提示 7553 vs 5608 字节。这不再是 toolsTokens 的间接推断，而是模型实际收到的工具/提示词/Skill 集合。其余门禁全部复跑一致：单测 202+8、冒烟 8 脚本 396（per-script 39/19/62/69/40/46/109/12）、sync-check exit 0/负向 exit 1 点名第 2 行、--write 幂等、activation-check exit 0（宿主 2/preset 28/26 文件 sha）、compat exit 0（peers=9）、dump-config 2/28、启动 0 警告、boot rev ca10afcab19f、端点 200、RPC toolsTokens 10072/6902。无 blocking；4 条 finding：sync 门禁漏比 group/isolate（important，当前副本仍逐字节一致）、证据里 16/18 实为 17/19、根 README 读数表未更新、端点字节数随任务数据变化。",
+    "findings": [
+      {
+        "severity": "important",
+        "category": "logic_error",
+        "file": "tools/preset-sync-check.mjs",
+        "line": 79,
+        "reason": "normalize() 只序列化 id/name/disabled/config，App standard 里的 group 与 isolate 不参与比较。这两个字段会影响 preset 行语义（cordis:group、planMode/compaction/workflowEngine 隔离），App 升级若只改它们，门禁会静默放行——正是该门禁要防的静默漂移。当前副本与 App 逐字节一致，所以不是现存功能缺陷，但门禁覆盖面小于其宣称的“逐行对账”。",
+        "evidence": "在 /tmp/preset-verify 副本里：删掉 planning 行的 `group: true` → `node tools/preset-sync-check.mjs` 输出“✅ ... 一致”，exit 0；把 compaction 的 isolate 两值改成 false → 同样 exit 0。/tmp/app-standard.patch.yml 第 45-88 行显示 App 的 standard 确实有 3 行含 group/isolate。",
+        "suggestion": "把 group 与 isolate 纳入 normalize 的比较（或整行深比较），并补一条“改 isolate 应 exit 1”的负向用例；文档里“逐行对账”改成明确的字段清单。"
+      },
+      {
+        "severity": "minor",
+        "category": "missing_evidence",
+        "file": "AGENTS.md",
+        "line": 207,
+        "reason": "证据里“组件放回宿主行 16/18”这个数字不可复现：当前脚本共 19 条断言，把 sdlc-task 加回宿主行得到 17 通过/2 失败（exit 1）。负向测试确实会红（实质成立），但报告的数字来自更早的 18 断言版本，未随脚本定稿更新；同一数字也出现在 .ai/tasks/PRESET-1/evidence/runtime-verification.md:129。",
+        "evidence": "cd /tmp/preset-verify 后在插入 sdlc-task 宿主行：ELECTRON_RUN_AS_NODE=1 \"<App>\" --expose-internals packages/sdlc/smoke/preset.mjs → “断言总数：19（通过 17，失败 2）”，exit 1；AGENTS.md:207 与 evidence:129 写 16/18。",
+        "suggestion": "把 16/18 更正为 17/19（两条断言红：宿主行应为 [sdlc-ui, preset-sdlc] + 机制组件仍在宿主行），或改写成不依赖断言总数的表述。"
+      },
+      {
+        "severity": "minor",
+        "category": "other",
+        "file": "README.md",
+        "line": 233,
+        "reason": "根 README 的“当前实测读数”表未随本次改动更新，与 AGENTS.md 及实测矛盾：smoke 仍写“七脚本…共 377 条断言”（实际 8 脚本 396），compat 仍写“8 条 peer”（实际 peers=9，新增了 dsh-agent-preset）。属于两份真相漂移，不影响功能。",
+        "evidence": "grep -n README.md → 233 行“七脚本…（共 377 条断言）”、234 行“（8 条 peer）”；实测 `npm run smoke` 输出“✅ 全部冒烟通过（8 个脚本）”且合计 396，`node tools/compat-check.mjs` 输出 peers=9。",
+        "suggestion": "把该表更新为 8 脚本 396 与 9 条 peer，并在“当前实测读数”标题标注更新日期。"
+      },
+      {
+        "severity": "minor",
+        "category": "other",
+        "file": ".ai/tasks/PRESET-1/evidence/runtime-verification.md",
+        "line": 46,
+        "reason": "文档记录的 GET /api/sdlc-ui.tasks 字节数 89760 不可复现：该端点读取 .ai/tasks 数据，而证据写完之后 PRESET-1 的 state.yaml/evidence 又有更新，所以复跑得到 90350。200 这个实质结论成立，字节数是随任务数据变化的快照。",
+        "evidence": "重启隔离 web 后 `curl -b /tmp/cookies.txt -o /tmp/tasks.json -w 'HTTP=%{http_code} bytes=%{size_download}' .../api/sdlc-ui.tasks` → HTTP=200 bytes=90350；AGENTS.md:195 与 evidence:46 写 200/89760。",
+        "suggestion": "证据里写“200（字节数随 .ai/tasks 数据变化，本次 N 字节）”或把读数与时间/任务快照绑定。"
+      }
+    ],
+    "criteria_results": [
+      {
+        "result": "met",
+        "evidence": "git show 46840c4:packages/sdlc/cordis.patch.yml | sed -n '24,36p' → 一条 insert，两条宿主行：sdlc-ui(name=@ai-native-sdlc/dsh-sdlc)、preset-sdlc(name=@deepseek-ai/dsh-agent-preset)；六个组件行在 158-169 行的 config.plugins 内。\n独立 YAML 解析 host ids=[sdlc-ui,preset-sdlc]；/tmp/dump-verify.yml（隔离 profile --dump-config）顶层宿主行恰 2 条。"
+      },
+      {
+        "result": "met",
+        "evidence": "用 Electron-as-Node 从 app.asar 导出 App 的 standard.patch.yml → /tmp/app-standard.patch.yml；其 plugins 块 118 行与仓库副本（cordis.patch.yml 39-156 行）逐字节比较：0 行不同。preset 顶层行 28 = 22 standard + 6（/tmp/dump-verify.yml）。\n六个 name 用 package.json exports 解析到 lib/<comp>/index.js，逐个 import：apply=function、inject 非空、Config['~standard'].validate=function、name=行 id（task/artifact/status/verify/workflow/rsi）。"
+      },
+      {
+        "result": "met",
+        "evidence": "隔离 profile 真实启动（/tmp/verify-web.log）：0 条 “did not activate”；页面 __DSH_BOOT__ 含 {\"id\":\"@ai-native-sdlc/dsh-sdlc\",\"url\":\"plugins/??...client.js&rev=ca10afcab19f\",\"inject\":[\"@deepseek-ai/dsh-client-ui-sidebar\"]}。\ncurl 带认证 cookie GET /api/sdlc-ui.tasks → HTTP=200（无 cookie → 401）。文档说明为何 UI 不能进 preset：packages/sdlc/README.md:17-22、docs/dsh-plugin-contracts.md §1.1、docs/dsh-pitfalls.md §14.2。"
+      },
+      {
+        "result": "met",
+        "evidence": "package.json：version 0.3.0（:3）；@deepseek-ai/dsh-agent-preset 在 peerDependencies（:65）且 peerDependenciesMeta.optional=true（:97-101）；dependencies 只有 js-yaml（:51-53）。\nnode tools/compat-check.mjs → “✓ 全部 2 个包与 DSH 0.2.1-rc.2 兼容”，dsh-sdlc@0.3.0 peers=9，exit 0。profile 里 find node_modules -name '@deepseek-ai' → 无（没有第二份运行时）。"
+      },
+      {
+        "result": "met",
+        "evidence": "node tools/preset-sync-check.mjs → “App standard preset: 22 行 / 本套件 preset: 22 行副本 + 6 行”，✅ 一致，exit 0。\n负向（/tmp/preset-verify 副本里 maxBytes 65536→65535）：exit 1，“第 2 行（agent-instructions）不一致：字段 config”。--write 重写后与原文件逐字节相同（幂等），exit 0；npm run preset-sync 已在根 package.json、README、tools/README、AGENTS 接入。\n附：group/isolate 不在比较范围（见 finding）。"
+      },
+      {
+        "result": "met",
+        "evidence": "git diff --stat 3c6443f..46840c4 -- packages/sdlc/src packages/sdlc/test → 空；/tmp/preset-verify 全新构建的 JS lib 与仓库 lib 逐字节相同（只 .d.ts 因 TS 版本别名不同）。\nnpm test → 202 pass + 8 pass = 210；npm run smoke → 8 脚本 39/19/62/69/40/46/109/12 = 396，末行 “✅ 全部冒烟通过（8 个脚本）”。\n负向：宿主行加回 sdlc-task → exit 1，“断言总数：19（通过 17，失败 2）”（文档写 16/18，见 finding）；tool-web 改名 → exit 1，18/19。activation-check（隔离 profile）：宿主 2 行、preset 28 行、本套件六行 ✓、26 文件 sha256，exit 0；再加一条宿主行 → exit 1 点名“多出宿主行”。"
+      },
+      {
+        "result": "met",
+        "evidence": "--dump-config：宿主 2 行、preset 28 个顶层行；启动 0 条 “did not activate”；boot rev=ca10afcab19f；GET /api/sdlc-ui.tasks 200（本次 90350 字节，文档写 89760，随任务数据变化）。\n我自建会话复跑：session/create {agentPreset:sdlc}→sdlc、默认→standard；projections toolsTokens 10072 / 6902；agentPresets/list 含 sdlc 且无 broken；agentPresets/read sdlc 末尾正是六行。\n更强的直接读数（会话日志 request/header）：sdlc 会话 44 工具（standard 31 个 + 恰好 13 个 sdlc_*），standard 会话 31 个、0 个 sdlc_*；skills/list 的两条 SDLC Skill 只在 sdlc 会话。"
+      },
+      {
+        "result": "met",
+        "evidence": "~/.dsh/profiles/desktop/package.json 仍依赖 ai-native-sdlc-dsh-sdlc-0.2.0.tgz（未迁移）；AGENTS.md:178 写“当前会话在迁移后失去这些工具是预期行为”；AGENTS.md:595-604 列出静态副本/间接读数/eager activation 三条边界；intent.md:56 与 plan.md:52 写明独立验证后才迁移 desktop；evidence:156-160 同样列边界。\n我另确认 agentPresets/list 含 sdlc-verifier（eager activation），且 standard 会话工具面里没有 sdlc_*。"
+      },
+      {
+        "result": "met",
+        "evidence": "git diff 3c6443f..46840c4 更新了 packages/sdlc/README.md、README.md（§按会话选择才生效）、docs/dsh-plugin-contracts.md §1.1、docs/dsh-pitfalls.md §14、AGENTS.md「方案 A」：两条宿主行、preset=22 行 standard 副本+6 组件、如何新建会话选择模式、UI 常驻取舍、App 升级后跑 preset-sync。\n文档把 toolsTokens 标为间接读数、把 desktop 迁移列为未完成，没有写成已验证。\nminor：README.md:233-234 的当前读数表仍写七脚本/377、8 条 peer（实际 8 脚本/396、peers=9），见 finding。"
+      }
+    ],
+    "unverified": [
+      "GUI 层：在新建会话选择器里实际选择「AI 原生 SDLC」并看到面板/工具列表的渲染——本次只在协议层复跑（RPC + 会话日志），没有浏览器交互或截图证据。",
+      "preset 绑定会话里真实调用 sdlc_verify 走完一次验证链（需要模型凭据；本次环境无 API key，只覆盖了模块装配与冒烟层）。",
+      "App 真实升级后的 standard 副本漂移场景：本机只有 0.2.1-rc.2，无法造另一版 App，只验证了门禁对人为改坏的负向反应（且 group/isolate 是已知盲区）。",
+      "desktop profile 迁移到 0.3.0 之后的 live 读数（plugin_manager fiberPhase、当前会话失去 sdlc_* 工具）——按计划刻意留到独立验证之后，本次未执行。",
+      "既有会话保留创建时组合的实际表现：官方语义 + 文档声明，但本次没有 0.2.0 时期的旧会话来复现，也未做跨重启的旧会话对照。"
+    ],
+    "verifier_session": "c883e918-9775-4816-9710-4971850073f7"
+  }
+}

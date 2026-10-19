@@ -76,8 +76,10 @@ const SDLC_ROWS = [
 const stdText = readFileSync(STD_PATCH, 'utf8');
 const stdRows = parse(stdText)[0].insert[0].config.plugins;
 
-const normalize = (row) =>
-  JSON.stringify({ id: row.id, name: row.name, disabled: row.disabled ?? null, config: row.config ?? null });
+// 整行比较：preset 行的语义不只在 id/name/config——`group: true` 决定它是嵌套组、
+// `isolate` 决定服务/状态隔离 realm。第一版只比四个字段，App 升级若只改 group/isolate
+// 会静默放行（独立验证抓到的门禁盲区）。这里直接序列化整行，新增字段也会被发现。
+const normalize = (row) => JSON.stringify(row);
 const rowKey = (row) => (row && typeof row.id === 'string' ? row.id : `(无 id: ${JSON.stringify(row)})`);
 
 const startMarker = '==== 以下为 DSH standard preset 的副本';
@@ -136,7 +138,7 @@ for (let i = 0; i < max; i++) {
     continue;
   }
   if (normalize(a) !== normalize(b)) {
-    const fields = ['id', 'name', 'disabled', 'config'].filter(
+    const fields = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(
       (f) => JSON.stringify(a[f] ?? null) !== JSON.stringify(b[f] ?? null),
     );
     problems.push(`第 ${i + 1} 行（${rowKey(a)}）不一致：字段 ${fields.join(', ')}`);

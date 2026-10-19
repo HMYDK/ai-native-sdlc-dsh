@@ -192,19 +192,28 @@ preset 内               standard preset 完整副本（22 行）+ 六个机制�
 ```
 --dump-config           宿主 2 行；preset 子行 28（22 standard + 6 本套件）
 启动                    0 条 entry did not activate；boot entry rev=ca10afcab19f
-GET /api/sdlc-ui.tasks  200 / 89760 字节
+GET /api/sdlc-ui.tasks  200（字节数随 .ai/tasks 数据变化：写入时 89760，复验时 90350）
 agentPresets/list       sdlc 存在、broken 缺失（可组合）
 agentPresets/read sdlc  末尾六行 = 本套件组件
 session/create          指定 sdlc → agentPreset=sdlc；默认 → standard
 session/projections     sdlc 会话 toolsTokens 10072 > standard 6902
+会话日志 request/header sdlc 会话 44 个工具（31 standard + 13 个 sdlc_*）；
+                        standard 会话 31 个工具、0 个 sdlc_*
 ```
 
-⚠️ `toolsTokens` 是**间接**读数（证明工具 schema 集合不同），最终仍需人工在 GUI
-新建会话里确认工具列表；这条已作为未完成的人工确认项记录。
+**直接的模型可见读数**：会话日志（`session.v4.jsonl.zstd`）里的 `request/header`
+记录模型实际收到的工具 schema。独立验证者与我各自读到：sdlc 会话 44 个工具 =
+standard 的 31 个 + 恰好 13 个 `sdlc_*`（task_create/status/advance、artifact_write/
+check、verify/fix_start/fix_end、status、rsi_runs/analyze/experiment/feedback），
+standard 会话 31 个、`sdlc_*` 为 0；两条 SDLC Skill 也只在 sdlc 会话的 `skills/list`。
+这比 `toolsTokens` 强，已不依赖"只看 token 数"的间接推断。
+
+⚠️ 仍未做的只有 **GUI 层人工确认**（在新建会话选择器里真的点选「AI 原生 SDLC」并
+看到工具列表/面板渲染）；协议层与日志层的集合证据已拿到。
 
 **工具与读数**：单测 210 不变（`src/` 组件代码未改）；冒烟新增
 `smoke/preset.mjs` 19 条 → **8 个脚本共 396 条**；负向实测：组件放回宿主行
-（16/18）、改坏 standard 副本（sync exit 1）、改名 `tool-web`（18/19）都会红。
+（17/19）、改坏 standard 副本（sync exit 1，含 isolate 字段）、改名 `tool-web`（18/19）都会红。
 `plugin-activation-check` 改为只 import 本套件的行（第一版把 standard 副本行也拿
 本包 exports 解析，全部误报"解析失败"——`!!js` 标签也让默认 js-yaml 直接抛，
 两处都要自定义处理）。
@@ -596,9 +605,12 @@ reject 的代码上都是绿的**）。
   可能过期，SDLC 模式会"少新工具"却不报错。必须跑 `npm run preset-sync`；
   漂移时 `npm run preset-sync:write` 后复跑冒烟。这是官方不支持 preset 继承的接缝，
   不能靠"记得升级"消除，只能靠门禁。
-- **"只有选定会话才有工具"的证据是间接的**：`session/projections` 的
-  `toolsTokens`（sdlc 10072 vs standard 6902）证明工具 schema 集合不同；最终
-  "在新建会话里看到工具列表"需要人工在 GUI 里确认。不要把它写成"已自动验证"。
+- **"只有选定会话才有工具"已有协议层直接证据**：会话日志 `request/header` 显示
+  sdlc 会话 44 工具（31 + 13 个 `sdlc_*`）、standard 会话 31 工具 0 个 `sdlc_*`；
+  `toolsTokens` 10072 vs 6902 是旁证。仍缺 GUI 层人工确认（选择器点选/面板渲染），
+  不要把"协议层已证实"写成"GUI 已人工验收"。
+- **preset-sync 门禁比较整行字段**（id/name/config/disabled/group/isolate 及未来
+  新增字段）；第一版只比四个字段，被独立验证指出漏了 `group`/`isolate`。
 - **preset 的 eager activation 有副作用**：`sdlc-verify` 注册的 `sdlc-verifier`
   preset 会出现在全局 `agentPresets/list`（0.2.x 全局模式时同样存在，非新引入）。
 - **已有会话不会切换组合**：选择只影响之后创建的会话，这是官方语义，不是缺陷。
