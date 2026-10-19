@@ -277,8 +277,8 @@ test('展示顺序按流程推进，坏任务排最前', () => {
 });
 
 test('VERIFYING 只要求 intent/spec/plan（与 sdlc-task 一致）', () => {
-  // 本包复制了一份门槛表（跨包 import 走不通，见 scan.ts 顶部说明），
-  // 漂移由 contract.test.ts 对照 sdlc-task 源码检测。
+  // 门槛表已从 task/state.ts 直接 import（合并成单包后不再复制副本，也就
+  // 不再需要 contract.test.ts 那种读源码文本的漂移检测）。
   // 这条用例锁住**本包的实际判定行为**：VERIFYING 不含 verification 制品
   //（那是 REVIEWING 的门槛）。
   const r = scanTasks(

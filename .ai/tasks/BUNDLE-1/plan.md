@@ -93,7 +93,7 @@
   tools/plugin-activation-check.mjs` 七行 + 26 文件 sha256 一致。
 - 隔离运行：tarball 装入隔离 profile；boot payload 含客户端 entry；
   `GET /api/sdlc-ui.tasks` 200。字节数与任务数随工作区任务变化
-  （首轮 81975 字节/3 根/13 任务；最终复验约 86773 字节/15 任务），
+  （首轮 81975 字节/3 根/13 任务；最终复验约 86730 字节/15 任务），
   验证点是"200 且返回真实任务"，不是固定字节数。
 - 插件页元数据：宿主 `readPluginMeta` 对包根与六个子路径行返回 en/zh 标题，
   icon 逐个来自 `icons/` 下对应组件的原图标（task/artifact/verify/rsi 保持各自差异）。

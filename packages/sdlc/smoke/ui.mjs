@@ -87,16 +87,20 @@ console.log('\n== 1b. UI 行必须挂在包根（否则浏览器半会被静默�
   const required = ['./locale/en.json', './locale/zh.json'];
   const unresolved = required.filter((key) => targetFile(key, '') === undefined);
   for (const comp of components) {
-    const localeKeys = ['./*/locale/en.json', './*/locale/zh.json'];
-    const hasLocale = localeKeys.every((key) => targetFile(key, comp) !== undefined);
-    // 有 locale 的组件目录必须成对存在；没有 locale 的组件（workflow/rsi）不要求
-    if (hasLocale !== fs.existsSync(path.join(DIR, '..', 'locale', comp, 'en.json'))) {
-      unresolved.push(`${comp} locale 不一致`);
+    // 六行都必须有 locale（独立验证抓到过 workflow/rsi 缺 locale → 标题退化为裸 specifier；
+    // 合并前它们是精确包名、宿主会回退读 package.json，所以这里要求"不退化"）。
+    for (const key of ['./*/locale/en.json', './*/locale/zh.json']) {
+      const file = targetFile(key, comp);
+      if (file === undefined) { unresolved.push(`${comp} ${key}`); continue; }
+      const meta = JSON.parse(fs.readFileSync(file, 'utf8')).meta;
+      if (typeof meta?.title !== 'string' || typeof meta?.description !== 'string') {
+        unresolved.push(`${comp} ${key} 缺 meta.title/description`);
+      }
     }
     if (targetFile('./*/icon', comp) === undefined) unresolved.push(`${comp} icon`);
   }
   if (unresolved.length === 0) {
-    ok('exports 的 locale/icon target 都能解析到真实文件（根 + 六个子路径行，不只键存在）');
+    ok('exports 的 locale/icon target 都能解析且六个子路径行都有 meta 文案（不只键存在）');
   } else {
     bad(`exports target 解析失败：${unresolved.join(', ')}——插件页会丢展示元数据`);
   }

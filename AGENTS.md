@@ -108,7 +108,7 @@ PASS/FAIL，是唯一能被严格自动验证的机制；`plan` 输出给人看�
 dump-config 七行；真实启动无激活警告；`__DSH_BOOT__.entries` 含
 `{"id":"@ai-native-sdlc/dsh-sdlc","url":"plugins/??…/client.js","inject":["…client-ui-sidebar"]}`；
 `GET /api/sdlc-ui.tasks` 200 / 81975 字节（3 个工作区 / 13 个任务；最终复验
-86773 字节，因为新增了 BUNDLE-1）。
+86730 字节，因为新增了 BUNDLE-1）。
 
 **desktop profile live 验证**：`dsh plugin --profile desktop add <tgz>` 后
 **无需重启**，`plugin_manager list_plugins` 里七行全部 `fiberPhase: active`
@@ -118,7 +118,7 @@ dump-config 七行；真实启动无激活警告；`__DSH_BOOT__.entries` 含
 （RSI-1，VERIFYING，停滞 4 天）。随后已把旧七个依赖从 profile 移除，
 现在 profile 里只有一个 SDLC bundle、一个依赖。
 
-**最终 tarball 换入后重新读过一次**：`plugin_manager list_plugins`（19:34）里
+**最终 tarball（52 文件）换入后重新读过一次**：`plugin_manager list_plugins`（19:53:45）里
 `include:sdlc-task/artifact/status/verify/workflow/rsi/ui` 七行仍全部
 `fiberPhase: active`，`sdlc-ui` 行 moduleName 是精确包名 `@ai-native-sdlc/dsh-sdlc`；
 换包只改了 locale/icon 与注释，host 行为不变。另两个旧 profile（headless、
@@ -138,6 +138,9 @@ sha256 全一致；time-travel 5 个时点一致。
 `./*/locale/en.json`、`./*/locale/zh.json`、`./*/icon` 的 exports；多星 pattern
 （`./locale/*/*.json`）不解析。图标**逐组件保留**在 `icons/`：task/artifact/
 verify/rsi 恢复各自原图标，status/workflow 与套件共用同一枚（与合并前一致）。
+workflow/rsi 原先没有 locale 文件（合并前靠精确包名回退读 package.json），
+合并后必须补 `locale/<comp>/{en,zh}.json` 才不会让这两行退化为"只有 icon"——
+第三轮独立验证正是因此判了 reject，已补并让冒烟对**六个**子路径行都校验。
 `smoke/ui.mjs` 的回归断言从"exports 键存在"升级为"target 可解析到真实文件"
 （含一次故意改坏 target 的负向实测），断言数保持 46；总冒烟 375 → 377。
 

@@ -113,7 +113,7 @@
    头注释改为 `@ai-native-sdlc/dsh-sdlc/<component>`；ui 注释里 `src/client.js`
    改为 `src/ui/client.js`。
 
-最终 tarball：`packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`（48 文件，含 locale/ 与 icons/），
+最终 tarball：`packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`（52 文件，含 locale/ 与 icons/），
 已替换 desktop 依赖（`file:…/packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`）
 并重建隔离 profile；`plugin-activation-check` 七行 + 26 文件 sha256 一致。
 隔离 profile 最终启动：`__DSH_BOOT__.entries` 含客户端 entry（rev=b2c042a69eb1），
@@ -156,7 +156,36 @@ clone 复跑）：`make check` **21/21 通过**，断言数未削弱。
 workspace 链接已随 `npm install` 收敛为唯一 `dsh-sdlc → packages/sdlc`。
 
 最终 tarball：`packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`
-（**48 文件**；sha256 见打包记录）。隔离 profile 重装后：
+（**52 文件**；sha256 见打包记录）。隔离 profile 重装后：
 bundles=[base,web-app,dsh-sdlc]、dump-config 7 行、启动日志 0 条
 `entry did not activate`、boot entry rev=`25dbcb5b2aed`、
 `GET /api/sdlc-ui.tasks` 200 / 86730 字节。
+
+## I. 第三轮独立验证（reject，1 important + 3 minor）后的最终修复
+
+第三轮 `sdlc_verify`（verifier_session `d9c10552-…`）判 4/5 met、**reject**：
+workflow/rsi 两行没有 locale 文件，宿主的 `readPluginMeta` 对子路径行只返回
+icon（合并前它们是精确包名，会回退读 package.json 的 name/description）→
+"六个子路径行 locale target 都可解析"不成立。其余核心主张被独立复现
+（七行、377 冒烟、48→当时 tarball、隔离启动、desktop 读数等）。
+
+修复：
+1. 补 `locale/workflow/{en,zh}.json` 与 `locale/rsi/{en,zh}.json`，meta.title/
+   description 取合并前 `package.json` 的 name/description（英文），中文为对应译文。
+   现在六个子路径行都有 locale，`readPluginMeta` 对六行都返回 en/zh 标题。
+2. `smoke/ui.mjs` 去掉"workflow/rsi 不要求 locale"的豁免：现在对六个组件逐一
+   校验 locale en/zh 的 target 可解析且 meta.title/description 存在；负向实测
+   （改坏 target / 删 key）会红，46/46 → 45/46。
+3. AGENTS/plan 的读数更正：`GET /api/sdlc-ui.tasks` 86730 字节；desktop 最终
+   tarball 上的 `plugin_manager` 复读时间以实测为准。
+4. `status/scan.test.ts` 里"漂移由 contract.test.ts 检测"的过期注释改写
+   （契约测试已删除，常量改为直接 import）。
+
+最终 tarball（**52 文件**）：重装 desktop 与隔离 profile 后复验——隔离启动
+`entry did not activate` 0 条、boot entry rev=`c7892fa5cd60`、
+`GET /api/sdlc-ui.tasks` 200 / **86730** 字节；desktop 重装后重新调用
+`plugin_manager list_plugins`（2026-10-19 19:53:45）：七行全部
+`enabled=true, fiberPhase=active`；从 desktop 已安装副本解析六个组件的 locale：
+task/artifact/status/verify/workflow/rsi 标题分别为
+"AI-native SDLC — Task & Artifacts / Artifacts / Portfolio / Verification /
+Workflow / RSI"，全部有 description。
