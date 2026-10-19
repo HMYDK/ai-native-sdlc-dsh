@@ -190,6 +190,16 @@ handbook/                 # 手册原文，只读
   此时重启仍然不会加载插件。必须同时把七个包名写进
   `dsh.profile.bundles`（GUI 插件管理器会做这一步，CLI 不会）。
   本次是手动补的；顺序把 task/status 放在 workflow/verify/ui 之前。
+- **重启后的 live 读数（2026-10-19 17:31）**：
+  · `sdlc_status` 不再把 RSI-1 的 `evidence/*.json` 报成“文件不在”
+    （status 0.1.2 生效），只报停滞与缺 verification；
+  · **真实调用 `sdlc_verify` 成功**：返回完整结构化 `needs_human`
+    （`criteria_results` 1 条 `cannot_tell` + 2 条 finding，
+    `verification_complete: true`）；运行记录
+    `.ai/rsi/runs/3d764861-…/000005.json` 是 `finished`/`outcome: completed`。
+    验证者那 2 条 finding 说的是“它看不到自己这次调用结束后的返回”——
+    这正是本项目“独立验证测不了自己这次调用的产物”的纪律，不是插件失败。
+    这条比“工具出现在列表里”更强：preset + 派发 + 记录 + 裁决整条链都通了。
 
 ### 验证纪律
 
