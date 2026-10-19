@@ -1,0 +1,91 @@
+{
+  "name": "@ai-native-sdlc/dsh-sdlc",
+  "version": "0.2.0",
+  "private": false,
+  "description": "The AI-native SDLC as one DeepSeek Harness bundle: one plugin package, seven mechanism components (task state machine, artifact authoring, independent verification, portfolio view, workflow skill, client panel, RSI) sharing one version and one install.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./task": "./lib/task/index.js",
+    "./artifact": "./lib/artifact/index.js",
+    "./verify": "./lib/verify/index.js",
+    "./verify/preset-filter": "./lib/verify/preset-filter.js",
+    "./verify/recording": "./lib/verify/recording.js",
+    "./status": "./lib/status/index.js",
+    "./workflow": "./lib/workflow/index.js",
+    "./ui": "./lib/ui/index.js",
+    "./client": "./lib/ui/client.js",
+    "./rsi": "./lib/rsi/index.js",
+    "./package.json": "./package.json",
+    "./locale/*/*.json": "./locale/*/*.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "!lib/**/*.test.js",
+    "!lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*/*.json",
+    "icon.svg",
+    "README.md",
+    "TASK.md",
+    "RSI.md"
+  ],
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-agent-preset-registry": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-fs": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-sandbox": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-session": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-skill": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-subagent": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-fs": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-skill": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-subagent": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "3.18.4",
+    "@types/js-yaml": "^4.0.9"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "sdlc",
+    "verification",
+    "artifact-chain"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').copyFileSync('src/ui/client.js','lib/ui/client.js')\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test \"lib/**/*.test.js\" && node test/board.test.mjs && node --test test/client.test.mjs",
+    "smoke": "ELECTRON_RUN_AS_NODE=1 \"$DSH_APP/Contents/MacOS/DeepSeek Harness\" --expose-internals smoke/run-all.mjs",
+    "verify": "npm run build && npm run test && npm run smoke",
+    "mutation-gate": "node ../../tools/mutation-score.mjs --gate sdlc"
+  }
+}

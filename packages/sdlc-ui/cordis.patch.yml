@@ -1,4 +1,0 @@
-# bundle 补丁层：把本插件插入 profile 的 Loader 树。
-- insert:
-    - id: sdlc-ui
-      name: '@ai-native-sdlc/dsh-sdlc-ui'

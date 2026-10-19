@@ -1,0 +1,24 @@
+# 一个 bundle、七个组件行。
+#
+# 这里**故意**不是一个插件行套子插件：每个组件仍是独立的 Cordis 行，
+# 各有自己的 inject / Config / fiber。这样故障域、fiberPhase 诊断、
+# profile 里的按行覆盖（如 `- id: sdlc-task`）和插件页的行级开关都保持原样；
+# 合并的是**分发层**（一个 npm 包、一个版本、一条 profile.bundles 条目），
+# 不是执行层。行 id 与合并前完全一致，已有 profile 覆盖继续匹配。
+#
+# 行顺序没有加载语义（激活由服务可用性驱动），按读者顺序排列。
+- insert:
+    - id: sdlc-task
+      name: '@ai-native-sdlc/dsh-sdlc/task'
+    - id: sdlc-artifact
+      name: '@ai-native-sdlc/dsh-sdlc/artifact'
+    - id: sdlc-status
+      name: '@ai-native-sdlc/dsh-sdlc/status'
+    - id: sdlc-verify
+      name: '@ai-native-sdlc/dsh-sdlc/verify'
+    - id: sdlc-workflow
+      name: '@ai-native-sdlc/dsh-sdlc/workflow'
+    - id: sdlc-rsi
+      name: '@ai-native-sdlc/dsh-sdlc/rsi'
+    - id: sdlc-ui
+      name: '@ai-native-sdlc/dsh-sdlc/ui'

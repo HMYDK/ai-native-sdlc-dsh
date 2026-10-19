@@ -1,6 +1,0 @@
-# 这是 bundle 的补丁层：把插件行插入 profile 的 Loader 树。
-# 离开本文件的 `dsh.bundle.patch` 声明，`dsh plugin add` 只会把它当普通依赖装上，
-# 不会挂载（见 docs/dsh-pitfalls.md 第 2 条）。
-- insert:
-    - id: sdlc-verify
-      name: '@ai-native-sdlc/dsh-sdlc-verify'
