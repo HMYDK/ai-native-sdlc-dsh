@@ -118,6 +118,13 @@ dump-config 七行；真实启动无激活警告；`__DSH_BOOT__.entries` 含
 （RSI-1，VERIFYING，停滞 4 天）。随后已把旧七个依赖从 profile 移除，
 现在 profile 里只有一个 SDLC bundle、一个依赖。
 
+**最终 tarball 换入后重新读过一次**：`plugin_manager list_plugins`（19:34）里
+`include:sdlc-task/artifact/status/verify/workflow/rsi/ui` 七行仍全部
+`fiberPhase: active`，`sdlc-ui` 行 moduleName 是精确包名 `@ai-native-sdlc/dsh-sdlc`；
+换包只改了 locale/icon 与注释，host 行为不变。另两个旧 profile（headless、
+verifytest）里残留的旧包依赖/ bundles 条目也已清掉；仓库根 `node_modules` 的
+七个悬空 workspace 链接已随 `npm install` 收敛为只有一个 `dsh-sdlc → packages/sdlc`。
+
 **读数（2026-10-19 全量）**：单测 **210**（lib 202 + UI 客户端 8；合并前 251，
 减少的 41 = 3 份重复 helpers.test 副本 36 条 + 1 条漂移检测 + status/contract.test
 4 条重复契约）；冒烟 7 个脚本共 **377 条**（artifact 39 / rsi 62 / status 69 /
@@ -125,11 +132,14 @@ task 40 / ui 46 / verify 109 / workflow 12）；`npm run compat` 2 个 manifest 
 bench 三用例全部成立；activation-check 在隔离 profile 上七行一致 + 26 个发布文件
 sha256 全一致；time-travel 5 个时点一致。
 
-**插件页展示元数据要单独修**（第一次独立验证的 minor，已修）：宿主
-`dsh-app-boot` 的 `readPluginMeta` 只读 `<specifier>/locale/en.json`，所以合并后
-必须在**包根**放套件 locale，并给六个子路径行补 `./<comp>/locale/en.json` 与
-`./<comp>/icon` 的 exports；多星 pattern（`./locale/*/*.json`）不解析。
-`smoke/ui.mjs` 有两条回归断言（ui 冒烟 44 → 46，总冒烟 375 → 377）。
+**插件页展示元数据要单独修**（独立验证两轮的 minor，已修）：宿主
+`dsh-app-boot` 的 `readPluginMeta` 只读包 specifier 下的 `locale/en.json` 与
+`icon` 子路径，所以合并后必须在**包根**放套件 locale，并给六个子路径行补
+`./*/locale/en.json`、`./*/locale/zh.json`、`./*/icon` 的 exports；多星 pattern
+（`./locale/*/*.json`）不解析。图标**逐组件保留**在 `icons/`：task/artifact/
+verify/rsi 恢复各自原图标，status/workflow 与套件共用同一枚（与合并前一致）。
+`smoke/ui.mjs` 的回归断言从"exports 键存在"升级为"target 可解析到真实文件"
+（含一次故意改坏 target 的负向实测），断言数保持 46；总冒烟 375 → 377。
 
 
 ### RSI 首版（2026-10-15）

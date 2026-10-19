@@ -73,10 +73,33 @@ console.log('\n== 1b. UI 行必须挂在包根（否则浏览器半会被静默�
   });
   if (rootLocalesOk) ok('包根 locale/en.json + zh.json 有 meta 标题/描述（插件页卡片元数据）');
   else bad('包根缺 locale/en.json 或 zh.json 的 meta 文案——插件页卡片会退化');
-  const needExports = ['./locale/en.json', './locale/zh.json', './*/locale/en.json', './*/locale/zh.json', './*/icon'];
-  const missingExports = needExports.filter((key) => pkg.exports?.[key] === undefined);
-  if (missingExports.length === 0) ok('exports 覆盖包根/组件 locale 与组件 icon（七行都有展示元数据）');
-  else bad(`exports 缺 ${missingExports.join(', ')}——插件页行会退化为裸 specifier`);
+  // 不能只查"键存在"：第一轮验证的缺陷恰恰是"键存在但 target 解析不了"
+  // （多星 pattern `./locale/*/*.json`）。这里对每个需要的 key 把 target 里的 *
+  // 替换成代表性组件、检查真实文件存在；并对六个子路径行各查一遍 icon。
+  const targetFile = (key, star) => {
+    const target = pkg.exports?.[key];
+    if (typeof target !== 'string') return undefined;
+    const rel = target.replace('*', star);
+    const file = path.join(DIR, '..', rel);
+    return fs.existsSync(file) ? file : undefined;
+  };
+  const components = ['task', 'artifact', 'status', 'verify', 'workflow', 'rsi'];
+  const required = ['./locale/en.json', './locale/zh.json'];
+  const unresolved = required.filter((key) => targetFile(key, '') === undefined);
+  for (const comp of components) {
+    const localeKeys = ['./*/locale/en.json', './*/locale/zh.json'];
+    const hasLocale = localeKeys.every((key) => targetFile(key, comp) !== undefined);
+    // 有 locale 的组件目录必须成对存在；没有 locale 的组件（workflow/rsi）不要求
+    if (hasLocale !== fs.existsSync(path.join(DIR, '..', 'locale', comp, 'en.json'))) {
+      unresolved.push(`${comp} locale 不一致`);
+    }
+    if (targetFile('./*/icon', comp) === undefined) unresolved.push(`${comp} icon`);
+  }
+  if (unresolved.length === 0) {
+    ok('exports 的 locale/icon target 都能解析到真实文件（根 + 六个子路径行，不只键存在）');
+  } else {
+    bad(`exports target 解析失败：${unresolved.join(', ')}——插件页会丢展示元数据`);
+  }
 }
 
 // ── 提供 window.__ModuleLoader__ 的桩，真的求值

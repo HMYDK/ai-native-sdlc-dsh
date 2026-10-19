@@ -22,7 +22,7 @@
     "./locale/zh.json": "./locale/zh.json",
     "./*/locale/en.json": "./locale/*/en.json",
     "./*/locale/zh.json": "./locale/*/zh.json",
-    "./*/icon": "./icon.svg"
+    "./*/icon": "./icons/*.svg"
   },
   "files": [
     "lib/**/*.js",
@@ -33,7 +33,8 @@
     "icon.svg",
     "README.md",
     "TASK.md",
-    "RSI.md"
+    "RSI.md",
+    "icons/*.svg"
   ],
   "icon": "./icon.svg",
   "dsh": {

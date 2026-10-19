@@ -113,7 +113,7 @@
    头注释改为 `@ai-native-sdlc/dsh-sdlc/<component>`；ui 注释里 `src/client.js`
    改为 `src/ui/client.js`。
 
-最终 tarball：`packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`（42 文件），
+最终 tarball：`packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`（48 文件，含 locale/ 与 icons/），
 已替换 desktop 依赖（`file:…/packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`）
 并重建隔离 profile；`plugin-activation-check` 七行 + 26 文件 sha256 一致。
 隔离 profile 最终启动：`__DSH_BOOT__.entries` 含客户端 entry（rev=b2c042a69eb1），
@@ -127,3 +127,36 @@
 并新增"单包布局"前置检查（缺了就 exit 2、不写 `.ai`，避免旧脚本在干净检出上
 ERR_MODULE_NOT_FOUND、在本机残留旧 lib 上静默假绿）。实测（隔离副本 + 远端
 clone 复跑）：`make check` **21/21 通过**，断言数未削弱。
+
+## H. 第二轮独立验证（approve，4 条 minor）后的修复与复验
+
+第二轮 `sdlc_verify`（verifier_session `9de467f5-…`）5/5 met、approve，
+给出 4 条 minor，全部处置：
+
+1. **逐组件 icon 丢失**：`./*/icon` 全部指向同一个套件 icon。已把旧四枚不同
+   icon 从 git 历史取出（`git show 959f3ee^:packages/sdlc-<comp>/icon.svg`），
+   放到 `packages/sdlc/icons/`，exports 改为 `./*/icon: ./icons/*.svg`；
+   `files` 加 `icons/*.svg`。实测从已安装 desktop 副本解析：
+   task `375536c3f2de`、artifact `7411d5be50ee`、verify `c703362363d5`、
+   rsi `69294c2bf0c3`，status/workflow 与套件共用 `78170def2c91`
+   ——与合并前逐一相同。
+2. **UI 冒烟 exports 断言只查键存在**：已改为对每个 key 把 target 里的 `*`
+   替换成代表性组件、检查真实文件存在，并逐组件校验 icon；同时做负向实测
+   （把 `./locale/en.json` 的 target 改坏 → 该断言红、46/46 变 45/46）。
+   断言总数仍 46，未用"加断言"换数字。
+3. **plan.md 的 Proof 数字过期**：已用 `sdlc_artifact_write` 覆写 plan，改为
+   377/46 与"字节数/根数随工作区任务变化"的表述；与 D/F 节对齐。
+4. **desktop 七行 fiberPhase 未在最终 tarball 上复读**：已重装最终 tarball
+   （先 remove + 删除安装目录，避免同路径同版本复用旧文件）后重新调用
+   `plugin_manager list_plugins`（19:34）：七行全部 active；当前会话
+   `sdlc_status`/`sdlc_verify` 可真实调用。
+
+其余清理：headless / verifytest profile 里旧的 `@ai-native-sdlc/dsh-sdlc-*`
+依赖与 bundles 条目已移除；仓库根 `node_modules/@ai-native-sdlc` 的七个悬空
+workspace 链接已随 `npm install` 收敛为唯一 `dsh-sdlc → packages/sdlc`。
+
+最终 tarball：`packages/sdlc/ai-native-sdlc-dsh-sdlc-0.2.0.tgz`
+（**48 文件**；sha256 见打包记录）。隔离 profile 重装后：
+bundles=[base,web-app,dsh-sdlc]、dump-config 7 行、启动日志 0 条
+`entry did not activate`、boot entry rev=`25dbcb5b2aed`、
+`GET /api/sdlc-ui.tasks` 200 / 86730 字节。
