@@ -15,7 +15,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '..', '..');
@@ -70,7 +70,7 @@ export function makeWorkdir(prefix, { moduleType = 'commonjs' } = {}) {
  * 这里统一声明 `commonjs`（`makeWorkdir` 写的那个），所以用 `require` 加载。
  * 实测两种形态都出现过，别假设。
  */
-export function compileFiles(rev, repoRelDir, fileNames, work, { as = 'module' } = {}) {
+export function compileFiles(rev, repoRelDir, fileNames, work, { as = 'module', noCheck = false } = {}) {
   const dir = path.join(work, `${rev.replace(/[^\w.-]/g, '_')}-${as}`);
   mkdirSync(path.join(dir, 'src'), { recursive: true });
   let copied = 0;
@@ -90,6 +90,14 @@ export function compileFiles(rev, repoRelDir, fileNames, work, { as = 'module' }
         target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
         lib: ['ES2023'], strict: true, skipLibCheck: true,
         outDir: 'lib', rootDir: 'src', types: ['node'],
+        // noCheck 只做**转译**、不做类型检查。仅用于历史 revision 的源码：
+        // 它们针对当时的运行时类型（如 0.2.0 的 `subagents.start` /
+        // `SubagentStartRequest.toolFilter`）编写，拿现在的 node_modules 类型去
+        // 检查必然失败，而那与用例要比较的**运行时行为**无关（实测 PWSH-1
+        // 的 tsc 失败就是这么来的：TS2353 toolFilter 不存在 / TS2339 start 不存在）。
+        // 教训：类型漂移不是用例失败；把编译档位换成"只转译"才是正确处置，
+        // 而不是改历史源码去迁就新类型。
+        ...(noCheck ? { noCheck: true } : {}),
       },
       include: ['src/**/*.ts'],
     }),
@@ -98,6 +106,73 @@ export function compileFiles(rev, repoRelDir, fileNames, work, { as = 'module' }
   const lib = path.join(dir, 'lib');
   if (!existsSync(lib)) throw new Error(`${rev}: 编译没有产出 lib/`);
   return lib;
+}
+
+/**
+ * 这个 revision 的源码是不是**合并后的单包布局**。
+ *
+ * 2026-10-19 的 959f3ee 把七个包合并成一个 `packages/sdlc`，组件源码从
+ * `packages/sdlc-<comp>/src` 搬到了 `packages/sdlc/src/<comp>`。
+ * 基准用例的**基线**一律钉在历史提交上，那里旧路径仍然真实存在；
+ * 只有"当前/修复版"一侧会走到合并布局。所以按 revision 判形，而不是全局改路径。
+ */
+export function mergedAt(rev) {
+  return existsAt(rev, 'packages/sdlc/src');
+}
+
+/**
+ * 取合并包的**整棵源码树**并编译，返回 `<work>/<rev>-merged/packages/sdlc/lib`。
+ *
+ * 为什么不能像旧布局那样只取 `scan.ts` 一个文件：合并后组件之间有了真实的
+ * 相对 import（`status/scan.ts` → `../task/state.js`，`verify/index.ts` →
+ * `../shared/helpers.js`）。只取单文件会编译失败；`git archive` 取整包最省事，
+ * 且足够快（包不大）。
+ *
+ * 为什么单独处理 `package.json`/`tsconfig.json`：合并包是 `"type": "module"`、
+ * 用 NodeNext 编译，和外面 `makeWorkdir` 给旧布局准备的 `commonjs` 冲突。
+ * 取出的包里本来就带这两份文件（`git archive` 取的是提交里的真实内容）；
+ * 只有将来某个变体缺了才补写一份保守默认值。嵌套的 `package.json` 优先级
+ * 更高，于是两种形态可以在**同一个 work 目录**里共存——基线走 `require`，
+ * 修复版走 `import()`，`runCase` 不用改。
+ */
+export function compileMerged(rev, work) {
+  const dir = path.join(work, `${rev.replace(/[^\w.-]/g, '_')}-merged`);
+  mkdirSync(dir, { recursive: true });
+  const tar = sh('git', ['-C', REPO, 'archive', '--format=tar', rev, 'packages/sdlc'], {
+    encoding: 'buffer',
+  });
+  execFileSync('tar', ['-x', '-C', dir], { input: tar });
+  const pkgDir = path.join(dir, 'packages/sdlc');
+  if (!existsSync(path.join(pkgDir, 'src'))) throw new Error(`${rev}: archive 里没有 packages/sdlc/src`);
+  if (!existsSync(path.join(pkgDir, 'package.json'))) {
+    writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ type: 'module' }));
+  }
+  if (!existsSync(path.join(pkgDir, 'tsconfig.json'))) {
+    writeFileSync(
+      path.join(pkgDir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
+          lib: ['ES2023'], strict: true, skipLibCheck: true,
+          outDir: 'lib', rootDir: 'src', types: ['node'],
+        },
+        include: ['src/**/*.ts'],
+      }),
+    );
+  }
+  sh(path.join(REPO, 'node_modules/.bin/tsc'), ['-p', path.join(pkgDir, 'tsconfig.json')], {
+    cwd: pkgDir,
+  });
+  const lib = path.join(pkgDir, 'lib');
+  if (!existsSync(lib)) throw new Error(`${rev}: 合并包编译没有产出 lib/`);
+  return lib;
+}
+
+/** 加载合并包编译出的 ESM 模块（`compileMerged` 的产物是 `"type": "module"`）。 */
+export async function loadMerged(libRoot, ...relParts) {
+  const file = path.join(libRoot, ...relParts);
+  if (!existsSync(file)) throw new Error(`合并产物里没有 ${file}`);
+  return import(pathToFileURL(file).href);
 }
 
 /**

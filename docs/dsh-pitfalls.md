@@ -4,6 +4,11 @@
 不报错，只是"什么都没发生"。写 DSH 插件或配置前请先读。
 （0.2.1 的破坏性变更与版本门禁见 `docs/dsh-plugin-contracts.md` §0.0。）
 
+> **路径口径**：2026-10-19 起本仓库只有一个包 `packages/sdlc`：组件源码在
+> `packages/sdlc/src/<组件>/`、冒烟在 `packages/sdlc/smoke/<组件>.mjs`。
+> 下文出现 `packages/sdlc-verify/` 等七个旧包名的地方都是**合并前**的历史记录，
+> 已就地标注；照抄旧路径会找不到文件。
+
 来源：2026-10-07 一次端到端接线（Claude Code hooks 桥接）的排查过程，
 以及插件化落地时的能力核实。原始记录见同名 Agent 会话日志。
 
@@ -38,6 +43,39 @@ zstd -dc ~/.dsh/sessions/--<项目>--/<session-id>/session.v4.jsonl.zstd \
 not a profile layer`，**必须**在 profile 的 `cordis.patch.yml` 里手工加 `insert` 行才会挂载。
 
 `dsh-base`、`dsh-web-app` 这类 bundle 才带 `dsh.bundle.patch`，会自动启用。
+带 patch 的包还会被自动登记进 `dsh.profile.bundles`——见 §2.1。
+
+### 2.1 带 `dsh.bundle.patch` 的包：`plugin add` **会自动写** `dsh.profile.bundles`（0.2.1-rc.2 实测）
+
+**与仓库早先的一句断言不同**：AGENTS.md 曾记「`dsh plugin add` 只装包，不写
+`dsh.profile.bundles`，必须手补」。2026-10-19 在 DSH `0.2.1-rc.2` 上用 `npm pack`
+的 tgz 在隔离 profile 上**两次实测**，CLI 都自动追加了：
+
+- 冷启动 profile：`["@deepseek-ai/dsh-base"]` → `["@deepseek-ai/dsh-base", "@probe/two-rows"]`
+- web 模板 profile：`["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"]` → `+ "@probe/two-rows"`
+
+两次都是装完直接读 profile `package.json` 看到的，没有手改。完整证据（含
+`--dump-config` 行、真实启动 marker）见本轮探针记录 `.probe/EVIDENCE.md` §6.1
+（本地证据目录，不进 git）。
+
+怎么记这条才不误导：
+
+- 它**不是永恒契约**。可能受版本（`0.2.0-rc.2` vs `0.2.1-rc.2`）、安装形态
+  （tgz vs 绝对路径符号链接）、bundle 自身 peer 与运行时兼容性影响。
+- 旧断言也不必当作"当时写错了"删掉——它当时的读数可能仍然对，错在把它写成了绝对句。
+- **可操作的结论**：装完读 profile 的 `package.json` 核对 `dsh.profile.bundles`；
+  没出现就手补（GUI 插件管理器也会做这一步）。不要用「安装成功」推断「bundle 已登记」。
+
+### 2.2 不需要 PATH 上有 pnpm（desktop CLI 自带）
+
+`dsh plugin add` 会调用 pnpm，但**不是 PATH 上的那个**：desktop CLI 在
+`runDesktopCli()` 里把 packageManager 固定为 `process.execPath` +
+`ELECTRON_RUN_AS_NODE=1` + App 运行时的 `pnpm.mjs`（2026-10-19 读 `cli.js` 实现 +
+实测确认；App 运行时是 pnpm `11.28.5`）。本机 `command -v pnpm` 退出码 1，
+两次 `plugin add` 都成功。
+
+这条对「干净机器上复现」有用：**没有 pnpm 也能装 bundle**；反过来，PATH 上有 pnpm
+也不代表它会被采用。证据见 `.probe/EVIDENCE.md` §1 / §6.3。
 
 ## 3. 注册表 `latest` 标签可能指向过时版本
 
@@ -188,14 +226,16 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
   纯类型 import 也要真写出来。
 - `inject` 里要加 `'sandboxPolicy'`。
 
-⚠️ **这个坑我在两个包里各踩了一次**——修了 `sdlc-task` 却没检查
-`sdlc-verify` 有没有同样的调用方式。教训：**修一类问题时，要 grep 全部同类调用点**，
-不要只修眼前那个。
+⚠️ **这个坑我在两个独立的包（合并前）里各踩了一次**——修了 `sdlc-task`
+（现 `packages/sdlc/src/task/`）却没检查 `sdlc-verify`
+（现 `packages/sdlc/src/verify/`）有没有同样的调用方式。
+教训：**修一类问题时，要 grep 全部同类调用点**，不要只修眼前那个。
 
 ⚠️ 还有一层更隐蔽的：**测试桩忽略参数 = 测试对这类问题失明**。
-`sdlc-verify` 的 `fs` 桩原本写成 `resolve(p, _o)`、`writeText(target, content)`，
-把 cwd 和 policy 直接丢掉，所以这个 bug 在冒烟测试里**不可能被发现**。
-现在两个包的桩都记录并断言这两个参数。
+`sdlc-verify` 的 `fs` 桩（现在是 `packages/sdlc/smoke/verify.mjs`）原本写成
+`resolve(p, _o)`、`writeText(target, content)`，把 cwd 和 policy 直接丢掉，
+所以这个 bug 在冒烟测试里**不可能被发现**。合并后两个组件的桩都在同一个包里，
+现在都记录并断言这两个参数。
 
 ## 11.2 陷阱：验证者**无法验证自己这次调用产生的制品**
 
@@ -270,9 +310,13 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 上面那条"重启就生效"**有一个前提，我当时没写出来**：
 `dsh plugin add` 建的是**符号链接**时，重启才会重新读仓库的 `lib/`。
 
-**本机 desktop profile 不是这种情况。** 它的 `package.json` 里是：
+**本机 desktop profile 不是这种情况。** 它的 `package.json` 里是（合并前的读数）：
 
     "@ai-native-sdlc/dsh-sdlc-verify": "file:.../packages/sdlc-verify/<pkg>.tgz"
+
+合并后同一个包叫 `@ai-native-sdlc/dsh-sdlc`，安装形态不变：
+
+    "@ai-native-sdlc/dsh-sdlc": "file:.../ai-native-sdlc-dsh-sdlc-0.2.0.tgz"
 
 `file:` 指向 **tgz**，装的是**解压出来的副本**。所以：
 
@@ -288,8 +332,9 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 不一致就点名是哪个包、哪个文件。退出码 1 = App 跑的不是你这一版。
 它同时检查下面 §12.3 那条。
 
-**同步方式**：把 `<pkg>/lib/*.js` 拷进 profile 的
-`node_modules/@ai-native-sdlc/<pkg>/lib/`，再重启（只拷改动过的包）。
+**同步方式**：合并后只有一个包——把 `packages/sdlc/lib/**/*.js` 拷进 profile 的
+`node_modules/@ai-native-sdlc/dsh-sdlc/lib/`（保留子目录结构），再重启。
+（合并前是按组件拷进 `node_modules/@ai-native-sdlc/dsh-sdlc-<组件>/lib/`。）
 
 ⚠️ 顺带一个同类的坑：环境里的 `DSH_PROFILE` 值是 **`desktop`（名字，不是路径）**，
 绝对路径在 `DSH_PROFILE_DIR`。拿 `DSH_PROFILE` 当路径用会得到一个**相对路径**，
@@ -316,8 +361,9 @@ patch 里没有插件提供那个服务 → 永远在等。
 
 ⚠️ **`smoke.mjs` 抓不到这个**：它直接调 `apply()`，绕过了 Cordis 的服务等待，
 所以"缺服务"在冒烟里完全不体现（那次 86/86 全绿，而插件在 App 里根本没激活）。
-`packages/sdlc-verify/smoke.mjs` 已补一条断言（"inject 的每个名字都能被
-Cordis 解析到"），并**做过反向验证**：把 `logger` 装回去 → 冒烟红 1 条。
+`packages/sdlc/smoke/verify.mjs`（合并前是 `packages/sdlc-verify/smoke.mjs`）
+已补一条断言（"inject 的每个名字都能被 Cordis 解析到"），并**做过反向验证**：
+把 `logger` 装回去 → 冒烟红 1 条。
 
 **教训**：`fiberPhase` 的失败有两种，`failed` 会报错，**`pending` 是沉默的**——
 插件"工具不见了"时先查 `fiberPhase`。
@@ -372,7 +418,8 @@ window.__ModuleLoader__.load({
 **`dsh web` 确实会加载 `exports["./client"]`。** 做法与观察到的证据：
 
 ```
-1. 写一个探针包（packages/sdlc-ui）：host 半 + 手写客户端半，
+1. 写一个探针包（合并前叫 `packages/sdlc-ui`；合并后组件在
+   `packages/sdlc/src/ui/`）：host 半 + 手写客户端半，
    往 sidebar.panellist 挂一个带文字 "SDLC-ui ✓" 的项
 2. dsh plugin --profile web add <tgz>
 3. dsh --profile web --port 19403 --no-open   （后台任务）
@@ -395,6 +442,27 @@ window.__ModuleLoader__.load({
 - `/` 会 **401**，随后 **303 重定向**——必须 `curl -sL` 且带 cookie jar
 - 插件 bundle 的 URL 里有 `??`（多个插件合并成一个响应）。
   **必须从页面里取完整 URL**（含 `&rev=`）；自己拼 `plugins/??<包名>/client.js` 会 **404**
+
+> 上表两个 id 都是**合并前**的客户端包名（当时 `sdlc-ui` 是独立包，行名就是包名）。
+> 现在 `packages/sdlc/src/ui/client.js` 的 loader id 是 `@ai-native-sdlc/dsh-sdlc`；
+> 保留旧读数只为对照。
+
+### ⚠️ 合并后新坑（2026-10-19）：`dsh.client` 只按**精确包名**的 loader 行发现
+
+`sdlc-ui` 合并进 `packages/sdlc` 后，`cordis.patch.yml` 里这一行**仍然必须写包名本身**
+`@ai-native-sdlc/dsh-sdlc`，不能写 `@ai-native-sdlc/dsh-sdlc/ui` 子路径：
+
+- `@deepseek-ai/dsh-client-modules` 用 `exactPackageSpecifier` 找"哪个已加载的
+  loader 行属于声明了 `dsh.client` 的包"，子路径让它返回 `undefined`；
+- 写成子路径的后果是**浏览器半不进 `window.__DSH_BOOT__`**，而 host 半的
+  `/api/sdlc-ui.tasks` 照常 200——**面板不出现，启动日志无错**；
+- 本轮真实启动抓到过一次（boot payload 里没有那个 entry）；修法是把 `sdlc-ui` 行
+  改回精确包名、包根入口重新导出 ui 定义。`smoke/ui.mjs` 加了 4 条回归断言，
+  ui 冒烟从 40 变 44。
+
+一般化：**"进了 Loader"不等于"客户端半被发现"**——`dsh.client` 的发现条件是
+**精确包名**（`@scope/name` 两段），不是"任意指向该包的加载行"。其余六个组件
+仍走子路径导出，不受影响。
 
 ### ⚠️ 数据通道：查清了，而且**有真实的坑**
 

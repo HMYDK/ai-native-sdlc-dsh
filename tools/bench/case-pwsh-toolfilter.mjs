@@ -40,7 +40,10 @@ import { pathToFileURL } from 'node:url';
 
 const BASELINE_REV = '896d569';
 const FIX_REV = '52212ad';
-const SRC = ['index.ts', 'verdict.ts', 'helpers.ts', 'test-freeze.ts'];
+// ⚠️ 这里**不能**写 `helpers.ts`：这两个历史 revision 的 src 下从来没有它
+// （实测 `git show 896d569:packages/sdlc-verify/src/helpers.ts` → 不存在）。
+// `compileFiles` 会静默跳过缺失文件，写错一个名字会让人误以为它被编译了。
+const SRC = ['index.ts', 'verdict.ts', 'test-freeze.ts'];
 
 /** 各平台**真实存在**的全局工具（按官方 bundle 的启用规则）。 */
 const KNOWN_TOOLS = {
@@ -134,9 +137,22 @@ async function judge(mod) {
  * ⚠️ 验证者的产物需要 **ESM** 加载：它 `import` 别的模块，
  * 而 `makeWorkdir` 默认声明 `commonjs`。所以这里给该版本单独标 `type: module`。
  * （`52212ad` 的包本来就是 `"type": "module"`。）
+ *
+ * ⚠️ 编译用 `noCheck`（只转译、不类型检查）——这是**实测诊断**出来的，不是猜：
+ *
+ *     $ tsc -p …/896d569-module/tsconfig.json
+ *     src/index.ts(297,11): error TS2353: 'toolFilter' does not exist in type 'SubagentStartRequest'
+ *     src/index.ts(313,58): error TS2339: Property 'start' does not exist on type 'SubagentRuntime'
+ *
+ * 原因是 2026-10-19 App 升到 DSH 0.2.1 后，`ctx.subagents.start()` 与
+ * `SubagentStartRequest.toolFilter` 已从运行时类型里删除（见 AGENTS.md
+ * 「0.2.1 兼容性」）。这两个 revision 是针对 0.2.0 API 写的，拿今天的
+ * node_modules 类型去检查**必然**失败；而本用例比较的是**运行时行为**
+ * （白名单按平台选），与类型漂移无关。所以正确处置是换成只转译，
+ * **不是**改历史源码去迁就新类型。
  */
 const compile = async (rev, work) => {
-  const lib = compileFiles(rev, 'packages/sdlc-verify/src', SRC, work);
+  const lib = compileFiles(rev, 'packages/sdlc-verify/src', SRC, work, { noCheck: true });
   return import(pathToFileURL(path.join(lib, 'index.js')).href);
 };
 

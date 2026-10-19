@@ -11,6 +11,11 @@
 
 ## 0.0 先读：0.2.1 的兼容性破坏（2026-10-17 实测）
 
+> **历史背景（合并前）**：这次事故发生在「七个独立 npm 包、每个包各自钉 peer」
+> 的形态下。2026-10-19 仓库已合并为一个包（`@ai-native-sdlc/dsh-sdlc`，只有
+> 一份 peer 范围、一条 profile.bundles 条目），这类「七包同升、一起静默消失」的
+> 失败模式从根上消失；事故记录保留，因为它正解释了为什么要合并。现状见 §1.1。
+
 App 自动从 `0.2.0-rc.2` 升到 `0.2.1-rc.2` 之后，七个插件全部静默消失。
 根因不是某个 API，而是**版本门禁 + 精确 peer 钉死**：
 
@@ -43,7 +48,7 @@ App 自动从 `0.2.0-rc.2` 升到 `0.2.1-rc.2` 之后，七个插件全部静默
 > `tool-subagent: persona is no longer supported; configure persona and tool plugins
 > in an Agent Preset and select it with agentPreset (spawn only)`
 
-迁移形态（本仓库 `packages/sdlc-verify/src/preset.ts`）：
+迁移形态（本仓库 `packages/sdlc/src/verify/preset.ts`）：
 
 1. 用 `ctx.agentPresets.register({ id, plugins: [...] })` 注册一份 preset；
 2. `startActivation` 的 request 带 `agentPreset: '<id>'`；
@@ -256,7 +261,32 @@ bundle 会被**自动追加到 `dsh.profile.bundles`**——这一点已实测�
 `dsh.profile.bundles` 从 `["@deepseek-ai/dsh-base"]` 变成
 `["@deepseek-ai/dsh-base", "<本包>"]`。这是 bundle 相对普通插件的核心优势。
 
-### 安装到隔离 profile 验证（不碰正在用的 App）
+⚠️ 这是**按版本 / 安装形态测出来的**，不是永恒契约：2026-10-19 在 DSH `0.2.1-rc.2` +
+`npm pack` 的 tgz 上复测两次（冷启动 profile 与 web 模板 profile），都自动追加；
+更早的 `0.2.0-rc.2` / 符号链接安装曾观察到**不追加**。所以装完要**读 profile 的
+`package.json` 确认**，不要用「安装命令成功」推断「bundle 已登记」。
+原始读数见 `docs/dsh-pitfalls.md` §2.1。
+
+### 1.1 本仓库的分发形态：一个 bundle + 七行
+
+本仓库把七个机制合并为**一个包** `@ai-native-sdlc/dsh-sdlc`，`cordis.patch.yml` 是
+**一条 `insert`、七个组件行**（行 id 与合并前完全一致：`sdlc-task` / `sdlc-verify` ……）。
+分发单位是一个 npm 包 / 一个 bundle / 一条 `dsh.profile.bundles` 条目 / 一个 tarball；
+执行单位仍是七个 Cordis 行，各有自己的 `inject` / `Config` / fiber。
+
+⚠️ 七行里**六行指向子路径导出**（`@ai-native-sdlc/dsh-sdlc/task` 等），
+**`sdlc-ui` 行必须指向包名本身** `@ai-native-sdlc/dsh-sdlc`。原因是
+`@deepseek-ai/dsh-client-modules` 只扫描**精确包名**的 loader 行
+（`exactPackageSpecifier` 对子路径返回 `undefined`）来发现包的 `dsh.client`；
+写成 `.../ui` 子路径，浏览器半就不会进 `window.__DSH_BOOT__`——**host 端点照常 200，
+面板不出现，日志无错**。所以包根入口重新导出 ui 组件定义；行级禁用 `sdlc-ui`
+时浏览器半也随之消失，语义正确。这是合并后才出现、只有真实启动才能抓到的一条。
+
+这不是契约层的新机制——**DSH 的契约不因合并改变**，上面的 Bundle / profile / preset
+规则逐条适用；变的只是本仓库把七个机制装进同一个包里。理由、行表与安装命令见
+[`packages/sdlc/README.md`](../packages/sdlc/README.md)。
+
+### 1.2 安装到隔离 profile 验证（不碰正在用的 App）
 
 ```sh
 BASE="/Applications/DeepSeek Harness.app/Contents"
@@ -269,6 +299,15 @@ ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile <p> --dump-con
 ```
 
 `plugin add` 会自动初始化不存在的 profile。
+
+⚠️ `--from-default-profile <name>` 是**整目录替换**：会清空 profile 的 `dependencies`
+与 `dsh.profile.bundles`（回到模板值）。需要模板 + 插件时**先重建、再 `plugin add`**，
+反过来会把刚装的东西丢掉（2026-10-19 实测）。
+
+⚠️ `plugin add` **不要求 PATH 上有 pnpm**：desktop CLI 用 App 运行时的自带 pnpm
+（`process.execPath` + `ELECTRON_RUN_AS_NODE=1` 调 `pnpm.mjs`）。2026-10-19 在
+`0.2.1-rc.2` 上实测：本机 `command -v pnpm` 失败，两次 `plugin add` 均成功并打印
+`pnpm v11.28.5`。见 `docs/dsh-pitfalls.md` §2.2。
 
 ---
 

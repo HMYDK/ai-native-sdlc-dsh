@@ -23,14 +23,27 @@
  *
  * ⚠️ 写这个探针时我三次写出恒真断言，都记在对应注释里——那正是基准要防的东西。
  */
-import { compileFiles, loadModule, runCase } from './lib.mjs';
+import { compileFiles, compileMerged, loadMerged, loadModule, mergedAt, runCase } from './lib.mjs';
 
 const BASELINE_REV = '60825a2';
 const CURRENT_REV = 'HEAD';
 const BASELINE_LABEL = `基线 ${BASELINE_REV}（默认页也按 id 序切窗）`;
 const CURRENT_LABEL = '当前 HEAD';
 
-const compile = (rev, work) => loadModule(compileFiles(rev, 'packages/sdlc-status/src', ['scan.ts'], work));
+/**
+ * ⚠️ 两个版本的**源码布局不同**：基线 60825a2 在七个独立包时代
+ * （`packages/sdlc-status/src/scan.ts`），修复版 HEAD 在合并后的单包时代
+ * （`packages/sdlc/src/status/scan.ts`，且 `scan.ts` 现在 import `../task/state.js`）。
+ * 所以按 revision 判形：合并布局走整包编译 + ESM 加载，旧布局保持原路径。
+ * **基线一侧的旧路径必须保留**——历史提交里的路径是真实存在的。
+ */
+const compile = async (rev, work) => {
+  if (mergedAt(rev)) {
+    const lib = compileMerged(rev, work);
+    return loadMerged(lib, 'status', 'scan.js');
+  }
+  return loadModule(compileFiles(rev, 'packages/sdlc-status/src', ['scan.ts'], work));
+};
 
 function probe(scan, { now, later }) {
   const HOUR = 3600_000;

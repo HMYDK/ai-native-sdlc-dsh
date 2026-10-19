@@ -81,3 +81,62 @@
   同类问题（插件激活、inject、提示词段）都可以照这个手法加用例。
 - 基准证明的是**这两版之间的差异**，不证明"判据覆盖了所有情况"。
   判据的来源是当时的制品，制品本身可能不完整。
+
+## 2026-10-19：七个插件合并成一个包之后的适配
+
+仓库把七个插件合并成一个包 `packages/sdlc`（`959f3ee`）。对基准的影响是
+**两侧的源码布局可能不同**，而"基线用旧路径、修复版用新路径"正是这段历史
+本身的一部分：
+
+| 用例 | 基线侧（历史提交，旧路径保留） | 修复侧 |
+|---|---|---|
+| `STATUS-PAGE-1` | `60825a2` → `packages/sdlc-status/src/scan.ts` | `HEAD` → `packages/sdlc/src/status`（合并布局） |
+| `FALSE-ALARM-1` | `671a683` → 旧路径 | `ddc4241` → 旧路径 |
+| `PWSH-1` | `896d569` → 旧路径 | `52212ad` → 旧路径 |
+
+所以 `lib.mjs` 不再假设一种布局，而是按 revision 判形：
+
+- `mergedAt(rev)`：该 revision 有没有 `packages/sdlc/src`；
+- `compileMerged(rev, work)`：用 `git archive` 取**整个** `packages/sdlc`，
+  在临时目录里用包自己的 `package.json`（`type: module`）与 `tsconfig.json`
+  编译，再 `import()` 加载。必须整包取——合并后组件之间有真实相对 import
+  （`status/scan.ts` → `../task/state.js`），只取单文件编译不过；
+- 旧布局仍走原来的 `git show` 单文件 + `require`。两种形态在同一个 work
+  目录里共存（嵌套 `package.json` 的 `type` 优先）。
+
+### PWSH-1 的 tsc 失败是**类型漂移**，不是用例失败（实测诊断）
+
+合并后第一次跑 `node tools/bench/run.mjs` 时 PWSH-1 报 tsc 失败。原始输出：
+
+    $ tsc -p …/896d569-module/tsconfig.json
+    src/index.ts(297,11): error TS2353: Object literal may only specify known
+      properties, and 'toolFilter' does not exist in type 'SubagentStartRequest'.
+    src/index.ts(313,58): error TS2339: Property 'start' does not exist on
+      type 'SubagentRuntime'.
+
+原因不在合并：2026-10-19 App 升到 DSH 0.2.1 后，`ctx.subagents.start()` 与
+`SubagentStartRequest.toolFilter` 已从运行时类型里删除（见 AGENTS.md
+「0.2.1 兼容性」）。这两个 revision 是针对 0.2.0 API 写的，拿今天的
+`node_modules` 类型去检查**必然**失败；而本用例比较的是**运行时行为**
+（验证者工具白名单按平台选），与类型漂移无关。
+
+处置：`compileFiles` 支持 `{ noCheck: true }`（只转译、不类型检查），
+PWSH-1 的两个历史版本都用它。**不是**改历史源码去迁就新类型——那会伪造历史。
+
+### 实测（2026-10-19，HEAD `a6ac82d`，Node v26.8.2）
+
+    $ node tools/bench/run.mjs
+    ### STATUS-PAGE-1 … ✅ 有效：基线违反 4 条，修复版 0 条。
+    ### FALSE-ALARM-1 … ✅ 有效：基线违反 2 条，修复版 0 条。
+    ### PWSH-1 …        ✅ 有效：基线违反 4 条，修复版 0 条。
+
+    汇总：
+      ✅ 成立  STATUS-PAGE-1       基线违反 4 条 / 修复版违反 0 条
+      ✅ 成立  FALSE-ALARM-1       基线违反 2 条 / 修复版违反 0 条
+      ✅ 成立  PWSH-1              基线违反 4 条 / 修复版违反 0 条
+
+三个用例的"基线违反数"与合并前的历史读数一致（4 / 2 / 4），说明判据没有
+因为换布局而变松或变紧。整轮约 4 秒。
+
+⚠️ 复跑前提：仓库根 `node_modules` 里有 TypeScript 与 DSH 运行时（临时编译区
+通过符号链接用它），**不需要** App、不需要 profile。

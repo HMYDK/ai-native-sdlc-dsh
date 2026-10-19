@@ -19,7 +19,9 @@
 
 ## 验证
 
-命令：`npm run verify -w @ai-native-sdlc/dsh-sdlc-ui`。
+命令：`npm run verify -w @ai-native-sdlc/dsh-sdlc`。
+（本记录写于 0.1.1，合并前的包名是 `@ai-native-sdlc/dsh-sdlc-ui`；合并后组件在
+`packages/sdlc/src/ui/`。——**当前照做请用上面这条命令。**）
 
 | 检查 | 结果 | 能证明的范围 |
 |---|---|---|
@@ -44,12 +46,18 @@
 
 ## 分发与本机安装
 
+> 本节是 **0.1.1（合并前，`sdlc-ui` 还是独立包）** 的分发读数，保留作当时证据。
+> 合并后它只是 `packages/sdlc` 的一个组件行，一个 tarball 装七个组件；
+> 安装/打包命令见仓库 [README.md](../README.md) 与
+> [packages/sdlc/README.md](../packages/sdlc/README.md)。
+
 构建前清理 lib，避免旧 helpers.js 混进新包。npm pack 0.1.1 得到 5 个文件：
 cordis.patch.yml、icon.svg、lib/client.js、lib/index.js、package.json。
 用带内容哈希的 tarball 路径更新 desktop profile，避免同路径安装复用旧文件。
 
 安装后 lib/client.js、lib/index.js、package.json 与仓库构建逐字节相同。
-客户端 SHA-256：`cd8ef1f3576dc20e51ec54eb918ec875a14d450e356d92283ad8a339857480c7`。
+客户端 SHA-256：`cd8ef1f3576dc20e51ec54eb918ec875a14d450e356d92283ad8a339857480c7`
+（0.1.1 打包产物）。
 真实桌面 App 已显示新版，并操作 BOARD-1、读取 intent.md、Escape 返回，
 焦点回到原按钮。此次未改变宿主代码，不需要靠推断宿主重新加载来验收。
 

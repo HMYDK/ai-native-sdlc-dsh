@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 变异测试：**测量四个包的测试套件到底保住了什么**。
+ * 变异测试：**测量合并包里各组件的测试套件到底保住了什么**。
  *
  * ## 为什么需要它
  *
@@ -18,12 +18,34 @@
  * 所以这个工具把变异测试从临时手段变成**常规测量**：往实现里注入明确的缺陷，
  * 看测试会不会红。**存活的变异就是测试看不见的代码面。**
  *
+ * ## 布局（2026-10-19 合并成单包后）
+ *
+ * 七个插件合并成一个 `packages/sdlc` 包，源码在 `src/<comp>/`、产物在
+ * `lib/<comp>/`。所以测量目标从"四个包目录"变成"单包里的组件目录"：
+ *
+ *     sdlc-verify    packages/sdlc/{src,lib}/verify   + smoke/verify.mjs
+ *     sdlc-task      packages/sdlc/{src,lib}/task     + smoke/task.mjs
+ *     sdlc-artifact  packages/sdlc/{src,lib}/artifact + smoke/artifact.mjs
+ *     sdlc-status    packages/sdlc/{src,lib}/status   + smoke/status.mjs
+ *     sdlc-shared    packages/sdlc/{src,lib}/shared   （无冒烟）
+ *
+ * `sdlc-shared` 是合并带来的第五个目标：`sessionCwd` / `resolveOptions` 等
+ * 辅助函数**合并前在四个包里各有一份逐字相同的副本**（每份都有自己的
+ * `lib/helpers.js`），合并后只剩 `src/shared/helpers.ts` 一份。测量单元也
+ * 应该只剩一份——否则同一份代码会被四个组件的测试各测一遍、存活点重复登记。
+ *
  * ## 怎么跑
  *
- *     node tools/mutation-score.mjs                 # 四个包
- *     node tools/mutation-score.mjs sdlc-status     # 单个包
+ *     node tools/mutation-score.mjs                 # 全部目标（四个组件 + shared）
+ *     node tools/mutation-score.mjs sdlc-status     # 单个组件
+ *     node tools/mutation-score.mjs --gate sdlc     # 门禁形态（package.json 的 mutation-gate 脚本）
  *     node tools/mutation-score.mjs --list          # 只列变异点，不跑
- *     node tools/mutation-score.mjs --kinds=bool    # 只用某一类
+ *     node tools/mutation-score.mjs --kinds=boolean # 只用某一类（boundary/boolean/constant）
+ *
+ * ⚠️ 合并后 `--gate` 的语义变了：旧 package.json 的 mutation-gate 是
+ * `--gate`（无值）；合并后是 `--gate sdlc`。所以 `sdlc` / `dsh-sdlc` /
+ * `@ai-native-sdlc/dsh-sdlc` 被当成"全部目标"的别名，组件名照旧可单独选。
+ * 未知名字显式失败，不静默当成空跑。
  *
  * ## 两阶段策略（决定它能不能跑完）
  *
@@ -36,12 +58,15 @@
  *
  * ## 它是怎么改代码的
  *
- * **在 `lib/` 上做文本替换，然后用 `tsc` 从源码重新编译来还原。**
+ * **在 `lib/` 上做文本替换，跑测试，然后把原文逐字节写回。**
  * 直接改 `src/` 更干净，但这类工具的锚点匹配是本仓库踩过多次的坑；
- * 在编译产物上做，替换的成功与否可以逐个断言（replace 必须真的改了东西），
- * 而还原走 `tsc` —— 那是权威的、不可能"还原失败还静默通过"的路径。
+ * 在编译产物上做，替换的成功与否可以逐个断言（replace 必须真的改了东西）。
  *
- * ⚠️ 它是**读-改-还原**的：跑完必须确认 `git status` 干净。
+ * ⚠️ 它是**读-改-还原**的：跑完必须确认改动全部还原。
+ * **注意：`lib/` 不进 git（`.gitignore` 对 `packages/<pkg>/lib/` 的忽略规则），
+ * 所以 `git status` 看不见 lib 里的残留——旧版"只用 git status 收尾"在新布局下
+ * 是漏判。**现在收尾做两件事：① 把每个被改文件与改动前记录的原文**逐字节
+ * 比对**（权威判据）；② `git status` 只用来证明没有误动 `src/`。
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -52,7 +77,37 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = process.env['DSH_APP'] ?? '/Applications/DeepSeek Harness.app/Contents';
 const APP_BIN = `${APP}/MacOS/DeepSeek Harness`;
 
-const ALL_PACKAGES = ['sdlc-verify', 'sdlc-task', 'sdlc-artifact', 'sdlc-status'];
+/** 合并后的单包根。 */
+const MERGED_PKG = path.join(ROOT, 'packages/sdlc');
+
+/**
+ * 测量目标。`lib`/`src` 是相对单包根的目录；`smoke` 是相对单包根的冒烟脚本。
+ * 逻辑名（pkg）沿用合并前的组件名，门禁清单键与历史报告因此保持可比。
+ */
+const TARGETS = {
+  'sdlc-verify': { lib: 'lib/verify', src: 'src/verify', smoke: 'smoke/verify.mjs' },
+  'sdlc-task': { lib: 'lib/task', src: 'src/task', smoke: 'smoke/task.mjs' },
+  'sdlc-artifact': { lib: 'lib/artifact', src: 'src/artifact', smoke: 'smoke/artifact.mjs' },
+  'sdlc-status': { lib: 'lib/status', src: 'src/status', smoke: 'smoke/status.mjs' },
+  // 四份重复的 helpers.js 合并成一份；单测是 lib/shared/helpers.test.js。
+  'sdlc-shared': { lib: 'lib/shared', src: 'src/shared', smoke: null },
+};
+const ALL_PACKAGES = Object.keys(TARGETS);
+const PACKAGE_ALIASES = new Set(['sdlc', 'dsh-sdlc', '@ai-native-sdlc/dsh-sdlc']);
+
+/** 把命令行里的目标名展开：`sdlc` = 全部组件；组件名 = 单个目标。 */
+function expandTargets(names) {
+  const out = [];
+  for (const name of names) {
+    if (PACKAGE_ALIASES.has(name)) out.push(...ALL_PACKAGES);
+    else if (TARGETS[name]) out.push(name);
+    else {
+      console.error(`未知目标：${name}（可用：sdlc / ${ALL_PACKAGES.join(' / ')}）`);
+      process.exitCode = 1;
+    }
+  }
+  return [...new Set(out)];
+}
 
 // ─────────────────────────────────────────────── 变异算子
 //
@@ -165,15 +220,16 @@ function findSites(file, op) {
  * 由编译产物的行号推回**源码**行号。
  *
  * tsc 会重排行与合并类型声明，所以这不是精确映射。做法是：把该行的
- * **代码文本**（去掉缩进与尾随空白）拿到 `src/` 同名文件里去找第一处匹配。
+ * **代码文本**（去掉缩进与尾随空白）拿到 `src/<comp>/` 同名文件里去找第一处匹配。
  * 找不到就返回 undefined —— 报告里如实标"未定位"，不猜。
+ *
+ * 合并后的路径形状：`packages/sdlc/lib/<comp>/x.js` ↔ `packages/sdlc/src/<comp>/x.ts`，
+ * 两者只差 lib/src 与扩展名（实测旧函数用 `dirname(dirname(libFile))` 找 src，
+ * 在单包布局下会指到 `packages/sdlc/src/*.ts`——一层都没对上，必须按相对路径算）。
  */
-function srcLineOf(libFile, libLine) {
-  const srcFile = path.join(
-    path.dirname(path.dirname(libFile)),
-    'src',
-    path.basename(libFile).replace(/\.js$/, '.ts'),
-  );
+function srcLineOf(pkg, libFile, libLine) {
+  const rel = path.relative(path.join(MERGED_PKG, 'lib'), libFile); // <comp>/x.js
+  const srcFile = path.join(MERGED_PKG, 'src', rel.replace(/\.js$/, '.ts'));
   if (!fs.existsSync(srcFile)) return undefined;
   const needle = fs.readFileSync(libFile, 'utf8').split('\n')[libLine - 1]?.trim();
   if (needle === undefined || needle === '') return undefined;
@@ -274,18 +330,29 @@ const run = (cmd, args, cwd, env = {}) => {
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 };
 
-/** 单测：快（约 0.2 秒），抓大部分。 */
-function unitTestsPassed(pkgDir) {
-  const files = fs.readdirSync(path.join(pkgDir, 'lib')).filter((f) => f.endsWith('.test.js'));
+/**
+ * 单测：快（约 0.2 秒），抓大部分。
+ *
+ * 合并后测试按组件分目录：`lib/<comp>/*.test.js`，在**单包根**下跑。
+ * 必须给 `node --test` 相对路径而不是文件名——测试文件里的
+ * `import './x.js'` 按文件自身位置解析，cwd 只影响参数解析。
+ */
+function unitTestsPassed(pkg) {
+  const t = TARGETS[pkg];
+  const dir = path.join(MERGED_PKG, t.lib);
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.js'));
   if (files.length === 0) return { passed: true, note: '无单测文件' };
-  const r = run(process.execPath, ['--test', ...files.map((f) => path.join('lib', f))], pkgDir);
+  const r = run(process.execPath, ['--test', ...files.map((f) => path.join(t.lib, f))], MERGED_PKG);
   return { passed: r.code === 0, note: '' };
 }
 
 /** 冒烟：慢（起 Electron app），只有单测放过的才跑。 */
-function smokePassed(pkgDir) {
-  if (!fs.existsSync(path.join(pkgDir, 'smoke.mjs'))) return { passed: true, note: '无冒烟' };
-  const r = run(APP_BIN, ['--expose-internals', 'smoke.mjs'], pkgDir, {
+function smokePassed(pkg) {
+  const smokeRel = TARGETS[pkg].smoke;
+  if (!smokeRel || !fs.existsSync(path.join(MERGED_PKG, smokeRel))) {
+    return { passed: true, note: '无冒烟' };
+  }
+  const r = run(APP_BIN, ['--expose-internals', smokeRel], MERGED_PKG, {
     ELECTRON_RUN_AS_NODE: '1',
   });
   return { passed: r.code === 0, note: '' };
@@ -328,23 +395,31 @@ function keyOf(entry) {
 const argv = process.argv.slice(2);
 const flag = (name) => argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 const listOnly = argv.includes('--list');
-const gate = argv.includes('--gate');
 const updateList = argv.includes('--update-allowlist');
 const kinds = flag('kinds')?.split(',');
-const only = argv.filter((a) => !a.startsWith('--'));
+// `--gate` 可以不带值（旧用法），也可以带值：`--gate sdlc` 或 `--gate=sdlc`。
+// 合并后 package.json 的 mutation-gate 脚本正是 `--gate sdlc`，所以两者都要认。
+const rawGate = argv.find((a) => a === '--gate' || a.startsWith('--gate='));
+const gate = rawGate !== undefined;
+const gateValue = rawGate?.startsWith('--gate=') ? rawGate.slice('--gate='.length) : undefined;
+const positional = argv.filter((a) => !a.startsWith('--'));
+const requested = gateValue ? [gateValue, ...positional] : positional;
 
-const packages = only.length > 0 ? only : ALL_PACKAGES;
+const packages = requested.length > 0 ? expandTargets(requested) : ALL_PACKAGES;
+if (process.exitCode === 1) process.exit(1); // 未知目标 → 显式失败，不静默空跑
 const ops = kinds ? OPERATORS.filter((o) => kinds.includes(o.kind)) : OPERATORS;
 
 const started = Date.now();
 const perPackage = [];
 const survivors = [];
+/** 被改过的文件 → 改动前的原文，用于收尾逐字节还原自检。 */
+const touched = new Map();
 
 for (const pkg of packages) {
-  const pkgDir = path.join(ROOT, 'packages', pkg);
-  const libDir = path.join(pkgDir, 'lib');
+  const t = TARGETS[pkg];
+  const libDir = path.join(MERGED_PKG, t.lib);
   if (!fs.existsSync(libDir)) {
-    console.error(`跳过 ${pkg}：没有 lib/（先 npm run build）`);
+    console.error(`跳过 ${pkg}：没有 ${path.relative(ROOT, libDir)}（先 npm run build --workspace packages/sdlc）`);
     continue;
   }
   const targets = fs
@@ -376,6 +451,7 @@ for (const pkg of packages) {
   for (let i = 0; i < sites.length; i += 1) {
     const s = sites[i];
     const original = fs.readFileSync(s.file, 'utf8');
+    touched.set(s.file, original);
     const mutated = original
       .split('\n')
       .map((l, n) => (n + 1 === s.line ? s.mutated : l))
@@ -390,10 +466,10 @@ for (const pkg of packages) {
 
     let verdict;
     try {
-      const u = unitTestsPassed(pkgDir);
+      const u = unitTestsPassed(pkg);
       if (!u.passed) verdict = 'killed-by-unit';
       else {
-        const m = smokePassed(pkgDir);
+        const m = smokePassed(pkg);
         verdict = m.passed ? 'SURVIVED' : 'killed-by-smoke';
       }
     } finally {
@@ -408,7 +484,7 @@ for (const pkg of packages) {
         pkg,
         file: path.relative(ROOT, s.file),
         line: s.line,
-        src: srcLineOf(s.file, s.line),
+        src: srcLineOf(pkg, s.file, s.line),
         // 行号会随无关编辑漂移，所以清单的键用**原始行的规范化文本**。
         // 这样"这处存活我评审过了"在行号移动后依然成立，而真正的新存活
         // （代码变了）会失配 → 门禁报出来。
@@ -441,7 +517,7 @@ for (const pkg of packages) {
 
 console.log(`\n${'='.repeat(72)}`);
 console.log('变异得分汇总\n');
-console.log('  包              变异点   抓住   存活   得分');
+console.log('  目标            变异点   抓住   存活   得分');
 for (const r of perPackage) {
   const n = r.killed + r.survived;
   const score = n === 0 ? '—' : `${((r.killed / n) * 100).toFixed(1)}%`;
@@ -481,7 +557,13 @@ if (updateList && !listOnly) {
   });
   fs.writeFileSync(
     ALLOWLIST,
-    `${JSON.stringify({ generatedAt: new Date().toISOString(), entries: merged }, null, 2)}\n`,
+    // 记下生成时的布局：2026-10-19 之前是七个独立包，之后是一个合并包。
+    // 清单的 `file` 字段因此有两种前缀，重跑/迁移时能一眼分清有没有过时。
+    `${JSON.stringify(
+      { generatedAt: new Date().toISOString(), layout: 'packages/sdlc (merged single package)', entries: merged },
+      null,
+      2,
+    )}\n`,
   );
   const unclassified = merged.filter((e) => e.reason === 'unclassified').length;
   console.log(`\n  清单已写入 ${path.relative(ROOT, ALLOWLIST)}（${merged.length} 条，其中 ${unclassified} 条未分类）`);
@@ -547,16 +629,39 @@ if (gate) {
 }
 
 // ─────────────────────────────────────────────── 收尾自检：必须还原干净
+//
+// ① 权威判据：把每个被改文件与**改动前记录的原文**逐字节比对。
+//    ⚠️ `lib/` 不进 git（`.gitignore` 的 `packages/*/lib/`），
+//    `git status` 根本看不见 lib 里的残留——旧版只靠 git status，
+//    在合并成单包后是**漏判**。
+// ② `git status` 只用来证明没有误动 `src/` 或别的跟踪文件。
 
+const unrestored = [...touched.entries()].filter(
+  ([file, before]) => fs.readFileSync(file, 'utf8') !== before,
+);
 const dirty = execFileSync('git', ['status', '--porcelain', 'packages'], {
   cwd: ROOT,
   encoding: 'utf8',
 }).trim();
-if (dirty !== '') {
-  console.error(`\n🔴 收尾失败：packages/ 下有未还原的改动 —— 变异没有被清理干净：\n${dirty}`);
+if (unrestored.length > 0) {
+  console.error(
+    `\n🔴 收尾失败：有 ${unrestored.length} 个 lib 文件没有还原（逐字节比对不一致）：\n` +
+      unrestored.map(([f]) => `  ${path.relative(ROOT, f)}`).join('\n'),
+  );
   process.exitCode = 1;
-} else {
-  console.log('\n  ✓ 收尾检查：packages/ 已完全还原（git status 干净）');
+}
+if (dirty !== '') {
+  console.error(`\n🔴 收尾失败：packages/ 下的跟踪文件有改动（误动了 src/？）：\n${dirty}`);
+  process.exitCode = 1;
+}
+if (unrestored.length === 0 && dirty === '') {
+  console.log(
+    `\n  ✓ 收尾检查：` +
+      (touched.size === 0
+        ? '未注入任何变异（--list），没有需要还原的文件'
+        : `${touched.size} 个被改文件已逐字节还原`) +
+      '；packages/ 的 git 状态干净（未动 src/）',
+  );
 }
 
 if (survivors.length > 0) {
