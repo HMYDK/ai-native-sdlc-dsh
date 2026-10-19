@@ -35,12 +35,12 @@
 | **执行单位**：Cordis 插件行 / fiber | **七个** | 每行有自己的 `inject` / `Config` / fiber：故障域、`fiberPhase` 诊断、行级开关、profile 按 id 覆盖都靠它 |
 
 所以最终形态是：**一个 npm 包、一个 bundle、一条 `dsh.profile.bundles` 条目、
-一个 tarball，`cordis.patch.yml` 里一条 `insert` 加七行。**
+一个 tarball。** 从 `0.3.0` 起，`cordis.patch.yml` 是**一条 `insert`、两条宿主行**：
+`sdlc-ui`（常驻只读看板）+ `preset-sdlc`（一个 **Agent Preset** 声明，内部是
+standard preset 的完整副本 + 六个机制组件）。六个组件的行 id 仍是
+`sdlc-task`、`sdlc-verify`……，便于诊断。
 
-七个**行 id 与合并前完全一致**（`sdlc-task`、`sdlc-verify`……），所以旧 profile 里
-`- id: sdlc-task` 这类覆盖继续匹配，插件页也仍能逐行启停。
-
-| 行 id | 行 name | 机制 | 文档 |
+| preset 内的行 id | 行 name | 机制 | 文档 |
 |---|---|---|---|
 | `sdlc-task` | `@ai-native-sdlc/dsh-sdlc/task` | 任务状态机 + 制品链（`state.yaml` 在 git） | [TASK.md](packages/sdlc/TASK.md) |
 | `sdlc-artifact` | `@ai-native-sdlc/dsh-sdlc/artifact` | 制品撰写 + 结构检查（只查结构，不查质量） | [包总览](packages/sdlc/README.md) |
@@ -48,7 +48,7 @@
 | `sdlc-verify` | `@ai-native-sdlc/dsh-sdlc/verify` | 非 Actor 的独立验证 + 测试冻结 | [包总览](packages/sdlc/README.md) |
 | `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流本身，作为一份给验证者的判据清单 Skill 交付 | [包总览](packages/sdlc/README.md) |
 | `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 | [RSI.md](packages/sdlc/RSI.md) |
-| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**包根**，不是子路径） | 客户端制品链面板（侧栏图标 + main 面板） | [改版记录](docs/sdlc-ui-redesign.md) |
+| *（宿主行）* `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**包根**，不是子路径） | 客户端制品链面板（侧栏图标 + main 面板，常驻只读） | [改版记录](docs/sdlc-ui-redesign.md) |
 
 ⚠️ `sdlc-ui` 是唯一指向**包名本身**的行。`@deepseek-ai/dsh-client-modules` 只按
 **精确包名**的 loader 行发现 `dsh.client`；写成 `.../ui` 子路径会让浏览器半
@@ -58,6 +58,25 @@
 验证者 preset 内部还挂一行 `@ai-native-sdlc/dsh-sdlc/verify/preset-filter`
 （只在 preset 里生效，不是 bundle 行）。
 
+### 按会话选择才生效（0.3.0）
+
+**标准模式会话不加载这套 SDLC**：没有 `sdlc_*` 工具、没有 SDLC 提示词、Skill
+目录里也没有那两条 Skill。要用时，**新建会话并在模式选择器里选「AI 原生 SDLC」**
+（或把它设为新任务默认值）。已有会话保留原组合——这是 DSH Agent Preset 的既定语义。
+
+- 为什么不是"插件开关"：DSH 没有会话内按需加载插件的机制；唯一按会话选择的单位
+  就是 Agent Preset（官方：「由会话选择」「通过声明式 preset 选择工具、提示词和技能」）。
+- 为什么 preset 里要带一份 **standard 副本**：preset 不继承、不合并；只放六个组件时，
+  选了这个模式的会话连 `read` / `bash` / `write` 都没有。所以「AI 原生 SDLC」=
+  standard 完整副本 + 六个组件。App 升级后跑 `npm run preset-sync` 对账。
+- 为什么侧栏看板常驻：`dsh.client` 只按**宿主 Loader** 的精确包名行发现；preset 的
+  行在内存 Loader 树里，把 UI 搬进去会让面板**静默消失**。所以 UI 留在宿主层，
+  只读、不提供工具（方案 A 的取舍）。
+
+详细证据（官方文档引用、真实会话 RPC 读数、坑）见
+[docs/dsh-plugin-contracts.md](docs/dsh-plugin-contracts.md)、
+[docs/dsh-pitfalls.md](docs/dsh-pitfalls.md) §14 与 [包总览](packages/sdlc/README.md)。
+
 **为什么合并（而不是继续七个包）**：合并前是七个独立 bundle，实测代价都落在分发层——
 
 - 七份 `peerDependencies` 让 DSH 升级时七个包一起静默消失（版本门禁按包判定）；
@@ -66,7 +85,7 @@
   靠四份"漂移检测"测试盯着；`sdlc-status` 还复制了一份状态机常量；
 - 插件页七张卡暗示这是七个可独立选择的东西。
 
-合并只动分发层，**没有**动执行层：七个组件行、工具名、Skill 内容、`state.yaml`
+合并只动分发层，**没有**动执行层：组件行（0.3.0 起改由 preset 承载，行 id 不变）、工具名、Skill 内容、`state.yaml`
 契约、验证者 preset 的隔离策略全部原样保留。
 
 > ⚠️ 不要把它做成"一个插件行套子插件"：那会把唯一真正在起作用的隔离边界（fiber）
@@ -142,11 +161,11 @@ Bug → 写失败的测试 → 确认复现 → sdlc_fix_start（冻结）→ �
 ```sh
 npm install
 npm run build --workspace packages/sdlc
-npm pack --workspace packages/sdlc        # → ai-native-sdlc-dsh-sdlc-0.2.0.tgz
+npm pack --workspace packages/sdlc        # → ai-native-sdlc-dsh-sdlc-0.3.0.tgz
 dsh plugin --profile <你的-profile> add <生成的.tgz>
 ```
 
-一个 tarball 装七个组件行。包自带 `dsh.bundle.patch`，安装后自动挂载。
+一个 tarball 装一个常驻只读看板 + 一个可选工作模式（standard + 六个组件）。包自带 `dsh.bundle.patch`，安装后自动挂载。
 
 ⚠️ 用 **App 自带 CLI**，不要用 PATH 上的 `dsh`（可能是别的版本）：
 
@@ -162,12 +181,9 @@ ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile <profil
 更早版本 / 符号链接安装曾观察到**不追加**——所以以 profile manifest 为准，
 没出现就手补（GUI 插件管理器也会做这一步）。不要用"安装成功"推断"bundle 已登记"。
 
-七个组件通常整套启用。只想启用部分时，用 profile 的行级覆盖（行 id 与合并前一致）：
-
-```yaml
-- id: sdlc-rsi
-  disabled: true
-```
+安装后**新建会话，在模式选择器里选「AI 原生 SDLC」**才会挂载六个组件；
+标准会话不受影响。只想启用部分组件时，覆写 `preset-sdlc` 的 `config.plugins`——
+注意 preset 覆盖会替换完整列表（要带上 standard 副本与其余组件的完整行）。
 
 更多细节与"为什么合并"见 [packages/sdlc/README.md](packages/sdlc/README.md)。
 
@@ -179,17 +195,18 @@ npm run test  --workspace packages/sdlc     # 单测（先 build）
 DSH_APP="/Applications/DeepSeek Harness.app" npm run smoke --workspace packages/sdlc
 npm run verify --workspace packages/sdlc    # = build + test + smoke
 npm run compat                              # 按本机真实 App 的版本校验 peer 范围
+npm run preset-sync                         # standard preset 副本是否仍与 App 一致（App 升级后必跑）
 ```
 
 冒烟测试用**真实 Cordis 上下文 + 真实 ToolRuntime** 挂载组件并真的 dispatch 工具调用；
-七个组件各一个脚本，在 `packages/sdlc/smoke/`，`run-all.mjs` 统一驱动。
+每个组件一个脚本 + `smoke/preset.mjs` 校验 bundle patch 形状，在 `packages/sdlc/smoke/`，`run-all.mjs` 统一驱动。
 
 验证插件真的能加载（**用隔离 profile，不碰正在用的 App**）：
 
 ```sh
 npm pack --workspace packages/sdlc
 # APP / CLI 同「安装与打包」
-ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile verifytest add "$PWD"/ai-native-sdlc-dsh-sdlc-0.2.0.tgz
+ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile verifytest add "$PWD"/ai-native-sdlc-dsh-sdlc-0.3.0.tgz
 ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --port 19999
 # 看启动输出：出现 "entry did not activate" 就是失败
 # 再查 plugin_manager list_plugins 的 fiberPhase；它才是运行时真相
@@ -215,7 +232,7 @@ ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --p
 | `npm run test --workspace packages/sdlc` | 单测 **210**（lib 202 + UI 客户端交互 8；看板宿主测试 24 另计） |
 | `npm run smoke --workspace packages/sdlc` | 七脚本全过：artifact 39 / rsi 62 / status 69 / task 40 / ui 46 / verify 109 / workflow 12（共 377 条断言） |
 | `npm run compat` | 根工作区 + `@ai-native-sdlc/dsh-sdlc`（8 条 peer）全部接受 `0.2.1-rc.2` |
-| `npm pack --dry-run --workspace packages/sdlc` | `ai-native-sdlc-dsh-sdlc-0.2.0.tgz`，40 个文件 |
+| `npm pack --dry-run --workspace packages/sdlc` | `ai-native-sdlc-dsh-sdlc-0.3.0.tgz`，52 个文件 |
 
 单测从合并前 **251** 降到 **210**，减少的 41 条**全是重复覆盖**：
 3 份逐字相同的 `helpers.test` 副本（36 条）+ 1 条跨包漂移检测

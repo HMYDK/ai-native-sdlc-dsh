@@ -267,24 +267,46 @@ bundle 会被**自动追加到 `dsh.profile.bundles`**——这一点已实测�
 `package.json` 确认**，不要用「安装命令成功」推断「bundle 已登记」。
 原始读数见 `docs/dsh-pitfalls.md` §2.1。
 
-### 1.1 本仓库的分发形态：一个 bundle + 七行
+### 1.1 本仓库的分发形态：一个 bundle = 两条宿主行 + 一个 Agent Preset
 
-本仓库把七个机制合并为**一个包** `@ai-native-sdlc/dsh-sdlc`，`cordis.patch.yml` 是
-**一条 `insert`、七个组件行**（行 id 与合并前完全一致：`sdlc-task` / `sdlc-verify` ……）。
-分发单位是一个 npm 包 / 一个 bundle / 一条 `dsh.profile.bundles` 条目 / 一个 tarball；
-执行单位仍是七个 Cordis 行，各有自己的 `inject` / `Config` / fiber。
+本仓库把七个机制合并为**一个包** `@ai-native-sdlc/dsh-sdlc`。从 `0.3.0` 起，
+`cordis.patch.yml` 是**一条 `insert`、两条宿主行**：
 
-⚠️ 七行里**六行指向子路径导出**（`@ai-native-sdlc/dsh-sdlc/task` 等），
-**`sdlc-ui` 行必须指向包名本身** `@ai-native-sdlc/dsh-sdlc`。原因是
-`@deepseek-ai/dsh-client-modules` 只扫描**精确包名**的 loader 行
-（`exactPackageSpecifier` 对子路径返回 `undefined`）来发现包的 `dsh.client`；
-写成 `.../ui` 子路径，浏览器半就不会进 `window.__DSH_BOOT__`——**host 端点照常 200，
-面板不出现，日志无错**。所以包根入口重新导出 ui 组件定义；行级禁用 `sdlc-ui`
-时浏览器半也随之消失，语义正确。这是合并后才出现、只有真实启动才能抓到的一条。
+| 宿主行 | name | 作用 |
+|---|---|---|
+| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（精确包名） | 只读看板；浏览器半的发现前提 |
+| `preset-sdlc` | `@deepseek-ai/dsh-agent-preset` | 声明 Agent Preset「AI 原生 SDLC」 |
 
-这不是契约层的新机制——**DSH 的契约不因合并改变**，上面的 Bundle / profile / preset
-规则逐条适用；变的只是本仓库把七个机制装进同一个包里。理由、行表与安装命令见
-[`packages/sdlc/README.md`](../packages/sdlc/README.md)。
+`preset-sdlc` 的 `config.plugins` 是**DSH 内置 `standard` preset 的完整副本
+（22 行：persona / read / bash / write / skill / subagent…）+ 本套件六个机制组件**
+（`sdlc-task` / `artifact` / `status` / `verify` / `workflow` / `rsi`）。只有新建会话
+在模式选择器里选该 preset 时，这六个组件才挂载；标准会话不会加载它们。
+
+**为什么是 preset 而不是宿主行**：用户要求"只有明确指定这套 SDLC 时才工作"。
+DSH 唯一按会话选择的单位是 Agent Preset——官方 `@deepseek-ai/dsh-agent-preset`：
+「可同时声明多个 preset，**由会话选择**」；`@deepseek-ai/dsh-agent-preset-registry`：
+「通过声明式 preset 选择 Agent 的**工具、提示词和技能**」；`dsh-skill` 明确
+preset 插件注册的 Skill 落入 preset 层，不进全局层。工具 / 提示词 / Skill 的注册
+都继承 preset scope，Agent scope 的父链接决定可见性。
+
+**为什么 preset 里要带 standard 副本**：preset **不继承、不合并**（官方：覆盖会
+替换完整子插件列表）。只放六个组件时，选了这个模式的会话连 `read` / `bash` 都
+没有，流程无法工作（隔离 profile 实测：六行-only 的 sdlc 会话工具 schema token
+3265 且无基础工具）。副本由 `tools/preset-sync-check.mjs` 与真实 App 的
+`dsh-web-app/presets/standard.patch.yml` 逐行对账（`--write` 重新同步）；
+**App 升级后必须跑**，这是官方不支持 preset 继承带来的接缝。
+
+⚠️ **`sdlc-ui` 必须留在宿主层、且指向包名本身**：
+`@deepseek-ai/dsh-client-modules` 只扫描**宿主 Loader** 里精确包名的行来发现
+`dsh.client`；preset 的行在注册表拥有的**内存 Loader 树**里，不是宿主 Loader
+行。把 UI 搬进 preset 或写成 `.../ui` 子路径，浏览器半都不会进
+`window.__DSH_BOOT__`——**host 端点照常 200，面板不出现，日志无错**。方案 A 因此
+接受"只读面板常驻"（取舍见 `packages/sdlc/README.md`）。
+
+这不是契约层的新机制——**DSH 的契约不因本仓库的布局改变**，上面的 Bundle /
+profile / preset 规则逐条适用。真实运行读数（隔离 profile 的 `agentPresets/list`
+把 `sdlc` 列为可组合、`session/create` 绑定 preset、两会话工具 schema token 对比）
+见 `docs/dsh-pitfalls.md` §14 与 `.ai/tasks/PRESET-1/evidence/`。
 
 ### 1.2 安装到隔离 profile 验证（不碰正在用的 App）
 

@@ -1,8 +1,8 @@
 {
   "name": "@ai-native-sdlc/dsh-sdlc",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
-  "description": "The AI-native SDLC as one DeepSeek Harness bundle: one plugin package, seven mechanism components (task state machine, artifact authoring, independent verification, portfolio view, workflow skill, client panel, RSI) sharing one version and one install.",
+  "description": "The AI-native SDLC as one DeepSeek Harness bundle: a suite-level UI host row plus one Agent Preset (\"AI 原生 SDLC\") that mounts the six mechanism components only in sessions that explicitly select it.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -61,7 +61,8 @@
     "@deepseek-ai/dsh-skill": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-subagent": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.2",
-    "@deepseek-ai/schemastery": "^3.18.4"
+    "@deepseek-ai/schemastery": "^3.18.4",
+    "@deepseek-ai/dsh-agent-preset": "^0.2.1-rc.2"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
@@ -92,5 +93,10 @@
     "smoke": "ELECTRON_RUN_AS_NODE=1 \"$DSH_APP/Contents/MacOS/DeepSeek Harness\" --expose-internals smoke/run-all.mjs",
     "verify": "npm run build && npm run test && npm run smoke",
     "mutation-gate": "node ../../tools/mutation-score.mjs --gate sdlc"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent-preset": {
+      "optional": true
+    }
   }
 }

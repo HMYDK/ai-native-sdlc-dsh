@@ -7,9 +7,10 @@
 |---|---|---|
 | `bench/run.mjs` | 两侧对照基准：同一条判据在**坏版本**上必须违反、在**修复版**上必须满足 | `node tools/bench/run.mjs` |
 | `mutation-score.mjs` | 变异测试：往 `lib/` 注入明确的缺陷，看测试会不会红 | `node tools/mutation-score.mjs` / `--list` / `--gate sdlc` |
-| `plugin-activation-check.mjs` | App 会加载的到底是不是我这一版：patch 七行 → 模块、inject 可解析、profile 副本逐文件 sha256 | `node tools/plugin-activation-check.mjs` |
+| `plugin-activation-check.mjs` | App 会加载的到底是不是我这一版：宿主行 + preset 内本套件六行 → 模块、inject 可解析、profile 副本逐文件 sha256 | `node tools/plugin-activation-check.mjs` |
 | `time-travel-check.mjs` | 用假时钟把单测推到未来若干时点，抓"写下的当天对、之后必坏"的断言 | `node tools/time-travel-check.mjs` |
 | `compat-check.mjs` | peer 范围是否接受本机**真实 App** 的 DSH 运行时（普通 Node 读不了 app.asar，会自己重入） | `npm run compat` |
+| `preset-sync-check.mjs` | `preset-sdlc` 内嵌的 DSH **standard preset 副本**是否与当前 App 一致；`--write` 重新同步 | `npm run preset-sync` / `npm run preset-sync:write` |
 
 每个工具文件头都有"为什么需要它"的来历，改之前先读——里面记的坑都是实测踩出来的。
 
@@ -222,3 +223,39 @@ DSH runtime (from /Applications/DeepSeek Harness.app): 0.2.1-rc.2
   `performance.now()` 或外部命令取时间的路径它看不见。
 - **`plugin-activation-check` 不证明"进程已经加载了"**，只证明"制品对、能激活"；
   后者要看运行时可见物（`plugin_manager` 的 `fiberPhase` 或新行为）。
+
+## 2026-10-19 方案 A：改成「选定 preset 才生效」后的适配
+
+背景（`0.3.0`）：用户要求"只有明确指定这套 SDLC 时才工作"。官方唯一按会话选择的
+单位是 Agent Preset，所以：
+
+- `packages/sdlc/cordis.patch.yml` 变成**两条宿主行**：
+  `sdlc-ui`（精确包名，常驻只读看板）+ `preset-sdlc`（`@deepseek-ai/dsh-agent-preset`
+  声明，id=`sdlc`，`config.plugins` = **DSH standard preset 的完整副本** +
+  本套件六个组件行）；
+- 六个机制组件不再出现在宿主层，标准会话不会加载它们；
+- **`preset` 不继承、不合并**，所以副本必须手动同步：`preset-sync-check.mjs`
+  读 App 的 `dsh-web-app/presets/standard.patch.yml` 与仓库 patch 逐行比对
+  （id/name/disabled/config），`--write` 用 App 当前 standard 重写副本区域；
+  App 升级后必须跑；
+- `plugin-activation-check.mjs` 相应改为：只 import **本套件的行**（`sdlc-ui` 宿主行
+  + preset 内六行），**不**拿本包的 `exports` 去解析 standard 副本里的
+  `@deepseek-ai/*` 行（第一版这么写，全部误报"解析失败"）。
+- 新增 `packages/sdlc/smoke/preset.mjs`：patch 形状（宿主 2 行、preset 含
+  standard 基础工具锚点 + 六行在末尾、模块可装配、六行不在宿主层）。
+
+### 可复跑的真实运行读数（隔离 profile，`.verify-home`）
+
+```
+--dump-config           宿主 2 行；preset 子行 28（22 standard 副本 + 6 本套件）
+启动                    0 条 entry did not activate；boot entry rev=ca10afcab19f
+GET /api/sdlc-ui.tasks  200 / 89760 字节
+agentPresets/list       standard / ptc / minimal / cordis / sdlc / sdlc-verifier；
+                        sdlc 的 broken 字段缺失（可组合）
+agentPresets/read sdlc  末尾六个本套件行
+session/create          指定 agentPreset=sdlc → 返回 agentPreset=sdlc；默认 → standard
+会话投影 toolsTokens    sdlc 会话 10072 > standard 会话 6902（standard 没有多出来的工具）
+```
+
+⚠️ `toolsTokens` 是"最新请求 envelope 的工具 schema 启发式 token 数"，是**间接**
+读数；它证明两边工具集合不同，不能替代人工在新建会话里确认工具列表。

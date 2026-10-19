@@ -36,8 +36,10 @@
 那不是 DSH 插件，只是一个跑在 DSH 里的外部工具集。已废弃。
 
 正确形态：**npm 包 + `dsh.bundle.patch`**，`dsh plugin add` 即自动挂载。
-2026-10-19 起是**一个**包（`packages/sdlc`，`@ai-native-sdlc/dsh-sdlc@0.2.0`），
+2026-10-19 起是**一个**包（`packages/sdlc`，现为 `@ai-native-sdlc/dsh-sdlc@0.3.0`），
 不再是七个包——原因见下一节与 `packages/sdlc/README.md`。
+`0.3.0` 起它默认**不生效**：六个机制组件放进一个名为「AI 原生 SDLC」的 Agent
+Preset，只有新建会话选择该模式才挂载；只有只读看板 UI 常驻（见「方案 A」一节）。
 
 ## 拆分原则：分发按套件合一，执行按机制拆行
 
@@ -53,8 +55,11 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 | 分发单位：npm 包 / bundle / `dsh.profile.bundles` 条目 / tarball / 插件页卡片 | **一个** | 七个组件永远同装同升；制品链（`state.yaml` / `verification.json` / artifacts 语义）是跨组件协议，必须同版本发布 |
 | 执行单位：Cordis 插件行 / fiber | **七个** | 每行独立 `inject` / `Config` / fiber：故障域、`fiberPhase` 诊断、行级开关、profile 按 id 覆盖都靠它 |
 
-`packages/sdlc/cordis.patch.yml` 是**一条 `insert`、七行**；行 id 与合并前完全一致
-（`sdlc-task`、`sdlc-verify`……），旧 profile 里的按 id 覆盖继续匹配。
+`packages/sdlc/cordis.patch.yml` 现在是**一条 `insert`、两条宿主行**：
+`sdlc-ui`（精确包名，常驻只读看板）+ `preset-sdlc`（`@deepseek-ai/dsh-agent-preset`
+声明）。preset 的 `config.plugins` = **DSH standard preset 的完整副本 + 六个机制组
+件行**（行 id 仍是 `sdlc-task`、`sdlc-verify`……）。preset 不支持继承/合并，
+所以副本必须与 App 同步；见「方案 A」一节。
 
 | 行 id | 行 name | 机制 | 状态 |
 |---|---|---|---|
@@ -146,6 +151,64 @@ workflow/rsi 原先没有 locale 文件（合并前靠精确包名回退读 pack
 同一套件图标"的回归因此真会红（负向实测 45/46），断言数保持 46；总冒烟 375 → 377。
 
 
+### 2026-10-19 方案 A：默认不生效，按 Agent Preset 选择（0.3.0）
+
+用户要求："只有在明确指定这个插件的时候，整套 SDLC 才工作。"先检索了官方文档：
+DSH **没有**"会话中按需加载插件"的机制；唯一按会话选择的单位是 **Agent Preset**。
+
+- `@deepseek-ai/dsh-agent-preset`：「可同时声明多个 preset，**由会话选择**」
+- `@deepseek-ai/dsh-agent-preset-registry`：「通过声明式 preset 选择 Agent 的
+  **工具、提示词和技能**」；「每个声明在启动时创建注册表拥有的 scope 和内存
+  Loader 树」；「插件注册继承 preset scope，Agent scope 的父链接决定可见性」
+- `dsh-skill`：「宿主行…落入全局层，由 agent preset 常驻组合挂载的插件落入该
+  **preset 的层**」
+- `dsh-client-ui-agent-preset`：新会话选择器/设置页可选自定义 preset；「选择变更
+  **只影响之后的任务**，已有插件与提示词保持不变」
+
+**方案 A 的形态**（`packages/sdlc/cordis.patch.yml`）：
+
+```
+宿主行 ① sdlc-ui        name=@ai-native-sdlc/dsh-sdlc（精确包名，常驻只读看板）
+宿主行 ② preset-sdlc    name=@deepseek-ai/dsh-agent-preset，id=sdlc
+preset 内               standard preset 完整副本（22 行）+ 六个机制组件
+```
+
+- **六个机制组件不在宿主层**：标准模式会话没有 `sdlc_*` 工具、没有 SDLC 提示词段、
+  Skill 目录里也没有那两条 Skill；新建会话选「AI 原生 SDLC」才有。已有会话保留
+  创建时的组合（官方语义），所以当前会话在迁移后失去这些工具是**预期行为**。
+- **UI 必须留在宿主层**：`dsh-client-modules` 只扫描宿主 Loader 里精确包名的行；
+  preset 的行在内存 Loader 树里（`Config.listConfigs` 也只遍历 profile Loader 树，
+  官方 README 明说）。把 UI 搬进 preset → 面板静默消失。方案 A 接受"只读面板常驻"。
+- **preset 里必须带 standard 副本**：preset 不继承、不合并（官方：覆盖替换完整
+  子插件列表）。第一版只放六行 → 选该模式的会话没有 read/bash/write/skill，
+  实测 `toolsTokens` 3265（standard 6902）。修正后 = standard 22 行 + 6 行。
+  代价是复制了一份内置列表，App 升级会漂移：新增
+  `tools/preset-sync-check.mjs`（读真实 App 的 `dsh-web-app/presets/standard.patch.yml`
+  逐行对账，`--write` 同步）；**升级 App 后必跑**（`npm run preset-sync`）。
+
+**真实运行读数**（隔离 profile；可复跑命令见
+`.ai/tasks/PRESET-1/evidence/runtime-verification.md`）：
+
+```
+--dump-config           宿主 2 行；preset 子行 28（22 standard + 6 本套件）
+启动                    0 条 entry did not activate；boot entry rev=ca10afcab19f
+GET /api/sdlc-ui.tasks  200 / 89760 字节
+agentPresets/list       sdlc 存在、broken 缺失（可组合）
+agentPresets/read sdlc  末尾六行 = 本套件组件
+session/create          指定 sdlc → agentPreset=sdlc；默认 → standard
+session/projections     sdlc 会话 toolsTokens 10072 > standard 6902
+```
+
+⚠️ `toolsTokens` 是**间接**读数（证明工具 schema 集合不同），最终仍需人工在 GUI
+新建会话里确认工具列表；这条已作为未完成的人工确认项记录。
+
+**工具与读数**：单测 210 不变（`src/` 组件代码未改）；冒烟新增
+`smoke/preset.mjs` 19 条 → **8 个脚本共 396 条**；负向实测：组件放回宿主行
+（16/18）、改坏 standard 副本（sync exit 1）、改名 `tool-web`（18/19）都会红。
+`plugin-activation-check` 改为只 import 本套件的行（第一版把 standard 副本行也拿
+本包 exports 解析，全部误报"解析失败"——`!!js` 标签也让默认 js-yaml 直接抛，
+两处都要自定义处理）。
+
 ### RSI 首版（2026-10-15）
 
 实现与实测证据见 `.ai/tasks/RSI-1/`，用法见 `packages/sdlc/RSI.md`。
@@ -201,9 +264,9 @@ workflow/rsi 原先没有 locale 文件（合并前靠精确包名回退读 pack
 ## 目录
 
 ```
-packages/sdlc/              # 唯一的插件包（一个 bundle、七个组件行）
+packages/sdlc/              # 唯一的插件包（一个 bundle：两条宿主行 + preset 声明）
   package.json              #   dsh.bundle.patch + dsh.client + exports 子路径
-  cordis.patch.yml          #   一条 insert、七行（sdlc-ui 行是精确包名）
+  cordis.patch.yml          #   一条 insert、两条宿主行 + preset（standard 副本 + 六组件）
   src/index.ts              #   包根：重新导出 ui 组件（客户端半被发现的前提）
   src/task/                 #   任务状态机 + 制品链（state.ts 纯函数可脱离 DSH 单测）
   src/artifact/             #   制品撰写 + 结构检查（只查结构，不查质量）
@@ -213,13 +276,13 @@ packages/sdlc/              # 唯一的插件包（一个 bundle、七个组件�
   src/rsi/                  #   真实验证记录、复盘、指导文字对照实验
   src/ui/                   #   客户端面板（index.ts host 半 + 手写 client.js）
   src/shared/helpers.ts     #   四个组件共用的沙箱/cwd 辅助函数（合并前是四份副本）
-  smoke/<组件>.mjs          #   七个运行时冒烟脚本（run-all.mjs 统一驱动）
+  smoke/<组件>.mjs          #   每个组件一个运行时冒烟 + preset.mjs（patch 形状）
   test/                     #   UI 的纯 Node 行为测试
 packages/sdlc/README.md     #   包总览（分发/执行两层、行表、安装）
 packages/sdlc/TASK.md       #   任务状态机文档（原 sdlc-task/README.md）
 packages/sdlc/RSI.md        #   RSI 文档（原 sdlc-rsi/README.md）
 docs/                       # DSH 契约与调研（改代码前必查）
-tools/                      # bench / mutation / activation / time-travel / compat
+tools/                      # bench / mutation / activation / time-travel / compat / preset-sync
 handbook/                   # 手册原文，只读
 ```
 
@@ -496,11 +559,12 @@ reject 的代码上都是绿的**）。
 ## 当前状态
 
 > 下面各条是**合并前**的读数，保留作为历史。**当前全量读数以本段为准**
-> （2026-10-19 单包合并后，DSH `0.2.1-rc.2`）：单测 **210**（lib 202 +
-> UI 客户端 8）；冒烟 7 个脚本共 **377 条**（artifact 39 / rsi 62 / status 69 /
-> task 40 / ui 46 / verify 109 / workflow 12）；`npm run compat` **2 个 manifest**
-> 通过；bench 3/3；`plugin_manager list_plugins` 里七行全部 `fiberPhase: active`；
-> 安装形态与全部证据见上文「2026-10-19 合并」一节。
+> （2026-10-19 单包 + 方案 A 后，DSH `0.2.1-rc.2`）：单测 **210**（lib 202 +
+> UI 客户端 8）；冒烟 **8 个脚本共 396 条**（artifact 39 / rsi 62 / status 69 /
+> task 40 / ui 46 / verify 109 / workflow 12 / preset 19）；`npm run compat`
+> **2 个 manifest** 通过；bench 3/3；隔离 profile 里宿主两行可解析、preset 内
+> 六行可装配、`sdlc` preset 在 `agentPresets/list` 中可组合；安装形态与全部证据
+> 见上文「2026-10-19 合并」与「方案 A」两节。
 
 - [x] `sdlc-verify` 插件：TypeScript 严格模式零错误
 - [x] 单测 **23/23**（纯函数层，含 criteria 强制策略 10 条）
@@ -528,6 +592,16 @@ reject 的代码上都是绿的**）。
 
 ### 已知边界（不要当成"已完成"）
 
+- **standard preset 副本是静态复制**：App 升级后 `preset-sdlc` 里的基础工具列表
+  可能过期，SDLC 模式会"少新工具"却不报错。必须跑 `npm run preset-sync`；
+  漂移时 `npm run preset-sync:write` 后复跑冒烟。这是官方不支持 preset 继承的接缝，
+  不能靠"记得升级"消除，只能靠门禁。
+- **"只有选定会话才有工具"的证据是间接的**：`session/projections` 的
+  `toolsTokens`（sdlc 10072 vs standard 6902）证明工具 schema 集合不同；最终
+  "在新建会话里看到工具列表"需要人工在 GUI 里确认。不要把它写成"已自动验证"。
+- **preset 的 eager activation 有副作用**：`sdlc-verify` 注册的 `sdlc-verifier`
+  preset 会出现在全局 `agentPresets/list`（0.2.x 全局模式时同样存在，非新引入）。
+- **已有会话不会切换组合**：选择只影响之后创建的会话，这是官方语义，不是缺陷。
 - **冻结不是防篡改边界**：Actor 自己调一次 `sdlc_fix_end` 即可解冻。
   它是流程摩擦 + 留痕，不是硬约束。
 - **测试资产识别是名字模式表**：未覆盖的命名不会被冻结。

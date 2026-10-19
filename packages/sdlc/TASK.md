@@ -2,6 +2,10 @@
 
 `.ai/tasks/<TASK-ID>/state.yaml` 是**状态与制品索引的事实来源**。
 
+
+> **使用位置**：本组件只在新建会话选择「AI 原生 SDLC」Agent Preset 时挂载；
+> 标准模式会话没有这些工具与提示词。见 [包总览](README.md#安装与使用)。
+
 ## 为什么状态在 Git 里，不在插件里
 
 手册第 2.2 节：*"Session 只是执行载体，Artifact 才是事实来源。"*

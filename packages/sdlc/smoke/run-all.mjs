@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 依次跑七个组件的运行时冒烟测试。
+ * 依次跑全部组件的运行时冒烟测试（七组件 + preset 形状校验）。
  *
  * 合并前每个包各有一个 `smoke.mjs`、各自一条 npm script；合并后它们都在
  * `smoke/<component>.mjs`，由这个入口统一驱动。**这不改变冒烟测试本身**：
@@ -43,4 +43,4 @@ if (failed.length > 0) {
   console.log(`❌ 冒烟失败的组件（${failed.length}/${scripts.length}）：${failed.join(', ')}`);
   process.exit(1);
 }
-console.log(`✅ 七个组件冒烟全部通过（${scripts.length} 个脚本）`);
+console.log(`✅ 全部冒烟通过（${scripts.length} 个脚本）`);

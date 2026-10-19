@@ -2,20 +2,47 @@
 
 把 Anthropic《AI 原生 SDLC 实战手册》的方法论落成 **一个 DeepSeek Harness bundle**。
 
-## 一个包，七个组件
+## 一个包：常驻的只读看板 + 一个可选的工作模式
 
-DSH 里有两个不同层次的单位，这里刻意让它们各归其位：
+从 `0.3.0` 起，这套东西**只在会话明确选择「AI 原生 SDLC」模式时才工作**：
 
-| 层次 | 本包的选择 | 为什么 |
+| 部分 | 形态 | 什么时候生效 |
 |---|---|---|
-| **分发单位**（npm 包 / bundle / `dsh.profile.bundles` 条目 / 插件页卡片） | **一个** | 这一套永远同装同升，制品链还是一个跨组件协议；协议必须同版本发布 |
-| **执行单位**（Cordis 插件行 / fiber） | **七个** | 每行有自己的 `inject`、`Config`、fiber：故障域、`fiberPhase` 诊断、行级开关、profile 按 id 覆盖都靠它 |
+| 侧栏看板（`sdlc-ui`） | bundle 顶层的一条**宿主行** | 常驻可见，只读，不提供任何工具 |
+| 整套工作流（六组件） | 一个 **Agent Preset**（`id: sdlc`，展示名「AI 原生 SDLC」） | 只有在新建会话时选择这个模式才挂载 |
 
-`cordis.patch.yml` 里是一条 `insert`、七行；每行指向本包的一个子路径导出。
-**行 id 与合并前完全一致**（`sdlc-task`、`sdlc-verify`……），所以旧 profile 里
-`- id: sdlc-task` 这类覆盖继续匹配，插件页也仍能逐行启停。
+标准会话不会加载六个机制组件：没有 `sdlc_*` 工具、没有 SDLC 提示词段、Skill
+目录里也没有那两条 Skill。已有会话保留创建时的组合；选择只影响之后创建的任务。
 
-| 行 id | 子路径 | 机制 |
+### 为什么 UI 常驻、其余进 preset
+
+- **UI 必须留在宿主层**：`@deepseek-ai/dsh-client-modules` 只扫描宿主 Loader 里
+  **精确包名**的行来发现 `dsh.client`。preset 的行在注册表自己的内存 Loader 树里，
+  不是宿主 Loader 行；把 UI 搬进 preset 会让浏览器半**静默消失**（host 端点照常
+  200，面板不出现，日志无错）。方案 A 接受这个取舍：面板常驻、只读。
+- **六个机制组件进 preset**：DSH 唯一按会话选择的单位就是 Agent Preset
+  （官方：「由会话选择」「通过声明式 preset 选择 Agent 的工具、提示词和技能」）。
+  工具 / 提示词 / Skill 的注册都落入该 preset 的 scope 层，只有选择它的 Agent 可见。
+
+### 为什么 preset 里要带一份 standard 副本
+
+preset **不继承、不合并**（官方：覆盖会替换完整子插件列表）。如果只放六个 SDLC
+组件，选了这个模式的会话连 `read` / `bash` / `write` / `skill` 这些基础工具都没有，
+整个流程无法工作（实测：只有六行时该会话的 `toolsTokens` 是 3265，且没有基础工具）。
+所以「AI 原生 SDLC」模式 = **DSH 内置 `standard` preset 的完整副本 + 六个组件**。
+
+⚠️ 这意味着我们复制了一份 DSH 内置列表。App 升级后 standard 可能变化，
+**升级 App 后要跑**：
+
+```sh
+node tools/preset-sync-check.mjs          # 与这台机器真实 App 的 standard 逐行对账
+node tools/preset-sync-check.mjs --write  # 漂移时用 App 当前 standard 重新同步副本
+```
+
+preset 内的六行仍是各自独立的 Cordis 行（各有 `inject` / `Config` / fiber），
+行 id 与合并前完全一致（`sdlc-task`、`sdlc-verify`……），便于诊断。
+
+| preset 内的行 id | 子路径 | 机制 |
 |---|---|---|
 | `sdlc-task` | `@ai-native-sdlc/dsh-sdlc/task` | 任务状态机 + 制品链（`state.yaml` 在 git） |
 | `sdlc-artifact` | `@ai-native-sdlc/dsh-sdlc/artifact` | 制品撰写 + 结构检查（只查结构） |
@@ -23,16 +50,14 @@ DSH 里有两个不同层次的单位，这里刻意让它们各归其位：
 | `sdlc-status` | `@ai-native-sdlc/dsh-sdlc/status` | 任务看板（一次盘出全部任务状态/缺失/裁决） |
 | `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流 Skill：给验证者的判据清单 |
 | `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 |
-| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**包根**，不是子路径） | 客户端制品链面板（`./client` 是浏览器半） |
 
 验证者 preset 内部还挂了一行 `@ai-native-sdlc/dsh-sdlc/verify/preset-filter`
-（只在 preset 里生效，不是 bundle 行）。
+（只在 `sdlc-verifier` preset 里生效，由 `sdlc-verify` 注册）。
 
-⚠️ `sdlc-ui` 行的 name 必须是**精确包名**：`@deepseek-ai/dsh-client-modules` 只扫描
-精确包名的 loader 行来发现 `dsh.client`；写成 `./ui` 子路径会让浏览器半**静默消失**
-（host 端点照常工作、只有面板不出现）。本轮合并实测踩过，`smoke/ui.mjs` 有回归断言。
+⚠️ `sdlc-ui` 行的 name 必须是**精确包名**：写成 `./ui` 子路径会让浏览器半
+**静默消失**（host 端点照常工作、只有面板不出现）。`smoke/ui.mjs` 有回归断言。
 
-## 安装
+## 安装与使用
 
 包自带 `dsh.bundle.patch`，安装后自动挂载：
 
@@ -42,26 +67,34 @@ npm pack --workspace packages/sdlc
 dsh plugin --profile <你的-profile> add <生成的.tgz>
 ```
 
+使用：
+
+1. **新建会话**，在模式/预设选择器里选「AI 原生 SDLC」
+   （或在设置页把它设为新任务默认值）；
+2. 这个会话里才会出现 `sdlc_task_create` / `sdlc_artifact_*` / `sdlc_verify` 等工具
+   与 SDLC 提示词；
+3. 标准模式的会话不受影响；已打开的旧会话也不会变（DSH 的既定语义）。
+
 宿主提供 `@deepseek-ai/dsh-*` 运行时；**不要**把它们装进本包的 `dependencies`
 （会装出第二份 `dsh-tools`，破坏模块内 Symbol 身份，导致每一次工具调用都失败）。
 
-七个组件是同一套方法的七个机制，通常整套启用。只想启用部分时，用 profile 的行级覆盖：
+只想启用部分组件时，按行 id 覆写该 preset 的 `config.plugins`——注意覆盖会
+**替换完整列表**，需带上 standard 副本与其余组件的完整内容（或者直接用 sync
+工具生成后再删行）。
 
-```yaml
-- id: sdlc-rsi
-  disabled: true
-```
-
-## 测试
+## 测试与门禁
 
 ```sh
 npm run build --workspace packages/sdlc   # tsc → lib/（含手写的客户端 bundle 拷贝）
 npm run test  --workspace packages/sdlc   # 纯函数层单测 + UI 行为测试
 DSH_APP="/Applications/DeepSeek Harness.app" npm run smoke --workspace packages/sdlc
+node tools/preset-sync-check.mjs          # App 的 standard preset 副本是否仍一致
+node tools/plugin-activation-check.mjs    # 宿主行 + preset 内六行 + profile 发布文件
 ```
 
-冒烟测试用**真实 Cordis 上下文 + 真实 ToolRuntime** 挂载组件并真的 dispatch 工具调用，
-七个组件各一个脚本，`smoke/run-all.mjs` 统一驱动。
+冒烟测试用**真实 Cordis 上下文 + 真实 ToolRuntime** 挂载组件并真的 dispatch 工具调用；
+`smoke/preset.mjs` 另外校验 bundle patch 的形状（宿主恰好两行、preset 含 standard
+基础工具锚点与六个本组件行、模块可装配、六行不在宿主层）。
 
 ## 为什么合并（而不是七个包）
 
@@ -73,7 +106,7 @@ DSH_APP="/Applications/DeepSeek Harness.app" npm run smoke --workspace packages/
   状态机常量复制一份再拿契约测试盯漂移；
 - 插件页七张卡暗示七个可独立选择的东西。
 
-合并消灭了这四类成本，同时**没有**动执行层：七个组件行原样保留。
+合并消灭了这四类成本，同时**没有**动执行层：组件行原样保留。
 具体决策与证据记录在仓库的 `AGENTS.md`。
 
 ## 边界

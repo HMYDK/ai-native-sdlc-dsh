@@ -563,3 +563,70 @@ host 侧工具，**能被完整验证**。这次的冒烟甚至用**真实 `Loca
 1. 能产出 `window.__ModuleLoader__.load` 格式的构建（或确认手写包装器可行并验证）
 2. host→client 的数据通道：要么走认证 HTTP 路由（官方先例），要么拿到构建期 RPC
 3. 一个能刷新页面并看到渲染结果的验证手段（否则违背验证纪律）
+
+## 14. Agent Preset：把"装了就全局生效"改成"选了模式才生效"（2026-10-19 实测）
+
+用户要求：只有明确指定这套 SDLC 时它才工作。查官方文档后的结论是——**DSH 没有
+"会话中按需加载插件"的机制；唯一按会话选择的单位是 Agent Preset**：
+
+- `@deepseek-ai/dsh-agent-preset`：「可同时声明多个 preset，**由会话选择**」
+- `@deepseek-ai/dsh-agent-preset-registry`：「通过声明式 preset 选择 Agent 的
+  **工具、提示词和技能**」；「声明在启动时创建注册表拥有的 scope 和内存 Loader 树」
+- `dsh-skill`：「宿主行与 repository 插件落入全局层，由 agent preset 常驻组合
+  挂载的插件落入该 **preset 的层**」
+- `dsh-client-ui-agent-preset`：新会话选择器 / 设置页可选自定义 preset；「选择
+  变更**只影响之后的任务**，已有插件与提示词保持不变」
+
+### 14.1 坑一：preset 是完整组合，不是"增量"
+
+preset **不继承、不合并**（registry README：用户覆盖替换完整子插件列表）。第一版
+只把六个机制组件放进 preset，结果：选了这个模式的会话**没有 read/bash/write/skill**，
+因为 standard 的工具行不在里面。实测 `session/projections` 的
+`contextBreakdown.toolsTokens`：六行-only 的 sdlc 会话 **3265**，standard 会话
+**6902**——差值不是"多了 SDLC 工具"，而是"少了全部基础工具"。
+
+修法：「AI 原生 SDLC」= **standard 的完整副本 + 六个组件**。实测后 sdlc 会话
+**10072** > standard **6902**（Δ≈六个组件的 schema）。代价是复制了一份内置列表，
+App 升级会漂移，所以必须有 `tools/preset-sync-check.mjs` 门禁与 `--write` 同步。
+
+### 14.2 坑二：preset 的行**不是**宿主 Loader 行 → `dsh.client` 发现不到
+
+`@deepseek-ai/dsh-client-modules` 只扫描**宿主 Loader** 里精确包名的行。preset 的
+行在注册表自己的内存 Loader 树里（`Config.listConfigs` 也只遍历 profile 的 Loader
+树，官方 README 明说）。所以 UI 的浏览器半**不能**从 preset 里来：要么留在宿主行，
+要么面板静默消失。这是方案 A「UI 常驻、其余进 preset」的直接原因。
+
+### 14.3 坑三：eager activation 的副作用
+
+preset 声明会**提前激活**（「声明会提前加载」/「preset 修订被选择它的 Agents 共享」），
+所以 `sdlc-verify` 在 preset scope 内注册的 `sdlc-verifier` preset 会出现在全局
+`agentPresets/list` 里（改动前也是全局注册，非本次引入）。这不是"工具泄漏"——工具
+注册仍在 preset 层，标准会话看不到。
+
+### 14.4 怎么取得"真的按会话生效"的运行时证据
+
+本机可复跑的办法（隔离 profile，不碰用户 App）：boot web profile 后，用浏览器
+Cookie 调 Host RPC（`/api/<endpoint>`，请求体
+`{type:"client-request",rpcId,method,payload:{args:{...}}}`）：
+
+```
+POST api/agentPresets/list                    → 列表含 sdlc，且 broken 字段缺失（可组合）
+POST api/agentPresets/read   {agentPreset:sdlc} → 末尾是本套件六行
+POST api/session/create      {agentPreset:sdlc} → 返回 agentPreset=sdlc
+POST api/session/create      {}                  → 默认 standard
+POST api/session/prompt      {sessionId,...}     → 各发一条 prompt
+POST api/session/projections {sessionId}         → contextBreakdown.toolsTokens
+```
+
+实测：sdlc 会话 10072 / standard 会话 6902，`agentPreset` 投影分别为 `sdlc` / `standard`。
+**⚠️ 这是间接读数**：`toolsTokens` 只证明工具 schema 集合不同，不能替代"在新会话里
+看到工具列表"的人工确认；但它比"静态说明"强，且能证伪（六行-only 那次就是它暴露的）。
+
+### 14.5 工具侧的两个坑
+
+- **`!!js` YAML 标签**：standard 副本含 `disabled: !!js process.platform === 'win32'`。
+  默认 js-yaml schema 读到 `!<tag:yaml.org,2002:js>` 直接抛「unknown tag」。检查/冒烟
+  脚本要注册自定义 scalar 类型（读成字符串即可，不求值）。
+- **不要把 standard 副本行当本包导出**：`plugin-activation-check` 第一版把 preset
+  里所有行都拿本包 `exports` 解析，于是 `@deepseek-ai/dsh-persona` 等全部报"解析
+  失败"。只 import 本套件的行（ui 宿主行 + 六行），standard 副本交给 sync 门禁。

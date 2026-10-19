@@ -11,7 +11,9 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "compat": "node tools/compat-check.mjs"
+    "compat": "node tools/compat-check.mjs",
+    "preset-sync": "node tools/preset-sync-check.mjs",
+    "preset-sync:write": "node tools/preset-sync-check.mjs --write"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
