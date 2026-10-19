@@ -118,7 +118,7 @@ dump-config 七行；真实启动无激活警告；`__DSH_BOOT__.entries` 含
 （RSI-1，VERIFYING，停滞 4 天）。随后已把旧七个依赖从 profile 移除，
 现在 profile 里只有一个 SDLC bundle、一个依赖。
 
-**最终 tarball（52 文件）换入后重新读过一次**：`plugin_manager list_plugins`（19:53:45）里
+**最终 tarball（52 文件）换入后重新读过一次**：`plugin_manager list_plugins`（19:53:39）里
 `include:sdlc-task/artifact/status/verify/workflow/rsi/ui` 七行仍全部
 `fiberPhase: active`，`sdlc-ui` 行 moduleName 是精确包名 `@ai-native-sdlc/dsh-sdlc`；
 换包只改了 locale/icon 与注释，host 行为不变。另两个旧 profile（headless、
@@ -141,8 +141,9 @@ verify/rsi 恢复各自原图标，status/workflow 与套件共用同一枚（�
 workflow/rsi 原先没有 locale 文件（合并前靠精确包名回退读 package.json），
 合并后必须补 `locale/<comp>/{en,zh}.json` 才不会让这两行退化为"只有 icon"——
 第三轮独立验证正是因此判了 reject，已补并让冒烟对**六个**子路径行都校验。
-`smoke/ui.mjs` 的回归断言从"exports 键存在"升级为"target 可解析到真实文件"
-（含一次故意改坏 target 的负向实测），断言数保持 46；总冒烟 375 → 377。
+`smoke/ui.mjs` 的回归断言从"exports 键存在"升级为"target 可解析到真实文件、
+且 icon target 必须指向本组件自己的 `icons/<comp>.svg`"——第二轮"所有行退化成
+同一套件图标"的回归因此真会红（负向实测 45/46），断言数保持 46；总冒烟 375 → 377。
 
 
 ### RSI 首版（2026-10-15）

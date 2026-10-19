@@ -97,7 +97,13 @@ console.log('\n== 1b. UI 行必须挂在包根（否则浏览器半会被静默�
         unresolved.push(`${comp} ${key} 缺 meta.title/description`);
       }
     }
-    if (targetFile('./*/icon', comp) === undefined) unresolved.push(`${comp} icon`);
+    // 不能只查 icon target 存在：第二轮验证抓到过"所有子路径行都指向套件同一枚图标"
+    // 的回归（46/46 仍然绿）。这里要求 target 必须解析到 icons/<comp>.svg 本身。
+    const iconFile = targetFile('./*/icon', comp);
+    if (iconFile === undefined) unresolved.push(`${comp} icon`);
+    else if (path.resolve(iconFile) !== path.resolve(DIR, '..', 'icons', `${comp}.svg`)) {
+      unresolved.push(`${comp} icon 指向了非本组件图标`);
+    }
   }
   if (unresolved.length === 0) {
     ok('exports 的 locale/icon target 都能解析且六个子路径行都有 meta 文案（不只键存在）');

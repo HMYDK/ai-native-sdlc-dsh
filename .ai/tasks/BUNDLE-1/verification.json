@@ -1,14 +1,14 @@
 {
   "task": "BUNDLE-1",
-  "at": "2026-10-19T11:18:36.514Z",
-  "intent_of_change": "把七个独立 DSH 插件合并为一个包 @ai-native-sdlc/dsh-sdlc@0.2.0：一个 bundle、cordis.patch.yml 一条 insert 七行（行 id 不变），消灭 7 份 peerDependencies/7 个 tarball/跨包 import 导致的四份 helpers 副本与状态常量副本；同时保持七个组件各自的 inject/Config/fiber、工具与 Skill 行为、客户端面板、插件页展示元数据与验证者 preset 隔离策略不变。分发合并，执行不合并。这是对第一次验证（approve，3 条 minor）修复后的复验。",
-  "scope": "复验最终提交 d6177ea：七行与分发单元、客户端半与插件页元数据（locale/icon exports）、共享代码去重、测试/冒烟/门禁、旧包清理、隔离与 desktop profile 运行时证据。重点核对实际行为与可复跑证据，不要只信提交信息。",
+  "at": "2026-10-19T12:06:48.076Z",
+  "intent_of_change": "把七个独立 DSH 插件合并为一个包 @ai-native-sdlc/dsh-sdlc@0.2.0：一个 bundle、cordis.patch.yml 一条 insert 七行（行 id 不变），消灭 7 份 peerDependencies/7 个 tarball/跨包 import 导致的四份 helpers 副本与状态常量副本；同时保持七个组件各自的 inject/Config/fiber、工具与 Skill 行为、客户端面板、插件页展示元数据（逐组件 locale + 图标）与验证者 preset 隔离策略不变。分发合并，执行不合并。这是对第三轮 reject（workflow/rsi 缺 locale 导致展示元数据退化）修复后的复验。",
+  "scope": "复验最终提交 80b502d：七行与分发单元、客户端半与插件页元数据（六个子路径行的 locale/icon 都能被宿主 readPluginMeta 解析）、共享代码去重、测试/冒烟/门禁、旧包与旧 profile 清理、隔离与 desktop profile 运行时证据。重点核对实际行为与可复跑证据；对\"新增断言能否失败\"做独立判断，不要只信提交信息。",
   "criteria": [
-    "R1/R2 分发单元唯一且七行不变：仓库只有一个带 dsh.bundle.patch 的包 @ai-native-sdlc/dsh-sdlc（一份 peer 集合、一个 tarball）；packages/sdlc/cordis.patch.yml 恰好一条 insert、七行，行 id 与合并前一致（sdlc-task/sdlc-artifact/sdlc-status/sdlc-verify/sdlc-workflow/sdlc-rsi/sdlc-ui）；profile 的 dsh.profile.bundles 只增加一条该包条目，不再出现 @ai-native-sdlc/dsh-sdlc-*。",
-    "R2/R3 七行模块与客户端半、插件页元数据都可被发现：每行模块导出 apply/inject/Config；sdlc-ui 行 name 是精确包名 @ai-native-sdlc/dsh-sdlc（不是子路径），包根 lib/index.js 等价于 ui 组件；真实启动的 window.__DSH_BOOT__.entries 含该包客户端条目、GET /api/sdlc-ui.tasks 200；包根有 locale/en.json+zh.json 且 exports 覆盖根/子路径的 locale 与 icon（readPluginMeta 可解析）。",
+    "R1/R2 分发单元唯一且七行不变：仓库只有一个带 dsh.bundle.patch 的包 @ai-native-sdlc/dsh-sdlc（一份 peer 集合、一个 tarball）；packages/sdlc/cordis.patch.yml 恰好一条 insert、七行，行 id 与合并前一致（sdlc-task/sdlc-artifact/sdlc-status/sdlc-verify/sdlc-workflow/sdlc-rsi/sdlc-ui）；desktop 与隔离 profile 的 dsh.profile.bundles 只增加一条该包条目，不再出现 @ai-native-sdlc/dsh-sdlc-*。",
+    "R2/R3 七行模块、客户端半与插件页元数据都可被发现：每行模块导出 apply/inject/Config；sdlc-ui 行 name 是精确包名 @ai-native-sdlc/dsh-sdlc（不是子路径），包根 lib/index.js 等价于 ui 组件；真实启动的 window.__DSH_BOOT__.entries 含该包客户端条目、GET /api/sdlc-ui.tasks 200；包根与**全部六个**子路径行的 locale en/zh target 都可解析且 meta.title/description 存在，逐组件 icon target 可解析且与合并前图标一致（task/artifact/verify/rsi 各自不同，status/workflow 与套件同图标）。",
     "R4 包内单一真相：packages/sdlc/src 下无 @ai-native-sdlc/ 形式的跨包 import；sessionCwd/requireSessionCwd/resolveOptions/writePolicy 只在 src/shared/helpers.ts 一份；status/scan.ts 直接 import ../task/state.js 的 STATUSES/KNOWN_ARTIFACTS/REQUIRED_ARTIFACTS/isStatus；不存在残余副本或盯副本的契约测试。",
-    "R5 行为与测试不退化：合并后单测 202(lib)+8(UI)=210 全过、七组件冒烟 377 条全过（39/62/69/40/46/109/12）、bench 3/3、compat 2 个 manifest 通过；工具名、Skill 内容、state.yaml/verification.json 契约与验证者 preset 隔离策略未变；减少的 41 条测试可逐条解释（3×12 重复 helpers 测试 + 1 漂移检测 + 4 条常量副本契约测试）。",
-    "R6/R7 安装、清理与工具证据可复现：packages/ 只剩 sdlc/（旧七包目录与旧 tgz 已清理；git 历史可取回）；隔离 profile 安装 npm pack 的 tarball 后 dump-config 七行、无 entry did not activate、GET /api/sdlc-ui.tasks 200；desktop profile 七行 fiberPhase active 且旧七包依赖已移除；tools/bench、plugin-activation-check、time-travel-check、mutation-score --list 在新布局下可运行（后者收尾要求 git status 干净），测试场仓库 make check 21/21。"
+    "R5 行为与测试不退化：合并后单测 202(lib)+8(UI)=210 全过、七组件冒烟 377 条全过（39/62/69/40/46/109/12）、bench 3/3、compat 2 个 manifest 通过；工具名、Skill 内容、state.yaml/verification.json 契约与验证者 preset 隔离策略未变；减少的 41 条测试可逐条解释（3×12 重复 helpers 测试 + 1 漂移检测 + 4 条常量副本契约测试）；UI 冒烟对 exports target 的断言能真的失败（有负向实测）。",
+    "R6/R7 安装、清理与工具证据可复现：packages/ 只剩 sdlc/（旧七包目录与旧 tgz 已清理，git 历史可取回）；隔离 profile 安装 npm pack 的 tarball（52 文件）后 dump-config 七行、无 entry did not activate、GET /api/sdlc-ui.tasks 200；desktop profile 七行 fiberPhase=active 且是最终 tarball 上重新读的，旧七包依赖已移除；headless/verifytest profile 无旧包残留；tools/bench、activation-check、time-travel-check、mutation-score --list 在新布局下可运行（后者收尾要求 git status 干净），测试场仓库 make check 21/21。"
   ],
   "artifacts": {
     "intent": "<REPO>/.ai/tasks/BUNDLE-1/intent.md",
@@ -18,74 +18,65 @@
   },
   "verdict": {
     "status": "approve",
-    "summary": "5/5 判据 met，approve。独立复核的关键读数：仓库唯一 bundle 包、patch 恰好 1 个 insert/7 行且 id 与 7994478 的七个旧 patch 相同；安装后的 tarball 七个模块均导出 apply/inject/Config，包根 apply/Config === ui 组件；隔离 profile 真实启动的 __DSH_BOOT__.entries 含 {id:@ai-native-sdlc/dsh-sdlc, rev:b2c042a69eb1, inject:sidebar}，0 条 entry did not activate，GET /api/sdlc-ui.tasks 200/86773；宿主的真实 readPluginMeta 对包根与子路径返回 en/zh 标题与 icon；单测 202+8、冒烟 377（39/62/69/40/46/109/12）、bench 3/3、compat 2、dump-config 七行、activation-check 七行+26 文件 sha256、packages/ 只剩 sdlc/、playground 远端 clone make check 21/21。未发现测试被放宽或为变绿改断言；4 条 minor：(1) 六个子路径行的 icon 全指向同一个套件 icon，task/artifact/verify/rsi 旧包各有不同 icon，展示元数据未完全不变；(2) 新增 UI 冒烟只检查 exports 键存在，不检查 target 可解析——把 target 改坏仍 46/46 绿；(3) plan.md 的 Proof 仍写 375/44 与 81975/13，最终实测是 377/46 与 86773/15；(4) desktop 的七行 fiberPhase active 读数是 18:34（最终 tarball 19:03 交换前），交换后没有重新跑 plugin_manager，只有 sdlc_status/sdlc_verify 的真实调用可作旁证。",
+    "summary": "五条判据均 met，approve。独立复跑：单测 202+8、冒烟 377（39/62/69/40/46/109/12）、bench 3/3、compat 2、time-travel 5 时点、mutation --list 532、activation 七行+26 文件、干净 clone 的 playground make check 21/21；宿主真实 readPluginMeta 对包根与六个子路径行返回 en/zh title/description，逐组件图标 sha256 与合并前逐一相同；隔离 profile 真实启动 0 条 entry did not activate、boot entry 含该包、GET /api/sdlc-ui.tasks 200/86730；desktop 安装副本与最终 tarball 逐字节一致，session 日志 19:53:39 的 plugin_manager 七行 fiberPhase=active。主要缺口是 UI 冒烟的 icon 断言只查 target 存在，第二轮“所有图标指向套件图标”的回归仍能 46/46 通过；另有 plan 声称“多轮均 approve”与第三轮 reject 矛盾、workflow/rsi 标题来源表述不准确两条 minor。",
+    "criteria_results": [
+      {
+        "result": "met",
+        "evidence": "find packages -maxdepth 2 -name package.json → 只有 packages/sdlc/package.json；node 解析 cordis.patch.yml → ops=1、rows=7（sdlc-task/artifact/status/verify/workflow/rsi/ui）；git show 959f3ee^:packages/sdlc-<p>/cordis.patch.yml → 七个旧 id 逐一相同。desktop 与 .verify-home/profiles/verify-sdlc 的 package.json：dsh.profile.bundles 只有一条 @ai-native-sdlc/dsh-sdlc，dependencies 也只有它，无 dsh-sdlc-*。"
+      },
+      {
+        "result": "met",
+        "evidence": "ELECTRON_RUN_AS_NODE=1 \".../DeepSeek Harness\" --expose-internals /tmp/bundle1-verify/meta.mjs <desktop|verify-home> → 宿主 readPluginMeta 对 root+task/artifact/status/verify/workflow/rsi 全部返回 en/zh title/description；icon sha256：task 375536c3、artifact 7411d5be、verify c7033623、rsi 69294c2b、status/workflow/root 78170def，与 git show 959f3ee^ 的旧 icon 逐一相同。安装副本 import 七个 specifier → 均有 apply/inject/Config 且 Config['~standard']；root.apply===ui.apply。隔离启动 __DSH_BOOT__.entries 含 {\"id\":\"@ai-native-sdlc/dsh-sdlc\",\"rev\":\"c7892fa5cd60\"}，0 条 entry did not activate，GET /api/sdlc-ui.tasks 200/86730（日志/结果在 /tmp/bundle1-verify/）。"
+      },
+      {
+        "result": "met",
+        "evidence": "grep -rn \"from '@ai-native-sdlc\\|import('@ai-native-sdlc\" packages/sdlc/src → 无跨包 import（只命中注释与自引用 specifier 字符串）；grep -rn 'function sessionCwd|requireSessionCwd|resolveOptions|writePolicy' packages/sdlc/src → 只在 src/shared/helpers.ts；sed status/scan.ts → import { STATUSES, KNOWN_ARTIFACTS, REQUIRED_ARTIFACTS, isStatus } from '../task/state.js'；find packages/sdlc -name 'contract.test*' → 无，helpers 只剩 src 一份与 lib 构建产物。"
+      },
+      {
+        "result": "met",
+        "evidence": "npm test --workspace packages/sdlc → 202 pass + 8 pass（/tmp/bundle1-verify/test.log）；DSH_APP=... npm run smoke → 39/62/69/40/46/109/12 = 377，末行“✅ 七个组件冒烟全部通过”（/tmp/bundle1-verify/smoke.log）；node tools/bench/run.mjs → 3/3；node tools/compat-check.mjs → 2 个 manifest。旧树 test() 计数 243 + UI 8 = 251，新 202+8=210；减少 41 = 3 份重复 helpers 各 12 + 1 漂移检测 + 4 contract 测试（已逐文件核对）。临时副本改坏 ./locale/en.json 或 ./*/icon target → 46→45，证明 target 断言能失败。"
+      },
+      {
+        "result": "met",
+        "evidence": "find packages -maxdepth 1 → 只剩 sdlc；tar -tzf packages/sdlc/*.tgz | wc -l → 52；隔离 --dump-config → 7 行；隔离真实启动 0 条 entry did not activate + API 200/86730。desktop 安装副本 diff -q 与最终 tarball 完全一致，activation-check 七行 + 26 文件 sha256；session-cf3a 日志 19:53:39 的 plugin_manager 七行 enabled=true/fiberPhase=active（ui moduleName 精确包名；证据文件写 19:53:45，实际结果时间 19:53:39，仍在最终安装之后）。headless/verifytest package.json/bundles/node_modules 无旧名。time-travel 5 时点、mutation --list 532 + git clean、干净 clone 的 sdlc-playground（348bff2）make check 21/21 均通过。"
+      }
+    ],
     "findings": [
       {
-        "severity": "minor",
-        "category": "spec_mismatch",
-        "file": "packages/sdlc/package.json",
-        "line": 25,
-        "reason": "插件页展示元数据没有完全保持不变：所有子路径行的 ./<comp>/icon 都通过 './*/icon': './icon.svg' 解析到同一个套件图标。合并前 task/artifact/verify/rsi 四个包各有不同的 icon.svg（不同 sha256），现在七行 readPluginMeta 返回同一个 366 字节 data URL；标题和 locale 已恢复，但这四个组件的图标退化。",
-        "evidence": "for p in task artifact status verify workflow rsi ui; do git show 959f3ee^:packages/sdlc-$p/icon.svg | shasum -a 256; done → task 375536c3、artifact 7411d5be、verify c7033623、rsi 69294c2b、status/workflow/ui 78170def；shasum packages/sdlc/icon.svg → 78170def。\nELECTRON_RUN_AS_NODE=1 ... readPluginMeta('@ai-native-sdlc/dsh-sdlc/<comp>', profileParentURL) → task/artifact/status/verify/workflow/rsi/ui 的 icon 全部 len=366 且前缀相同。",
-        "suggestion": "若要保持逐组件展示不变，把四个旧 icon.svg 放进包内（如 icons/<comp>.svg），exports 用 './*/icon': './icons/*.svg'；若刻意统一成套件图标，在证据里明确写成有意变化，并同步更新“展示元数据不变”的表述。"
+        "severity": "important",
+        "category": "test_integrity",
+        "file": "packages/sdlc/smoke/ui.mjs",
+        "line": 100,
+        "reason": "冒烟对 icon 只断言 target 文件存在（existsSync），不校验逐组件图标内容；把 exports['./*/icon'] 改回 './icon.svg'（第二轮 reject 的原始回归，所有子路径行退回同一套件图标）时，冒烟仍是 46/46，而宿主会返回统一的套件图标。这个新断言在修复前也能通过，因而不能证明‘逐组件图标与合并前一致’。",
+        "evidence": "在 packages/sdlc 的临时副本把 package.json 的 exports['./*/icon'] 改成 './icon.svg'，运行 node smoke/ui.mjs → 断言总数：46（通过 46，失败 0）；同一副本用宿主 readPluginMeta → task/artifact/verify/rsi 的 iconHash 全为 78170def，正常应为 375536c3/7411d5be/c7033623/69294c2b。",
+        "suggestion": "对每个组件断言 icon target 指向 icons/<comp>.svg（或比较文件 sha256 / 直接调用 readPluginMeta 比较 iconHash），不要只 existsSync；负向实测应包含“target 指向错误图标”而不只是“target 不存在”。"
       },
       {
         "severity": "minor",
-        "category": "test_integrity",
-        "file": "packages/sdlc/smoke/ui.mjs",
-        "line": 76,
-        "reason": "新增的 exports 回归断言只检查 pkg.exports[key] 是否存在（=== undefined），不检查 target 是否能被 Node/宿主解析。第一轮验证的缺陷恰恰是“键存在但解析失败”（多星 pattern），这个断言抓不到同类 target 路径错误；实际行为目前正确，但回归保护弱于它声称的范围。",
-        "evidence": "cp <本机临时截图>//package.json /tmp/pkg-backup.json; 在临时副本把 exports['./locale/en.json'] 改为 './locale/nope.json'; ELECTRON_RUN_AS_NODE=1 ... smoke/ui.mjs → 断言总数 46（通过 46，失败 0）。\n同一副本删掉 './locale/en.json' 键后重跑 → 断言总数 46（通过 45，失败 1），说明断言只对键缺失敏感、对 target 不可解析不敏感。",
-        "suggestion": "在断言里对每个需要的 key 做 import.meta.resolve/createRequire.resolve（或直接调用宿主 readPluginMeta），确认 target 可解析，而不只确认键存在。"
+        "category": "spec_mismatch",
+        "file": ".ai/tasks/BUNDLE-1/plan.md",
+        "line": 103,
+        "reason": "plan 的 Proof 写 verification.json（多轮均 approve），但 evidence 明确记录第三轮 reject；登记的 verification.json 的 scope 仍是 d6177ea（第二轮 approve），最终 80b502d 的裁决在本轮之前没有落盘。这让制品链的事实来源与真实验证历史不一致。",
+        "evidence": "sed -n '102,103p' .ai/tasks/BUNDLE-1/plan.md → “...verification.json（多轮均 approve）”；sed -n '164,168p' .ai/tasks/BUNDLE-1/evidence/runtime-verification.md → “第三轮 ... **reject**”；verification.json 的 scope 写“复验最终提交 d6177ea”。",
+        "suggestion": "把 plan 的 Proof 改为如实记录第三轮 reject 与本轮复验；等本轮裁决落盘后更新 verification.json 的 scope/verdict，再宣称完成。"
       },
       {
         "severity": "minor",
         "category": "other",
-        "file": ".ai/tasks/BUNDLE-1/plan.md",
-        "line": 77,
-        "reason": "plan.md 的 Proof 与实际最终证据不一致：仍写冒烟 375 条（ui 44）和 GET 200/81975 字节（3 工作区/13 任务），而最终提交实测是 377 条（ui 46）与 86773 字节（当前 4 根/15 任务）。metadata 修复后只更新了 AGENTS/evidence，没有回写 plan 的 Proof，验证阶段对账会出现数字对不上。",
-        "evidence": "sed -n '70,87p' .ai/tasks/BUNDLE-1/plan.md → 第 77 行“375 条断言全过（39/62/69/40/44/109/12）”，第 83 行“81975 字节（3 工作区 / 13 任务）”。\nDSH_APP=... npm run smoke → ui 46，总 377；隔离 profile 真实 GET /api/sdlc-ui.tasks → 86773 字节、4 roots/15 tasks。",
-        "suggestion": "把 plan 的 Proof 更新为 377/46，并注明 API 大小/根数是环境相关读数（或标注为计划时快照），与 evidence/runtime-verification.md 的 D/F 节对齐。"
-      },
-      {
-        "severity": "minor",
-        "category": "missing_evidence",
-        "file": ".ai/tasks/BUNDLE-1/evidence/runtime-verification.md",
-        "line": 51,
-        "reason": "desktop profile 的“七行 fiberPhase: active”直接读数发生在最终 tarball 换入 desktop 之前：plugin_manager 结果时间 18:34，desktop 换 tarball 在 19:03，之后没有重新跑 plugin_manager。交换后只观察到 sdlc_status（19:03:31）和 sdlc_verify（19:06）可用；最终包的 host 模块相对交换前只差注释，故行为上大概率仍 active，但“七行 fiberPhase”这一条没有在最终安装上重新观测。",
-        "evidence": "zstd -dc ~/.dsh/sessions/--Users-work-company-mine-AI~0020Native~0020SDLC--/session-cf3a1908-4921-4824-8104-47eae191f084/session.v4.jsonl.zstd 后按 JSON 解析 tool/result：10:34:47Z 的 plugin_manager list_plugins 结果含 7 条 include:sdlc-*，全部 fiberPhase active；11:03:21Z 的安装结果写入 file:…/packages/sdlc/*.tgz；11:03:31Z sdlc_status 返回 BUNDLE-1。\n本轮我自己无法在 desktop 会话调用 plugin_manager（验证者工具面被 preset 隔离），故该项只能记为待作者补一次最终包上的 list_plugins 读数。",
-        "suggestion": "最终 tarball 装入 desktop 后重新调用一次 plugin_manager list_plugins，把七行 fiberPhase 与时间戳写进 runtime-verification.md；或在证据里明确写成“交换前读数 + 交换后工具调用旁证”。"
+        "file": "packages/sdlc/locale/workflow/en.json",
+        "line": 2,
+        "reason": "evidence I.1 声称 workflow/rsi 的 meta.title/description 取自合并前 package.json 的 name/description；实际 description 相同，但 title 是新的人类可读标题，不是旧包名（旧包名是 @ai-native-sdlc/dsh-sdlc-workflow / -rsi）。这与“展示元数据不变”的表述不完全一致，虽然满足判据 2 的 title/description 存在。",
+        "evidence": "node -e \"console.log(require('./packages/sdlc/locale/workflow/en.json').meta.title)\" → \"AI-native SDLC — Workflow\"；git show 959f3ee^:packages/sdlc-workflow/package.json 的 name → \"@ai-native-sdlc/dsh-sdlc-workflow\"；evidence/runtime-verification.md 第 173-175 行声称取 name/description。",
+        "suggestion": "在证据里明确写这是有意的标题改进（并同步“展示元数据不变”的措辞），或把 locale title 设成旧包名以严格保持展示不变。"
       }
     ],
     "unverified": [
-      "desktop profile 的七行 fiberPhase 未在最终 tarball（19:03 换入）之后重新读取；现有直接读数是交换前 18:34 的 plugin_manager，交换后只有 sdlc_status/sdlc_verify 的真实调用可作旁证。",
-      "两个历史 profile（~/.dsh/profiles/headless、verifytest）仍引用 @ai-native-sdlc/dsh-sdlc-* 旧包；desktop 与 .verify-home/verify-sdlc 已无旧名。判据 1 的“profile 不再出现旧名”是否只覆盖迁移目标 profile，需要人确认；若按全机 profile 解读则不成立。",
-      "仓库根 node_modules/@ai-native-sdlc 仍有 7 个指向已删除 packages/sdlc-* 目录的悬空 symlink（packages/ 本身已清理，只有 sdlc/ 和新 tgz）；不影响本轮测试，但属于本地开发目录残留。",
-      "SDLC 面板在真实桌面 GUI 中的视觉渲染未目视检查；本轮只验证了 __DSH_BOOT__.entries 条目、GET /api/sdlc-ui.tasks 200 与 smoke/ui.mjs 的客户端求值，与判据 2 的观测点一致。",
-      ".probe/repro.sh 的 PASS=32 行级机制探针未重跑；全量 mutation 基线未重新测量（作者已在 plan/spec 中声明，本轮只复核 mutation-score --list 532 点可运行且收尾 git status 干净）。"
+      "desktop GUI 的实际视觉渲染未目视检查；本轮只验证了 __DSH_BOOT__ entry、GET /api/sdlc-ui.tasks 200 与宿主 readPluginMeta。",
+      "全量 mutation 基线未重新测量（作者在 spec/AGENTS 中声明只做路径迁移）；本轮只复核 mutation-score --list 532 点。",
+      ".probe/fixture/two-rows 是 gitignored 的探针 bundle（第二份带 dsh.bundle.patch 的包）；若“仓库只有一个 bundle 包”按工作区字面理解则不成立，按分发包/受版本控制仓库理解成立。",
+      "headless profile 的 .plugin-manager/logs/operation-5NhQbj/pnpm.log 仍提到旧包；没有旧依赖/bundles/node_modules，若“无旧包残留”包含历史日志则不完全成立。",
+      "desktop plugin_manager 的证据文件时间写 19:53:45，session 日志实际结果时间为 19:53:39；读数仍在最终 tarball 安装（19:53:28）之后，结论不变。"
     ],
-    "criteria_results": [
-      {
-        "result": "met",
-        "evidence": "find packages -name package.json -not -path '*/node_modules/*' → 只有 packages/sdlc/package.json；grep -rl '\"bundle\"' --include=package.json packages → 只有它；find packages -name '*.tgz' → 只有 ai-native-sdlc-dsh-sdlc-0.2.0.tgz。\nnode -e 解析 packages/sdlc/cordis.patch.yml → 顶层数组长度 1、操作 insert、rows 7：sdlc-task/sdlc-artifact/sdlc-status/sdlc-verify/sdlc-workflow/sdlc-rsi/sdlc-ui；git show 7994478 的七个旧 patch → 行 id 完全相同。\ncat ~/.dsh/profiles/desktop/package.json .verify-home/profiles/verify-sdlc/package.json → 两者 dsh.profile.bundles 里 SDLC 只有 @ai-native-sdlc/dsh-sdlc，旧 @ai-native-sdlc/dsh-sdlc-* 条目与依赖均为 0。"
-      },
-      {
-        "result": "met",
-        "evidence": "cd .verify-home/profiles/verify-sdlc && node --input-type=module import 七个 specifier → 均导出 apply/inject/Config 且 Config['~standard'] 为真；root.apply===ui.apply、root.Config===ui.Config；patch 的 sdlc-ui 行 name 是精确包名 @ai-native-sdlc/dsh-sdlc。\n真实启动：DSH_HOME=.verify-home dsh --profile verify-sdlc --port 0 --no-open → __DSH_BOOT__.entries 含 {id:@ai-native-sdlc/dsh-sdlc, url:plugins/??@ai-native-sdlc/dsh-sdlc/client.js&rev=b2c042a69eb1, inject:[@deepseek-ai/dsh-client-ui-sidebar]}；日志 0 条 entry did not activate；curl 带认证 cookie GET /api/sdlc-ui.tasks → 200 / 86773 字节。\n宿主读取：ELECTRON_RUN_AS_NODE=1 … readPluginMeta(已安装副本的 7 个 specifier) → 包根 title {en:AI-native SDLC, zh:AI 原生 SDLC}、task/artifact/status/verify 标题 {en,zh}，七行均有 icon；import.meta.resolve 对 ./locale/en.json、./locale/zh.json、./<comp>/locale/en.json、./<comp>/locale/zh.json、./<comp>/icon 全部成功。"
-      },
-      {
-        "result": "met",
-        "evidence": "grep -rn \"from '@ai-native-sdlc\\|import('@ai-native-sdlc\" packages/sdlc/src → 无跨包 import；grep -rn 'function sessionCwd|requireSessionCwd|resolveOptions|writePolicy' packages/sdlc/src → 只有 src/shared/helpers.ts；find packages -name 'helpers.js' → 只有 lib/shared/helpers.js（构建产物）。\nsed -n '22,40p' packages/sdlc/src/status/scan.ts → import { STATUSES, KNOWN_ARTIFACTS, REQUIRED_ARTIFACTS, isStatus } from '../task/state.js'；git ls-files | grep contract.test → 无；find packages -maxdepth 1 → 只有 sdlc。"
-      },
-      {
-        "result": "met",
-        "evidence": "npm test --workspace packages/sdlc → lib tests 202/pass 202/fail 0，UI tests 8/pass 8；DSH_APP=… npm run smoke → artifact 39 / rsi 62 / status 69 / task 40 / ui 46 / verify 109 / workflow 12（共 377），末行“七个组件冒烟全部通过”；node tools/bench/run.mjs → 3/3；node tools/compat-check.mjs → 2 个 manifest 通过。\ngit diff -M 959f3ee^..d6177ea：state.ts、verdict.ts、workflow/skill.ts、preset-filter.ts、test-freeze.ts 逐字相同；preset.ts 仅第 104 行自引用子路径改变；9 个工具名与旧版相同；七个 inject 数组相同；旧 4 份 helpers.test 各 12 条、新 shared/helpers.test 11 条（删 1 条漂移检测），status/contract.test 4 条被删 = 减少 41 条。\n验证者 preset：session 9de467f5 与 2b1a89aa 的 agentPreset=sdlc-verifier，工具名只有 bash/glob/grep/read/read_image/skill/structured_output（无 write/edit/sdlc_*），说明新的 preset-filter 子路径在运行时仍生效。"
-      },
-      {
-        "result": "met",
-        "evidence": "find packages -maxdepth 1 → 只有 sdlc；find packages -name '*.tgz' → 只有一个 0.2.0 tarball；git show 959f3ee^:packages/sdlc-task/package.json → @ai-native-sdlc/dsh-sdlc-task（旧包从 git 历史可取回）。\nDSH_HOME=.verify-home dsh --profile verify-sdlc --dump-config → 7 行；隔离 profile 真实启动日志 0 条 entry did not activate；GET /api/sdlc-ui.tasks → 200/86773；DSH_PROFILE_DIR=.verify-home/profiles/verify-sdlc node tools/plugin-activation-check.mjs → 七行可解析 + 26 个发布文件 sha256 一致。\ndesktop package.json → 依赖只剩 @ai-native-sdlc/dsh-sdlc（另有无关的 @hlzj），安装副本 42 个文件与 tarball 逐字节一致；session-cf3a1908 的 10:34:47Z plugin_manager 结果七行 fiberPhase active，11:03:31Z sdlc_status 在换包后可用。\nnode tools/bench/run.mjs 3/3；time-travel 7 组/13 文件/5 时点一致；mutation-score --list 532 点且收尾 git status 干净；远端 clone 的 sdlc-playground（348bff2）make check 21/21。"
-      }
-    ],
-    "verifier_session": "9de467f5-2c0e-4172-8c79-7a421a8d6196"
+    "verifier_session": "adb84882-df3a-4203-9ba3-1df12eabbc25"
   }
 }

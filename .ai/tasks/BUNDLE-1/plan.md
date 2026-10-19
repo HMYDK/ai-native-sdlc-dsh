@@ -100,4 +100,6 @@
 - desktop live：最终 tarball 换入后无需重启，`plugin_manager` 七行
   `fiberPhase: active`；`sdlc_status` / `sdlc_verify` 可真实调用。
 - 独立验证：`sdlc_verify` 对 R1–R8 逐条裁决，写入
-  `.ai/tasks/BUNDLE-1/verification.json`（多轮均 approve）。
+  `.ai/tasks/BUNDLE-1/verification.json`。多轮中第三轮曾因 workflow/rsi 缺
+  locale 判 reject（展示元数据退化），补齐后复验；最终裁决与 scope 以
+  verification.json 为准，不在这里写"均 approve"。

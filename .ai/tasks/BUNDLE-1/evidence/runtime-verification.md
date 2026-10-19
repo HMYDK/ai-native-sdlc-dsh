@@ -170,8 +170,10 @@ icon（合并前它们是精确包名，会回退读 package.json 的 name/descr
 （七行、377 冒烟、48→当时 tarball、隔离启动、desktop 读数等）。
 
 修复：
-1. 补 `locale/workflow/{en,zh}.json` 与 `locale/rsi/{en,zh}.json`，meta.title/
-   description 取合并前 `package.json` 的 name/description（英文），中文为对应译文。
+1. 补 `locale/workflow/{en,zh}.json` 与 `locale/rsi/{en,zh}.json`。description
+   取合并前 `package.json` 的描述（英文原文）与对应中文；title 采用人类可读标题
+   （**有意改进**：合并前这两行是精确包名，宿主缺 locale 时回退成裸包名
+   `@ai-native-sdlc/dsh-sdlc-workflow`，不是本来就有友好标题）。
    现在六个子路径行都有 locale，`readPluginMeta` 对六行都返回 en/zh 标题。
 2. `smoke/ui.mjs` 去掉"workflow/rsi 不要求 locale"的豁免：现在对六个组件逐一
    校验 locale en/zh 的 target 可解析且 meta.title/description 存在；负向实测
@@ -184,8 +186,28 @@ icon（合并前它们是精确包名，会回退读 package.json 的 name/descr
 最终 tarball（**52 文件**）：重装 desktop 与隔离 profile 后复验——隔离启动
 `entry did not activate` 0 条、boot entry rev=`c7892fa5cd60`、
 `GET /api/sdlc-ui.tasks` 200 / **86730** 字节；desktop 重装后重新调用
-`plugin_manager list_plugins`（2026-10-19 19:53:45）：七行全部
+`plugin_manager list_plugins`（2026-10-19 19:53:39）：七行全部
 `enabled=true, fiberPhase=active`；从 desktop 已安装副本解析六个组件的 locale：
 task/artifact/status/verify/workflow/rsi 标题分别为
 "AI-native SDLC — Task & Artifacts / Artifacts / Portfolio / Verification /
 Workflow / RSI"，全部有 description。
+
+## J. 第四轮独立验证（approve，3 条 finding）后的收尾
+
+第四轮 `sdlc_verify`（verifier_session `adb84882-…`）5/5 met、**approve**，
+裁决已成功落盘（verification.json scope=80b502d）。留了 3 条：
+1. **important（测试完整性）**：UI 冒烟对 icon 只查 target 存在——把
+   `exports['./*/icon']` 改回 `./icon.svg`（即第二轮 reject 的原始回归）时仍 46/46。
+   修法：断言 icon target 必须解析到 `icons/<comp>.svg` 本身；负向实测
+   （把 `./*/icon` 改回 `./icon.svg`）现在会红：六个组件全部点名
+   "指向了非本组件图标"，46 → 45；恢复后 46/46。
+2. **plan Proof 误写"多轮均 approve"**：实际上第三轮是 reject（workflow/rsi 缺
+   locale）。已改写为如实记录"第三轮 reject、补齐后复验，最终裁决以
+   verification.json 为准"。
+3. **workflow/rsi locale 的 title 来源表述不准**：evidence 原写"title 取旧
+   package.json name"，实际 title 是新的人类可读标题（有意改进：旧行为是回退成
+   裸包名）。已改写清楚：description 取旧 package.json 描述，title 是有意改进。
+
+另校正两处读数：desktop 最终 tarball 上的 `plugin_manager` 结果时间为
+**19:53:39**（此前 evidence/AGENTS 写 19:53:45，来自结果到达时间；以 session
+日志为准）。
