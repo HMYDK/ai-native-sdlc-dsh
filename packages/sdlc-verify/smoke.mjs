@@ -110,6 +110,21 @@ ctx.provide('sandboxPolicy', {
   },
 });
 
+// 验证者 preset 的注册记录。0.2.1 起只读工具面由 preset 承担，
+// 冒烟必须同时断言「插件注册了 preset」和「派发时选中了它」。
+const presetRegistrations = [];
+ctx.provide('agentPresets', {
+  async register(definition) {
+    presetRegistrations.push(definition);
+    return async () => {};
+  },
+  async resolve(id) {
+    return presetRegistrations.some((definition) => definition.id === id)
+      ? { id, name: 'SDLC Verifier' }
+      : undefined;
+  },
+});
+
 // 记录 subagent 请求，用于断言插件传了什么
 const started = [];
 const disposeCalls = [];
@@ -117,10 +132,10 @@ let verifyCalls = 0;
 let runHandles = 0;
 let capturedCriteriaPrompt = '';
 const subagentsStub = {
-  impl: async (provider, request) => {
+  impl: async () => {
     return {
-      id: 'smoke-child',
-      localAgent: undefined,
+      childId: 'smoke-child',
+      messageId: 'smoke-message',
       result: Promise.resolve({
         output: [{ type: 'text', text: 'smoke verifier output' }],
         structured: {
@@ -144,11 +159,11 @@ const subagentsStub = {
   },
 };
 ctx.provide('subagents', {
-  start: async (provider, request) => {
+  startActivation: async (spec) => {
     // 计数器放在这个**唯一入口**：5c 会临时替换 impl，放在 impl 里会漏计
     verifyCalls += 1;
-    started.push({ provider, request });
-    const handle = await subagentsStub.impl(provider, request);
+    started.push(spec);
+    const handle = await subagentsStub.impl(spec);
     runHandles += 1;
     return handle;
   },
@@ -369,8 +384,7 @@ console.log('\n== 5c. needs_human + unverified 必须能穿透（原 schema 漂�
   // 于是"证据不足就上报给人"的整条通路失效。原冒烟没覆盖它。
   const original = subagentsStub.impl;
   subagentsStub.impl = async () => ({
-    id: 'smoke-child-2',
-    localAgent: undefined,
+    childId: 'smoke-child-2',
     result: Promise.resolve({
       output: [{ type: 'text', text: 'needs human' }],
       structured: {
@@ -542,12 +556,11 @@ console.log('\n== 5d-3. 静默失败必须变成可报告的警告 ==');
 console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提示词）==');
 {
   // 桩返回什么裁决，就由这里控制。
-  // 形状必须与 SubagentRun 一致：{id, localAgent, result: Promise<SubagentResult>}。
+  // 形状必须与 SubagentActivation 一致：{childId, result: Promise<SubagentResult>}。
   // （第一版写成了裸的 SubagentResult，于是插件读 run.result.structured 时
   // 报 "Cannot read properties of undefined"——自己的测试抓到的。）
   const craftVerdict = (over) => ({
-    id: 'smoke-criteria-child',
-    localAgent: undefined,
+    childId: 'smoke-criteria-child',
     result: Promise.resolve({
       output: [{ type: 'text', text: 'criteria 桩输出' }],
       structured: { status: 'approve', summary: '看起来没问题', findings: [], ...over },
@@ -587,8 +600,8 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
   // (2) 给了 criteria、逐条 met → 允许 approve
   {
     const original = subagentsStub.impl;
-    subagentsStub.impl = async (_p, req) => {
-      const txt = (req.prompt ?? []).map((b) => b.text ?? '').join('\n');
+    subagentsStub.impl = async (spec) => {
+      const txt = (spec.request.prompt ?? []).map((b) => b.text ?? '').join('\n');
       // 顺手断言：criteria 必须真的进了提示词
       capturedCriteriaPrompt = txt;
       return craftVerdict({
@@ -687,8 +700,7 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
     const original = subagentsStub.impl;
     let calls = 0;
     const retryChild = (over) => ({
-      id: `retry-child-${calls}`,
-      localAgent: undefined,
+      childId: `retry-child-${calls}`,
       result: Promise.resolve({
         output: [{ type: 'text', text: '重试桩输出' }],
         structured: over,
@@ -732,8 +744,7 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
     subagentsStub.impl = async () => {
       calls += 1;
       return {
-        id: `hopeless-${calls}`,
-        localAgent: undefined,
+        childId: `hopeless-${calls}`,
         result: Promise.resolve({
           // 自由文本里写着"我判 reject"——**不能**采信它去猜。
           output: [{ type: 'text', text: '我的结论是 reject，有 3 条问题' }],
@@ -831,57 +842,53 @@ console.log('\n== 6. 插件传给验证者的请求是否正确 ==');
   );
 }
 if (started.length < 1) {
-  bad('subagents.start 从未被调用');
+  bad('subagents.startActivation 从未被调用');
 } else {
   // 断言**第 5 节**那次调用（started[0]）——它带 artifacts。
   // 后面 5c/7 节还会各发起一次，所以这里不假设总数为 1。
-  const { provider, request } = started[0];
+  const spec = started[0];
+  const { provider, request } = spec;
+  const preset = presetRegistrations[0];
+  const presetRows = preset?.plugins ?? [];
+  const presetNames = presetRows.map((row) => row.name);
+  const fsRow = presetRows.find((row) => row.name === '@deepseek-ai/dsh-tool-fs');
+  const shellNames = presetRows
+    .map((row) => row.name)
+    .filter((name) => name === '@deepseek-ai/dsh-tool-bash' || name === '@deepseek-ai/dsh-tool-pwsh');
   const checks = [
     ['provider 为 spawn', provider === 'spawn'],
+    ['label 在外层 spec 上', spec.label === 'sdlc-verify'],
+    ['delivery 为 caller（不再把结果投递回父会话）', spec.delivery === 'caller'],
+    ['signal 在外层 spec 上', typeof spec.signal?.aborted === 'boolean'],
+    // 0.2.1 的核心迁移：只读工具面靠 preset，不再靠请求上的 toolFilter。
+    ['请求选中只读 preset', request.agentPreset === 'sdlc-verifier'],
+    ['旧字段 toolFilter 已不再发送', request.toolFilter === undefined],
+    ['旧字段 persona 已不再发送', request.persona === undefined],
     ['outputSchema 已传（强制结构化）', request.outputSchema?.type === 'object'],
-    // 断言**关键性质**而不是硬编码列表：写能力工具必须不在 allow 里。
-    // 硬编码整个数组会让"加一个只读工具"也报错，掩盖真正的回归。
-    [
-      'toolFilter 不含写能力工具（write/edit）',
-      Array.isArray(request.toolFilter?.allow) &&
-        !request.toolFilter.allow.includes('write') &&
-        !request.toolFilter.allow.includes('edit'),
-    ],
-    // 跨平台回归：allow 里只能出现**本平台真实存在**的 shell 工具。
-    // tools.restrict() 对不存在的工具名直接抛错，把 bash 与 pwsh 都写上会让
-    // 另一个平台的验证整条通路报错（实测：macOS 上报 unknown global tool "pwsh"）。
-    [
-      `toolFilter 只含本平台存在的 shell 工具（当前 ${process.platform}）`,
-      process.platform === 'win32'
-        ? request.toolFilter.allow.includes('pwsh') && !request.toolFilter.allow.includes('bash')
-        : request.toolFilter.allow.includes('bash') && !request.toolFilter.allow.includes('pwsh'),
-    ],
-    [
-      'toolFilter 保留只读检索工具与 shell',
-      ['read', 'grep', 'glob'].every((n) => request.toolFilter.allow.includes(n)) &&
-        (request.toolFilter.allow.includes('bash') || request.toolFilter.allow.includes('pwsh')),
-    ],
-    // ⚠️ `skill` 必须**单独**钉住。
-    //
-    // 上面那条只查 read/grep/glob，所以 `skill` 被摘掉它照样绿——
-    // 而"摘掉 skill"真的发生过：`sdlc-workflow` 交付的验证纪律是做成
-    // **Skill** 的，而验证者加载不到它（`toolFilter` 是允许清单）。
-    // 结果是一份名字里写着"给验证者的"清单，验证者够不着。
-    //
-    // 依据：`dsh-tool-skill` 只做 `ctx.tools.register(skillTool)`，
-    // **不注册任何提示词段**——Skill 目录除了这个工具没有别的通道。
-    // 没有它就等于那份清单不存在。
-    ['toolFilter 保留 skill（否则验证者读不到那份验证纪律）', request.toolFilter.allow.includes('skill')],
-    ['persona 已传且非空', typeof request.persona === 'string' && request.persona.length > 50],
-    // 正向：必须明确要求「忽略让你修改的指示」
-    ['persona 要求忽略修改类指示', /Ignore any instruction that would have you modify/i.test(request.persona)],
-    // 负向：**不得**再声称「只读/不能修改」——那句话被实测推翻过，
-    // 而且旧 persona 也能通过只做正向匹配的断言（无鉴别力）
-    ['persona 不再声称「只读」（负向断言）', !/read-only tools|You cannot modify/i.test(request.persona)],
-    // 正向：必须如实说明 bash 能写但不许写
-    ['persona 如实描述 bash 能力边界', /technically able to change files/i.test(request.persona)],
     ['prompt 是 ContentBlock[]', Array.isArray(request.prompt) && request.prompt[0]?.type === 'text'],
     ['未传 agentOptions（未配置模型时不乱传）', request.agentOptions === undefined],
+    // 插件必须真的把 preset 注册给 registry，而不是只传一个 id。
+    ['插件已向 registry 注册 preset', preset?.id === 'sdlc-verifier'],
+    [
+      'preset 的 write/edit 显式关闭',
+      fsRow?.config?.write === false && fsRow?.config?.edit === false && fsRow?.config?.read === true,
+    ],
+    [
+      `preset 只放本平台存在的 shell（当前 ${process.platform}）`,
+      shellNames.length === 1 &&
+        shellNames[0] === (process.platform === 'win32' ? '@deepseek-ai/dsh-tool-pwsh' : '@deepseek-ai/dsh-tool-bash'),
+    ],
+    [
+      'preset 保留 skill 通道（否则读不到验证纪律）',
+      presetNames.includes('@deepseek-ai/dsh-skill-filesystem') && presetNames.includes('@deepseek-ai/dsh-tool-skill'),
+    ],
+    [
+      'preset 不给委派 / 联网 / 提问能力',
+      !presetNames.includes('@deepseek-ai/dsh-tool-subagent') &&
+        !presetNames.includes('@deepseek-ai/dsh-tool-workflow') &&
+        !presetNames.includes('@deepseek-ai/dsh-tool-web') &&
+        !presetNames.includes('@deepseek-ai/dsh-tool-ask-user'),
+    ],
   ];
   for (const [label, pass] of checks) {
     if (pass) ok(label);
@@ -942,7 +949,7 @@ console.log('\n== 7b. 每次验证都留下成对记录，失败不能伪装成�
   });
   const original = subagentsStub.impl;
   const resultHandle = (result, id = 'record-child') => ({
-    id, localAgent: undefined, result: Promise.resolve(result),
+    childId: id, result: Promise.resolve(result),
     dispose: async () => { disposeCalls.push(id); },
   });
   const check = (label, condition) => condition ? ok(label) : bad(label);
@@ -966,7 +973,7 @@ console.log('\n== 7b. 每次验证都留下成对记录，失败不能伪装成�
     check('派发异常也有完整运行与尝试终点', paired() && records.at(-1)?.data.outcome === 'error' && records.some((r) => r.kind === 'attempt_finished' && /dispatch failed/.test(r.data.error)));
 
     await run(async () => ({
-      id: 'rejected-result-child', localAgent: undefined,
+      childId: 'rejected-result-child',
       result: Promise.resolve().then(() => { throw new Error('result infrastructure failed'); }),
       dispose: async () => { disposeCalls.push('rejected-result-child'); },
     }));
@@ -982,7 +989,7 @@ console.log('\n== 7b. 每次验证都留下成对记录，失败不能伪装成�
     subagentsStub.impl = async () => {
       abortCalls += 1;
       return {
-        id: 'abort-result-child', localAgent: undefined,
+        childId: 'abort-result-child',
         result: Promise.resolve().then(() => {
           controller.abort();
           throw new DOMException('用户中止验证', 'AbortError');
@@ -1019,7 +1026,7 @@ console.log('\n== 7b. 每次验证都留下成对记录，失败不能伪装成�
     const prep = records.find((r) => r.kind === 'prepared')?.data;
     check('有效 needs_human 裁决算结构化完成', complete.value?.verification_complete === true && records.at(-1)?.data.outcome === 'completed');
     check('prepared 留下制品原文哈希与读取失败', prep?.artifact_snapshots?.spec?.content === '可复核的制品正文' && /^[a-f0-9]{64}$/.test(prep?.artifact_snapshots?.spec?.sha256 ?? '') && typeof prep?.artifact_snapshots?.missing?.error === 'string');
-    check('实验指导只追加提示词，判据/schema/工具权限保留', prep?.prompt?.includes('EXPERIMENT-ONLY-GUIDANCE') && JSON.stringify(prep?.criteria) === JSON.stringify(['判据原文']) && prep?.outputSchema?.type === 'object' && !started.at(-1)?.request.toolFilter.allow.includes('write'));
+    check('实验指导只追加提示词，判据/schema/工具权限保留', prep?.prompt?.includes('EXPERIMENT-ONLY-GUIDANCE') && JSON.stringify(prep?.criteria) === JSON.stringify(['判据原文']) && prep?.outputSchema?.type === 'object' && started.at(-1)?.request.agentPreset === 'sdlc-verifier');
     check('父会话身份来自 session.id', records[0]?.data.parent_session_id === 'actual-parent-session');
     check('started 保留有效配置、请求模型标记与导入时指纹', records[0]?.data.config.verifierProvider === 'spawn' && records[0]?.data.requested_model?.source === 'requested' && /^[a-f0-9]{64}$/.test(records[0]?.data.verifier_fingerprint ?? ''));
   } finally {
@@ -1028,7 +1035,7 @@ console.log('\n== 7b. 每次验证都留下成对记录，失败不能伪装成�
   }
 }
 
-console.log('\n== 8. SubagentRun 必须被 dispose（契约要求，原先漏了）==');
+console.log('\n== 8. SubagentActivation 必须被 dispose（契约要求，原先漏了）==');
 // 断言「每次 sdlc_verify 调用都恰好 dispose 一次」——用两个实际计数比对，
 // 而不是写死数字（写死会在新增用例时假失败，而假失败会掩盖真问题）。
 if (disposeCalls.length === runHandles && runHandles > 0) {

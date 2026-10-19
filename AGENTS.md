@@ -84,7 +84,7 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 **Skill 的注册接口（实测确认，别再怀疑它不存在）**：
 
   · `dsh-base` 的 patch 里挂了 `@deepseek-ai/dsh-skill` 与 `dsh-skill-filesystem`
-    （本机版本 `0.1.5-rc.3`，比 npm 上的 `0.2.0-rc.2` 旧，但 `register()` 签名一致）
+    （本机 App 现为 `0.2.1-rc.2`；曾观察到 `0.1.5-rc.3` 的旧 runtime，但 `register()` 签名一致）
   · 插件侧接口：**`ctx.effect(() => ctx.skills.register({...}))`**
     · `SkillRegistration` 需要 `name` / `description` / `content` / **`source`**
       （漏 `source` 会被 tsc 拒；我用 `'bundled'`）
@@ -146,6 +146,41 @@ handbook/                 # 手册原文，只读
 4. **不要用 default export**——会隐藏 loader 元数据（有正式 postmortem）。
 5. **不要留未 await 的 promise**。游离的 promise 拒绝或同步回调抛错会
    **销毁整个 app**，与是哪个插件无关。
+
+### 0.2.1 兼容性（2026-10-19 实测，别再踩）
+
+- App 在 2026-10-17 自动从 `0.2.0-rc.2` 升到 `0.2.1-rc.2`。七个插件的
+  peer 都钉着精确的 `0.2.0-rc.2`，被插件管理器判为 `incompatible-version`，
+  启动时 bundle 被 **skip**——**App 照常启动，插件全部静默消失**。
+  症状是工具和侧栏一起没了，日志只有一行 warning。
+- 修法：peer 改成 `^0.2.1-rc.2`。DSH 的判定是
+  `semver.satisfies(runtime, range, { includePrerelease: true })`；
+  精确旧版本不接受新版本。**不要钉死精确版本**——App 自动升级，仓库不会。
+- 新门禁：`npm run compat` 读**本机真实 App** 的 `dsh/package.json`，
+  逐包验证 peer 范围。改 peer 或升级 App 后都要跑。
+- 0.2.1 子代理 API：`ctx.subagents.start()` **已删除**，改用
+  `startActivation(spec)`；`SubagentRun`/`run.id` → `SubagentActivation`/`run.childId`；
+  `label`/`signal` 移到 spec 外层，并新增 `delivery: 'caller'`。
+- 0.2.1 从 `SubagentStartRequest` 删除了 `persona` / `toolFilter`；官方
+  `dsh-tool-subagent` 传这两个配置会直接抛。迁移为 **Agent Preset**：
+  `ctx.agentPresets.register({id, plugins})` + request 带 `agentPreset`。
+  见 `packages/sdlc-verify/src/preset.ts`。
+- ⚠️ **preset 不会自动隔离宿主全局工具。** 只挂 preset 时，真实验证者的
+  工具面里仍有 `sdlc_task_create` / `sdlc_fix_end` / `sdlc_verify`——它能解冻
+  测试、推进任务。必须在 preset 里放一行
+  `ctx.tools.restrict({ deny: <运行时枚举的全部 global> })`。
+  `allow` 清单不行：preset 自己的 `read`/`grep`/`bash` 是 scope 注册，
+  不在 global 层，会被判 `unknown global tool`。
+- `agentPresets` 是**可选服务**（web/desktop 有，headless 没有）。不要写进
+  `inject`（会停 pending），用 `ctx.get('agentPresets')`；缺失时
+  `sdlc_verify` **fail closed**，不降级成继承全部工具的子代理。
+- 真实读数（隔离 profile，不碰用户 App）：
+  · `dsh web` 启动无 `entry did not activate`；
+  · `__DSH_BOOT__` 里有 `@ai-native-sdlc/dsh-sdlc-ui`；
+  · `GET /api/sdlc-ui.tasks` 200，聚合 3 个工作区 / 13 个任务；
+  · 真实验证者工具面：`bash glob grep read read_image skill structured_output`
+    （无 write/edit、无 `sdlc_*`、无 subagent）；
+  · 无模型凭据时 `sdlc_verify` 仍走完 2 次派发并返回 `needs_human`，未崩。
 
 ### 验证纪律
 
@@ -330,12 +365,18 @@ reject 的代码上都是绿的**）。
    npm 上的版本 peer 与 `0.2.0-rc.2` 不兼容 → **异构模型验证当前做不到**。
 5. **`outputSchema` 只能由插件代码请求**，模型不能。这是好事：
    "强制结构化裁决"无法被模型绕过。
-6. **`toolFilter` 不过滤别的插件注册的静态提示词**。被过滤的子代理仍会读到
-   "用 write 工具…"之类的文字。已在 verifier persona 里加防御说明。
+6. **工具过滤（`toolFilter` / `tools.restrict()` / preset）不过滤别的插件注册的
+   静态提示词**。被过滤的子代理仍会读到"用 write 工具…"之类的文字。
+   已在 verifier persona 里加防御说明。
 7. **DSH 没有**：网络管控、受保护路径、不可覆盖的管理层、模式化 allow/deny、
    入参改写、审批人归属、规范日志脱敏、连续 OTel 导出。
 
 ## 当前状态
+
+> 下面各条是**当时**的读数，保留作为历史；最新全量读数以本条为准（2026-10-19，
+> DSH `0.2.1-rc.2`）：单测 artifact 35 / rsi 38 / status 58 / task 48 / ui 8 /
+> verify 57 / workflow 7；冒烟 status 69 / task 40 / verify 109 / workflow 12 /
+> rsi 62 / ui 40；`npm run compat` 8 个包全部接受当前运行时。
 
 - [x] `sdlc-verify` 插件：TypeScript 严格模式零错误
 - [x] 单测 **23/23**（纯函数层，含 criteria 强制策略 10 条）
@@ -376,14 +417,10 @@ reject 的代码上都是绿的**）。
     伪造 `process.platform` 不够——它只改 `verifierToolAllow()` 的分支，
     不改 cmdlet 匹配逻辑。
   所以「做到哪一步」要按**被验证的行为**说，不要按"是不是 Windows"说。
-- **`toolFilter` 只过滤继承面**：验证者的工具面里仍有 `subagent`。
-  但我用探针（冻结 → 派子代理 → 让它写测试文件）**实测出了答案**：
-  调用返回 `Error: subagent depth 2 exceeds maxDepth 1` —— 验证者本身在 depth 1，
-  而 `maxDepth` 默认 1，**它派不出任何子代理**。所以 `subagent` 在那里是
-  「存在但不可用」，不是逃逸通道。
-  ⚠️ 但这是**配置依赖**的：若把 `maxDepth` 调大，这条路就会打开。
-  届时应确认工具限制是否沿继承链传递（`restrict()` 只作用于继承面，
-  孙代理能否拿到 write/edit 需重新实测）。
+- **（0.2.0 历史）`toolFilter` 只过滤继承面**：当时验证者的工具面里仍有
+  `subagent`，靠 `maxDepth=1` 使它"存在但不可用"。0.2.1 改用 preset 后，
+  实测工具面是 `bash glob grep read read_image skill structured_output`，
+  `subagent` 与全部 `sdlc_*` 都不在了。这条只适用于 0.2.0，不要再当现状引用。
 - 真正的硬约束应落在工具限制/沙箱层，或服务端分支保护。
 
 ### 本轮真实会话暴露的 4 个 bug（都只在重启加载新模块后才出现）

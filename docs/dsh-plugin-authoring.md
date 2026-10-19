@@ -6,6 +6,12 @@ all official packages under `<extracted-dsh-runtime>/node_modules/@deepseek-ai/`
 Vendored framework version: `@deepseek-ai/cordis@4.0.4`, `@deepseek-ai/cordis-plugin-loader@1.0.5`,
 `@deepseek-ai/cordis-plugin-include@1.0.9`, `@deepseek-ai/schemastery@3.18.4`.
 
+> ⚠️ 本文的运行时证据是 **0.2.0-rc.2**。0.2.1-rc.2 起，插件兼容性检查会
+> **强制执行** peer 范围，并在安装时拒绝不匹配的插件；`dsh-tool-subagent`
+> 的 `persona`/`toolFilter` 配置、子代理 `start` API 也被移除。第三方插件
+> 不要把 peer 钉死成某个精确的旧版本——App 会自动升级，仓库不会。
+> 以 `docs/dsh-plugin-contracts.md` §0.0 为准。
+
 Shorthand used below: `PKG` = `<extracted-dsh-runtime>/node_modules/@deepseek-ai`.
 
 > **Not present in this extract (flagged up front).** Every README cross-reference of the form
@@ -444,6 +450,11 @@ Declared-but-unenforced example (`PKG/dsh-package-manifest/README.md:93`):
 `"@deepseek-ai/cordis": "~4.0.4"` and on each `@deepseek-ai/dsh-*` package it imports, pinned to the
 exact released version (e.g. `"@deepseek-ai/dsh-tools": "0.2.0-rc.2"`). `workspace:^`, `workspace:~`,
 `workspace:*` are treated as "the current runtime" (`PKG/dsh-app-boot/lib/index.js:295-299`).
+
+> ⚠️ **官方同仓发布可以精确钉死；第三方插件不行。** 0.2.1 的兼容性检查用
+> `semver.satisfies(runtime, range, { includePrerelease: true })`；精确的
+> `0.2.0-rc.2` 不接受 `0.2.1-rc.2`，插件会被判 incompatible 并静默跳过。
+> 本仓库改用 `^0.2.1-rc.2`，并用 `npm run compat` 对**本机真实 App** 验证。
 
 **Display metadata format** (`PKG/dsh-app-boot/lib/index.js:1925-1954, 1969-1984`):
 `./locale/en.json` (+ optional `zh.json`, filename = language id) each holding

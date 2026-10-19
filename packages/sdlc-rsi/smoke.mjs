@@ -36,7 +36,9 @@ try {
   ctx.provide('skills',{register:()=>()=>{skillDisposed++;}});
   new LocalFileSystem(ctx,LocalFileSystem.Config['~standard'].validate({}).value);
   ctx.provide('sandboxPolicy',{resolve:()=>({mode:'workspace-write',workspaceRoot:root,writableRoots:[root]})});
-  ctx.provide('subagents',{start:async(_provider,request)=>{
+  ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture verifier'})});
+  ctx.provide('subagents',{startActivation:async(spec)=>{
+    const request=spec.request;const signal=spec.signal;
     calls++; const id=randomUUID();const text=request.prompt.map(p=>p.text??'').join('\n');prompts.push(text);
     const session={id,header:{id,cwd:root,parentSession:'parent',origin:'subagent'}};
     const models=behavior==='config-drift'
@@ -55,18 +57,18 @@ try {
     }
     if(behavior==='throw-with-noise'&&!text.includes('UNRELATED_CALL')) {
       // A later unrelated run makes "pick the latest run" an invalid substitute for call-id correlation.
-      await ctx.tools.execute({callId:randomUUID(),name:'sdlc_verify',arguments:{intent_of_change:'UNRELATED_CALL',criteria:['check behavior']},agent:request.parent,signal:request.signal});
+      await ctx.tools.execute({callId:randomUUID(),name:'sdlc_verify',arguments:{intent_of_change:'UNRELATED_CALL',criteria:['check behavior']},agent:request.parent,signal});
     }
     if(behavior==='throw'||behavior==='throw-with-noise'&&!text.includes('UNRELATED_CALL')) throw new Error('provider unavailable');
     const status=text.includes('CASE_HELP')?'needs_human':text.includes('CASE_BAD')&&!text.includes('candidate-guidance')?'approve':text.includes('CASE_BAD')?'reject':'approve';
     const structured={status,summary:'fixture verdict',findings:[],criteria_results:[{result:status==='approve'?'met':status==='reject'?'not_met':'cannot_tell',evidence:'fixture observation'}]};
     const result=behavior==='none'?{output:[],stopReason:'error',diagnostic:'fixture malformed'}:{output:[],stopReason:'completed',structured};
     if(behavior==='cancel') {
-      const pending=new Promise((_resolve,reject)=>request.signal.addEventListener('abort',()=>reject(Object.assign(new Error('fixture cancelled'),{name:'AbortError'})),{once:true}));
+      const pending=new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(Object.assign(new Error('fixture cancelled'),{name:'AbortError'})),{once:true}));
       setTimeout(()=>cancellation.abort(),10);
-      return {id,localAgent:undefined,result:pending,dispose:async()=>{}};
+      return {childId:id,result:pending,dispose:async()=>{}};
     }
-    return {id,localAgent:undefined,result:Promise.resolve(result),dispose:async()=>{}};
+    return {childId:id,result:Promise.resolve(result),dispose:async()=>{}};
   }});
   new ToolRuntime(ctx,'tools');
   rsi.apply(ctx,rsi.Config['~standard'].validate({}).value);

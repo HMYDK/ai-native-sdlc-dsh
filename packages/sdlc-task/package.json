@@ -1,6 +1,6 @@
 {
   "name": "@ai-native-sdlc/dsh-sdlc-task",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Task state machine and artifact chain for an AI-native SDLC on DeepSeek Harness: state.yaml in git is the source of truth.",
   "type": "module",
@@ -29,14 +29,14 @@
     "js-yaml": "^4.1.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
-    "@deepseek-ai/dsh-fs": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2"
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-fs": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.2"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.4",
-    "@deepseek-ai/dsh-fs": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-fs": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
     "@types/js-yaml": "^4.0.9"
   },
   "keywords": [

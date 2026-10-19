@@ -29,8 +29,11 @@ import type { SandboxPolicyService as _SandboxPolicyService } from '@deepseek-ai
 import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import type { SubagentResult, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
+import type { SubagentActivation, SubagentResult, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
+// 只为触发 declaration merging：`ctx.agentPresets` 由它提供（可选服务，用 ctx.get 读）。
+import type {} from '@deepseek-ai/dsh-agent-preset-registry';
 import { judgeTestMutation } from './test-freeze.js';
+import { VERIFIER_PRESET, VERIFIER_PRESET_ID } from './preset.js';
 import { errorMessages, isCancellation, recordVerificationRun, VERIFIER_FINGERPRINT, type VerificationRecording } from './recording.js';
 import type { Finding, Verdict } from './verdict.js';
 import {
@@ -62,50 +65,18 @@ export const name = 'sdlc-verify';
 export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolicy'];
 
 /**
- * 验证者允许使用的工具。
+ * ⚠️ 验证者的工具面**已经不在这里**声明了。
  *
- * 用 allow 白名单而不是 deny 黑名单：**继承面**上新增的工具默认不放行。
+ * 0.2.0 的 `SubagentStartRequest` 上有 `toolFilter` / `persona`；0.2.1-rc.2
+ * 把这两个字段从公开契约里删除，官方 `tool-subagent` 直接报
+ * “configure persona and tool plugins in an Agent Preset and select it with
+ * agentPreset (spawn only)”。所以只读工具面现在由 `src/preset.ts` 里一份
+ * **独立的 Agent Preset** 定义，`sdlc_verify` 通过 `agentPreset` 选择它。
  *
- * ⚠️ 但 allow **不能**过滤子代理 scope 自注册的工具——`ctx.tools.restrict()`
- * 的语义是"restrictions intersect; scoped registrations remain visible"。
- * 实测：四次验证者会话的 wire 工具面都是
- * `bash glob grep read structured_output subagent` —— write/edit 确实被摘掉了
- * （这是 Actor ≠ Verifier 的核心保证），但 `subagent` 与 `structured_output`
- * 是 scope 自注册残留。所以"只读"是**职责约束**，不是能力事实。
- */
-/**
- * 验证者允许使用的工具。
- *
- * ⚠️ **shell 工具必须按平台选**：官方 bundle 里 `tool-bash` 在 win32 禁用、
- * `tool-pwsh` 在非 win32 禁用，所以任一平台上都只有其中一个存在。
- * 而 `ctx.tools.restrict()` 对**不存在的工具名直接抛错**：
- *   `tools.restrict() names unknown global tool "pwsh"`
- * ——把两个都写上会让 macOS 上的验证**整条通路报错**（实测踩到）。
- *
- * 教训：为某个平台做的修复，必须验证它没有弄坏另一个平台。
- */
-const BASE_VERIFIER_TOOLS = ['read', 'grep', 'glob', 'skill'] as const;
-
-function verifierToolAllow(): string[] {
-  // 与官方 dsh-base 的 cordis.patch.yml 同一判据
-  const shell = process.platform === 'win32' ? 'pwsh' : 'bash';
-  return [...BASE_VERIFIER_TOOLS, shell];
-}
-
-/**
- * ⚠️ `skill` 为什么必须在这个清单里（这是后来补的，原因值得记）
- *
- * `sdlc-workflow` 插件交付的"验证纪律"**是做成 Skill 的**——
- * 于是曾经出现一个荒谬的状态：一份名称里写着"给验证者的"清单，
- * **验证者加载不到它**。因为 `toolFilter` 是**允许清单**，
- * `skill` 不在里面就被摘掉了。
- *
- * 依据（实测读代码）：`dsh-tool-skill` 只做 `ctx.tools.register(skillTool)`，
- * **不注册任何提示词段**——所以 Skill 目录除了这个工具，没有别的通道到达模型。
- * 不给它这个工具，等于那份清单不存在。
- *
- * 这与"摘掉 write/edit"不冲突：`skill` 是**只读**的（读 Skill 正文），
- * 不给验证者任何写能力。
+ * 旧实现留下的三条教训仍然成立，并已带进 preset：
+ * - allow 白名单挡不住 scope 自注册的 `subagent`；preset 从零组合，能挡住。
+ * - `tool-skill` 必须给，否则 `sdlc-workflow` 交付的验证纪律读不到。
+ * - shell 工具必须按平台选；两个都放会让另一个平台的整条通路报错。
  */
 
 export interface SdlcVerifyConfig {
@@ -329,12 +300,62 @@ import { resolveOptions, writePolicy } from './helpers.js';
 
 /** 子代理终局结果与句柄。用官方类型，不手写重复定义。 */
 type VerifierResult = SubagentResult;
-type VerifierRun = SubagentRun;
+type VerifierRun = SubagentActivation;
+
+/**
+ * 派发给 spawn 的请求。
+ *
+ * 0.2.1 起 `label` / `signal` 挪到了 `SubagentActivationSpec` 的外层，
+ * `persona` / `toolFilter` 被删除（改由 Agent Preset 承担）。
+ */
+type VerifierRequest = Omit<SubagentStartRequest, 'label' | 'signal'>;
 
 /** 一次派发尝试的产物。`run` 用于报 session id，`result` 是终局结果。 */
 interface VerifierAttempt {
   run: VerifierRun | undefined;
   result: VerifierResult;
+}
+
+/**
+ * 0.2.1 起，验证者的只读工具面由一份独立 Agent Preset 承担。
+ *
+ * 这里**不能降级**成「没有 preset 就直接 spawn」：那会把 write/edit 还给
+ * 验证者，Actor ≠ Verifier 的核心保证当场消失。宿主没有 preset registry，
+ * 或 preset 激活失败时，宁可让 `sdlc_verify` 报错，也不静默放宽。
+ */
+async function assertVerifierPreset(
+  ctx: Context,
+  registrationError: () => string | undefined,
+): Promise<void> {
+  const registry = ctx.get('agentPresets');
+  if (registry === undefined) {
+    throw new Error(
+      '当前宿主没有 agent preset registry（ctx.agentPresets），无法启动只读验证者。' +
+        '0.2.1 起独立验证要求 dsh-agent-preset-registry（web/desktop 自带；headless 没有）。' +
+        '不会降级为继承全部工具的子代理——那会让验证者重新拿到 write/edit。',
+    );
+  }
+  let preset;
+  try {
+    preset = await registry.resolve(VERIFIER_PRESET_ID);
+  } catch (error) {
+    throw new Error(
+      `验证者 preset "${VERIFIER_PRESET_ID}" 解析失败：${errorMessages(error).join('; ')}` +
+        (registrationError() === undefined ? '' : `（注册时：${registrationError()}）`),
+    );
+  }
+  if (preset === undefined || preset.id !== VERIFIER_PRESET_ID) {
+    throw new Error(
+      `验证者 preset "${VERIFIER_PRESET_ID}" 没有注册成功` +
+        (registrationError() === undefined ? '' : `：${registrationError()}`),
+    );
+  }
+  if (preset.broken !== undefined) {
+    throw new Error(
+      `验证者 preset "${VERIFIER_PRESET_ID}" 激活失败：${preset.broken}` +
+        '。独立验证需要 read/grep/glob/shell/skill；修好 preset 再验证，不要绕过。',
+    );
+  }
 }
 
 /**
@@ -345,13 +366,14 @@ interface VerifierAttempt {
  * 报 `tool input is invalid JSON`，成果全部作废、只能退回 needs_human。
  * 那是一次**生成期的偶发失败**，不是调查失败——重试一次是正当的处置。
  *
- * `SubagentRun` 的契约要求消费者**总是** dispose（取消剩余工作、达到静默）。
- * 不 dispose 会在 abort/异常路径上泄漏子代理句柄。
+ * `SubagentActivation` 的契约要求消费者**总是** dispose（取消剩余工作、
+ * 达到静默）。不 dispose 会在 abort/异常路径上泄漏子代理句柄。
  */
 async function dispatchVerifier(
   ctx: Context,
   provider: string,
-  request: SubagentStartRequest,
+  request: VerifierRequest,
+  signal: AbortSignal,
   recording: VerificationRecording,
   attempt: number,
 ): Promise<VerifierAttempt> {
@@ -360,26 +382,35 @@ async function dispatchVerifier(
     attempt, prompt: request.prompt?.map((block) => 'text' in block ? block.text : '').join('\n') ?? '',
   });
   try {
-    request.signal?.throwIfAborted();
-    run = await ctx.subagents.start(provider, request);
+    signal.throwIfAborted();
+    // provider 必须在 spawn（in-process）上：只有它支持独立 preset 且不继承
+    // 父级上下文。fork 继承对话历史，0.2.1 会直接拒绝 agentPreset。
+    run = await ctx.subagents.startActivation({
+      provider,
+      label: 'sdlc-verify',
+      request,
+      signal,
+      // caller：结果直接返回给本次工具调用，不再作为消息投递给父会话。
+      delivery: 'caller',
+    });
     // Observe rejection immediately: recording the session may itself require I/O.
     const pending = run.result.then(
       (result) => ({ ok: true as const, result }),
       (error: unknown) => ({ ok: false as const, error }),
     );
-    await recording.record('attempt_session', { attempt, session_id: String(run.id) });
+    await recording.record('attempt_session', { attempt, session_id: String(run.childId) });
     const settled = await pending;
     if (!settled.ok) throw settled.error;
     const result = settled.result;
     await recording.record('attempt_finished', {
-      attempt, session_id: String(run.id), result,
+      attempt, session_id: String(run.childId), result,
       structured: result.structured, stopReason: result.stopReason, diagnostic: result.diagnostic,
     });
     return { run, result };
   } catch (error) {
     await recording.record('attempt_finished', {
-      attempt, ...(run ? { session_id: String(run.id) } : {}),
-      error: errorMessages(error).join('; '), cancelled: isCancellation(error, request.signal),
+      attempt, ...(run ? { session_id: String(run.childId) } : {}),
+      error: errorMessages(error).join('; '), cancelled: isCancellation(error, signal),
     });
     throw error;
   } finally {
@@ -423,6 +454,30 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
   assertSchemasAligned();
 
   const cfg = config;
+
+  // ── 验证者的只读组合：0.2.1 起由 Agent Preset 承担 ──────────────
+  //
+  // `agentPresets` 是**可选**服务：web/desktop 的 dsh-web-app 提供 registry，
+  // headless 没有。故意不写进 `inject`——写进去会让插件在 headless 停在
+  // pending，连冻结门禁一起消失。缺服务时只影响 `sdlc_verify`，而且它
+  // 会 fail closed（见 assertVerifierPreset）。
+  let presetRegistrationError: string | undefined;
+  const presetRegistry = ctx.get('agentPresets');
+  if (presetRegistry === undefined) {
+    presetRegistrationError = '宿主没有 agentPresets 服务（通常是 headless profile）';
+  } else {
+    // register() 返回 disposer，必须交给 ctx.effect 托管；异步 effect 会在
+    // 插件激活期间被等待，卸载时归还注册。
+    ctx.effect(async () => {
+      try {
+        return await presetRegistry.register(VERIFIER_PRESET);
+      } catch (error) {
+        presetRegistrationError = errorMessages(error).join('; ');
+        // 不让 preset 注册失败拖垮插件：冻结门禁仍然可用。
+        return () => {};
+      }
+    }, 'sdlc-verify: verifier preset');
+  }
 
   // ────────────────────────────────────────────────────────────── 机制 1
   // 独立验证：新上下文 + 只读 + 强制结构化裁决
@@ -508,6 +563,9 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               throw new Error('sdlc_verify requires a calling agent');
             }
 
+            // fail closed：没有可用的只读 preset 就不启动验证者，绝不降级。
+            await assertVerifierPreset(ctx, () => presetRegistrationError);
+
             // 任务身份（可选）：给了就从 state.yaml 解析已登记的制品，
             // 显式传入的 artifacts 优先级更高（允许针对单次验证覆盖）。
             const explicit = coerceArtifactMap(args.artifacts);
@@ -549,18 +607,13 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             // 之前把它放在 model 非空的分支里，导致单独配置 maxTokens 静默无效。
             const wantsTokens = cfg.verifierMaxTokens > 0;
             const wantsRoute = cfg.verifierModel !== '';
-            const request: SubagentStartRequest = {
-              label: 'sdlc-verify',
+            const request: VerifierRequest = {
               prompt: [{ type: 'text', text: prompt }],
               parent: agent,
-              signal: exec.signal,
               outputSchema: VERDICT_SCHEMA,
-              // 只读：摘掉 write/edit。注意 bash 仍在白名单里（验证者需要跑测试来
-              // 复核证据），而 bash 技术上能写文件——所以 persona 里如实说明了这一点，
-              // 而不是声称"改不了任何东西"。
-              toolFilter: { allow: verifierToolAllow() },
-              // 独立角色：新上下文 + 明确"你没有写这段代码，也别相信关于它的说法"。
-              persona: VERIFIER_PERSONA,
+              // 只读工具面 + 独立角色都由这个 preset 提供；详见 src/preset.ts。
+              // 不在请求上再传 persona/toolFilter——0.2.1 已删除这两个字段。
+              agentPreset: VERIFIER_PRESET_ID,
               ...(wantsRoute || wantsTokens
                 ? {
                     agentOptions: {
@@ -592,12 +645,14 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             for (let attempt = 1; attempt <= maxAttempts; attempt++) {
               exec.signal?.throwIfAborted();
               const text = attempt === 1 ? prompt : `${prompt}${RETRY_GUIDANCE}`;
-              const attemptRequest: SubagentStartRequest = { ...request, prompt: [{ type: 'text', text }] };
-              const got = await dispatchVerifier(ctx, cfg.verifierProvider, attemptRequest, recording, attempt);
+              const attemptRequest: VerifierRequest = { ...request, prompt: [{ type: 'text', text }] };
+              const got = await dispatchVerifier(
+                ctx, cfg.verifierProvider, attemptRequest, exec.signal, recording, attempt,
+              );
               run = got.run;
               result = got.result;
               verdict = got.result.structured as Verdict | undefined;
-              if (run !== undefined) attemptSessions.push(String(run.id));
+              if (run !== undefined) attemptSessions.push(String(run.childId));
               if (verdict !== undefined) {
                 recording.complete = true;
                 break;

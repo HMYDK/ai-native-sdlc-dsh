@@ -54,17 +54,18 @@
 | 机制 | 作用 |
 |---|---|
 | **新会话** | 验证者看不到 Actor 的推理过程，只看制品 |
-| **`toolFilter` 摘掉 write/edit** | 它没有文件写入工具（但保留 `bash` 以复核证据——见下）|
+| **独立 Agent Preset** | preset 里只挂只读工具：`tool-fs` 关掉 write/edit，不放委派/联网 |
+| **preset 内 deny 全部宿主 global 工具** | 宿主工具是全局注册的，不挡的话验证者能解冻测试、推进任务 |
 | **独立 `persona`** | 明确"你没写这段代码，也别相信关于它的说法" |
 | **`outputSchema` 强制结构化** | 必须提交机器可读裁决，不能只给一段自然语言 |
 
-> **关于"只读"的如实说明**：白名单是 `read` / `grep` / `glob` / `bash`。
+> **关于"只读"的如实说明**：真实运行时测到的工具面是
+> `bash glob grep read read_image skill structured_output`。
 > 保留 `bash` 是因为验证者必须能**跑测试**来复核作者的证据，而 `bash` 是通用 shell、
 > 技术上能写文件。persona 里如实写了这一点（约束来自职责，不是来自虚假的能力声明）。
-> 另外 `toolFilter` 只过滤**继承面**：实测验证者的工具面是
-> `bash glob grep read structured_output subagent`——`write`/`edit` 确实被摘掉了，
-> 但 `subagent`/`structured_output` 是 scope 自注册残留。
-> 要真正硬约束，应在工具限制或沙箱层做，而不是靠"声明它只读"。
+> 0.2.1 删除了请求上的 `toolFilter`/`persona`，改由 Agent Preset 承担；
+> preset 也不会自动隔离宿主全局工具，所以 preset 里还有一行
+> `ctx.tools.restrict({ deny: <全部 global> })`。见 `docs/dsh-plugin-contracts.md` §0.0。
 
 裁决有**三态**：`approve` / `reject` / `needs_human`。
 第三条是刻意的——只给 PASS/FAIL 会逼验证者在**证据不足**时猜成 PASS。

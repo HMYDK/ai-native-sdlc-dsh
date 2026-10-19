@@ -536,6 +536,11 @@ export function buildVerificationPrompt(input: VerificationPromptInput): string 
   const parts: string[] = [];
 
   parts.push('# 验证任务\n');
+  // 0.2.1 起 `SubagentStartRequest.persona` 被删除，验证者的系统角色改由
+  // Agent Preset 的 persona 行提供。这里再下发一次完整纪律，理由有二：
+  // ① preset 里的 persona 只写身份，详细纪律只有这一处事实来源；
+  // ② 子代理仍可能从其它插件读到修改类指导，需要这层明确的反向指令。
+  parts.push(`## 你的角色\n\n${VERIFIER_PERSONA}\n`);
   parts.push(
     '对下列变更做独立验证。你的任务是**尝试推翻它**，而不是确认它。\n' +
       '找不到问题时，也要说明你检查了什么、为什么它成立。\n',

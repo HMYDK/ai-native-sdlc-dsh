@@ -1,6 +1,6 @@
 {
   "name": "@ai-native-sdlc/dsh-sdlc-ui",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Panel for the AI-native SDLC on DeepSeek Harness: the task board, its artifact chain and its verdicts, visible instead of grepped.",
   "type": "module",
@@ -30,12 +30,12 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
-    "@deepseek-ai/dsh-sandbox-policy": "0.2.0-rc.2"
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.2.1-rc.2"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.4",
-    "@deepseek-ai/dsh-sandbox-policy": "0.2.0-rc.2"
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-rc.2"
   },
   "keywords": [
     "dsh",

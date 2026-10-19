@@ -4,7 +4,61 @@
 来源：官方 `docs/`（cookbook / architecture / subsystems）+ npm tarball 里的 `.d.ts` +
 已安装运行时的编译产物。每条都标了出处或验证方式。
 
-适用版本：`@deepseek-ai/dsh-*@0.2.0-rc.2`，`@deepseek-ai/cordis@4.0.4`。
+适用版本：`@deepseek-ai/dsh-*@0.2.1-rc.2`，`@deepseek-ai/cordis@4.0.5`。
+（0.2.0 的差异见 §0.0；本文其余部分凡写 `0.2.0-rc.2` 的地方按当时实测记录保留。）
+
+---
+
+## 0.0 先读：0.2.1 的兼容性破坏（2026-10-17 实测）
+
+App 自动从 `0.2.0-rc.2` 升到 `0.2.1-rc.2` 之后，七个插件全部静默消失。
+根因不是某个 API，而是**版本门禁 + 精确 peer 钉死**：
+
+- DSH 的兼容性判定读插件 `peerDependencies` 里的 `@deepseek-ai/dsh-*`，
+  用 `semver.satisfies(runtime, range, { includePrerelease: true })` 比较；
+- 我们写的是精确 `0.2.0-rc.2`，它**不接受** `0.2.1-rc.2`；
+- 插件管理器因此报 `incompatible-version` 并拒绝安装；启动时把 bundle
+  记为 skipped，**App 照常启动，只是插件没了**。
+
+修法：peer 范围改成 `^0.2.1-rc.2`（在 `includePrerelease` 下同时覆盖
+0.2.1 稳定版与后续 0.2.x），并加 `npm run compat` 按**本机真实 App 版本**
+逐包验证。不要靠“记得同步版本”——App 自动更新，仓库不会。
+
+### 0.0.1 子代理 API：`start` → `startActivation`
+
+0.2.1 删除了旧的 `SubagentRuntime.start(provider, request)`：
+
+| 0.2.0 | 0.2.1 |
+|---|---|
+| `ctx.subagents.start(provider, request)` | `ctx.subagents.startActivation(spec)` |
+| `SubagentRun` / `run.id` | `SubagentActivation` / `run.childId` |
+| `request.label` / `request.signal` | `spec.label` / `spec.signal` |
+| —— | `spec.delivery: 'parent' \| 'caller'` |
+
+### 0.0.2 `persona` / `toolFilter` 从请求里删除，改由 Agent Preset 承担
+
+0.2.1 的 `SubagentStartRequest` 上**没有** `persona` / `toolFilter` 了。
+官方 `dsh-tool-subagent` 在 apply 时直接抛：
+
+> `tool-subagent: persona is no longer supported; configure persona and tool plugins
+> in an Agent Preset and select it with agentPreset (spawn only)`
+
+迁移形态（本仓库 `packages/sdlc-verify/src/preset.ts`）：
+
+1. 用 `ctx.agentPresets.register({ id, plugins: [...] })` 注册一份 preset；
+2. `startActivation` 的 request 带 `agentPreset: '<id>'`；
+3. preset 里的 `tool-fs` 关掉 `write`/`edit`，shell 按平台只放一个。
+
+⚠️ **preset 不会自动隔离宿主的全局工具。** 实测：只挂 preset 时，验证者的
+工具面里仍有 `sdlc_task_create` / `sdlc_fix_end` / `sdlc_verify`——它能解冻测试、
+推进任务状态。preset 里必须再放一行 `ctx.tools.restrict({ deny: <全部 global> })`；
+`restrict` 只过滤继承的 global 层，preset 自己的 scope 注册（`structured_output`、
+`read_image`）保留。`allow` 清单在这里行不通：preset 自己的 `read`/`grep`/`bash`
+是 scope 注册，不在 global 层，会被判“unknown global tool”。
+
+⚠️ **agent preset registry 只在 web/desktop 组合里**；headless 没有。
+`inject` 里不要写 `agentPresets`（会让插件在 headless 停 pending），
+用 `ctx.get('agentPresets')` 读，缺失时让验证工具 **fail closed**。
 
 ---
 
@@ -269,8 +323,11 @@ export interface PresetDefinition {
 （`spawn`/`fork`/`codex`/`claude-code`，各带 `toolName`/`backgroundMode`/`maxDepth`）。
 
 每行可用配置：`provider`(必填)、`toolName`、`modelSelectionSettings`、
-`enableRunInBackground`、`backgroundMode`、`agentOptions`、`persona`、
-`toolFilter{allow?,deny?}`、`maxDepth`。
+`enableRunInBackground`、`backgroundMode`、`agentOptions`、`maxDepth`。
+
+⚠️ **0.2.1 起 `persona` / `toolFilter` 不再是 `dsh-tool-subagent` 的配置项**：
+传入会直接抛 `persona is no longer supported; ...`。角色与工具组合改由
+**被选中的 Agent Preset** 承担（见 §0.0.2）。
 
 ### 2.4 会话如何选择 preset（五个入口，无环境变量）
 
@@ -326,7 +383,11 @@ npm 上只有 `0.0.1-rc.1`，其 peer 依赖 `^0.0.1-rc.1` **与 `0.2.0-rc.2` �
 最后一条决定了插件必须处理 `structured === undefined`：
 **不要退化成"解析自由文本然后猜"**——那会把一个明确的失败变成一个可能错误的通过。
 
-### 3.4 `toolFilter` 的确切语义与一个真实风险
+### 3.4 `toolFilter` / `tools.restrict()` 的确切语义与一个真实风险
+
+> 0.2.1 删除了 `SubagentStartRequest.toolFilter`；下面的 `ToolRestriction`
+> 语义仍然适用于 `ctx.tools.restrict()`，也是在 preset 里屏蔽宿主工具的机制
+> （见 §0.0.2）。
 
 ```ts
 interface ToolRestriction { readonly allow?: readonly string[]; readonly deny?: readonly string[] }
