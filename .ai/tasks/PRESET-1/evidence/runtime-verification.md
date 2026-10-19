@@ -183,3 +183,34 @@ npm run smoke --workspace packages/sdlc
 3. `sdlc-verifier` preset 因 eager activation 出现在全局名册（与 0.2.x 相同）。
 4. 已有会话保留创建时的组合；本次迁移后当前会话失去 `sdlc_*` 工具是预期行为。
 5. migration 到 desktop profile 的 live 读数单列在实现提交之后的证据中。
+
+## 6. 独立验证通过后的 desktop profile 迁移（live 读数）
+
+独立验证两轮通过（第一轮 R1–R9 全 met + approve；第二轮 4 条 finding 修复后
+5/5 met + approve）之后才执行迁移，顺序与 plan 一致。
+
+```
+dsh plugin --profile desktop remove @ai-native-sdlc/dsh-sdlc   # 旧 0.2.0
+rm -rf ~/.dsh/profiles/desktop/node_modules/@ai-native-sdlc/dsh-sdlc
+dsh plugin --profile desktop add packages/sdlc/ai-native-sdlc-dsh-sdlc-0.3.0.tgz
+```
+
+读数（2026-10-19 21:49:24 +08:00）：
+
+- desktop profile 依赖：只有 `@ai-native-sdlc/dsh-sdlc: file:…0.3.0.tgz`
+  （另有 hlzj 插件，与本套件无关）；
+- `dsh.profile.bundles` 里 SDLC 条目只有一个 `@ai-native-sdlc/dsh-sdlc`；
+- 已安装包 `@0.3.0`，`cordis.patch.yml` sha256 前 16 位
+  `85f7410f1f855681` 与仓库一致；
+- `plugin_manager list_plugins`（迁移后）：
+  · `include:sdlc-ui` → moduleName `@ai-native-sdlc/dsh-sdlc`，`fiberPhase: active`；
+  · `include:preset-sdlc` → moduleName `@deepseek-ai/dsh-agent-preset`，
+    `fiberPhase: active`；
+  · **没有** `include:sdlc-task/artifact/status/verify/workflow/rsi` 六条宿主行；
+- 当前会话（迁移前创建，组合固定）的 Host `Tool` inspect provider 返回的工具列表
+  里**已没有 `sdlc_*`**；同一时刻 Skill 目录里也没有
+  `sdlc-verification-discipline` / `sdlc-evidence-driven-improvement`。
+  这与"已有会话保留原组合 + 全局行已卸载"的预期一致。
+
+**未做**：GUI 层人工验收（在新建会话的选择器里点选「AI 原生 SDLC」并看到工具/
+面板渲染）。这一步需要用户在 GUI 里操作；协议层证据见 §2.5。

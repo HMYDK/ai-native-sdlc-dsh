@@ -211,6 +211,15 @@ standard 会话 31 个、`sdlc_*` 为 0；两条 SDLC Skill 也只在 sdlc 会�
 ⚠️ 仍未做的只有 **GUI 层人工确认**（在新建会话选择器里真的点选「AI 原生 SDLC」并
 看到工具列表/面板渲染）；协议层与日志层的集合证据已拿到。
 
+**desktop profile 已迁移（2026-10-19 21:49:24，独立验证通过后执行）**：
+依赖只剩 `@ai-native-sdlc/dsh-sdlc@0.3.0`（file tgz），已安装 patch sha256 前 16 位
+`85f7410f1f855681` 与仓库一致；`plugin_manager list_plugins` 里
+`include:sdlc-ui` 与 `include:preset-sdlc` 都是 `fiberPhase: active`，而
+`include:sdlc-task/artifact/status/verify/workflow/rsi` 六条宿主行**不再存在**。
+当前会话（迁移前创建、组合固定）的 Host `Tool` provider 已看不到 `sdlc_*`，
+Skill 目录里也没有两条 SDLC Skill——这正是"已有会话保留原组合 + 全局行卸载"的
+预期表现，不是故障。**新建会话选「AI 原生 SDLC」模式即可使用整套工具。**
+
 **工具与读数**：单测 210 不变（`src/` 组件代码未改）；冒烟新增
 `smoke/preset.mjs` 19 条 → **8 个脚本共 396 条**；负向实测：组件放回宿主行
 （17/19）、改坏 standard 副本（sync exit 1，含 isolate 字段）、改名 `tool-web`（18/19）都会红。
