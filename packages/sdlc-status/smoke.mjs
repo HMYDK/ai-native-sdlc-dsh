@@ -108,10 +108,12 @@ const stateYaml = (task, status, artifacts, updated) =>
 
 // A：齐备且验证通过
 mk('PROJ-1');
-write('PROJ-1/state.yaml', stateYaml('PROJ-1', 'VERIFYING', { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md' }));
+write('PROJ-1/state.yaml', stateYaml('PROJ-1', 'VERIFYING', { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md', evidence: 'evidence/check.json' }));
 write('PROJ-1/intent.md', '# Intent\n');
 write('PROJ-1/spec.md', '# Spec\n');
 write('PROJ-1/plan.md', '# Plan\n');
+// 嵌套制品：看板曾只列顶层文件，把 `evidence/check.json` 误报成“文件不在”。
+write('PROJ-1/evidence/check.json', '{}\n');
 write(
   'PROJ-1/verification.json',
   JSON.stringify({

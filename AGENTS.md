@@ -497,6 +497,11 @@ spec.md 的映射表枚举了 **10** 个内部状态，而我和 plan.md 五处�
 
 ### sdlc-status 的状态
 
+- [x] **2026-10-19 修嵌套制品误报**（0.1.2）：看板只列任务目录的**顶层**文件，
+  于是 `state.yaml` 里登记的 `evidence/x.json` 被报成"文件不在"，
+  而同一时刻 `sdlc_task_status` 说磁盘上都在——两个读数互相矛盾。
+  修法：按 `state.yaml` 的 artifacts 路径逐个 `stat`；冒烟夹具加了嵌套制品。
+  隔离 profile 实测：`incomplete` 从 1 变成 0。
 - [x] 单测 **24/24**（跨任务扫描纯函数层）
 - [x] 运行时冒烟 **27/27**（真实 `LocalFileSystem`）
       · 前三个插件的冒烟都用内存 `ctx.fs` 桩，而"桩忽略参数 = 测试对这类问题失明"

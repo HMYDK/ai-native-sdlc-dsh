@@ -1,6 +1,6 @@
 {
   "name": "@ai-native-sdlc/dsh-sdlc-status",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Portfolio view for an AI-native SDLC on DeepSeek Harness: one call lists every task's status, artifact completeness, missing pieces and latest verdict.",
   "type": "module",

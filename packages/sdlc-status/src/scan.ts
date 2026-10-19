@@ -87,7 +87,7 @@ interface TaskState {
  * 这里是**只读的看板**，目标是"尽量把能读的读出来并如实标注"。
  * 所以缺 title 不致命，坏掉的条目由调用方标成 error/unverified。
  */
-function parseTaskStateLoose(taskId: string, raw: unknown): TaskState {
+export function parseTaskStateLoose(taskId: string, raw: unknown): TaskState {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('state.yaml 顶层必须是一个映射');
   }

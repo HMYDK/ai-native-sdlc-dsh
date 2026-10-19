@@ -31,9 +31,11 @@ import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
+import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
 import {
   humanAge,
   MAX_PAGE_LIMIT,
+  parseTaskStateLoose,
   scanTasks,
   selectTasks,
   summarize,
@@ -145,6 +147,32 @@ async function collectScanInput(
     for (const name of files) {
       const key = `${task}\u0000${name}`;
       if (!cache.has(key)) cache.set(key, '');
+    }
+
+    // ⚠️ 上面的 `files` 只列**顶层**文件，而制品可以登记在子目录里
+    // （如 `evidence/proof.json`）。实测（RSI-1）：看板把嵌套制品报成
+    // "文件不在"，而 `sdlc_task_status` 同时说磁盘上都在——同一份
+    // state.yaml 的两个读数互相矛盾。所以按 state.yaml 里登记的路径
+    // 逐个 stat，存在就放一个哨兵。
+    const stateText = cache.get(`${task}\u0000state.yaml`);
+    if (stateText !== undefined) {
+      try {
+        const state = parseTaskStateLoose(task, parseYaml(stateText, { schema: JSON_SCHEMA }));
+        for (const rel of Object.values(state.artifacts)) {
+          // 只处理子目录路径；顶层文件已在上面缓存。跳过 `..`，看板不往外看。
+          if (!rel.includes('/') || rel.includes('..')) continue;
+          try {
+            const target = await ctx.fs.resolve(`${tasksRoot}/${task}/${rel}`, resolveOptions(exec));
+            if ((await ctx.fs.stat(target, exec.signal)) !== undefined) {
+              cache.set(`${task}\u0000${rel}`, '');
+            }
+          } catch {
+            // 读不到的制品就是"不在"；单个坏路径不能拖垮整个看板。
+          }
+        }
+      } catch {
+        // state.yaml 自身坏了由 scan 标成 error；这里不抢它的诊断。
+      }
     }
   }
 
