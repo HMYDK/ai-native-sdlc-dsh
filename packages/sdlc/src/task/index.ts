@@ -191,6 +191,7 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
 }
 
 import { requireSessionCwd, resolveOptions, sessionCwd, writePolicy } from '../shared/helpers.js';
+import {recordTask} from '../shared/task-recording.js';
 
 export function apply(ctx: Context, config: SdlcTaskConfig): void {
   const cfg = config;
@@ -230,14 +231,15 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             task_dir: { type: 'string', required: true },
             state_file: { type: 'string', required: true },
             created: { type: 'array', required: true, items: { type: 'string' } },
+            recording_errors: { type: 'array', items: { type: 'string' } },
           },
         },
         render: (_a, v) => {
-          const o = v as { task?: unknown; status?: unknown; task_dir?: unknown };
+          const o = v as { task?: unknown; status?: unknown; task_dir?: unknown; recording_errors?: string[] };
           return [
             {
               type: 'text',
-              text: `任务 ${String(o.task)} 已创建（${String(o.status)}）\n目录：${String(o.task_dir)}`,
+              text: `任务 ${String(o.task)} 已创建（${String(o.status)}）\n目录：${String(o.task_dir)}${o.recording_errors?.length ? `\n执行记录不完整：${o.recording_errors.join("；")}` : ""}`,
             },
           ];
         },
@@ -278,6 +280,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         };
 
         await writeState(ctx, paths, state, exec);
+        const recordingErrors=await recordTask(ctx,{kind:'created',task_dir:`${cfg.tasksDir.replace(/\/+$/, '')}/${state.task}`,state},exec);
 
         return {
           task: id,
@@ -285,6 +288,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           task_dir: paths.taskDir,
           state_file: paths.stateFile,
           created: ['state.yaml'],
+          ...(recordingErrors.length?{recording_errors:recordingErrors}:{}),
         };
       },
     }),
@@ -413,14 +417,15 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             from: { type: 'string', required: true },
             to: { type: 'string', required: true },
             direction: { type: 'string', required: true },
+            recording_errors: { type: 'array', items: { type: 'string' } },
           },
         },
         render: (_a, v) => {
-          const o = v as { task?: unknown; from?: unknown; to?: unknown; direction?: unknown };
+          const o = v as { task?: unknown; from?: unknown; to?: unknown; direction?: unknown; recording_errors?: string[] };
           return [
             {
               type: 'text',
-              text: `${String(o.task)}：${String(o.from)} → ${String(o.to)}（${String(o.direction)}）`,
+              text: `${String(o.task)}：${String(o.from)} → ${String(o.to)}（${String(o.direction)}）${o.recording_errors?.length ? `\n执行记录不完整：${o.recording_errors.join("；")}` : ""}`,
             },
           ];
         },
@@ -499,7 +504,9 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
 
         const next = applyAdvance(state, args.to, args.reason);
         await writeState(ctx, paths, next, exec);
-        return { task: next.task, from: state.status, to: next.status, direction: verdict.direction };
+        const recordingErrors=await recordTask(ctx,{kind:'advanced',task_dir:`${cfg.tasksDir.replace(/\/+$/, '')}/${state.task}`,state:next},exec);
+        return { task: next.task, from: state.status, to: next.status, direction: verdict.direction,
+          ...(recordingErrors.length?{recording_errors:recordingErrors}:{}), };
       },
     }),
   );

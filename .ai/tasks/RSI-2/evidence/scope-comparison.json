@@ -1,0 +1,61 @@
+{
+  "id": "RSI-SCOPE-1",
+  "title": "真实任务的验证日志必须进入 RSI，而不是只留下裁决",
+  "baselineRev": "0025acf",
+  "fixedRev": "working-tree build",
+  "ok": true,
+  "baseFails": 4,
+  "fixedFails": 0,
+  "rows": [
+    {
+      "label": "基线 0025acf",
+      "checks": [
+        [
+          "保存验证者的真实配置",
+          false,
+          "configs=0"
+        ],
+        [
+          "保存跨 preset 工具结果",
+          false,
+          "tool_results=0"
+        ],
+        [
+          "补齐漏发通知并与原始日志对账",
+          false,
+          "{\"tool_results\":0,\"configs\":0,\"source_verified\":false,\"evidence_complete\":false,\"missing_event_recovered\":false}"
+        ],
+        [
+          "完整证据具有独立的健康状态",
+          false,
+          "evidence_complete=false"
+        ]
+      ]
+    },
+    {
+      "label": "修复 working-tree build",
+      "checks": [
+        [
+          "保存验证者的真实配置",
+          true,
+          "configs=1"
+        ],
+        [
+          "保存跨 preset 工具结果",
+          true,
+          "tool_results=1"
+        ],
+        [
+          "补齐漏发通知并与原始日志对账",
+          true,
+          "{\"tool_results\":1,\"configs\":1,\"source_verified\":true,\"evidence_complete\":true,\"missing_event_recovered\":true}"
+        ],
+        [
+          "完整证据具有独立的健康状态",
+          true,
+          "evidence_complete=true"
+        ]
+      ]
+    }
+  ]
+}

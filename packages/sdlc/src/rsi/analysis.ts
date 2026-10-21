@@ -3,6 +3,7 @@ export interface RunSummary {
   run_id: string; outcome: string; attempts: number; session_ids: string[];
   started_at: string | null; duration_ms: number | null; verdict: string | null;
   complete: boolean; issues: string[];
+  evidence_complete?: boolean; replay_ready?: boolean; evidence_issues?: string[];
 }
 export function summarizeRun(runId: string, records: RecordEvent[]): RunSummary {
   const sorted = [...records].sort((a,b)=>a.seq-b.seq);
@@ -33,6 +34,11 @@ export function analyzeRuns(runs: {summary:RunSummary; records:RecordEvent[]}[])
   const observations: {kind:string; run_ids:string[]; evidence:string[]; hypothesis:string}[]=[];
   const groups:Record<string,typeof runs>={};
   for(const run of runs) {
+    if (run.summary.evidence_complete === false) {
+      observations.push({kind:'incomplete_capture',run_ids:[run.summary.run_id],
+        evidence:[`runs/${run.summary.run_id}/capture.json`,`runs/${run.summary.run_id}/code.json`],
+        hypothesis:`裁决完成不代表证据完整。先恢复采集或补录可核对的原始日志；不得补造历史配置或代码起点。${(run.summary.evidence_issues ?? []).join('; ')}`});
+    }
     const kind=run.summary.issues.length?'incomplete_evidence':run.summary.outcome;
     (groups[kind]??=[]).push(run);
     if(run.summary.attempts>1) (groups.retried??=[]).push(run);
@@ -52,6 +58,8 @@ export function analyzeRuns(runs: {summary:RunSummary; records:RecordEvent[]}[])
   }
   const completed=runs.filter(r=>r.summary.complete).length;
   return {total:runs.length,completed,completion_rate:runs.length?completed/runs.length:null,
+    evidence_complete:runs.filter(r=>r.summary.evidence_complete===true).length,
+    replay_ready:runs.filter(r=>r.summary.replay_ready===true).length,
     attempts:runs.reduce((n,r)=>n+r.summary.attempts,0),
     observed_duration_ms:runs.reduce((n,r)=>n+(r.summary.duration_ms??0),0),
     duration_unknown:runs.filter(r=>r.summary.duration_ms===null).length,

@@ -30,11 +30,14 @@ import { main as caseStatusPage } from './case-status-page.mjs';
 import caseFalseAlarm from './case-false-alarm.mjs';
 import { main as casePwsh } from './case-pwsh-toolfilter.mjs';
 
+import { main as caseRsiScope } from './case-rsi-scope.mjs';
+
 /** 新增用例加到这里。 */
 const CASES = [
   { id: 'STATUS-PAGE-1', run: caseStatusPage },
   { id: 'FALSE-ALARM-1', run: caseFalseAlarm },
   { id: 'PWSH-1', run: casePwsh },
+  { id: 'RSI-SCOPE-1', run: caseRsiScope },
 ];
 
 const json = process.argv.includes('--json');

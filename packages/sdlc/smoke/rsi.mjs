@@ -28,6 +28,7 @@ let behavior='normal'; let calls=0; let prompts=[];
 let cancellation;
 const starts=[];
 const readableReferences=[];
+const sessionSources=new Map();
 const taskArtifact='.ai/tasks/RSI-FIXTURE/intent.md';
 const originalArtifact='The fixture intent before every experiment.\n';
 try {
@@ -37,14 +38,22 @@ try {
   new LocalFileSystem(ctx,LocalFileSystem.Config['~standard'].validate({}).value);
   ctx.provide('sandboxPolicy',{resolve:()=>({mode:'workspace-write',workspaceRoot:root,writableRoots:[root]})});
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture verifier'})});
+  ctx.provide('sessionQuery',{observeSession:async id=>{
+    const source=sessionSources.get(id);if(!source)throw new Error('fixture session unavailable');
+    return {...source,[Symbol.dispose]:()=>{}};
+  }});
   ctx.provide('subagents',{startActivation:async(spec)=>{
     const request=spec.request;const signal=spec.signal;
     calls++; const id=randomUUID();const text=request.prompt.map(p=>p.text??'').join('\n');prompts.push(text);
     const session={id,header:{id,cwd:root,parentSession:'parent',origin:'subagent'}};
+    const events=[];sessionSources.set(id,{header:session.header,events});
     const models=behavior==='config-drift'
       ? text.includes('candidate-guidance')?['model-A','model-B']:['model-B','model-A']
       : ['fixture-model'];
-    for(const [seq,model] of models.entries())ctx.emit('session/event',session,{type:'request/header',seq,data:{header:{config:{provider:'fixture',model,maxTokens:4096}},reason:seq?'change':'initial'}});
+    for(const [seq,model] of models.entries()) {
+      const event={type:'request/header',seq,data:{header:{config:{provider:'fixture',model,maxTokens:4096}},reason:seq?'change':'initial'}};
+      events.push(event);ctx.emit('session/event',session,event);
+    }
     if(behavior==='reference-probe') {
       for(const directory of await fs.readdir(path.join(root,'.ai/rsi/experiments'))) {
         const target=await ctx.fs.resolve(`.ai/rsi/experiments/${directory}/protocol.json`,{cwd:root});

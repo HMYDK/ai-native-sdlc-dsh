@@ -10,6 +10,7 @@ import {analyzeRuns} from './analysis.js';
 import {parseExperiment,runExperiment} from './experiment.js';
 import {replayInput,replayCase} from './replay.js';
 import {learningSkill} from './skill.js';
+import {TaskCollector} from './tasks.js';
 export const name='sdlc-rsi';
 export const inject=['tools','fs','sandboxPolicy','skills'];
 export const Config=z.object({root:z.string().default('.ai/rsi')});
@@ -18,12 +19,27 @@ const json=(value:unknown)=>JSON.parse(JSON.stringify(value));
 export function apply(ctx:Context,config:{root:string}):void {
   safeRelative(config.root);
   const collector=new Collector(ctx,config.root);
-  ctx.on('sdlc-verify/record',(record,exec)=>collector.record(record,exec));
-  ctx.on('session/event',(session,event)=>collector.observe(session,event));
-  ctx.on('session/flush',()=>collector.flush());
-  ctx.effect(()=>()=>collector.flush());
+  const tasks=new TaskCollector(ctx,config.root,collector);
+  ctx.on('sdlc-task/record',(record,exec)=>tasks.record(record,exec));
+  ctx.on('sdlc-verify/record',async(record,exec)=>{
+    // The run must settle before its task summary reads it; still preserve the task link on recording failure.
+    let failure:unknown;
+    try {await collector.record(record,exec);}catch(error) {failure=error;}
+    try {await tasks.verification(record,exec);}catch(error) {if(failure===undefined)failure=error;}
+    if(failure!==undefined)throw failure;
+  });
+  // Presets are sibling scopes. Collector admits only explicitly associated sessions.
+  ctx.on('session/event',(session,event)=>{collector.observe(session,event);tasks.observe(session,event);},{global:true});
+  ctx.on('session/flush',async()=>{await collector.flush();await tasks.flush();},{global:true});
+  ctx.effect(()=>async()=>{await collector.flush();await tasks.flush();});
   ctx.effect(()=>ctx.skills.register(learningSkill));
   const register=(tool:Parameters<typeof ctx.tools.register>[0])=>ctx.effect(()=>ctx.tools.register(tool));
+  register(defineTool({name:'sdlc_rsi_tasks',description:'Read task-level RSI evidence for the current workspace. Separates task completion, evidence completeness and replay eligibility; reconciles registered sessions against the DSH log. Never guesses an unregistered task/session relationship.',parameters:{
+    task_id:{type:'string',description:'Inspect and reconcile one task; omit to list recorded tasks.'},
+  },output,async execute(args,exec){
+    await collector.flush();
+    return json(args.task_id?await tasks.inspect(exec,args.task_id):{tasks:await tasks.list(exec)});
+  }}));
   register(defineTool({name:'sdlc_rsi_runs',description:'List recorded verification attempts, including missing verdicts, errors and interrupted runs. A completed needs_human verdict differs from no verdict.',parameters:{
     run_id:{type:'string',description:'Read one run and its full recorded lifecycle.'},
     limit:{type:'integer',description:'Maximum summaries, 1..200; default 30.'},
@@ -40,13 +56,18 @@ export function apply(ctx:Context,config:{root:string}):void {
   }}));
   register(defineTool({name:'sdlc_rsi_analyze',description:'Summarize observed failures, retry cost and unfinished evidence. Returns source references and hypotheses, not proven root causes or an automatic rule change.',parameters:{
     run_ids:{type:'array',items:{type:'string'},description:'Optional selected source runs; default all recorded runs.'},
+    task_id:{type:'string',description:'Analyze a whole task, including author and verifier evidence and missing checkpoints.'},
   },output,async execute(args,exec){
     await collector.flush();const store=new Store(ctx,exec,config.root);
-    const ids=args.run_ids??await store.list('runs');const runs=[];const errors=[];
+    const task=args.task_id?await tasks.inspect(exec,args.task_id):undefined;
+    const ids=args.run_ids??task?.task.runs??await store.list('runs');const runs=[];const errors=[];
     for(const id of ids)try{runs.push(await store.run(safeSegment(id)));}catch(error){errors.push({run_id:id,error:message(error)});}
     const result=analyzeRuns(runs);const feedback=[];
     for(const file of await store.list('feedback'))try{feedback.push(await store.read(`feedback/${file}`));}catch(error){errors.push({run_id:file,error:message(error)});}
-    return json({...result,errors,feedback});
+    return json({...result,errors,feedback,...(task?{task,
+      analysis_brief:'根据任务与会话证据区分业务缺陷、插件机制缺陷、环境故障和未知原因。每个改进必须引用来源、说明尚未排除的解释、给出可证伪的验收标准。多次 reject 本身不是插件故障；证据不完整时只提出有现存证据支持的采集修复。候选应进入插件仓库的正常开发任务。',
+      evidence_paths:[`tasks/${task.task.task_id}/task.json`,`tasks/${task.task.task_id}/evidence.json`,...task.task.checkpoints.map(id=>`tasks/${task.task.task_id}/checkpoints/${id}.json`),...task.task.sessions.map(s=>`tasks/${task.task.task_id}/sessions/${s.id}.json`)],
+    }:{})});
   }}));
   register(defineTool({name:'sdlc_rsi_experiment',description:'Run paid model verification calls for an exploratory guidance comparison. Replays recorded inputs under the currently loaded verifier. Changes only added guidance, persists protocol first, alternates arms, and detects changed code/artifacts. Reference labels require external evidence. They are omitted from prompts but accessible in the shared filesystem, so these observations cannot justify adoption.',parameters:{
     hypothesis:{type:'string',required:true},baseline_guidance:{type:'string',required:true},candidate_guidance:{type:'string',required:true},

@@ -1,0 +1,14 @@
+task: RSI-2
+title: "让 RSI 从真实任务记录走到有证据的插件改进"
+status: IMPLEMENTING
+created: "2026-10-21T13:14:40.465Z"
+updated: "2026-10-21T13:14:40.465Z"
+artifacts:
+  intent: "intent.md"
+  spec: "spec.md"
+  plan: "plan.md"
+history:
+  - at: "2026-10-21T13:14:40.465Z"
+    from: ""
+    to: "IMPLEMENTING"
+    reason: "用户已确认 RSI 目标和实施方案；由 Codex 执行，先修已实证的记录断链，再连接改进流程。"

@@ -1,0 +1,61 @@
+{
+  "source_task": "DEMO-22149",
+  "baseline_commit": "0025acf",
+  "method": "Read original run lifecycle, capture.json and code.json. Only selected counts and booleans are exported; no raw tool text or code.",
+  "runs": [
+    {
+      "run_id": "c6f01dcc-6931-4948-9f4c-d0ee3022f622",
+      "verdict": "reject",
+      "lifecycle_finished": true,
+      "captured_configs": 0,
+      "captured_tool_results": 0,
+      "capture_errors": 0,
+      "code_complete": false
+    },
+    {
+      "run_id": "fdae1edb-29da-45b3-a2ee-f8c0fbb24990",
+      "verdict": "reject",
+      "lifecycle_finished": true,
+      "captured_configs": 0,
+      "captured_tool_results": 0,
+      "capture_errors": 0,
+      "code_complete": false
+    },
+    {
+      "run_id": "8b8d5b3e-0a7d-41f4-85df-1e1c6d0fd871",
+      "verdict": "reject",
+      "lifecycle_finished": true,
+      "captured_configs": 0,
+      "captured_tool_results": 0,
+      "capture_errors": 0,
+      "code_complete": false
+    },
+    {
+      "run_id": "801f26e3-541b-48a6-b0a9-115a0da6b4f9",
+      "verdict": "reject",
+      "lifecycle_finished": true,
+      "captured_configs": 0,
+      "captured_tool_results": 0,
+      "capture_errors": 0,
+      "code_complete": false
+    },
+    {
+      "run_id": "777ad642-bbe0-4ad3-9db3-377264e2504d",
+      "verdict": "reject",
+      "lifecycle_finished": true,
+      "captured_configs": 0,
+      "captured_tool_results": 0,
+      "capture_errors": 0,
+      "code_complete": false
+    },
+    {
+      "run_id": "cc028eaf-40c3-44f2-9702-0a0e2bd8ce40",
+      "verdict": "approve",
+      "lifecycle_finished": true,
+      "captured_configs": 0,
+      "captured_tool_results": 0,
+      "capture_errors": 0,
+      "code_complete": false
+    }
+  ]
+}

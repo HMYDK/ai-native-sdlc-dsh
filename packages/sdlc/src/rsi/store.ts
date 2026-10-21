@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-fs';
 import type {} from '@deepseek-ai/dsh-sandbox-policy';
 import { object, summarizeRun, type RecordEvent } from './analysis.js';
+import {assessEvidence} from './evidence.js';
 
 export type Execution = {agent?:unknown; signal?:AbortSignal};
 export function safeSegment(value:string):string {
@@ -35,6 +36,10 @@ export class Store {
     await this.ctx.fs.writeText(await this.target(relative),JSON.stringify(value,null,2)+'\n',replace?undefined:{kind:'createIfAbsent'},this.exec.signal,policy);
   }
   async read(relative:string):Promise<unknown> {return JSON.parse(await this.ctx.fs.readText(await this.target(relative),this.exec.signal));}
+  async optional(relative:string):Promise<unknown|undefined> {
+    if (!await this.ctx.fs.stat(await this.target(relative),this.exec.signal)) return undefined;
+    return this.read(relative);
+  }
   async list(relative:string):Promise<string[]> {
     const target=await this.target(relative);
     if(!await this.ctx.fs.stat(target,this.exec.signal)) return [];
@@ -53,7 +58,17 @@ export class Store {
     }
     const summary=summarizeRun(id,records);summary.issues.push(...issues);
     if(issues.length) summary.complete=false;
-    return {summary,records};
+    let capture:unknown,code:unknown;
+    const errors:string[]=[];
+    for(const kind of ['capture','code'] as const) {
+      try {const value=await this.optional(`runs/${id}/${kind}.json`);if(kind==='capture')capture=value;else code=value;}
+      catch(error) {errors.push(`${kind}.json 不可读: ${message(error)}`);}
+    }
+    const evidence=assessEvidence(records,capture,code);
+    evidence.issues.push(...errors);if(errors.length)evidence.complete=evidence.replay_ready=false;
+    summary.evidence_complete=evidence.complete;summary.replay_ready=evidence.replay_ready;
+    summary.evidence_issues=evidence.issues;
+    return {summary,records,evidence};
   }
 }
 export function message(error:unknown):string {return error instanceof Error?error.message:String(error);}

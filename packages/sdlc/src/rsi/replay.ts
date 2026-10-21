@@ -23,6 +23,7 @@ export async function replayInput(store:Store,sourceId:string):Promise<Record<st
 export async function replayCase(ctx:Context,exec:ToolRunContext,store:Store,collector:Collector,c:ExperimentCase,guidance:string):Promise<ExperimentObservation> {
   const issues:string[]=[];
   const source=await store.run(c.source_run_id);
+  if(!source.summary.replay_ready)throw new Error(`来源运行证据不完整，不能用于对照: ${(source.summary.evidence_issues??[]).join('; ')}`);
   const sourceStart=source.records.find(r=>r.kind==='started');
   const sourcePrepared=source.records.find(r=>r.kind==='prepared');
   const originalCode=object(await store.read(`runs/${c.source_run_id}/code.json`));
@@ -69,6 +70,7 @@ export async function replayCase(ctx:Context,exec:ToolRunContext,store:Store,col
     try {
       const recorded=await store.run(runId);attempts=recorded.summary.attempts;
       issues.push(...recorded.summary.issues);
+      issues.push(...(recorded.summary.evidence_issues??[]));
       const start=recorded.records.find(r=>r.kind==='started');
       fingerprint=typeof start?.data.verifier_fingerprint==='string'?start.data.verifier_fingerprint:undefined;
       if(fingerprint!==sourceStart?.data.verifier_fingerprint)issues.push('验证器已不同于来源运行');
