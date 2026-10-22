@@ -1,0 +1,48 @@
+{
+  "task": "RSI-2",
+  "at": "2026-10-22T15:47:10Z",
+  "decision": "accept",
+  "recorded_by": "Codex implementation agent",
+  "method": "Independent Codex code reviews and failure reproductions; not a DSH sdlc_verify result or a human release approval.",
+  "rounds": [
+    {
+      "reviewer": "/root/review_rsi",
+      "result": "changes_requested",
+      "issues": [
+        "任务切换必须恢复磁盘上的旧归属",
+        "仅制品操作也要关联作者",
+        "阶段写失败须持久化并与状态历史对账",
+        "单独提交任务记录不能改变代码指纹",
+        "Git 根下的链接也须标记快照不完整",
+        "未知历史版本和跨版本执行身份必须区分"
+      ],
+      "resolution": "已修复；单测与 scope 回归通过，下一轮复查正常路径。"
+    },
+    {
+      "reviewer": "/root/review_rsi_final",
+      "result": "changes_requested",
+      "issues": [
+        "旧任务索引关闭写失败后重启仍会串入新任务",
+        "跨版本仅写制品仍缺少执行版本"
+      ],
+      "resolution": "新增每次调用独立持久化的操作记录；恢复切换边界并携带执行版本。"
+    },
+    {
+      "reviewer": "/root/review_rsi_final",
+      "result": "no_remaining_critical_or_important_in_reviewed_scope",
+      "issues": [],
+      "observations": [
+        "独立注入写失败并重建采集器：旧窗口关闭到序号 3，旧任务不含新任务标记；新任务保留证据不完整和写失败原因。",
+        "临时 0.3.9 模块创建任务，实际 0.4.0 artifact_write，execution_versions 保留 0.4.0 与 0.3.9；换回旧采集器查询仍保留两版。",
+        "重新通过当前 39 条 scoped integration 检查。"
+      ],
+      "limits": "最终一轮重点复查前一轮两个 Important，不将它描述成新的全项目独立验证。"
+    }
+  ],
+  "not_accepted": [],
+  "honest_notes": [
+    "最终复核曾因额度中断，恢复后已完成。",
+    "采用反馈不能借用无关 DONE 任务的缺口由作者另行发现，已增加同一提案 ID/内容指纹校验和反例。",
+    "没有自动安装到 desktop profile，也没有验证真实模型质量普遍提高。"
+  ]
+}

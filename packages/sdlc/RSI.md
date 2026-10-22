@@ -1,88 +1,109 @@
-# sdlc-rsi：从跑过的真实验证中改进
+# RSI：用真实任务改进 SDLC 插件
 
-这个插件保存每次 `sdlc_verify` 的输入、尝试、结果和失败。先找到重复出现的问题，再把改进假设交给对照实验，最后将经过复核的改动放回普通开发任务。它不会自动修改插件、提示词或用户配置。
+0.4.0 把记录单位从单次验证扩展到任务：作者做了什么、验证者查了什么、任务如何变化、当时运行哪一版插件。然后由当前 Agent 阅读证据、提出可验证的改进，在插件源码仓库建立普通开发任务，用旧版和新版对照，记录采用决定和后续真实任务。
 
-首版从**验证环节**开始，尚未覆盖编码代理的全部工作过程，也不承诺模型能力已经提升。
+它不是自动改代码、自动安装的后台服务。采集和检查由插件执行；诊断与开发由调用工具的 Agent 执行。任务 DONE 后会提示复盘，并把待复盘状态持久化。没有证据支持的问题不强行生成优化。
 
+只在「AI 原生 SDLC」preset 生效，标准会话没有这些工具。只读看板常驻。安装方式见 [README](README.md)。唯一配置 `root` 默认为当前工作区内的 `.ai/rsi`。
 
-> **使用位置**：本组件只在新建会话选择「AI 原生 SDLC」Agent Preset 时挂载；
-> 标准模式会话没有这些工具与提示词。见 [包总览](README.md#安装与使用)。
+## 使用顺序
 
-## 安装
+1. 正常使用 task/artifact/verify 工具。创建任务保存起点，状态变化保存制品和代码；验证按显式 `task_id` 归属。会话 ID、事件序号和代码/插件指纹一并保存。
+2. 任务结束后调用 `sdlc_rsi_analyze({task_id})`，按返回路径读作者与验证者证据。区分业务缺陷、插件缺陷、环境故障和未知原因。五次 reject 后 approve 本身不是插件故障。
+3. 调用 `sdlc_rsi_propose({task_id,proposal})`，写问题、原因假设、尚未排除的解释、改动、验收、对照方法、证据路径和经过检查的观察摘要。引用必须属于该任务或登记的运行；插件计算实际文件内容指纹。证据不完整时只接受采集问题的假设。
+4. 在 **SDLC 插件源码工作区**调用 `sdlc_rsi_improve({task_id,packet})`。packet 是上一步的完整返回值；工具检查包身份并调用普通 task/artifact 工具，创建 INTENT 任务和 `rsi-proposal.json`。它不跳过开发/验证步骤、不覆盖已有任务。摘要指纹只证明传输内容一致，外部原始证据还需复核。
+5. 按正常流程开发。对同一用例分别运行基线和候选，保存两版指纹、命令、两侧实际观察、结论边界。完成开发任务后用 `sdlc_rsi_feedback` 记录 adopt/reject/inconclusive；采用提案要求开发任务为 DONE、任务中的提案 ID/内容指纹一致，并有旧版失败、新版满足判据的报告。
+6. 后续真实任务再用 feedback 的 `followup_task_id` 关联实际加载插件版本与记录状态，继续检查效果。它必须是当前工作区可查的任务；跨工作区通过 packet/经过检查的报告转交，不偷偷换工作目录。
 
-本组件与验证器在**同一个包里、同一版本发布**（合并后不再是两个包各自安装）；旧版验证器不发记录事件，无法补录历史。
+工具：`sdlc_rsi_tasks`（任务索引/补查）、`sdlc_rsi_runs`（运行历史）、`sdlc_rsi_analyze`（事实汇总与复盘入口）、`sdlc_rsi_propose`（证据提案）、`sdlc_rsi_improve`（普通改进任务）、`sdlc_rsi_feedback`（决定/后续结果）、`sdlc_rsi_experiment`（原有指导文字实验）。配套 Skill 为 `sdlc-evidence-driven-improvement`。
 
-```sh
-npm run build --workspace packages/sdlc
-npm pack --workspace packages/sdlc
-dsh plugin --profile <你的-profile> add <生成的.tgz>
-```
-
-包自带 `dsh.bundle.patch`，安装后自动挂载七个组件行。宿主提供 `@deepseek-ai/dsh-*`，不要额外安装第二份运行时。开发验证用 App 自带 CLI 和独立 profile，具体命令见仓库的 `docs/dsh-plugin-contracts.md`。
-
-唯一配置是 `root`，默认 `.ai/rsi`，必须是会话工作目录内的相对路径。它不绑定某个仓库绝对路径。只有会话位于 Git 仓库根、文件系统映射到本机时，首版才能保存完整代码起点；否则仍记录验证，但标明快照缺失，拒绝据此比较。
-
-## 使用
-
-正常调用 `sdlc_verify` 就会自动收集，无需增加记录调用。工具返回 `verification_run_id`，以及 `verification_complete`：后者表示**拿到了结构化裁决**，并不表示通过。正确的 `needs_human` 与没有裁决分开统计。
-
-| 工具 | 用途 |
-|---|---|
-| `sdlc_rsi_runs` | 列出近期运行，或按 `run_id` 读取完整生命周期 |
-| `sdlc_rsi_analyze` | 汇总无裁决、错误、中断、重试及记录缺失，并给出可追查的位置 |
-| `sdlc_rsi_experiment` | 用真实验证调用比较两段附加指导文字，会消耗模型额度 |
-| `sdlc_rsi_feedback` | 保存有来源的人工纠正、采用或放弃决定，关联运行、实验和开发任务 |
-
-插件同时注册 `sdlc-evidence-driven-improvement` Skill，要求假设带证据、一次只改一个因素、保留失败与反例。
-
-实验输入示例（先从运行记录取得真实 ID）：
+提案结构：
 
 ```json
 {
-  "hypothesis": "先运行已有复现检查，可能减少漏检",
-  "baseline_guidance": "",
-  "candidate_guidance": "先复跑制品中明确列出的检查，再核对验收标准。",
-  "repetitions": 2,
-  "cases": [
-    {"id":"bug","source_run_id":"<运行ID>","expected":"reject","evidence":"可复跑检查及其结果位置","holdout":false},
-    {"id":"good","source_run_id":"<运行ID>","expected":"approve","evidence":"独立复核的通过证据位置","holdout":true},
-    {"id":"unknown","source_run_id":"<运行ID>","expected":"needs_human","evidence":"缺失的外部事实及人工确认位置","holdout":false}
-  ]
+  "title": "修复验证者执行记录丢失",
+  "problem": "裁决存在，但实际请求配置和工具结果为空",
+  "hypothesis": "作者与验证者位于兄弟 preset，普通监听器收不到事件",
+  "alternatives": "还需排除查询服务缺失、截断和写盘失败",
+  "change": "只采集已登记会话，并与原始日志对账",
+  "acceptance": "旧版收不到，新版保存配置与结果；不相关会话仍被排除",
+  "comparison": "相同 Cordis 夹具分别加载旧版和候选版",
+  "focus": "capture",
+  "references": [{"path":"tasks/TASK-1/evidence.json","observation":"经检查的计数摘要"}]
 }
 ```
 
-`expected` 是调用方提供的参考结果，插件不会证明它正确，也不会把验证器上次的自报裁决当真值。`holdout` 同样是调用方声明，表示未参与调优的用例。基线和候选交替执行，每轮结果立即保存；取消后的未运行项仍留在分母中。
+对照报告格式（报告是调用方提供的检查结果，不是插件自动认定的事实）：
 
-首版只改变 `experimental_guidance`。代码、制品、验收标准、已加载验证器和实际模型配置必须保持一致。来源运行后改了代码，应重新采集来源；插件不会自动 checkout 或还原工作区。每次调用前后都会核对代码及制品，不覆盖原任务的最新裁决。
+```json
+{
+  "baseline":{"revision":"旧提交","fingerprint":"旧代码内容指纹"},
+  "candidate":{"revision":"候选提交","fingerprint":"新代码内容指纹"},
+  "command":"可复跑命令",
+  "cases":[{"id":"判据","baseline_pass":false,"candidate_pass":true,"evidence":"两侧实际读数及来源"}],
+  "limits":"环境、样本和未覆盖内容"
+}
+```
 
-报告同时列出漏检、误伤、正确求助、结构化完成率、耗时、尝试次数和留出用例结果。耗时收益只比较两边均正确完成的同用例、同轮次；更快报错不算改善。没有 token/费用观测时，不把耗时冒充金额。
+本仓库的首个真实闭环来自 DEMO-22149。`node tools/bench/case-rsi-scope.mjs --json --report <报告路径>` 会真实执行旧/新两版并产生上述报告；运行前先 build。来源与结果在 `.ai/tasks/RSI-2/evidence/`。
 
-**目前实验只能用于探索。** 验证者与协议共享文件系统，虽然提示词不附参考答案，它仍可能通过 read/bash 读到答案或已有复盘。DSH 当前没有可靠的逐路径读取隔离。运行时因此明确记录这个限制，禁止返回 `candidate_promising`；发现的退步仍会报告。将来需要独立的盲评执行环境，才能据此提出采用建议。不要用一条提示词或 shell 文本匹配宣称解决了隔离。
+## 完成不等于证据完整
 
-## 保存了什么
+`verification_complete` 只表示拿到结构化裁决；`evidence_complete` 表示已登记范围的证据通过检查；`replay_ready` 表示运行具备代码与会话起点，仍不代表盲评隔离或完整环境镜像。看板分别显示业务状态、记录缺口、会话/验证次数和待复盘/已提案状态。旧任务没有摘要时显示“尚未确认”。
+
+跨 preset 的事件监听为 global，但仅接收登记的作者、验证者及其子会话。最终通过可选的 DSH `sessionQuery.observeSession` 补漏并核对 cwd、父会话与序号；缺服务、缺事件、内容冲突、截断均明确标为不完整。记录失败进入工具 `recording_errors`，不把真正裁决替换成假失败。
+
+任务归属来自明确携带 task_id 的任务、制品、修复和验证操作，不猜“最近一个任务”；RSI 查询不会把读取者登记成作者。同一作者切换任务会关闭上一段记录范围，重启后先恢复持久化归属再切换。旧数据仅按明确 task_id 补回验证运行/会话和作者工具调用，不能补造任务创建时的代码或缺失的编码过程。因此历史补录始终标明这些缺口。
+
+每次任务操作先独立保存调用 ID、会话序号、任务归属、切换边界和实际执行版本，再更新任务索引。单个任务索引写入失败后，可用操作记录和原始日志里的明确 task_id 调用恢复边界；不会依靠一个仍然打开的旧窗口把后续任务吞进去。
+
+记录失败会保存缺口并更新看板摘要；查询还会重读 state.yaml/history，与已有阶段快照对账。即使失败信息当时也没能落盘，重启后仍能发现状态已前进但阶段记录缺失。手改状态文件不产生任务记录事件，也不能因此自动变成“记录完整”。
+
+## 本地保存
 
 ```text
 .ai/rsi/
-  runs/<UUID>/000000.json ...     # started → prepared → attempts → finished
-  runs/<UUID>/code.json           # Git HEAD、binary diff、未跟踪文件内容与哈希
-  runs/<UUID>/capture.json        # 实际请求配置、工具结果数、截断和写入错误
-  runs/<UUID>/sessions/<ID>/events/*.json
-  runs/<UUID>/sessions/<ID>.json   # 有界会话摘要
+  tasks/<TASK>/task.json             # 会话归属、阶段、run、起点/阶段快照索引
+  tasks/<TASK>/checkpoints/*.json    # state、制品正文、代码、实际加载的插件版本
+  tasks/<TASK>/sessions/<ID>.json    # 有界作者/验证者记录及其归属范围
+  tasks/<TASK>/evidence.json         # 证据健康和缺口
+  operations/<SESSION>/*.json        # 每次任务操作的归属、切换边界、实际执行版本
+  runs/<UUID>/000000.json ...        # 验证生命周期，不覆盖上一轮
+  runs/<UUID>/code.json              # Git HEAD、binary diff、新文件及指纹
+  runs/<UUID>/capture.json           # 实际模型配置、计数、缺失与截断
+  runs/<UUID>/sessions/<ID>.json
+  proposals/<UUID>.json              # 经检查的摘要与来源内容指纹
+  imports/<TASK>.json
   experiments/<UUID>/protocol.json
   experiments/<UUID>/results/*.json
   feedback/<UUID>.json
+.ai/tasks/<TASK>/rsi.json             # 看板读取的小摘要
+.ai/tasks/<改进任务>/rsi-proposal.json # 可提交的来源摘要；提交前检查敏感内容
 ```
 
-每次运行使用新目录，事件文件按序号新增，不覆盖上轮结果。进程被强制杀死可能没有 finished，此时查询显示 unknown。记录损坏不拖垮其他运行；写盘失败尽量进入验证返回的 `recording_errors`，不替换真正的裁决。
+作者的原始通知保存在 DSH 日志；任务在阶段变化、turn/end 和查询时保存有界副本。验证会话另外逐事件落盘。进程强制退出导致的无 finished、未关闭范围、日志消失不能当成完整记录。
 
-代码快照不含 `.ai/tasks` 和记录目录，输入制品另存正文与哈希。忽略文件、依赖、外部服务状态不在代码快照内；这不是完整环境镜像。未跟踪文件限 200 个、单个 1 MiB，合计快照限 8 MiB；submodule 不支持完整捕获。会话 trace 单条限 128 KiB、单会话限 2 MiB / 2000 条，超限记录哈希与截断标记，不伪装完整。
+支持单 Git 根，也支持工作区内最多 32 个仓库（深度 4、最多扫描 1000 项）。各仓库保存 HEAD、dirty diff、未跟踪文件；工作区外部服务、忽略文件和依赖不在快照中。单仓库/仓库外文件各最多 200 个，单文件 1 MiB、各总量 8 MiB；取样后复查是否变化。符号链接、submodule 或超限不能声称完整。
 
-记录含制品原文、代码和工具输出，**没有通用脱敏**。本仓库默认忽略 `.ai/rsi/`，经核对的结论和证据摘要进入 `.ai/tasks/<ID>/` 提交。其他仓库或自定义 root 需自行决定保存、清理和 Git 忽略策略。磁盘文件可以被手改，它们是可追查的工作记录，不是防篡改审计。
+任务制品独立保存（每份 512 KiB）；代码指纹排除 `.ai/tasks` 和 RSI 记录目录，单独提交这些记录不会改变代码指纹。HEAD 仍保留用于定位还原起点。会话副本限单条 512 KiB、每会话 16 MiB / 8192 条，超限保存哈希和截断标记。
+
+加载时保存套件版本、发布 JS 指纹与 patch 指纹；后来改磁盘不会改写运行身份。`recorder_suite` 是本次采集器版本；`loaded_suite` 只来自任务创建快照，历史起点未知时为 null。`execution_suites` 按 operation/checkpoint/run 保留实际版本，跨版本仅续写制品也会留下执行版本。提案和后续反馈会携带这组来源。
+
+记录含原始代码和工具输出，没有通用脱敏。原始 `.ai/rsi` 默认忽略；只提交检查过的摘要。磁盘记录可手改，是工作证据，不是权限或防篡改边界。
+
+## 原有指导文字实验
+
+`sdlc_rsi_experiment` 真实调用模型，比较 baseline_guidance 与 candidate_guidance；必须固定代码、制品、整套插件、模型实际配置，前后复查。参考结果需要外部证据，不能照抄被测验证者裁决。重复、取消、失败都留在分母；更快失败不算改善。
+
+该实验仍与参考答案共享文件系统，只供探索，不推荐采用候选。要判断模型效果，仍需要隔离的盲评环境、多次重复和未参与调优的真实任务。本次确定性版本对照只证明插件机制修复。
 
 ## 验证
 
 ```sh
 DSH_APP='/Applications/DeepSeek Harness.app' npm run verify --workspace packages/sdlc
+node tools/bench/run.mjs
+npm run compat
+npm run preset-sync
 ```
 
-包含纯函数单测，以及真实 Cordis、ToolRuntime、LocalFileSystem、Git 和验证器的集成冒烟。冒烟的模型 provider 是确定性夹具，它证明接线和失败处理，不证明真实模型效果。真实分发与模型调用证据另记在 `.ai/tasks/RSI-1/proof.md`。
+冒烟使用真实 Cordis、ToolRuntime、LocalFileSystem、作用域和 Git；模型 provider 是确定性夹具。隔离 profile 的 tarball 安装与运行另有交付证据，不修改用户 desktop profile。

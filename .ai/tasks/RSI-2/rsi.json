@@ -1,0 +1,14 @@
+{
+  "task_id": "RSI-2",
+  "task_complete": true,
+  "evidence_complete": false,
+  "comparison_ready": false,
+  "run_count": 0,
+  "session_count": 0,
+  "review_status": "pending",
+  "updated_at": "2026-10-22T15:51:33Z",
+  "recorded_by": "Codex explicit limitation record",
+  "issues": [
+    "本任务由 Codex 执行，未由 DSH RSI 采集完整会话和任务起点；验证与审查摘要见 proof.md，不能冒充完整执行记录。"
+  ]
+}

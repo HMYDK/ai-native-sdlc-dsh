@@ -1,7 +1,7 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
-import {readdir} from 'node:fs/promises';
+import {readdir,lstat} from 'node:fs/promises';
 import path from 'node:path';
 import {message,safeRelative} from './store.js';
 const execFileAsync=promisify(execFile);
@@ -73,8 +73,26 @@ export async function captureCode(cwd:string,read:(path:string,maxBytes:number)=
   try {
     if((await git('rev-parse','--show-prefix')).trim()) throw new Error('当前目录不是 Git 仓库根，不能完整还原相对路径');
     const head=(await git('rev-parse','HEAD')).trim();
+    const tree=(await git('ls-tree','-rz','HEAD')).split('\0').filter(entry=>{
+      const name=entry.slice(entry.indexOf('\t')+1);
+      return entry&&!result.excluded.some(p=>name===p||name.startsWith(`${p}/`));
+    });
     const diff=await git('diff','--binary','--no-ext-diff','--no-textconv','HEAD','--',...paths);
     const names=(await git('ls-files','--others','--exclude-standard','-z','--',...paths)).split('\0').filter(Boolean).sort();
+    const tracked=(await git('ls-files','--stage','-z','--',...paths)).split('\0').filter(Boolean);
+    if(tracked.some(entry=>entry.startsWith('160000 ')))throw new Error('仓库含 submodule，首版无法完整保存子仓库现场');
+    if(tracked.some(entry=>entry.startsWith('120000 ')))throw new Error('仓库含符号链接，不能当作普通文件快照');
+    const checked=new Set<string>();
+    for(const name of [...names,...tracked.map(entry=>entry.slice(entry.indexOf('\t')+1))]) {
+      safeRelative(name);
+      const parts=name.split('/');
+      for(let i=1;i<=parts.length;i++) {
+        const relative=parts.slice(0,i).join('/');if(checked.has(relative))continue;
+        const stat=await lstat(path.join(cwd,relative)).catch(error=>{if(error.code==='ENOENT')return undefined;throw error;});
+        if(stat?.isSymbolicLink())throw new Error(`未展开符号链接: ${relative}`);
+        checked.add(relative);
+      }
+    }
     if(names.length>200) throw new Error('未跟踪文件超过 200 个，快照不完整');
     let bytes=Buffer.byteLength(diff);
     for(const name of names) {
@@ -84,12 +102,12 @@ export async function captureCode(cwd:string,read:(path:string,maxBytes:number)=
       if(content.byteLength>1024*1024||bytes>8*1024*1024) throw new Error('代码快照超过 8 MiB 或单文件超过 1 MiB');
       result.untracked.push({path:name,content_base64:Buffer.from(content).toString('base64'),sha256:hash(content)});
     }
-    if(/^160000 /m.test(await git('ls-files','--stage','--',...paths))) throw new Error('仓库含 submodule，首版无法完整保存子仓库现场');
     if(head!==(await git('rev-parse','HEAD')).trim()||diff!==await git('diff','--binary','--no-ext-diff','--no-textconv','HEAD','--',...paths)
       ||names.join('\0')!==(await git('ls-files','--others','--exclude-standard','-z','--',...paths)).split('\0').filter(Boolean).sort().join('\0')) throw new Error('取快照期间代码发生变化');
     for(const file of result.untracked) if(hash(await read(file.path,1024*1024))!==file.sha256) throw new Error('取快照期间未跟踪文件发生变化');
     result.head=head;result.diff=diff;result.complete=true;
-    result.fingerprint=hash(JSON.stringify({head,diff,untracked:result.untracked.map(({path,sha256})=>({path,sha256})),excluded:result.excluded}));
+    // HEAD locates the recovery baseline; excluded task-record commits do not change code identity.
+    result.fingerprint=hash(JSON.stringify({tree,diff,untracked:result.untracked.map(({path,sha256})=>({path,sha256})),excluded:result.excluded}));
   } catch(error) {result.issues.push(message(error));}
   return result;
 }

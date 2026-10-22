@@ -1,6 +1,6 @@
 {
   "name": "@ai-native-sdlc/dsh-sdlc",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": false,
   "description": "The AI-native SDLC as one DeepSeek Harness bundle: a suite-level UI host row plus one Agent Preset (\"AI 原生 SDLC\") that mounts the six mechanism components only in sessions that explicitly select it.",
   "type": "module",

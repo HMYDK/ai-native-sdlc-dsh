@@ -49,7 +49,7 @@ preset 内的六行仍是各自独立的 Cordis 行（各有 `inject` / `Config`
 | `sdlc-verify` | `@ai-native-sdlc/dsh-sdlc/verify` | 非 Actor 的独立验证 + 测试冻结 |
 | `sdlc-status` | `@ai-native-sdlc/dsh-sdlc/status` | 任务看板（一次盘出全部任务状态/缺失/裁决） |
 | `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流 Skill：给验证者的判据清单 |
-| `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 |
+| `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 任务全过程证据、插件改进任务、版本对照与后续反馈 |
 
 验证者 preset（`sdlc-verifier`）是内部实现细节：它只在 `sdlc_verify` 运行期间
 临时注册、跑完归还，**不会**作为可选模式出现在新会话/设置页的选择器里。

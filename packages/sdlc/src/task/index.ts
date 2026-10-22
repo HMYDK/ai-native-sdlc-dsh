@@ -425,7 +425,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           return [
             {
               type: 'text',
-              text: `${String(o.task)}：${String(o.from)} → ${String(o.to)}（${String(o.direction)}）${o.recording_errors?.length ? `\n执行记录不完整：${o.recording_errors.join("；")}` : ""}`,
+              text: `${String(o.task)}：${String(o.from)} → ${String(o.to)}（${String(o.direction)}）${o.to === "DONE" ? "\n任务已完成。若 RSI 工具可用，接着调用 sdlc_rsi_analyze(task_id) 复盘执行过程；只有有证据支持的问题才提出插件改进。" : ""}${o.recording_errors?.length ? `\n执行记录不完整：${o.recording_errors.join("；")}` : ""}`,
             },
           ];
         },

@@ -1,0 +1,190 @@
+{
+  "at": "2026-10-22T15:47:10Z",
+  "recorded_by": "Codex",
+  "dsh_runtime": "0.2.1-rc.2",
+  "package": {
+    "version": "0.4.0",
+    "sha256": "351bb4307ae0a9e63ea726fedeb79c5184ddda4b9ee39844b57648440403b62d",
+    "file_count": 58,
+    "unpacked_size": 434779,
+    "files": [
+      "README.md",
+      "RSI.md",
+      "TASK.md",
+      "cordis.patch.yml",
+      "icon.svg",
+      "icons/artifact.svg",
+      "icons/rsi.svg",
+      "icons/status.svg",
+      "icons/task.svg",
+      "icons/verify.svg",
+      "icons/workflow.svg",
+      "lib/artifact/artifact.js",
+      "lib/artifact/index.js",
+      "lib/index.js",
+      "lib/rsi/analysis.js",
+      "lib/rsi/collector.js",
+      "lib/rsi/evidence.js",
+      "lib/rsi/experiment.js",
+      "lib/rsi/improvement.js",
+      "lib/rsi/index.js",
+      "lib/rsi/replay.js",
+      "lib/rsi/runtime.js",
+      "lib/rsi/skill.js",
+      "lib/rsi/snapshot.js",
+      "lib/rsi/store.js",
+      "lib/rsi/tasks.js",
+      "lib/rsi/trace.js",
+      "lib/shared/helpers.js",
+      "lib/shared/task-recording.js",
+      "lib/status/index.js",
+      "lib/status/scan.js",
+      "lib/task/index.js",
+      "lib/task/state.js",
+      "lib/ui/client.js",
+      "lib/ui/index.js",
+      "lib/verify/index.js",
+      "lib/verify/preset-filter.js",
+      "lib/verify/preset.js",
+      "lib/verify/recording.js",
+      "lib/verify/test-freeze.js",
+      "lib/verify/verdict.js",
+      "lib/workflow/index.js",
+      "lib/workflow/skill.js",
+      "locale/artifact/en.json",
+      "locale/artifact/zh.json",
+      "locale/en.json",
+      "locale/rsi/en.json",
+      "locale/rsi/zh.json",
+      "locale/status/en.json",
+      "locale/status/zh.json",
+      "locale/task/en.json",
+      "locale/task/zh.json",
+      "locale/verify/en.json",
+      "locale/verify/zh.json",
+      "locale/workflow/en.json",
+      "locale/workflow/zh.json",
+      "locale/zh.json",
+      "package.json"
+    ],
+    "filename": "ai-native-sdlc-dsh-sdlc-0.4.0-351bb4307ae0.tgz"
+  },
+  "candidate": {
+    "revision": "working-tree build",
+    "fingerprint": "bf8ae47b126177dac01070fc27920dca8a4d287ebecd5e2bbf47fa41984d28ee"
+  },
+  "unit": {
+    "library_pass": 213,
+    "ui_pass": 9,
+    "fail": 0
+  },
+  "board_host": {
+    "pass": 26,
+    "fail": 0
+  },
+  "smoke": {
+    "pass": 437,
+    "fail": 0,
+    "scripts": {
+      "artifact": 39,
+      "preset": 19,
+      "rsi-scopes": 39,
+      "rsi": 62,
+      "status": 69,
+      "task": 40,
+      "ui": 46,
+      "verify": 111,
+      "workflow": 12
+    }
+  },
+  "benchmarks": {
+    "STATUS-PAGE-1": {
+      "baseline_fail": 4,
+      "candidate_fail": 0
+    },
+    "FALSE-ALARM-1": {
+      "baseline_fail": 2,
+      "candidate_fail": 0
+    },
+    "PWSH-1": {
+      "baseline_fail": 4,
+      "candidate_fail": 0
+    },
+    "RSI-SCOPE-1": {
+      "baseline_fail": 4,
+      "candidate_fail": 0
+    }
+  },
+  "compat": {
+    "manifests_pass": 2
+  },
+  "preset_sync": {
+    "standard_rows": 22,
+    "sdlc_rows": 6,
+    "matches": true
+  },
+  "playground": {
+    "pass": 21,
+    "fail": 0,
+    "isolated_copy": true
+  },
+  "installed_files": {
+    "published_javascript_matches": 32,
+    "patch_matches": true
+  },
+  "runtime": {
+    "api_status": 200,
+    "api_bytes": 6375,
+    "boot_status": 200,
+    "bundle_in_boot": true,
+    "activation_warnings": 0,
+    "fixture_summaries": [
+      {
+        "evidence_complete": false,
+        "run_count": 6,
+        "session_count": 7,
+        "review_status": "pending",
+        "issues": [
+          "验证者记录为空，尚未取得实际模型配置"
+        ],
+        "updated_at": "2026-10-21T11:00:00Z"
+      }
+    ],
+    "profile": "verify-sdlc",
+    "desktop_profile_changed": false
+  },
+  "logs": {
+    "verify": {
+      "sha256": "16e35b2de2583ada93ec5b4591a8056ce1920ff67ba2a98f43544b77e98f606a",
+      "local_file": "/tmp/rsi-2-verify-final.log"
+    },
+    "bench": {
+      "sha256": "1433e596253ed9b2c56e68513256042eeef30e7c9cfaa70224599a3228c225c1",
+      "local_file": "/tmp/rsi-2-bench-final.log"
+    },
+    "compat": {
+      "sha256": "58705e8798ec5de129c3a3e4d4576f2d7a19eff92a86a651b65d5cde33c091b2",
+      "local_file": "/tmp/rsi-2-compat-final.log"
+    },
+    "preset_sync": {
+      "sha256": "9677d8df7bea7d3a0946378c4f447e1fabde7b21afb5705dd97063201d1bef26",
+      "local_file": "/tmp/rsi-2-preset-final.log"
+    },
+    "playground": {
+      "sha256": "5c722d034c587e298b0fa2caf7e5480a000e6e31f65060d270560cd01715c58a",
+      "local_file": "/tmp/rsi-2-playground-final.log"
+    },
+    "activation": {
+      "sha256": "948c9cfb3ece3e9890f676874e1c8993b73f9e79c89f14834ab9f6f3cbfd0ad5",
+      "local_file": "/tmp/rsi-2-activation-final.log"
+    }
+  },
+  "limits": [
+    "Model responses in runtime smoke and benchmark are deterministic fixtures.",
+    "No general real-task quality or latency improvement is claimed.",
+    "Only the isolated verify-sdlc profile was installed.",
+    "This development task was executed in Codex; no DSH verifier run or historical execution snapshot was fabricated."
+  ],
+  "gui_evidence": "gui-validation.json",
+  "final_auxiliary_recheck_at": "2026-10-22T15:51:33Z"
+}

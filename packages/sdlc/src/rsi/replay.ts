@@ -73,6 +73,7 @@ export async function replayCase(ctx:Context,exec:ToolRunContext,store:Store,col
       issues.push(...(recorded.summary.evidence_issues??[]));
       const start=recorded.records.find(r=>r.kind==='started');
       fingerprint=typeof start?.data.verifier_fingerprint==='string'?start.data.verifier_fingerprint:undefined;
+      if(JSON.stringify(start?.data.loaded_suite)!==JSON.stringify(sourceStart?.data.loaded_suite))issues.push('实际加载的插件套件已不同于来源运行');
       if(fingerprint!==sourceStart?.data.verifier_fingerprint)issues.push('验证器已不同于来源运行');
       if(JSON.stringify(start?.data.config)!==JSON.stringify(sourceStart?.data.config))issues.push('验证器配置已不同于来源运行');
       const capture=await store.read(`runs/${runId}/capture.json`) as CaptureInfo;

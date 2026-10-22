@@ -11,6 +11,12 @@ import {parseExperiment,runExperiment} from './experiment.js';
 import {replayInput,replayCase} from './replay.js';
 import {learningSkill} from './skill.js';
 import {TaskCollector} from './tasks.js';
+import {registerImprovementTools,parsePacket} from './improvement.js';
+import {hash} from './snapshot.js';
+import {JSON_SCHEMA,load as parseYaml} from 'js-yaml';
+import {parseTaskState,normalizeTaskId} from '../task/state.js';
+import {cwdOf} from './store.js';
+import {object} from './analysis.js';
 export const name='sdlc-rsi';
 export const inject=['tools','fs','sandboxPolicy','skills'];
 export const Config=z.object({root:z.string().default('.ai/rsi')});
@@ -20,6 +26,18 @@ export function apply(ctx:Context,config:{root:string}):void {
   safeRelative(config.root);
   const collector=new Collector(ctx,config.root);
   const tasks=new TaskCollector(ctx,config.root,collector);
+  registerImprovementTools(ctx,config.root,tasks);
+  ctx.on('tools/execute',async(exec,next)=>{
+    let issue:string|undefined;
+    const taskId=object(exec.arguments).task_id;
+    // One ownership path for task tools, artifact edits/checks, fixes and verification.
+    // RSI queries describe existing evidence and must not reassign the task to the reader.
+    if(exec.name.startsWith('sdlc_')&&!exec.name.startsWith('sdlc_rsi_')&&exec.name!=='sdlc_task_create'&&typeof taskId==='string') {
+      try {await tasks.touch(exec,taskId);}catch(error) {issue=`RSI 任务关联失败: ${message(error)}`;}
+    }
+    const result=await next();
+    return issue?{...result,content:[...result.content,{type:'text' as const,text:issue}]}:result;
+  });
   ctx.on('sdlc-task/record',(record,exec)=>tasks.record(record,exec));
   ctx.on('sdlc-verify/record',async(record,exec)=>{
     // The run must settle before its task summary reads it; still preserve the task link on recording failure.
@@ -87,20 +105,42 @@ export function apply(ctx:Context,config:{root:string}):void {
     return json({experiment_id:id,path:`${config.root}/experiments/${id}`,report});
   }}));
   register(defineTool({name:'sdlc_rsi_feedback',description:'Persist an externally supported correction or adoption/rejection decision. Does not change plugin settings. Attach the development task when adopting an improvement.',parameters:{
-    run_id:{type:'string'},experiment_id:{type:'string'},
+    run_id:{type:'string'},experiment_id:{type:'string'},proposal_id:{type:'string'},
+    comparison_report:{type:'string',description:'JSON comparison report relative to the development task directory; required for adopting a proposal. Includes baseline/candidate {revision,fingerprint}, command, and cases [{id,baseline_pass,candidate_pass,evidence}].'},
+    followup_task_id:{type:'string',description:'A later real task in this workspace, whose recorded plugin version and evidence will be attached.'},
     note:{type:'string',required:true},evidence:{type:'string',required:true},
     decision:{type:'string',description:'Optional adopt, reject, or inconclusive; describes a supplied decision, not automatic approval.'},
     task_id:{type:'string',description:'Development task carrying an adopted change.'},
   },output,async execute(args,exec){
     const store=new Store(ctx,exec,config.root);
-    if(!args.run_id&&!args.experiment_id)throw new Error('反馈至少关联一个运行或实验');
+    if(!args.run_id&&!args.experiment_id&&!args.proposal_id)throw new Error('反馈至少关联一个运行、实验或提案');
     if(!args.note.trim()||!args.evidence.trim()||args.note.length>8000||args.evidence.length>8000)throw new Error('说明和证据必须非空且各不超过 8000 字符');
     if(args.run_id)await store.read(`runs/${safeSegment(args.run_id)}/000000.json`);
     if(args.experiment_id)await store.read(`experiments/${safeSegment(args.experiment_id)}/protocol.json`);
     if(args.decision&&!['adopt','reject','inconclusive'].includes(args.decision))throw new Error('decision 必须是 adopt/reject/inconclusive');
     if(args.decision==='adopt'&&!args.task_id)throw new Error('采用改进需要关联正常开发任务 task_id');
-    if(args.task_id)safeSegment(args.task_id);
-    const id=randomUUID();const feedback={id,at:new Date().toISOString(),...args,attribution:'caller_supplied'};
+    const developmentId=args.task_id?normalizeTaskId(args.task_id):undefined;
+    const proposal=args.proposal_id?parsePacket(await store.read(`proposals/${safeSegment(args.proposal_id)}.json`)):undefined;
+    let comparison:unknown;
+    if(args.proposal_id&&args.decision==='adopt') {
+      if(!args.comparison_report)throw new Error('采用提案需要新旧版本对照报告');
+      const id=developmentId!;
+      const target=await ctx.fs.resolve(`.ai/tasks/${id}/state.yaml`,{cwd:cwdOf(exec)});
+      if(parseTaskState(id,parseYaml(await ctx.fs.readText(target),{schema:JSON_SCHEMA})).status!=='DONE')throw new Error('改进任务尚未完成正常开发验证流程，不能记录为已采用');
+      const imported=parsePacket(await new Store(ctx,exec,`.ai/tasks/${id}`).read('rsi-proposal.json'));
+      if(proposal?.proposal.id!==args.proposal_id||imported.proposal.id!==args.proposal_id||imported.sha256!==proposal.sha256)throw new Error('开发任务未关联当前提案，不能借用其他任务的完成状态');
+    }
+    if(args.comparison_report) {
+      if(!args.task_id)throw new Error('对照报告必须属于开发任务');
+      const report=object(await new Store(ctx,exec,`.ai/tasks/${developmentId}`).read(safeRelative(args.comparison_report)));
+      const baseline=object(report.baseline),candidate=object(report.candidate);
+      if(!baseline.revision||!candidate.revision||!baseline.fingerprint||!candidate.fingerprint||baseline.fingerprint===candidate.fingerprint||!report.command)throw new Error('报告缺少不同基线/候选版本、内容指纹或复跑命令');
+      if(!Array.isArray(report.cases)||!report.cases.length||report.cases.some(c=>typeof object(c).baseline_pass!=='boolean'||typeof object(c).candidate_pass!=='boolean'||!object(c).evidence))throw new Error('报告缺少两侧观测值与证据');
+      if(args.decision==='adopt'&&(!report.cases.some(c=>object(c).baseline_pass===false)||report.cases.some(c=>object(c).candidate_pass!==true)))throw new Error('当前对照尚未证明旧版失败、新版满足判据');
+      comparison={report,sha256:hash(JSON.stringify(report)),attribution:'caller_supplied_report'};
+    }
+    const followup=args.followup_task_id?await tasks.inspect(exec,args.followup_task_id):undefined;
+    const id=randomUUID();const feedback={id,at:new Date().toISOString(),...args,task_id:developmentId,comparison,followup:followup?{task_id:followup.task.task_id,initial_suite:followup.task.loaded_suite,execution_suites:object(followup.evidence).execution_suites,evidence:followup.evidence}:undefined,attribution:'caller_supplied'};
     await store.write(`feedback/${id}.json`,feedback);return json({feedback_id:id,path:`${config.root}/feedback/${id}.json`});
   }}));
 }

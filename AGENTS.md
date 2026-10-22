@@ -36,7 +36,7 @@
 那不是 DSH 插件，只是一个跑在 DSH 里的外部工具集。已废弃。
 
 正确形态：**npm 包 + `dsh.bundle.patch`**，`dsh plugin add` 即自动挂载。
-2026-10-19 起是**一个**包（`packages/sdlc`，现为 `@ai-native-sdlc/dsh-sdlc@0.3.1`），
+2026-10-19 起是**一个**包（`packages/sdlc`，源码现为 `@ai-native-sdlc/dsh-sdlc@0.4.0`），
 不再是七个包——原因见下一节与 `packages/sdlc/README.md`。
 `0.3.0` 起它默认**不生效**：六个机制组件放进一个名为「AI 原生 SDLC」的 Agent
 Preset，只有新建会话选择该模式才挂载；只有只读看板 UI 常驻（见「方案 A」一节）。
@@ -68,7 +68,7 @@ DSH 可挂的扩展点只有四个（工具拦截 / 工具与 Skill 注册 / 提
 | `sdlc-status` | `@ai-native-sdlc/dsh-sdlc/status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） | ✅ 已实现（真实 fs 冒烟） |
 | `sdlc-verify` | `@ai-native-sdlc/dsh-sdlc/verify` | 独立验证 + 测试冻结 | ✅ 已实现并端到端验证 |
 | `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流本身，作为 **Skill** 交付给验证者 | ✅ 已实现（12 条冒烟） |
-| `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 | ✅ 首版已实现；实验为探索用途 |
+| `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 整个任务的执行证据、提案、改进任务与反馈 | ✅ 0.4.0 已实现；模型指导实验仍为探索用途 |
 | `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**精确包名**） | 客户端制品链面板（侧栏图标 + main 面板） | ✅ 已实现并端到端验证（46 条冒烟） |
 
 ⚠️ **`sdlc-ui` 行必须写精确包名**，不能写 `.../ui` 子路径：
@@ -233,7 +233,33 @@ boot rev `c538c0d0075f`、API 200/91661、0 条激活警告；verify 冒烟 111/
 本包 exports 解析，全部误报"解析失败"——`!!js` 标签也让默认 js-yaml 直接抛，
 两处都要自定义处理）。
 
-### RSI 首版（2026-10-15）
+### 2026-10-22 RSI 0.4.0：从真实任务记录到插件改进
+
+目标是用真实任务的执行过程改进本插件。来源 `DEMO-22149` 六次验证都有裁决，
+但旧 RSI 六份记录的实际配置与工具结果均为零，代码快照不完整，分析却没有提示缺口。
+根因是作者与验证者分属兄弟 preset，普通监听器看不到验证者；工作目录又是多仓库父目录。
+任务完成与证据完整必须分别判断，不能用五次 reject 本身推断插件有缺陷。
+
+- 只观察明确登记的会话，用 `sessionQuery` 补漏并对账；缺失、截断、失败会影响记录健康状态。
+- 任务操作独立记录调用、归属、切换边界和实际执行版本，再写任务索引。重启、旧索引写失败、
+  跨版本仅写制品都要覆盖；不能只测各自成功的情况。阶段快照与 state/history 逐项核对。
+- 代码按工作区内仓库采样，指纹排除任务/RSI 记录；提交记录不算代码变化。链接、submodule、
+  超限和取样漂移明确报不完整。历史起点未知就保留 null，不填当前采集器版本。
+- `tasks/analyze/propose/improve/feedback` 连接真实任务、带引用的假设、普通开发任务、
+  两版对照和后续真实任务。引用固定当时内容；采用时核对同一提案和已完成开发任务。
+  诊断与报告注明来自调用方，哈希只检查内容一致，不代表原因已独立成立。
+- 看板显示执行记录完整性和待复盘状态；原始 `.ai/rsi` 仍忽略，只提交经过检查的摘要。
+
+证据在 `.ai/tasks/RSI-2/`，用法见 `packages/sdlc/RSI.md`。全量通过：单测 222
+（lib 213 + UI 9）、看板宿主 26、九个冒烟脚本 437；四个版本对照均成立，RSI 对照
+旧版失败 4 项、新版失败 0 项；compat 两包、preset-sync 22 + 6 行、隔离测试场 21 条通过。
+独立审查提出的问题已修复并复查。最终 tarball 58 文件；安装后 32 个发布 JS 与 patch
+对账一致，隔离启动无激活警告，看板 API 200。**本轮只安装隔离 profile，没有升级用户
+desktop profile**。确定性模型夹具证明记录机制，不证明模型质量或真实任务耗时普遍改善。
+真实 Chrome 已查看新增记录区并展开缺口：DONE 夹具仍显示证据不完整，旧任务显示尚未确认；
+截图在 `output/playwright/rsi2-record-health.png`。这不替代更广泛的 GUI 验收。
+
+### RSI 首版（2026-10-15，历史记录）
 
 实现与实测证据见 `.ai/tasks/RSI-1/`，用法见 `packages/sdlc/RSI.md`。
 
@@ -582,13 +608,12 @@ reject 的代码上都是绿的**）。
 
 ## 当前状态
 
-> 下面各条是**合并前**的读数，保留作为历史。**当前全量读数以本段为准**
-> （2026-10-19 单包 + 方案 A 后，DSH `0.2.1-rc.2`）：单测 **210**（lib 202 +
-> UI 客户端 8）；冒烟 **8 个脚本共 398 条**（artifact 39 / rsi 62 / status 69 /
-> task 40 / ui 46 / verify 111 / workflow 12 / preset 19）；`npm run compat`
-> **2 个 manifest** 通过；bench 3/3；隔离 profile 里宿主两行可解析、preset 内
-> 六行可装配、`sdlc` preset 在 `agentPresets/list` 中可组合；安装形态与全部证据
-> 见上文「2026-10-19 合并」与「方案 A」两节。
+> 下面各条保留为历史。**当前全量读数**（2026-10-22，源码 0.4.0，DSH
+> `0.2.1-rc.2`）：单测 **222**（lib 213 + UI 9）、看板宿主 **26**；冒烟
+> **9 个脚本共 437 条**（artifact 39 / preset 19 / rsi-scopes 39 / rsi 62 /
+> status 69 / task 40 / ui 46 / verify 111 / workflow 12）；compat 两包、
+> preset-sync、bench 4/4、隔离测试场 21 条通过。实际安装范围与限制见上文
+> 「RSI 0.4.0」及 `.ai/tasks/RSI-2/proof.md`。
 
 - [x] `sdlc-verify` 插件：TypeScript 严格模式零错误
 - [x] 单测 **23/23**（纯函数层，含 criteria 强制策略 10 条）

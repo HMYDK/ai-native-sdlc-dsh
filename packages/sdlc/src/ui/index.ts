@@ -413,6 +413,16 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
           } catch {
             review = undefined;
           }
+          let rsi: { evidence_complete: boolean; run_count: number; session_count: number; review_status: string; issues: string[]; updated_at: string } | null = null;
+          try {
+            const raw = await ctx.fs.readText(await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/rsi.json`, { cwd: repoRoot }));
+            const doc = JSON.parse(raw);
+            if (doc.task_id !== id || typeof doc.evidence_complete !== 'boolean') throw new Error('执行记录摘要格式不正确');
+            rsi = { evidence_complete: doc.evidence_complete, run_count: Number(doc.run_count) || 0,
+              session_count: Number(doc.session_count) || 0, review_status: String(doc.review_status || 'pending'),
+              issues: Array.isArray(doc.issues) ? doc.issues.filter((s: unknown): s is string => typeof s === 'string').slice(0, 8) : [],
+              updated_at: typeof doc.updated_at === 'string' ? doc.updated_at : '' };
+          } catch { /* Absent, unreadable or legacy records are unconfirmed, never healthy by default. */ }
           // 每个制品的**形状**：章节骨架 + 体量。这是"交付了什么"的直接答案。
           const artifactDetail: { kind: string; file: string; sections: string[]; bytes: number }[] = [];
           for (const [kind, file] of Object.entries(st.artifacts)) {
@@ -469,6 +479,7 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
             blocked: blockedBy(st.status ?? '', st.artifacts),
             verdict: verdict ?? null,
             review: review ?? null,
+            rsi,
           });
         }
         // 只报**真的画出来**的条数：目录里可能有不含 state.yaml 的杂物，

@@ -40,5 +40,10 @@ test('真实文件上的逐事件写入不能覆盖旧记录，损坏的运行�
     await fs.writeFile(path.join(root,'.ai/rsi/runs/run-1/000001.json'),'{bad');
     const run=await store.run('run-1');
     assert.equal(run.summary.complete,false);assert.match(run.summary.issues.join(' '),/000001/);
+    await store.write('runs/run-1/000002.json',{...record,seq:2,kind:'attempt_session',data:{session_id:'child'}});
+    await store.write('runs/run-1/code.json',{complete:true,fingerprint:'fixture'});
+    await store.write('runs/run-1/capture.json',{sessions:[{session_id:'child',configs:[{}],observed_events:1,source_verified:true}]});
+    const partial=await store.run('run-1');
+    assert.equal(partial.evidence.complete,true);assert.equal(partial.summary.replay_ready,false,'完整会话副本不能掩盖生命周期损坏');
   } finally {await fs.rm(root,{recursive:true,force:true});}
 });

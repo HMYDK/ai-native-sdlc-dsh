@@ -118,3 +118,13 @@ test('空工作区能说明没有任务和检查过哪些位置', () => {
   assert.ok(ui.find(n => n.type === 'h2' && text(n) === '还没有任务').length);
   assert.ok(ui.find(n => n.type === 'details' && text(n).includes('/alpha/.ai/tasks')).length);
 });
+
+test('完成的业务任务仍显示 RSI 记录缺口，旧任务显示未确认', () => {
+  const data = structuredClone(payload);
+  data.tasks[0].rsi = {evidence_complete:false,run_count:6,session_count:7,issues:['验证者记录为空'],review_status:'pending'};
+  const ui = mount(data);
+  assert.ok(text(ui.detail()).includes('执行证据不完整'));
+  assert.ok(text(ui.detail()).includes('验证者记录为空'));
+  ui.click(ui.rows()[1]);
+  assert.ok(text(ui.detail()).includes('尚未确认执行记录是否完整'));
+});

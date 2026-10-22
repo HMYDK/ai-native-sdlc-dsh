@@ -1,0 +1,64 @@
+{
+  "task": "RSI-2",
+  "at": "2026-10-22T15:47:10Z",
+  "recorded_by": "Codex",
+  "verification_mode": "codex_checks_and_independent_code_review",
+  "dsh_verifier_run_id": null,
+  "verification_complete": true,
+  "artifacts": [
+    "intent.md",
+    "spec.md",
+    "plan.md",
+    "proof.md",
+    "evidence/local-validation.json",
+    "evidence/version-comparison.json",
+    "review.json"
+  ],
+  "verdict": {
+    "status": "approve",
+    "summary": "约定的 0.4.0 实现和自动验证通过，独立审查问题已修复并复查。结论由 Codex 汇总实际命令和评审记录，不冒充 DSH 验证器运行。",
+    "criteria_results": [
+      {
+        "id": "R1",
+        "criterion": "跨 preset 采集、按身份隔离和查询补漏",
+        "result": "met",
+        "evidence": "scope 39 条；版本对照旧 4 失败、新 0 失败"
+      },
+      {
+        "id": "R2",
+        "criterion": "可恢复的任务、会话、阶段和版本关系",
+        "result": "met",
+        "evidence": "独立失败注入与双版本模块复查；见 review.json"
+      },
+      {
+        "id": "R3",
+        "criterion": "任务完成与证据完整分开，缺证据不得声称可比",
+        "result": "met",
+        "evidence": "evidence/analysis 单测及 scoped smoke 的失败、空记录、截断和恢复用例"
+      },
+      {
+        "id": "R4",
+        "criterion": "多仓库快照、稳定代码指纹与漂移诊断",
+        "result": "met",
+        "evidence": "snapshot 单测覆盖任务记录提交、代码变化、符号链接和取样变化"
+      },
+      {
+        "id": "R5",
+        "criterion": "提案、普通改进任务、两版对照和后续反馈关联",
+        "result": "met",
+        "evidence": "improvement 单测与真实工具 dispatch 冒烟；不完整证据/无关开发任务均有拒绝反例"
+      },
+      {
+        "id": "R6",
+        "criterion": "完整检查与隔离 tarball 验证",
+        "result": "met",
+        "evidence": "evidence/local-validation.json，四个两侧对照均成立"
+      }
+    ],
+    "findings": [],
+    "unverified": [
+      "更广泛真实任务上的质量与耗时效果未测量。",
+      "本轮没有升级用户 desktop profile。"
+    ]
+  }
+}

@@ -286,6 +286,13 @@ body[data-ds-dark-theme] .sdlc-app,body[data-ds-dark-theme] .sdlc-dialog{--sdlc-
           t.blocked && t.blocked.length ? h('section', { key: 'blocked', className: 'sdlc-section' }, h('div', { className: 'sdlc-verdict sdlc-tone-warning' }, [h(Icon, { key: 'i', name: 'warn' }), h('div', { key: 'b' }, [h('strong', { key: 'title' }, '还需要完成'), h('p', { key: 'text' }, t.blocked.join('；'))])])) : null,
           h('section', { key: 'verdict', className: 'sdlc-section' }, [h('div', { key: 'head', className: 'sdlc-section-head' }, h('h3', {}, '验证结论')), h(Verdict, { key: 'body', task: t, onOpen })]),
           t.review && (t.review.decision || t.review.rounds) ? h('p', { key: 'review', className: 'sdlc-caption' }, '评审：' + (t.review.decision === 'accept' ? '接受' : t.review.decision || '尚无结论') + ' · ' + (t.review.rounds || 0) + ' 轮独立验证' + (t.review.notAccepted ? ' · ' + t.review.notAccepted + ' 项未接受' : '')) : null,
+          h('section', { key: 'rsi', className: 'sdlc-section' }, [
+            h('div', { key: 'head', className: 'sdlc-section-head' }, h('h3', {}, '执行记录与插件改进')),
+            h('p', { key: 'status' }, !t.rsi ? '尚未确认执行记录是否完整' : t.rsi.evidence_complete ? '已登记的执行证据完整' : '执行证据不完整'),
+            t.rsi ? h('p', { key: 'counts', className: 'sdlc-caption' }, t.rsi.session_count + ' 个会话 · ' + t.rsi.run_count + ' 次验证 · ' + (t.rsi.review_status === 'proposed' ? '已提出插件改进' : t.rsi.review_status === 'collecting' ? '记录中' : '待复盘')) : h('p', { key: 'legacy', className: 'sdlc-caption' }, '任务完成不代表执行过程已记录；旧任务需要补查原始会话。'),
+            t.rsi && t.rsi.issues.length ? h('details', { key: 'issues' }, [h('summary', { key: 's' }, '查看记录缺口'), h('ul', { key: 'list' }, t.rsi.issues.map((issue, i) => h('li', { key: i }, issue)))]) : null,
+            t.rsi && t.rsi.updated_at ? h('p', { key: 'at', className: 'sdlc-caption' }, '最近核对：' + shortTime(t.rsi.updated_at)) : null,
+          ]),
           h('section', { key: 'artifacts', className: 'sdlc-section' }, [h('div', { key: 'head', className: 'sdlc-section-head' }, h('h3', {}, '交付物')), h(ArtifactList, { key: 'body', task: t, onOpen })]),
           latest ? h('section', { key: 'latest', className: 'sdlc-section' }, [h('div', { key: 'head', className: 'sdlc-section-head' }, [h('h3', { key: 'title' }, '最新进展'), h('button', { key: 'all', className: 'sdlc-link', onClick: () => setTab('history') }, ['查看全部记录', h(Icon, { key: 'i', name: 'arrow', size: 14 })])]), h('p', { key: 'text', className: 'sdlc-progress' }, latest.reason || stageName(latest.to))]) : null,
         ]) : tab === 'artifacts' ? h(ArtifactList, { key: 'artifacts', task: t, onOpen, expanded: true }) : h(Timeline, { key: 'history', task: t }),

@@ -66,6 +66,7 @@ export class Store {
     }
     const evidence=assessEvidence(records,capture,code);
     evidence.issues.push(...errors);if(errors.length)evidence.complete=evidence.replay_ready=false;
+    evidence.replay_ready=evidence.replay_ready&&summary.complete;
     summary.evidence_complete=evidence.complete;summary.replay_ready=evidence.replay_ready;
     summary.evidence_issues=evidence.issues;
     return {summary,records,evidence};

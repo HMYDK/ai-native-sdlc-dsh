@@ -1,7 +1,15 @@
 export const learningSkill={
   name:'sdlc-evidence-driven-improvement',source:'bundled',
   description:'Use when improving how an agent works from real task outcomes, verification failures, retries, or human corrections.',
-  content:`# 从真实任务中改进工作方法
+  content:`# 用真实任务改进 SDLC 插件
+
+任务完成后先调用 sdlc_rsi_analyze(task_id)，读取返回的作者、验证者、代码起点、制品和版本证据。待复盘状态会保存到任务索引；中断后用 sdlc_rsi_tasks 查找。旧任务只补回有明确 task_id 的关联，不能补造历史。
+
+区分业务代码缺陷、插件机制缺陷、环境故障、未知原因。多次 reject 不等于插件坏了；先证明 SDLC 本应保证的行为没有发生。证据不足时先提出有依据的采集修复。没有发现问题就保留不确定结论，不必为每个任务造一个优化。
+
+有足够证据时调用 sdlc_rsi_propose 保存问题、假设、其他解释、预期改动、验收和对照方法。将返回 packet 交给插件源码工作区的 sdlc_rsi_improve，生成普通任务及 intent。摘要要先检查，不能带出原始记录中的凭据。导入指纹只证明内容没有变，不证明诊断正确。
+
+在插件仓库按正常流程开发；使用同一夹具运行旧版和新版，保存版本内容指纹、复跑命令、两侧观测值及限制。完成开发任务后用 sdlc_rsi_feedback(proposal_id, task_id, comparison_report, decision) 记录决定。后续真实任务用 followup_task_id 关联实际加载版本和证据；夹具通过不能替代后续效果。
 
 先看每次尝试的原始记录，包括失败、中断、重试和人工纠正。正常完成但耗时过长的任务也值得研究。
 

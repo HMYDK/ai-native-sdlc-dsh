@@ -74,6 +74,7 @@ makeWorkspace(WS_A, 'AAA-1', 'A 工作区的任务', '2026-01-01T00:00:00.000Z')
 // B 更晚 → 排序后应当排前面（看板第一眼是最近动过的）
 makeWorkspace(WS_B, 'BBB-2', 'B 工作区的任务', '2026-02-02T00:00:00.000Z');
 makeWorkspace(WS_C, 'CCC-3', 'C 工作区的任务', '2026-01-15T00:00:00.000Z');
+fs.writeFileSync(path.join(WS_A, '.ai/tasks/AAA-1/rsi.json'), JSON.stringify({task_id:'AAA-1',evidence_complete:false,run_count:6,session_count:7,issues:['验证者记录为空'],review_status:'pending'}));
 // A 里再放一个没有 state.yaml 的杂物目录：它**不该**被算成任务
 fs.mkdirSync(path.join(WS_A, '.ai', 'tasks', 'not-a-task'), { recursive: true });
 
@@ -148,6 +149,8 @@ check(ids.length === 2, `任务总数 2（实际 ${ids.length}：${ids.join(',')
 
 const taskA = (data.tasks ?? []).find((t) => t.id === 'AAA-1');
 const taskB = (data.tasks ?? []).find((t) => t.id === 'BBB-2');
+check(taskA?.rsi?.evidence_complete === false && taskA.rsi.run_count === 6, 'DONE 任务仍显示执行证据缺失');
+check(taskB?.rsi === null, '没有 RSI 摘要不伪装为记录完整');
 check(taskA?.repoRoot === WS_A, 'AAA-1 带着自己的 repoRoot');
 check(taskB?.repoRoot === WS_B, 'BBB-2 带着自己的 repoRoot（不是第一个根的）');
 check(taskB?.repoLabel === '工作区B', `来源名取自 workspace.json 的 title（实际 ${JSON.stringify(taskB?.repoLabel)}）`);

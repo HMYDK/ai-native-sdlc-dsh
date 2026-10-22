@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-22T15:51:33Z",
+  "method": "Playwright CLI with real Chrome; visual inspection of the resulting element screenshot",
+  "profile": "isolated verify-sdlc",
+  "fixture_task": "SMOKE-RSI-UI",
+  "fixture_only": true,
+  "observed": {
+    "task_status": "DONE",
+    "section": "执行记录与插件改进",
+    "evidence_status": "执行证据不完整",
+    "counts": "7 个会话 · 6 次验证 · 待复盘",
+    "expanded_issue": "验证者记录为空，尚未取得实际模型配置",
+    "legacy_without_summary": "尚未确认执行记录是否完整"
+  },
+  "screenshot": "output/playwright/rsi2-record-health.png",
+  "screenshot_sha256": "959d3ed2df23cf63c4c2d67478ee5535bdba590e19cf488f3e211037b2b36680",
+  "console": {
+    "sdlc_errors": 0,
+    "other_errors": [
+      "Host deepseek-account profile read failed; no account change was attempted."
+    ]
+  },
+  "limits": [
+    "Checked the light-theme task details and record-gap expansion; not a comprehensive UI audit.",
+    "The displayed counts are an explicit fixture, not a new business-task measurement."
+  ]
+}

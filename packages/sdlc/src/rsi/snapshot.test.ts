@@ -25,6 +25,34 @@ test('拿不到 Git 起点或读取文件失败必须标记不完整',async()=>{
   try {const result=await captureCode(root,async()=>new Uint8Array());assert.equal(result.complete,false);assert.ok(result.issues.length);}
   finally {await fs.rm(root,{recursive:true,force:true});}
 });
+test('提交任务记录只改变历史位置，不改变代码身份',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'rsi-record-commit-'));
+  const git=(...args:string[])=>execFileSync('git',['-C',root,...args],{stdio:'pipe'});
+  try {
+    git('init');await fs.writeFile(path.join(root,'code.txt'),'code');git('add','code.txt');
+    git('-c','user.name=RSI Test','-c','user.email=test@example.invalid','commit','-m','fixture');
+    const before=await captureCode(root,p=>fs.readFile(path.join(root,p)));
+    await fs.mkdir(path.join(root,'.ai/tasks/T-1'),{recursive:true});
+    await fs.writeFile(path.join(root,'.ai/tasks/T-1/intent.md'),'task record');git('add','.ai/tasks/T-1/intent.md');
+    git('-c','user.name=RSI Test','-c','user.email=test@example.invalid','commit','-m','record');
+    const after=await captureCode(root,p=>fs.readFile(path.join(root,p)));
+    assert.notEqual(after.head,before.head);assert.equal(after.complete,true);
+    assert.equal(after.fingerprint,before.fingerprint);
+  }finally {await fs.rm(root,{recursive:true,force:true});}
+});
+test('Git 根目录中的符号链接也不能被保存成普通文件并宣称完整',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'rsi-link-'));
+  const git=(...args:string[])=>execFileSync('git',['-C',root,...args],{stdio:'pipe'});
+  try {
+    git('init');await fs.writeFile(path.join(root,'code.txt'),'code');git('add','code.txt');
+    git('-c','user.name=RSI Test','-c','user.email=test@example.invalid','commit','-m','fixture');
+    await fs.symlink('code.txt',path.join(root,'link.txt'));
+    const untracked=await captureWorkspace(root,p=>fs.readFile(path.join(root,p)));
+    assert.equal(untracked.complete,false);assert.match(untracked.issues.join(' '),/符号链接/);
+    git('add','link.txt');git('-c','user.name=RSI Test','-c','user.email=test@example.invalid','commit','-m','track link');
+    assert.equal((await captureWorkspace(root,p=>fs.readFile(path.join(root,p)))).complete,false);
+  }finally {await fs.rm(root,{recursive:true,force:true});}
+});
 test('多仓库工作区分别保存代码，仓库外配置变化也会使对照失效',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'rsi-multi-'));
   const read=(p:string)=>fs.readFile(path.join(root,p));
