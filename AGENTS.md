@@ -259,6 +259,20 @@ desktop profile**。确定性模型夹具证明记录机制，不证明模型质
 真实 Chrome 已查看新增记录区并展开缺口：DONE 夹具仍显示证据不完整，旧任务显示尚未确认；
 截图在 `output/playwright/rsi2-record-health.png`。这不替代更广泛的 GUI 验收。
 
+### 2026-10-23 desktop 已安装 0.4.0，待重启后的运行确认
+
+用户要求现在在日常 DSH 中使用 RSI，已把上节验证过的同一份 tarball 安装进
+`~/.dsh/profiles/desktop`。安装前备份 package.json 和 pnpm-lock.yaml；只升级
+SDLC，其他依赖与 bundles 列表不变。安装文件为
+`packages/sdlc/ai-native-sdlc-dsh-sdlc-0.4.0-351bb4307ae0.tgz`（gitignore），
+避免日常 profile 引用可随时清理的隔离环境目录。
+
+compat 两包与 preset-sync 22 + 6 行通过；安装后 32 个发布 JS 与 patch 均与
+已验证构建一致。证据在 `.ai/tasks/RSI-2/evidence/desktop-installation.json`。
+**没有替用户退出 DSH，尚未确认当前进程已加载新版**。使用前完全退出再打开，
+在业务工作区新建会话并选「AI 原生 SDLC」。正常创建和执行任务会自动记录；
+DONE 后仍须让 Agent 继续调用 `sdlc_rsi_analyze` 复盘，不能把提醒当成后台自动改进。
+
 ### RSI 首版（2026-10-15，历史记录）
 
 实现与实测证据见 `.ai/tasks/RSI-1/`，用法见 `packages/sdlc/RSI.md`。

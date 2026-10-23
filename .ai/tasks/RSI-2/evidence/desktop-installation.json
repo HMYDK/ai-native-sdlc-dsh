@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-23T02:09:02Z",
+  "profile": "desktop",
+  "previous_dependency": "file:<REPO>/packages/sdlc/ai-native-sdlc-dsh-sdlc-0.3.1.tgz",
+  "dependency": "file:<REPO>/packages/sdlc/ai-native-sdlc-dsh-sdlc-0.4.0-351bb4307ae0.tgz",
+  "installed_version": "0.4.0",
+  "other_dependencies_unchanged": true,
+  "bundles_unchanged": true,
+  "package_sha256": "351bb4307ae0a9e63ea726fedeb79c5184ddda4b9ee39844b57648440403b62d",
+  "backup": "<REPO>/.verify-home/backups/desktop-20261023T020803Z",
+  "requested_by": "用户希望现在在日常 DSH 中使用 RSI",
+  "artifact_source": "已经完成隔离安装、运行时冒烟、独立审查和浏览器验证的同一份 0.4.0 tarball",
+  "checks": {
+    "compat_manifests": 2,
+    "standard_preset_rows": 22,
+    "sdlc_preset_rows": 6,
+    "published_js_matched": 32,
+    "patch_matched": true
+  },
+  "restart_performed": false,
+  "runtime_reload_confirmed": false,
+  "next_steps": [
+    "完全退出并重新打开 DSH，使进程加载新版代码。",
+    "在业务工作区新建会话，选择 AI 原生 SDLC。",
+    "使用任务工具登记并执行任务；完成后继续调用 sdlc_rsi_analyze，按证据决定是否生成提案。"
+  ],
+  "limits": [
+    "安装文件一致不能代替当前进程已加载新代码的证据。",
+    "旧会话不会自动变成新工具组合。",
+    "本次没有发起业务任务或付费模型验证调用。"
+  ]
+}
