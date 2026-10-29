@@ -10,7 +10,7 @@ const payload = { roots: [{ root: '/alpha', label: 'alpha' }, { root: '/beta', l
   task('/alpha', 'DONE', '已完成的第一个同名任务'), task('/beta', 'SPEC', '另一个工作区的同名任务'),
 ] };
 
-function mount(data = payload) {
+function mount(data = payload, componentProps = {}) {
   let spec, component, current, initial = true;
   const stores = new Map();
   const jsx = (type, props, key) => ({ type, props: props || {}, key });
@@ -37,11 +37,14 @@ function mount(data = payload) {
     if (node == null || typeof node !== 'object') return node;
     if (Array.isArray(node)) return node.map((n, i) => expand(n, path + '/' + (n?.key ?? i)));
     if (typeof node.type === 'function') {
+      // Supply component inputs directly; network/effect behavior is verified in the browser.
+      const extra = componentProps[node.type.name];
+      const props = extra ? { ...node.props, ...(typeof extra === 'function' ? extra(node.props) : extra) } : node.props;
       const id = path + ':' + node.type.name;
       const values = stores.get(id) || [];
       stores.set(id, values); current = { values, index: 0 };
-      const result = node.type(node.props);
-      return { component: node.type.name, props: node.props, child: expand(result, id) };
+      const result = node.type(props);
+      return { component: node.type.name, props, child: expand(result, id) };
     }
     return { ...node, child: expand(node.props.children, path + '/children') };
   }
@@ -108,7 +111,7 @@ test('迁移记录包含全部历史，长记录可按需展开', () => {
   data.tasks[0].timeline = Array.from({ length: 12 }, (_, i) => ({ to: 'SPEC', at: '2026-10-16T10:00:00Z', reason: '记录 ' + i + ' 完整内容' }));
   const ui = mount(data);
   ui.click(ui.find(n => n.type === 'button' && text(n) === '查看全部记录')[0]);
-  const entries = ui.find(n => n.type === 'details');
+  const entries = ui.find(n => n.type === 'details' && text(n).includes('完整内容'));
   assert.equal(entries.length, 12);
   assert.ok(text(entries[0]).includes('记录 11')); assert.ok(text(entries[11]).includes('记录 0'));
   assert.ok(entries.every(n => !n.props.open));
@@ -127,4 +130,85 @@ test('完成的业务任务仍显示 RSI 记录缺口，旧任务显示未确认
   assert.ok(text(ui.detail()).includes('验证者记录为空'));
   ui.click(ui.rows()[1]);
   assert.ok(text(ui.detail()).includes('尚未确认执行记录是否完整'));
+});
+
+const round = (number, outcome) => ({ id: 'run-' + number, number, source: 'rsi', outcome,
+  startedAt: '2026-10-28T10:00:00Z', finishedAt: outcome === 'incomplete' ? null : '2026-10-28T10:05:00Z',
+  attemptCount: number === 1 ? 2 : 1, summary: '第 ' + number + ' 轮的独立结论',
+  criteria: [{ criterion: '折扣边界正确', status: outcome === 'approve' ? 'met' : 'not_met', evidence: '第 ' + number + ' 轮证据' }],
+  findings: [{ id: 'finding-' + number, severity: 'important', description: '第 ' + number + ' 轮发现的问题', evidence: '问题证据 ' + number }],
+  testEvidence: '第 ' + number + ' 轮测试输出', changesSummary: '第 ' + number + ' 轮改动', toolEvents: [],
+});
+const execution = () => ({ taskId: 'SAME-1', repoRoot: '/alpha', status: 'recorded', issues: [],
+  rounds: [round(1, 'reject'), round(2, 'reject'), round(3, 'approve')], repairs: [] });
+function loopMount(ex = execution()) {
+  const data = structuredClone(payload); data.tasks[0].status = 'VERIFYING';
+  return mount(data, { LoopWorkbench: { execution: ex, loading: false, error: null } });
+}
+test('三轮验证各自保留，选择历史轮次同时切换问题与结论', () => {
+  const ui = loopMount();
+  const tabs = () => ui.find(n => n.type === 'button' && n.props.role === 'tab' && n.props['data-run-id']);
+  assert.equal(tabs().length, 3);
+  assert.ok(text(ui.detail()).includes('第 3 轮发现的问题'));
+  ui.click(tabs()[0]);
+  assert.ok(text(ui.detail()).includes('第 1 轮发现的问题'));
+  assert.ok(!text(ui.detail()).includes('第 3 轮发现的问题'));
+  assert.equal(tabs()[0].props['aria-selected'], true);
+  assert.ok(text(ui.detail()).includes('历史第 1 轮'));
+});
+test('历史轮次的证据入口打开该轮快照，而不是最新版文件', () => {
+  const ui = loopMount();
+  ui.click(ui.find(n => n.type === 'button' && n.props['data-run-id'] === 'run-1')[0]);
+  ui.click(ui.find(n => n.type === 'button' && text(n).includes('查看本轮证据'))[0]);
+  const modal = ui.find(n => n.component === 'RoundEvidence')[0];
+  assert.equal(modal.props.round.id, 'run-1');
+  assert.ok(text(modal).includes('第 1 轮测试输出'));
+});
+test('验证内部重试显示为尝试次数，不新增验证轮次', () => {
+  const ui = loopMount();
+  ui.click(ui.find(n => n.type === 'button' && n.props['data-run-id'] === 'run-1')[0]);
+  assert.ok(text(ui.detail()).includes('2 次尝试'));
+  assert.equal(ui.find(n => n.type === 'button' && n.props['data-run-id']).length, 3);
+});
+test('未结束记录标为未知，不声称 Agent 正在复验', () => {
+  const ex = execution(); ex.rounds[2] = round(3, 'incomplete');
+  const ui = loopMount(ex);
+  assert.ok(text(ui.detail()).includes('记录未结束'));
+  assert.ok(!text(ui.detail()).includes('正在复验'));
+  assert.ok(!text(ui.detail()).includes('独立验证中'));
+});
+test('两次 reject 不会在没有修复记录时显示两次返工', () => {
+  const ui = loopMount();
+  assert.ok(text(ui.detail()).includes('尚无修复记录'));
+  assert.ok(!text(ui.detail()).includes('已返工 2 次'));
+});
+test('只有当前裁决的旧任务明确说明历史缺失，不伪造第一轮', () => {
+  const ex = execution(); ex.rounds = [{ ...round(1, 'reject'), source: 'current_verdict' }];
+  ex.status = 'partial'; ex.issues = ['历史未记录'];
+  const ui = loopMount(ex);
+  assert.ok(text(ui.detail()).includes('当前裁决'));
+  assert.ok(text(ui.detail()).includes('历史未记录'));
+  assert.ok(ui.find(n => n.props.role === 'tab').every(n => !text(n).includes('第 1 轮')));
+});
+test('新一轮到达时保留手动选择的历史，可返回最新轮次', () => {
+  const ex = execution(); const ui = loopMount(ex);
+  ui.click(ui.find(n => n.type === 'button' && n.props['data-run-id'] === 'run-1')[0]);
+  ex.rounds.push(round(4, 'approve')); ui.render();
+  assert.ok(text(ui.detail()).includes('历史第 1 轮'));
+  ui.click(ui.find(n => n.type === 'button' && text(n).includes('返回最新轮次'))[0]);
+  assert.ok(text(ui.detail()).includes('第 4 轮发现的问题'));
+});
+test('历史轮次超出服务端展示范围后保留已打开快照，不静默换成最新', () => {
+  const ex = execution(), ui = loopMount(ex);
+  ui.click(ui.find(n => n.props['data-run-id'] === 'run-1')[0]);
+  ex.rounds.shift(); ui.render();
+  assert.ok(text(ui.detail()).includes('第 1 轮发现的问题'));
+  assert.ok(text(ui.detail()).includes('当前保留你打开时的内容'));
+});
+test('通过结论下的未复核事项仍可看见，并进入本轮证据', () => {
+  const ex = execution(); ex.rounds[2].unverified = ['尚未复核线上环境'];
+  const ui = loopMount(ex);
+  assert.ok(text(ui.detail()).includes('1 项未复核'));
+  ui.click(ui.find(n => n.type === 'button' && text(n).includes('查看本轮证据'))[0]);
+  assert.ok(text(ui.find(n => n.component === 'RoundEvidence')[0]).includes('尚未复核线上环境'));
 });

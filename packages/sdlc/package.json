@@ -34,7 +34,8 @@
     "README.md",
     "TASK.md",
     "RSI.md",
-    "icons/*.svg"
+    "icons/*.svg",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "icon": "./icon.svg",
   "dsh": {

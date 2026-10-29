@@ -366,10 +366,10 @@ console.log('\n== 4f. 交付物端点的安全（新开了一个读取面，所�
   // 客户端必须真的会去取内容
   if (src.includes("'./api/sdlc-ui.artifact?task='")) ok('客户端用相对路径取交付物内容');
   else bad('客户端没有取交付物内容');
-  // 流程条上必须能直接看到交付物名（用户的原始要求）
-  if (/art\.file/.test(src) && /onOpen\(art\.file\)/.test(src)) {
-    ok('流程条上的交付物名可点（用户要求"可以直接看出来 + 可以点击查看"）');
-  } else bad('流程条上没有可点的交付物名');
+  // 交付物点击由 test/client.test.mjs 验证，不能靠局部变量名判断交互。
+  if (hostSrc.includes("'/api/sdlc-ui.execution'") && src.includes("'./api/sdlc-ui.execution?task='")) {
+    ok('逐轮证据端点在客户端与宿主端保持一致');
+  } else bad('逐轮证据端点未接通');
 }
 
 console.log('\n== 4g. 聚合之后，每个任务必须标出**来源工作区** ==');

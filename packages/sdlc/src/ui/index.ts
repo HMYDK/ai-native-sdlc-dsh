@@ -2,7 +2,7 @@
  * @ai-native-sdlc/dsh-sdlc/ui —— **host 半**。
  *
  * 它做两件事：
- *   1. 注册一条**认证路由** `GET /api/sdlc-ui.tasks`，返回当前仓库的任务看板数据
+ *   1. 注册**认证路由** tasks / artifact / execution，提供只读任务、制品和逐轮证据
  *   2. 让客户端半把那份数据画出来（客户端半见 `src/ui/client.js`，手写）
  *
  * ## 数据通道为什么是"认证路由"
@@ -26,6 +26,7 @@ import z from '@deepseek-ai/schemastery';
 // `ctx.connection` 由 dsh-client-connection 提供。不 import 类型就看不到它们。
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
 import type {} from '@deepseek-ai/dsh-client-connection';
+import { readExecution } from './execution.js';
 
 export const name = 'sdlc-ui';
 
@@ -34,6 +35,8 @@ export const inject = ['fs', 'connection'];
 export const Config = z.object({
   /** 任务目录，相对仓库根。**必须与另外四个插件一致**，否则看板会看别处。 */
   tasksDir: z.string().default('.ai/tasks'),
+  /** 与 RSI 组件保持一致，只读任务已登记的运行记录。 */
+  rsiDir: z.string().default('.ai/rsi'),
 });
 
 /**
@@ -188,7 +191,7 @@ function blockedBy(status: string, artifacts: Record<string, string>): string[] 
   return [`这一门要求制品 "${want}"，但它不在 artifacts 里`];
 }
 
-export function apply(ctx: Context, config: { tasksDir: string }): void {
+export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string }): void {
   const dir = config.tasksDir.replace(/\/+$/, '');
 
   /**
@@ -200,7 +203,7 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
    * 没有（`?cwd=` 与进程 cwd 这两路）就退回目录名。
    */
   const candidateRoots = async (request: Request): Promise<RootInfo[]> => {
-    const storagesRoot = join(homedir(), '.dsh', 'storages');
+    const storagesRoot = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'storages');
     const fromStorage: string[] = [];
     const labels = new Map<string, string>();
     try {
@@ -297,11 +300,10 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
   const rootForTask = async (request: Request, task: string): Promise<RootInfo | null> => {
     const wanted = (new URL(request.url).searchParams.get('root') ?? '').trim();
     const { roots } = await taskRoots(request);
-    // 客户端指定的根优先，但**必须**在候选集合里 —— 不校验的话
-    // 这个参数就成了"任意路径读取"的入口（本端点挂在已认证通道上）。
+    // 指定根就是指定任务身份；缺失时不能从别的工作区借用同名任务。
     const ordered = wanted === ''
       ? roots
-      : [...roots.filter((r) => r.root === wanted), ...roots.filter((r) => r.root !== wanted)];
+      : roots.filter((r) => r.root === wanted);
     for (const info of ordered) {
       try {
         const text = await ctx.fs.readText(
@@ -574,6 +576,30 @@ export function apply(ctx: Context, config: { tasksDir: string }): void {
       return fail(500, err instanceof Error ? err.message : String(err));
     }
   };
+
+  const registerExecution = ctx.connection.fetch.register({
+    path: '/api/sdlc-ui.execution',
+    methods: ['GET'],
+    requestBody: 'buffered',
+    fetch: async (request: Request): Promise<Response> => {
+      const respond = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+        status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+      });
+      try {
+        const task = new URL(request.url).searchParams.get('task') ?? '';
+        if (!/^[A-Za-z0-9_-]{1,96}$/.test(task)) return respond({error: 'task 不合法'}, 400);
+        const hit = await rootForTask(request, task);
+        if (!hit) return respond({error: '指定工作区里找不到这个任务'}, 404);
+        return respond(await readExecution(ctx.fs, {
+          taskId: task, repoRoot: hit.root, tasksDir: dir, rsiDir: config.rsiDir, signal: request.signal,
+        }));
+      } catch {
+        // 不将原始记录或解析器错误中的内容带到浏览器。
+        return respond({error: '执行记录暂时无法读取，请刷新重试'}, 500);
+      }
+    },
+  });
+  ctx.effect(() => registerExecution, 'sdlc-ui.execution route');
 
   const registerArtifact = ctx.connection.fetch.register({
     path: '/api/sdlc-ui.artifact',

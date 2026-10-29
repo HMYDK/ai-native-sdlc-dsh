@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-29",
+  "branch": "codex/sdlc-loop-workbench",
+  "library_tests": 227,
+  "client_tests": 18,
+  "host_checks": 32,
+  "smoke_checks": 437,
+  "smoke_scripts": 9,
+  "runtime_compatibility": "0.2.1-rc.3",
+  "preset_standard_rows": 22,
+  "preset_sdlc_rows": 6,
+  "local_component_browser_checks": {
+    "1421px": 18,
+    "1120px": 18
+  },
+  "browser_data": "deterministic fixtures, no DSH HTTP connection",
+  "real_dsh_gui": "not verified; authenticated browser access was declined and not retried",
+  "desktop_profile": "unchanged",
+  "final_package": {
+    "filename": "ai-native-sdlc-dsh-sdlc-0.4.0-loop-1ab1f34cc28c.tgz",
+    "sha256": "1ab1f34cc28c569c5d53938e02a845d30d0c4ec4179e31d6adc7c6a2c3e570e1",
+    "files": 60,
+    "javascript_files": 33
+  }
+}

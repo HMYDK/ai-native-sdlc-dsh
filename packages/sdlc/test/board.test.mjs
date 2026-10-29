@@ -35,11 +35,10 @@ const ok = (m) => { pass += 1; console.log(`  \u2713 ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  \u2717 ${m}`); };
 const check = (cond, m) => (cond ? ok(m) : bad(m));
 
-// ── 隔离：工作区列表来自 `~/.dsh/storages/workspace.json`。不把 HOME 指到
-//    临时目录，这个测试就会读到**这台机器上真实的工作区**，断言随机器而变。
+// ── 隔离：通过 DSH_HOME 指定独立存储，不改 HOME，也不读取日常工作区列表。
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'boardtest-'));
-const HOME = path.join(TMP, 'home');
-process.env.HOME = HOME;
+const TEST_DSH_HOME = path.join(TMP, 'isolated-dsh');
+process.env.DSH_HOME = TEST_DSH_HOME;
 // 进程 cwd 及其祖先也是一路候选根，所以 cwd 放在一个**没有** .ai/tasks 的地方
 const NEUTRAL = path.join(TMP, 'neutral');
 fs.mkdirSync(NEUTRAL, { recursive: true });
@@ -79,7 +78,7 @@ fs.writeFileSync(path.join(WS_A, '.ai/tasks/AAA-1/rsi.json'), JSON.stringify({ta
 fs.mkdirSync(path.join(WS_A, '.ai', 'tasks', 'not-a-task'), { recursive: true });
 
 // ── 持久化的工作区列表（形状照抄实机的 ~/.dsh/storages/workspace.json）
-const storages = path.join(HOME, '.dsh', 'storages');
+const storages = path.join(TEST_DSH_HOME, 'storages');
 fs.mkdirSync(storages, { recursive: true });
 fs.writeFileSync(path.join(storages, 'workspace.json'), JSON.stringify({
   unit: { name: 'workspace', version: 2 },
@@ -115,6 +114,19 @@ const ctx = {
     async readText(target) {
       return fs.readFileSync(target.displayPath, 'utf8');
     },
+    contains(parent, child) {
+      const relative = path.relative(parent.displayPath, child.displayPath);
+      return !relative || (!relative.startsWith('..') && !path.isAbsolute(relative));
+    },
+    async stat(target) {
+      try { const s = fs.statSync(target.displayPath); return {type: s.isFile() ? 'file' : 'directory', size: s.size}; }
+      catch (e) { if (e.code === 'ENOENT') return undefined; throw e; }
+    },
+    async readBytes(target, _signal, maxBytes) {
+      const bytes = fs.readFileSync(target.displayPath);
+      assert.ok(bytes.length <= maxBytes);
+      return bytes;
+    },
   },
   connection: { fetch: { register(route) { routes.push(route); return () => {}; } } },
   effect(fn) { return fn(); },
@@ -129,7 +141,8 @@ mod.apply(ctx, { tasksDir: '.ai/tasks' });
 
 const tasksRoute = routes.find((r) => r.path === '/api/sdlc-ui.tasks');
 const artifactRoute = routes.find((r) => r.path === '/api/sdlc-ui.artifact');
-if (!tasksRoute || !artifactRoute) {
+const executionRoute = routes.find((r) => r.path === '/api/sdlc-ui.execution');
+if (!tasksRoute || !artifactRoute || !executionRoute) {
   console.error('路由没注册上，后面的断言都不成立');
   process.exit(1);
 }
@@ -175,7 +188,7 @@ if (b1.status === 200) {
   check(body.text.includes('B 工作区的任务'), 'BBB-2 读到的是它自己的正文，不是 A 的同名文件');
 }
 const evil = await get(artifactRoute, 'task=BBB-2&file=intent.md&root=/etc');
-check(evil.status === 200, '不在候选集合里的 root 参数被忽略（不成为任意路径读取的入口）');
+check(evil.status === 404, '显式 root 不在候选集合时返回 404，不回退到别的工作区');
 const escape = await get(artifactRoute, 'task=BBB-2&file=../../../../etc/passwd');
 check(escape.status === 400, 'file 参数仍拒绝路径穿越');
 const unknown = await get(artifactRoute, 'task=NOPE-9&file=intent.md');
@@ -210,6 +223,19 @@ console.log('\n== 同一个工作区的两种写法（软链）不许产生重�
   );
 }
 
+console.log('\n== 执行记录：指定工作区、只读摘要与旧任务兼容 ==');
+const current = { task: 'AAA-1', at: '2026-10-28T10:00:00Z', verdict: {status: 'reject', summary: 'A 的独立裁决', criteria_results: [], findings: []} };
+fs.writeFileSync(path.join(WS_A, '.ai/tasks/AAA-1/verification.json'), JSON.stringify(current));
+const requestExecution = await get(executionRoute, new URLSearchParams({task: 'AAA-1', root: WS_A}));
+const execution = await requestExecution.json();
+check(requestExecution.status === 200 && execution.repoRoot === WS_A && execution.taskId === 'AAA-1', '执行记录沿用所选任务的工作区');
+check(execution.rounds?.[0]?.source === 'current_verdict' && execution.rounds[0].summary === 'A 的独立裁决', '旧任务只显示当前裁决，不伪造历史');
+check(!fs.existsSync(path.join(WS_A, '.ai/rsi')), '浏览执行记录不会触发收集或创建 RSI 目录');
+check((await get(executionRoute, new URLSearchParams({task: 'AAA-1', root: WS_B}))).status === 404, '另一个已登记工作区没有该任务时仍返回 404');
+check((await get(executionRoute, 'task=../AAA-1')).status === 400, '执行记录拒绝任务路径穿越');
+makeWorkspace(WS_B, 'AAA-1', 'B 的同名任务', '2026-10-28T10:00:00Z');
+const second = await (await get(executionRoute, new URLSearchParams({task: 'AAA-1', root: WS_B}))).json();
+check(second.repoRoot === WS_B && second.rounds.length === 0, '同名任务缺少裁决时不会借用 A 的记录');
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log(`\n${fail === 0 ? '全部通过' : '有失败'}：${pass} 通过 / ${fail} 失败\n`);
 process.exit(fail === 0 ? 0 : 1);
