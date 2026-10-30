@@ -22,11 +22,12 @@ await write(`.ai/tasks/${task}/state.yaml`, state(task, '修复订单优惠计�
   [12, 'IMPLEMENTING', 'VERIFYING', '提交第一轮验证'], [21, 'VERIFYING', 'IMPLEMENTING', '修复第一轮发现的优惠叠加问题'],
   [28, 'IMPLEMENTING', 'VERIFYING', '保留原测试，提交第二轮验证'], [37, 'VERIFYING', 'IMPLEMENTING', '修复会员折扣边界'],
   [45, 'IMPLEMENTING', 'VERIFYING', '提交第三轮验证'],
-], '  intent: "intent.md"\n  spec: "spec.md"\n  plan: "plan.md"\n  verification: "verification.json"'));
+], '  intent: "intent.md"\n  spec: "spec.md"\n  plan: "plan.md"\n  verification: "verification.json"\n  proof: "proof.md"'));
 for (const [name, body] of Object.entries({
   intent: '# 订单优惠计算\n\n这是界面验证夹具，不是业务执行结果。\n\n## 问题\n满减与会员折扣叠加时，计算结果需要保持一致。',
   spec: '# 验收标准\n\n- 满减门槛按统一顺序计算。\n- 会员折扣边界有测试。\n- 不削弱已有测试。',
   plan: '# 修复计划\n\n1. 先复现边界。\n2. 冻结失败测试。\n3. 修复优惠叠加顺序。\n4. 独立复验。',
+  proof: '# 验证证据\n\n此内容为界面验证夹具。\n\n## 边界测试\n覆盖满减门槛和会员折扣边界。\n\n## 复验结果\n第三轮的示例结果为 18 passed / 0 failed。',
 })) await write(`.ai/tasks/${task}/${name}.md`, body);
 const runIds = ['loop-round-1', 'loop-round-2', 'loop-round-3'];
 const sessions = [{id: 'loop-author', role: 'author', windows: [{from: 0, to: null, registered: 0}]}, ...runIds.map((_, i) => ({id: `loop-verifier-${i + 1}`, role: 'verifier', parent: 'loop-author', windows: [{from: 0, to: null, registered: 0}]}))];

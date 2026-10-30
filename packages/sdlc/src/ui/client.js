@@ -17,8 +17,10 @@ window.__ModuleLoader__.load({
     const ENDPOINT = './api/sdlc-ui.tasks';
     const STAGES = ['INTENT', 'SPEC', 'PLANNED', 'IMPLEMENTING', 'VERIFYING', 'REVIEWING', 'DONE'];
     const STAGE_CN = { INTENT: '意图', SPEC: '规格', PLANNED: '计划', IMPLEMENTING: '实现', VERIFYING: '验证', REVIEWING: '评审', DONE: '完成' };
-    const STAGE_ARTIFACT = { INTENT: 'intent', SPEC: 'spec', PLANNED: 'plan', VERIFYING: 'verification', REVIEWING: 'review' };
+    // 阶段条和详情共用关联，验证可以有多份文件；实现引用计划，不把计划冒充代码产出。
+    const STAGE_ARTIFACTS = { INTENT: ['intent'], SPEC: ['spec'], PLANNED: ['plan'], IMPLEMENTING: ['plan'], VERIFYING: ['verification', 'proof'], REVIEWING: ['review'] };
     const ARTIFACT_CN = { intent: '意图', spec: '规格', plan: '计划', verification: '验证记录', review: '评审', proof: '验证证据' };
+    const stageArtifacts = (task, stage) => (task.artifacts || []).filter(a => stage === 'DONE' || (STAGE_ARTIFACTS[stage] || []).includes(a.kind));
     const OUTCOMES = {
       approve: { label: '验证通过', tone: 'success', icon: 'circle-check' },
       reject: { label: '未通过', tone: 'error', icon: 'alert-triangle' },
@@ -98,17 +100,23 @@ window.__ModuleLoader__.load({
 .sdlc-status{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;color:var(--s-muted)}
 .sdlc-status::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
 .sdlc-app .sdlc-tone-success,.sdlc-app .sdlc-tone-accent{color:var(--s-accent)}.sdlc-app .sdlc-tone-error{color:var(--s-coral)}.sdlc-app .sdlc-tone-warning{color:var(--s-warning)}
-.sdlc-stage-scroll{overflow-x:auto;padding:29px 0 24px;border-bottom:1px solid var(--s-line)}
-.sdlc-stages{display:flex;list-style:none;padding:0;margin:0;min-width:550px}
+.sdlc-stage-scroll{padding:22px 0 18px;border-bottom:1px solid var(--s-line)}
+.sdlc-stage-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;font-size:12px;color:var(--s-muted)}
+.sdlc-stage-heading .sdlc-link{display:inline-flex;align-items:center;gap:6px;color:var(--s-accent)}
+.sdlc-stages{display:flex;list-style:none;padding:0;margin:0;min-width:0}
 .sdlc-stage{flex:1;min-width:0;position:relative;text-align:center}
 .sdlc-stage:not(:last-child)::after{content:"";position:absolute;left:calc(50% + 19px);right:calc(-50% + 19px);top:16px;height:1px;background:var(--s-line)}
 .sdlc-stage.visited:not(:last-child)::after{background:color-mix(in srgb,var(--s-accent) 55%,var(--s-line))}
-.sdlc-stage button{position:relative;z-index:1;background:none;border:0;padding:0 12px;color:var(--s-dim);font-size:12px;display:inline-flex;align-items:center;flex-direction:column;gap:8px}
+.sdlc-stage-select{position:relative;z-index:1;background:none;border:0;padding:0 12px;color:var(--s-dim);font-size:12px;display:inline-flex;align-items:center;flex-direction:column;gap:8px}
+.sdlc-stage-files{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:10px;padding:0 5px;min-height:32px;font-size:11px}
+.sdlc-stage-file{display:block;max-width:100%;padding:3px 1px;background:none;border:0;color:var(--s-accent)!important;font-size:11px!important;line-height:1.5;overflow-wrap:anywhere;text-underline-offset:3px}
+.sdlc-stage-file:hover{text-decoration:underline}
+.sdlc-stage-missing,.sdlc-stage-reference{color:var(--s-muted);font-size:10px}
 .sdlc-stage-dot{width:33px;height:33px;border:1px solid var(--s-line);border-radius:50%;display:grid;place-items:center;background:var(--s-bg);font-size:12px;font-variant-numeric:tabular-nums}
 .sdlc-stage.visited .sdlc-stage-dot{background:var(--s-accent);border-color:var(--s-accent);color:var(--s-bg)}
-.sdlc-stage.visited button{color:var(--s-fg)}
+.sdlc-stage.visited .sdlc-stage-select{color:var(--s-fg)}
 .sdlc-stage[aria-current=step] .sdlc-stage-dot{color:var(--s-accent);border:2px solid var(--s-accent);box-shadow:0 0 0 4px var(--s-accent-bg)}
-.sdlc-stage[aria-current=step] button{color:var(--s-accent);font-weight:600}
+.sdlc-stage[aria-current=step] .sdlc-stage-select{color:var(--s-accent);font-weight:600}
 .sdlc-notice{font-size:12px;line-height:1.7;padding:10px 13px;border-left:2px solid var(--s-warning);background:color-mix(in srgb,var(--s-warning) 7%,var(--s-bg));color:var(--s-muted);margin-top:16px;border-radius:0 6px 6px 0}
 .sdlc-notice summary{cursor:pointer;color:var(--s-warning)}
 .sdlc-notice ul{margin:7px 0 0;padding-left:18px}
@@ -179,10 +187,18 @@ window.__ModuleLoader__.load({
 .sdlc-tone-success .sdlc-round-index{background:var(--s-accent);border-color:var(--s-accent);color:var(--s-bg)}
 .sdlc-round-title{font-size:14px;font-weight:550;display:block}
 .sdlc-round-subtitle{display:block;font-size:12px;color:var(--s-muted);margin-top:5px}
-.sdlc-deliverables{display:flex;align-items:center;gap:15px;flex-wrap:wrap;border-top:1px solid var(--s-line);padding-top:17px;margin-top:16px}
-.sdlc-deliverables-label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--s-muted)}
-.sdlc-artifact{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:3px 0;color:var(--s-fg)!important;font-size:11px!important}
-.sdlc-artifact:hover{color:var(--s-accent)!important}
+.sdlc-deliverables{border-top:1px solid var(--s-line);padding-top:17px;margin-top:16px}
+.sdlc-deliverables-heading{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin-bottom:12px}
+.sdlc-deliverables-label{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:550}
+.sdlc-artifacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px}
+.sdlc-artifact{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--s-line);border-radius:8px;background:var(--s-surface);padding:13px 14px;color:var(--s-fg)!important;text-align:left;min-width:0;width:100%}
+.sdlc-artifact:hover{border-color:var(--s-accent)}
+.sdlc-artifact>svg{margin-top:3px;color:var(--s-accent)}
+.sdlc-artifact-text{display:block;min-width:0;flex:1}
+.sdlc-artifact-name{display:block;font-size:12px;font-weight:550}
+.sdlc-artifact-file{display:block;margin-top:3px;font-size:12px;color:var(--s-accent);overflow-wrap:anywhere}
+.sdlc-artifact-sections{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;margin-top:7px;font-size:12px;color:var(--s-muted);line-height:1.6}
+.sdlc-dialog .sdlc-artifact-sections{display:block}
 .sdlc-record-health{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--s-muted)}
 .sdlc-bottom-links{display:flex;justify-content:space-between;gap:14px;margin-top:17px;font-size:11px;color:var(--s-muted)}
 .sdlc-record-detail{padding-top:16px;margin-top:17px;border-top:1px solid var(--s-line);color:var(--s-muted);font-size:12px}
@@ -219,7 +235,7 @@ window.__ModuleLoader__.load({
 @container (min-width:1500px){.sdlc-detail{padding:32px 42px}.sdlc-workbench{gap:36px}.sdlc-inspector{padding-left:36px}.sdlc-node-title{font-size:15px}.sdlc-node-caption{font-size:12px}.sdlc-chain-text{font-size:14px}.sdlc-summary{font-size:14px}}
 @container (max-width:1080px){.sdlc-shell{grid-template-columns:200px minmax(0,1fr)}.sdlc-detail{padding:24px}.sdlc-workbench{grid-template-columns:1fr}.sdlc-loop{max-width:650px;margin:0 auto}.sdlc-inspector{border-left:0;border-top:1px solid var(--s-line);padding:20px 0 0;display:grid;grid-template-columns:1.2fr 1fr;gap:24px}.sdlc-inspector-main{min-width:0}.sdlc-trace{margin:0;border-top:0;border-left:1px solid var(--s-line);padding:0 0 0 20px}.sdlc-context-line{margin-top:8px}.sdlc-rounds{margin-top:24px}}
 @container (max-width:720px){.sdlc-shell{display:block}.sdlc-sidebar{border:0;min-height:100dvh}.sdlc-shell:not(.is-detail)>.sdlc-detail{display:none}.sdlc-shell.is-detail>.sdlc-sidebar{display:none}.sdlc-detail{padding:19px 16px}.sdlc-back{display:inline-flex}.sdlc-detail h2{font-size:22px}.sdlc-inspector{display:block}.sdlc-trace{margin-top:22px;border-left:0;border-top:1px solid var(--s-line);padding:17px 0 0}.sdlc-loop{min-height:310px;aspect-ratio:600/510}.sdlc-node{padding:10px 7px;gap:7px;min-height:66px;width:32%}.sdlc-node-icon{width:25px;height:25px}.sdlc-node-icon svg{width:16px;height:16px}.sdlc-node-title{font-size:11px}.sdlc-node-caption{font-size:9px}.sdlc-round-number{font-size:41px}.sdlc-center-label{font-size:13px}.sdlc-loop-return-label,.sdlc-loop-exit-label{font-size:9px}.sdlc-loop-center .sdlc-caption{font-size:9px}.sdlc-source{gap:9px}.sdlc-record-health{margin-left:0}.sdlc-bottom-links{flex-wrap:wrap}.sdlc-round{min-width:190px}.sdlc-stage-scroll{padding-top:24px}.sdlc-icon-button{min-height:36px;min-width:36px}.sdlc-primary{min-height:44px}}
-@container (max-width:720px){.sdlc-stages{min-width:0}.sdlc-stage button{padding:0 3px;font-size:11px}.sdlc-stage-dot{width:28px;height:28px}.sdlc-stage:not(:last-child)::after{left:calc(50% + 17px);right:calc(-50% + 17px);top:14px}}
+@container (max-width:720px){.sdlc-stages{min-width:0}.sdlc-stage-select{padding:0 3px;font-size:11px}.sdlc-stage-dot{width:28px;height:28px}.sdlc-stage:not(:last-child)::after{left:calc(50% + 17px);right:calc(-50% + 17px);top:14px}.sdlc-stage-files{padding:0 2px}.sdlc-stage-file{font-size:10px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sdlc-artifacts{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.sdlc-app *{transition:none!important}}
 `;
     function Empty({ title, message, children }) {
@@ -321,16 +337,43 @@ window.__ModuleLoader__.load({
         ]),
       ]);
     }
-    function StageRibbon({ task, onSelect }) {
+    function StageRibbon({ task, onSelect, onOpen, onShowAll }) {
       const visited = new Set((task.timeline || []).flatMap(e => [e.from, e.to]));
-      return h('div', { className: 'sdlc-stage-scroll' }, h('ol', { className: 'sdlc-stages', 'aria-label': '任务阶段与交付物' }, STAGES.map((stage, i) => {
+      return h('div', { className: 'sdlc-stage-scroll' }, [
+        h('div', { key: 'heading', className: 'sdlc-stage-heading' }, [
+          h('span', { key: 'title' }, '阶段与交付物'),
+          h('button', { key: 'all', className: 'sdlc-link', type: 'button', 'aria-label': '查看全部交付物', onClick: onShowAll }, ['全部交付物 · ' + (task.artifacts || []).length, h(Icon, { key: 'i', name: 'chevron-right', size: 13 })]),
+        ]),
+        h('ol', { key: 'stages', className: 'sdlc-stages', 'aria-label': '任务阶段与交付物' }, STAGES.map((stage, i) => {
         const past = stage !== task.status && visited.has(stage);
-        return h('li', { key: stage, className: 'sdlc-stage' + (past ? ' visited' : ''), 'aria-current': stage === task.status ? 'step' : undefined },
-          h('button', { type: 'button', onClick: () => onSelect(stage), 'aria-label': '查看' + stageName(stage) + '阶段' }, [
+        const artifacts = stageArtifacts(task, stage);
+        return h('li', { key: stage, className: 'sdlc-stage' + (past ? ' visited' : ''), 'aria-current': stage === task.status ? 'step' : undefined }, [
+          h('button', { key: 'stage', type: 'button', className: 'sdlc-stage-select', onClick: () => onSelect(stage), 'aria-label': '查看' + stageName(stage) + '阶段' }, [
             h('span', { key: 'dot', className: 'sdlc-stage-dot' }, past ? h(Icon, { name: 'check', size: 16 }) : i + 1),
             h('span', { key: 'label' }, stageName(stage)),
-          ]));
-      })));
+          ]),
+          h('div', { key: 'files', className: 'sdlc-stage-files' }, stage === 'DONE' ?
+            h('button', { type: 'button', className: 'sdlc-stage-file', onClick: onShowAll }, '交付清单') : [
+              stage === 'IMPLEMENTING' ? h('span', { key: 'reference', className: 'sdlc-stage-reference' }, '实现依据') : null,
+              ...artifacts.map(a => h('button', { key: a.kind + ':' + a.file, type: 'button', className: 'sdlc-stage-file', title: '查看 ' + a.file, 'aria-label': '打开' + stageName(stage) + '阶段的 ' + a.file, onClick: () => onOpen(a.file) }, a.file)),
+              !artifacts.length ? h('span', { key: 'empty', className: 'sdlc-stage-missing' }, '未登记') : null,
+            ]),
+        ]);
+      })),
+      ]);
+    }
+    function ArtifactList({ artifacts, onOpen }) {
+      return artifacts.length ? h('div', { className: 'sdlc-artifacts' }, artifacts.map(a => h('button', {
+        key: a.kind + ':' + a.file, type: 'button', className: 'sdlc-artifact', onClick: () => onOpen(a.file),
+      }, [
+        h(Icon, { key: 'icon', name: 'doc', size: 18 }),
+        h('span', { key: 'text', className: 'sdlc-artifact-text' }, [
+          h('span', { key: 'kind', className: 'sdlc-artifact-name' }, ARTIFACT_CN[a.kind] || a.kind),
+          h('span', { key: 'file', className: 'sdlc-artifact-file' }, a.file),
+          h('span', { key: 'sections', className: 'sdlc-artifact-sections' }, (a.sections || []).length ? a.sections.join(' · ') : '暂无内容摘要，点击查看文件'),
+        ]),
+        h(Icon, { key: 'arrow', name: 'chevron-right', size: 13 }),
+      ]))) : h('p', { className: 'sdlc-caption' }, '暂无已登记的交付物。');
     }
     function Detail({ task: t, onOpen, onBack, theme, refresh, loading, listError, onRefresh }) {
       const [executionState, setExecutionState] = React.useState({ data: null, error: null, loading: true });
@@ -366,17 +409,19 @@ window.__ModuleLoader__.load({
           h(Status, { key: 'status', task: t }),
           h('span', { key: 'at' }, shortTime(t.updated) + ' 更新'),
         ]),
-        h(StageRibbon, { key: 'stages', task: t, onSelect: stage => setPanel({ kind: 'stage', stage }) }),
+        h(StageRibbon, { key: 'stages', task: t, onOpen, onSelect: stage => setPanel({ kind: 'stage', stage }), onShowAll: () => setPanel({ kind: 'artifacts' }) }),
         listError ? h('div', { key: 'error', className: 'sdlc-notice', role: 'alert' }, '任务列表刷新失败，当前保留上次结果：' + listError) : null,
         h(LoopWorkbench, { key: 'workbench', task: t, execution: executionState.data, loading: executionState.loading, error: executionState.error, theme }),
-        h('div', { key: 'artifacts', className: 'sdlc-deliverables' }, [
-          h('span', { key: 'title', className: 'sdlc-deliverables-label' }, [h(Icon, { key: 'i', name: 'doc', size: 15 }), '交付物']),
-          ...(t.artifacts || []).map(a => h('button', { key: a.kind + a.file, className: 'sdlc-artifact', onClick: () => onOpen(a.file), title: '查看 ' + a.file }, [ARTIFACT_CN[a.kind] || a.kind, h(Icon, { key: 'arrow', name: 'chevron-right', size: 12 })])),
-          !(t.artifacts || []).length ? h('span', { key: 'none', className: 'sdlc-caption' }, '尚未登记') : null,
-          h('button', { key: 'health', className: 'sdlc-link sdlc-record-health', onClick: () => setPanel({ kind: 'rsi' }) }, [
-            h(Icon, { key: 'icon', name: t.rsi && t.rsi.evidence_complete ? 'circle-check' : 'circle-dashed', size: 15 }),
-            t.rsi ? t.rsi.evidence_complete ? '执行记录完整' : '执行记录不完整' : '执行记录未确认',
+        h('section', { key: 'artifacts', className: 'sdlc-deliverables', 'aria-label': '任务交付物' }, [
+          h('div', { key: 'heading', className: 'sdlc-deliverables-heading' }, [
+            h('h3', { key: 'title', className: 'sdlc-deliverables-label' }, [h(Icon, { key: 'i', name: 'doc', size: 15 }), '任务交付物']),
+            h('span', { key: 'scope', className: 'sdlc-caption' }, '当前登记的文件 · ' + (t.artifacts || []).length + ' 份'),
+            h('button', { key: 'health', className: 'sdlc-link sdlc-record-health', onClick: () => setPanel({ kind: 'rsi' }) }, [
+              h(Icon, { key: 'icon', name: t.rsi && t.rsi.evidence_complete ? 'circle-check' : 'circle-dashed', size: 15 }),
+              t.rsi ? t.rsi.evidence_complete ? '执行记录完整' : '执行记录不完整' : '执行记录未确认',
+            ]),
           ]),
+          h(ArtifactList, { key: 'files', artifacts: t.artifacts || [], onOpen }),
         ]),
         h('div', { key: 'links', className: 'sdlc-bottom-links' }, [
           h('button', { key: 'history', className: 'sdlc-link', onClick: () => setPanel({ kind: 'history' }) }, [h(Icon, { key: 'i', name: 'history', size: 14 }), '查看全部记录']),
@@ -387,7 +432,7 @@ window.__ModuleLoader__.load({
           h('p', { key: 'p' }, '任务完成、验证通过和执行记录完整分别判断。'),
           t.rsi && t.rsi.issues && t.rsi.issues.length ? h('ul', { key: 'issues' }, t.rsi.issues.map((x, i) => h('li', { key: i }, x))) : null,
         ]),
-        panel ? h(TaskPanel, { key: panel.kind + (panel.stage || ''), panel, task: t, theme, onClose: () => setPanel(null), onOpen: file => { setPanel(null); onOpen(file); } }) : null,
+        panel ? h(TaskPanel, { key: 'panel:' + panel.kind + (panel.stage || ''), panel, task: t, theme, onClose: () => setPanel(null), onOpen }) : null,
       ]);
     }
     function LoopWorkbench({ task, execution, loading, error, theme }) {
@@ -579,9 +624,9 @@ window.__ModuleLoader__.load({
       ])));
     }
     function TaskPanel({ panel, task, theme, onClose, onOpen }) {
-      const artifact = panel.kind === 'stage' ? (task.artifacts || []).find(a => a.kind === STAGE_ARTIFACT[panel.stage]) : null;
+      const artifacts = panel.kind === 'stage' ? stageArtifacts(task, panel.stage) : task.artifacts || [];
       const history = panel.kind === 'stage' ? (task.timeline || []).filter(e => e.to === panel.stage || e.from === panel.stage) : task.timeline;
-      const title = panel.kind === 'history' ? '完整迁移记录' : panel.kind === 'rsi' ? '复盘与改进' : stageName(panel.stage) + '阶段';
+      const title = panel.kind === 'history' ? '完整迁移记录' : panel.kind === 'rsi' ? '复盘与改进' : panel.kind === 'artifacts' ? '全部交付物' : stageName(panel.stage) + '阶段';
       const rsi = task.rsi;
       return h(DialogFrame, { id: 'sdlc-task-panel', title, subtitle: task.id, theme, onClose }, panel.kind === 'rsi' ? [
         h('h3', { key: 'health' }, '执行记录'),
@@ -592,9 +637,15 @@ window.__ModuleLoader__.load({
         h('p', { key: 'hint' }, task.status === 'DONE' ? '在原 SDLC 会话中继续复盘。确认问题和证据后，改进会作为新任务跟进。' : '先完成当前任务；完成后可在原会话中复盘，并建立有证据支持的改进任务。'),
         h('p', { key: 'boundary' }, '完成任务不会自动触发后台改进。'),
       ] : [
-        artifact ? h('button', { key: 'artifact', className: 'sdlc-link', onClick: () => onOpen(artifact.file) }, [h(Icon, { key: 'i', name: 'doc', size: 16 }), '查看 ' + artifact.file]) : panel.kind === 'stage' ? h('p', { key: 'no-artifact' }, '此阶段暂无已登记的交付物。') : null,
+        panel.kind !== 'history' ? h('section', { key: 'artifacts' }, [
+          h('h3', { key: 'heading' }, panel.stage === 'IMPLEMENTING' ? '实现依据' : panel.stage === 'DONE' || panel.kind === 'artifacts' ? '任务交付清单' : '本阶段交付物'),
+          h('p', { key: 'scope', className: 'sdlc-caption' }, panel.stage === 'IMPLEMENTING'
+            ? '计划是实现依据，代码和测试保存在工作区。这里展示已登记的计划文件。'
+            : '当前文件；历史验证证据请在循环工作台中选择对应轮次查看。'),
+          h(ArtifactList, { key: 'files', artifacts, onOpen }),
+        ]) : null,
         panel.kind === 'stage' ? h('h3', { key: 'history-title' }, '进入与离开这个阶段的记录') : null,
-        h(Timeline, { key: 'history', task: { ...task, timeline: history } }),
+        panel.kind !== 'artifacts' ? h(Timeline, { key: 'history', task: { ...task, timeline: history } }) : null,
       ]);
     }
     function renderMarkdown(md) {

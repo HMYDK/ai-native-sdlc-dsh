@@ -82,6 +82,59 @@ test('点交付物沿用所选任务的工作区，不读到另一个同名文�
   assert.equal(viewer.props.task, 'SAME-1');
   assert.equal(viewer.props.file, 'intent.md');
 });
+test('阶段条直接展示文件，点击即可打开所选工作区的交付物', () => {
+  const data = structuredClone(payload);
+  data.tasks[1].artifacts.push({ kind: 'spec', file: 'requirements.md', sections: ['验收标准', '范围'] });
+  const ui = mount(data);
+  ui.click(ui.rows()[1]);
+  const stages = ui.find(n => n.component === 'StageRibbon')[0];
+  const file = ui.find(n => n.type === 'button' && text(n).includes('requirements.md'), stages)[0];
+  assert.ok(file, '阶段条应直接展示实际登记的文件名');
+  ui.click(file);
+  const viewer = ui.find(n => n.component === 'ArtifactViewer')[0];
+  assert.equal(viewer.props.root, '/beta');
+  assert.equal(viewer.props.file, 'requirements.md');
+});
+test('验证阶段展示裁决和证据的全部文件及摘要，实现阶段保留计划依据', () => {
+  const data = structuredClone(payload);
+  data.tasks[0].artifacts.push(
+    { kind: 'plan', file: 'plan.md', sections: ['改动步骤', '测试计划'] },
+    { kind: 'verification', file: 'verification.json', sections: ['verdict'] },
+    { kind: 'proof', file: 'proof.md', sections: ['边界测试', '复验结果'] },
+  );
+  const ui = mount(data);
+  ui.click(ui.find(n => n.props['aria-label'] === '查看验证阶段')[0]);
+  let panel = ui.find(n => n.component === 'TaskPanel')[0];
+  for (const expected of ['verification.json', 'proof.md', '边界测试', '复验结果', '当前文件']) assert.ok(text(panel).includes(expected), expected);
+  ui.click(ui.find(n => n.type === 'button' && text(n).includes('proof.md'), panel)[0]);
+  assert.equal(ui.find(n => n.component === 'ArtifactViewer')[0].props.file, 'proof.md');
+  assert.ok(ui.find(n => n.component === 'TaskPanel').length, '打开文件后保留阶段面板，方便返回继续查看');
+  ui.click(ui.find(n => n.props['aria-label'] === '关闭交付物')[0]);
+  ui.find(n => n.component === 'TaskPanel')[0].props.onClose(); ui.render();
+  ui.click(ui.find(n => n.props['aria-label'] === '查看实现阶段')[0]);
+  panel = ui.find(n => n.component === 'TaskPanel')[0];
+  assert.ok(text(panel).includes('实现依据'));
+  assert.ok(text(panel).includes('plan.md'));
+  assert.ok(text(panel).includes('测试计划'));
+});
+test('完整交付物清单保留自定义文件，完成阶段可回看全部登记内容', () => {
+  const data = structuredClone(payload);
+  data.tasks[0].artifacts.push({ kind: 'release_notes', file: 'release-notes.md', sections: ['交接说明'] });
+  const ui = mount(data);
+  ui.click(ui.find(n => n.props['aria-label'] === '查看全部交付物')[0]);
+  let panel = ui.find(n => n.component === 'TaskPanel')[0];
+  assert.ok(text(panel).includes('intent.md'));
+  assert.ok(text(panel).includes('release-notes.md'));
+  assert.ok(text(panel).includes('交接说明'));
+  panel.props.onClose(); ui.render();
+  ui.click(ui.find(n => n.props['aria-label'] === '查看完成阶段')[0]);
+  panel = ui.find(n => n.component === 'TaskPanel')[0];
+  assert.ok(text(panel).includes('release-notes.md'));
+  assert.ok(!text(panel).includes('暂无已登记的交付物'));
+  panel.props.onClose(); ui.render();
+  ui.click(ui.find(n => n.props['aria-label'] === '查看评审阶段')[0]);
+  assert.ok(text(ui.find(n => n.component === 'TaskPanel')[0]).includes('暂无已登记的交付物'));
+});
 test('状态筛选显示真实任务行，完成和未完成互斥', () => {
   const ui = mount();
   ui.click(ui.find(n => n.type === 'button' && text(n).startsWith('进行中'))[0]);
