@@ -12,6 +12,7 @@ const {LocalFileSystem}=require('@deepseek-ai/dsh-fs-local');
 const {createScope,scopeTarget}=require('@deepseek-ai/dsh-scope');
 const {SkillRegistry}=require('@deepseek-ai/dsh-skill');
 const lib=process.env.RSI_BENCH_LIB??path.resolve(import.meta.dirname,'../lib');
+const currentVersion=JSON.parse(await fs.readFile(path.join(lib,'../package.json'),'utf8')).version;
 const rsi=await import(pathToFileURL(path.join(lib,'rsi/index.js')));
 const verify=await import(pathToFileURL(path.join(lib,'verify/index.js')));
 const artifactPlugin=await import(pathToFileURL(path.join(lib,'artifact/index.js')));
@@ -224,7 +225,7 @@ try {
     const upgraded=new TaskCollector(sdlc.ctx,'.ai/rsi',new Collector(sdlc.ctx,'.ai/rsi'));
     await upgraded.record({kind:'advanced',task_dir:'.ai/tasks/FAULT-1',state:nextFaultState},{agent:author});
     const versions=await upgraded.inspect({agent:author},'FAULT-1');
-    check(versions.evidence.execution_suites.some(s=>s.suite?.version==='0.3.9')&&versions.evidence.execution_suites.some(s=>s.suite?.version==='0.4.0'),'task continuing across plugin versions retains each recorded execution version');
+    check(versions.evidence.execution_suites.some(s=>s.suite?.version==='0.3.9')&&versions.evidence.execution_suites.some(s=>s.suite?.version===currentVersion),'task continuing across plugin versions retains each recorded execution version');
 
     await call('sdlc_task_create',{task_id:'VERSION-ONLY',title:'Artifact operation after upgrade'});
     const versionManifest=JSON.parse(await fs.readFile(path.join(root,'.ai/rsi/tasks/VERSION-ONLY/task.json'),'utf8'));
@@ -239,7 +240,7 @@ try {
     emit(authorSession,author,authorEvents,'tool/call',{name:'sdlc_artifact_write',arguments:'{"task_id":"VERSION-ONLY","kind":"spec"}',callId:`test-${callCounter+1}`});
     const artifactOnly=await call('sdlc_artifact_write',{task_id:'VERSION-ONLY',kind:'spec'});
     const artifactVersions=await new TaskCollector(sdlc.ctx,'.ai/rsi',new Collector(sdlc.ctx,'.ai/rsi')).inspect({agent:author},'VERSION-ONLY');
-    check(!artifactOnly.isError&&artifactVersions.evidence.execution_suites.some(s=>s.suite?.version==='0.4.0'),'artifact-only continuation persists actual execution version across restart');
+    check(!artifactOnly.isError&&artifactVersions.evidence.execution_suites.some(s=>s.suite?.version===currentVersion),'artifact-only continuation persists actual execution version across restart');
 
     emit(authorSession,author,authorEvents,'turn/start',{});
     await call('sdlc_task_create',{task_id:'WRITE-OLD',title:'Old task before failed switch'});
