@@ -117,3 +117,18 @@ await write(`.ai/tasks/${flowTask}/verification.json`, {task: flowTask, at: when
 await fs.mkdir(path.join(repo, '.verify-home/storages'), {recursive: true});
 await fs.writeFile(path.join(repo, '.verify-home/storages/workspace.json'), JSON.stringify({unit: {name: 'workspace', version: 2}, global: {initialized: true, workspaceIds: ['loop-ui-fixture']}, tables: {workspaces: {'loop-ui-fixture': {path: root, title: '界面验证 · 示例数据', sessionIds: [], createdAt: when(0), updatedAt: when(49)}}}}, null, 2));
 console.log(root);
+
+// New issue lifecycle is explicit; the old LOOP-DEMO remains a legacy record without invented issue links.
+const workflow = {version:1,runs:[],issues:Array.from({length:21},(_,i)=>({
+  id:`fixture-issue-${i+1}`,source:i===0?'review':'verification',...(i===0?{}:{source_run:'flow-round-2'}),
+  severity:i<2?'blocking':'minor',blocking:i<2,
+  description:i===0?'多币种舍入规则缺失':i===1?'会员折扣边界未覆盖':`示例建议 ${i+1}：补充边界说明`,
+  evidence:'本地界面夹具，用于核对问题、退回、处理及复验之间的关系。',status:i===0?'resolved':i===1?'submitted':'deferred',
+  actions:i<2?[
+    {id:`report-${i}`,at:when(i===0?55:36),actor:i===0?'reviewer':'verifier',kind:'reported',from:i===0?'REVIEWING':'VERIFYING',to:i===0?'REVIEWING':'VERIFYING',reason:i===0?'审核发现多币种舍入规格缺失':'验收发现折扣边界遗漏',evidence:'对应边界示例与规格不一致'},
+    {id:`start-${i}`,at:when(i===0?56:37),actor:'author',kind:'started',from:i===0?'REVIEWING':'VERIFYING',to:i===0?'SPEC':'PLANNED',reason:i===0?'补全币种精度与舍入规则':'补充测试方案后再修复',evidence:''},
+    {id:`submit-${i}`,at:when(i===0?69:44),actor:'author',kind:'submitted',from:'IMPLEMENTING',to:'IMPLEMENTING',reason:i===0?'补齐规格并按币种修复金额精度':'已补边界用例并修复折扣处理',evidence:'作者提交：24 passed / 0 failed'},
+    ...(i===0?[{id:'resolved-0',at:when(74),actor:'flow-verifier-4',kind:'resolved',from:'VERIFYING',to:'VERIFYING',reason:'独立复验确认',evidence:'人民币与日元边界均符合修订规格',run_id:'flow-round-4'}]:[]),
+  ]:[{id:`defer-${i}`,at:when(78),actor:'author',kind:'deferred',from:'REVIEWING',to:'REVIEWING',reason:'不影响本次验收，后续补充说明',evidence:'仅文档建议，无运行行为变化'}],
+}))};
+await fs.appendFile(path.join(root,`.ai/tasks/${flowTask}/state.yaml`),'workflow: '+JSON.stringify(workflow)+'\n');

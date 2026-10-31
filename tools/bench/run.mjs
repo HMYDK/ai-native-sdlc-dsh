@@ -31,6 +31,7 @@ import caseFalseAlarm from './case-false-alarm.mjs';
 import { main as casePwsh } from './case-pwsh-toolfilter.mjs';
 
 import { main as caseRsiScope } from './case-rsi-scope.mjs';
+import {main as caseFlow} from './case-flow.mjs';
 
 /** 新增用例加到这里。 */
 const CASES = [
@@ -38,6 +39,7 @@ const CASES = [
   { id: 'FALSE-ALARM-1', run: caseFalseAlarm },
   { id: 'PWSH-1', run: casePwsh },
   { id: 'RSI-SCOPE-1', run: caseRsiScope },
+  { id: 'FLOW-1', run: caseFlow },
 ];
 
 const json = process.argv.includes('--json');

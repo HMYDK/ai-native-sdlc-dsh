@@ -66,6 +66,7 @@
   tasks/<TASK>/task.json             # 会话归属、阶段、run、起点/阶段快照索引
   tasks/<TASK>/checkpoints/*.json    # state、制品正文、代码、实际加载的插件版本
   tasks/<TASK>/sessions/<ID>.json    # 有界作者/验证者记录及其归属范围
+  tasks/<TASK>/sessions/<ID>.view.json # 看板用的精简操作摘要，不含消息/配置/命令正文
   tasks/<TASK>/evidence.json         # 证据健康和缺口
   operations/<SESSION>/*.json        # 每次任务操作的归属、切换边界、实际执行版本
   runs/<UUID>/000000.json ...        # 验证生命周期，不覆盖上一轮

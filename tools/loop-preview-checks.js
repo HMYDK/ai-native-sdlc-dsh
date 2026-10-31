@@ -30,6 +30,20 @@
       if (mode === 'evidence') { await click(one('[data-run-id="loop-round-1"]')); await click(textButton('查看本轮证据')); }
     }
     if (mode === 'checks') {
+      const issueDetail = () => one('[aria-label="所选问题处理过程"]').textContent;
+      assert(all('.sdlc-issue-choice').length === 20 && issueDetail().includes('评审 → 规格') && issueDetail().includes('独立复验通过'), '问题详情显示审核退回、作者处理和独立关闭');
+      await click(all('.sdlc-issue-detail button')[0]);
+      await until(() => one('#sdlc-round-evidence')?.open);
+      assert(one('#sdlc-round-evidence').textContent.includes('24 passed'), '问题关闭可追到实际第四轮独立裁决');
+      await click(one('#sdlc-round-evidence .sdlc-dialog-close'));
+      await click(all('.sdlc-issue-choice')[1]);
+      assert(issueDetail().includes('验证 → 计划') && issueDetail().includes('待独立复验') && issueDetail().includes('作者提供，等待独立确认') && !issueDetail().includes('独立复验通过'), '作者提交证据不显示为独立复验通过');
+      await click(textButton('下一页问题'));
+      await until(() => all('.sdlc-issue-choice').length === 1);
+      assert(issueDetail().includes('示例建议 21') && issueDetail().includes('不影响本次验收'), '第二页显示第 21 项及延期原因');
+      await click(textButton('上一页问题'));
+      await until(() => all('.sdlc-issue-choice').length === 20);
+      assert(one('.sdlc-issue-pages').textContent.includes('1–20 / 21'), '问题分页返回后数量与范围正确');
       const flowDetail = () => one('.sdlc-flow-inspector').textContent;
       assert(all('.sdlc-return-route').length === 3 && all('.sdlc-return-route').some(b => b.textContent.includes('验证 → 计划')) && all('.sdlc-return-route').some(b => b.textContent.includes('评审 → 规格')), '实际退回路线覆盖验证退计划、评审退规格');
       assert(flowDetail().includes('审核发现多币种的舍入规则没有写进规格') && flowDetail().includes('规格 → 计划 → 实现 → 验证 → 评审'), '默认展开最近退回的原因和完整后续路线');

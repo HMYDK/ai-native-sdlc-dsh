@@ -98,6 +98,9 @@ export interface Verdict {
   verification_complete?: boolean;
   /** Observer failures are diagnostics, never a replacement verdict. */
   recording_errors?: string[];
+  issue_results?: {issue_id: string; result: 'resolved'|'unresolved'|'cannot_tell'; evidence: string}[];
+  issue_errors?: string[];
+  snapshot_error?: string;
   raw_status?: VerdictStatus;
   criteria_errors?: string[];
 }
@@ -202,6 +205,20 @@ export function enforceCriteriaPolicy(
     summary: [verdict.summary, ...notes].join('\n\n')};
 }
 
+/** A second verify call must independently answer each submitted finding ID. */
+export function enforceIssuePolicy(verdict: Verdict, pending: {id: string}[]): Verdict {
+  const results = verdict.issue_results ?? [], expected = new Set(pending.map(i => i.id)), seen = new Set<string>(), errors: string[] = [];
+  for (const r of results) {
+    if (!expected.has(r.issue_id) || seen.has(r.issue_id) || !r.evidence?.trim() || !['resolved','unresolved','cannot_tell'].includes(r.result)) errors.push(`问题 ${r.issue_id} 的复验结果不合法或重复`);
+    seen.add(r.issue_id);
+  }
+  for (const id of expected) if (!seen.has(id)) errors.push(`未回答待复验问题 ${id}`);
+  const pendingResult = results.some(r => r.result !== 'resolved');
+  return {...verdict, ...(errors.length ? {issue_errors: errors} : {}),
+    status: verdict.status === 'approve' && (errors.length || pendingResult) ? 'needs_human' : verdict.status,
+    summary: verdict.summary + (errors.length ? '\n问题复验不完整：' + errors.join('；') : pendingResult ? '\n仍有问题未确认修复。' : '')};
+}
+
 export interface VerificationPromptInput {
   artifacts?: Record<string, string>;
   diff?: string;
@@ -243,6 +260,7 @@ export const VERDICT_SCHEMA: ObjectJsonSchema = {
         },
       },
     },
+    issue_results: { type: 'array', items: {type: 'object', additionalProperties: false, required: ['issue_id','result','evidence'], properties: {issue_id: {type:'string'}, result: {type:'string', enum:['resolved','unresolved','cannot_tell']}, evidence: {type:'string'}}}},
     unverified: {
       type: 'array',
       items: { type: 'string' },
@@ -300,6 +318,9 @@ export const TOOL_OUTPUT_SCHEMA = {
         },
       },
     },
+    issue_results: {type: 'array', items: {type:'object', additionalProperties:false, properties: {issue_id:{type:'string',required:true},result:{type:'string',required:true,enum:['resolved','unresolved','cannot_tell']},evidence:{type:'string',required:true}}}},
+    issue_errors: {type:'array',items:{type:'string'}},
+    snapshot_error: {type:'string'},
     unverified: { type: 'array', items: { type: 'string' } },
     // 刻意**不**标 required：裁决 schema 里它是可选的（没给 criteria 时
     // 验证者不会产出它）。输出侧更严会把合法的裁决拒掉——这正是
@@ -434,6 +455,8 @@ const PLUGIN_METADATA_FIELDS = new Set([
   'recording_errors',
   'raw_status',
   'criteria_errors',
+  'issue_errors',
+  'snapshot_error',
 ]);
 
 export function assertSchemasAligned(): void {

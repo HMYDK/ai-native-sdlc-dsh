@@ -20,6 +20,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import {startTaskVerification, completeTaskVerification, abandonTaskVerification, type TaskVerificationContext} from '../task/verification.js';
 import type { Context } from '@deepseek-ai/cordis';
 // 显式 import：ctx.fs 由 dsh-fs 的 declaration merging 提供
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
@@ -173,63 +174,6 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
  * 与 sdlc-task 同一套写法——官方 dsh-tool-fs 也是这么做的。
  */
 /** 解析本次调用的沙箱策略（写操作专用）。 */
-/**
- * 把 `verification.json` 登记进任务 state.yaml 的 `artifacts`。
- *
- * 刻意**不 import sdlc-task 的代码**：两个插件只在 `state.yaml` 这个
- * **文件契约**上耦合（与前文 resolveTask 同一原则）。这里做的是最小编辑：
- * 只在 artifacts 映射里加/覆盖一个键，其余内容保持原样——
- * 因为 state.yaml 是人也会手改的文件，重写它风险太大。
- *
- * 失败不抛错：登记失败不该让已经拿到的裁决作废，只记一条警告。
- */
-async function registerVerificationArtifact(
-  ctx: Context,
-  exec: { agent?: unknown; signal?: AbortSignal },
-  task: ResolvedTask,
-): Promise<string> {
-  // 返回值是**给人看的一句话**，会出现在裁决 summary 里。
-  // 为什么必须报出来：这个函数有多条"静默放弃"的路径（找不到 anchors、
-  // state.yaml 不在），而静默成功与静默失败在制品上**完全无法区分**——
-  // 独立验证者指出过这一点。本项目的一条基本纪律是"不要让失败静默"。
-  const statePath = `${task.dir}/state.yaml`;
-  const policy = await writePolicy(ctx, exec);
-  const target = await ctx.fs.resolve(statePath, resolveOptions(exec, policy?.workspaceRoot));
-  const info = await ctx.fs.stat(target, exec.signal);
-  if (info === undefined || info.type !== 'file') {
-    return `⚠ verification 制品未登记：找不到 ${statePath}（裁决本身已落盘）`;
-  }
-
-  const text = await ctx.fs.readText(target, exec.signal);
-  if (/^\s*verification:/m.test(text)) {
-    return '制品登记：verification 已在 state.yaml 中（无需重复登记）';
-  }
-
-  // 在 artifacts 段末尾插入一行。artifacts 是我们自己写出来的固定形状，
-  // 但用户可能手改过——所以找不到锚点时就放弃（宁可不登记，也不改坏文件）。
-  const lines = text.split('\n');
-  // 与 sdlc-artifact 同一套：两种形态都要认（见那里的说明）
-  const start = lines.findIndex((l) => /^artifacts:\s*(\{\s*\})?\s*$/.test(l));
-  if (start >= 0 && /^artifacts:\s*\{\s*\}\s*$/.test(lines[start] ?? '')) {
-    lines[start] = `artifacts:\n  verification: "verification.json"`;
-      // 复用函数开头已解析好的 target 与 policy——
-      // 重复调用 writePolicy 既浪费也容易漏（沙箱接线漏一次就会被拒）
-      await ctx.fs.writeText(target, lines.join('\n'), undefined, exec.signal, policy);
-    return '制品登记：verification → state.yaml 的 artifacts（artifacts 原为空）';
-  }
-  if (start < 0) {
-    return (
-      '⚠ verification 制品未登记：state.yaml 里找不到 `artifacts:` 段' +
-      '（可能被手改过）。裁决本身已落盘，请手动登记 verification: "verification.json"'
-    );
-  }
-  let insertAt = start + 1;
-  while (insertAt < lines.length && /^\s{2}\S/.test(lines[insertAt] ?? '')) insertAt += 1;
-  lines.splice(insertAt, 0, '  verification: "verification.json"');
-  await ctx.fs.writeText(target, lines.join('\n'), undefined, exec.signal, policy);
-  return '制品登记：verification → state.yaml 的 artifacts（状态机到 REVIEWING 时可见）';
-}
-
 interface ResolvedTask {
   id: string;
   dir: string;
@@ -239,9 +183,7 @@ interface ResolvedTask {
 /**
  * 从 `task_id` 解析任务目录与已登记制品。
  *
- * 刻意**不 import sdlc-task 的类型或函数**：两个插件各自独立发布，
- * 只在 `state.yaml` 这个**文件契约**上耦合。少一层包依赖，就少一类
- * 版本不兼容问题——而 state.yaml 的形状本来就是稳定的公开约定。
+ * 读取制品入口；后续状态更新统一走 task/io 的锁与文件版本检查。
  *
  * 拿不到任务时返回 undefined（调用方退回到显式 artifacts），
  * 但任务**存在却读不动**时要抛错——那说明状态文件坏了，不该静默降级。
@@ -568,6 +510,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             'is downgraded to needs_human by the plugin, because "verified" without a stated definition of ' +
             'correct is just an opinion.',
         },
+        code_roots: {type:'array',items:{type:'string'},description:'Task mode: workspace-relative Git repository roots included in this verification. Default discovers repositories. Same scope is checked before/after verification and before completion.'},
         experimental_guidance: {
           type: 'string',
           description: 'Additional verifier guidance for controlled experiments. Does not change criteria, schema, or tool permissions.',
@@ -588,7 +531,8 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
       },
       async execute(args, exec) {
         const parentSession = (exec.agent as { session?: { id?: unknown }; id?: unknown } | undefined)?.session?.id;
-        return recordVerificationRun(
+        let taskRun: TaskVerificationContext | undefined;
+        try { return await recordVerificationRun(
           (record, recordExec) => ctx.parallel('sdlc-verify/record', record, recordExec),
           exec,
           {
@@ -610,7 +554,10 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             const explicit = coerceArtifactMap(args.artifacts);
             const task = await resolveTask(ctx, exec, args.task_id, exec.signal);
             const artifacts = task === undefined ? explicit : { ...task.artifacts, ...explicit };
-
+            if (task) {
+              for (const key of ['intent','spec','plan']) if (explicit[key] && explicit[key] !== task.artifacts[key]) throw new Error('任务验证不能用其他文件覆盖已登记的需求/计划制品');
+              taskRun = await startTaskVerification(ctx,exec,task,recording.id,args.code_roots,args.criteria);
+            }
             const criteria = coerceStringList(args.criteria);
             const basePrompt = buildVerificationPrompt({
               intentOfChange: args.intent_of_change,
@@ -620,8 +567,9 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               scope: args.scope,
               criteria,
             });
+            const issuePrompt = taskRun?.pending.length ? '\n## 必须独立复验的旧问题\n作者的证据不是结论。issue_results 必须逐项给出 issue_id、resolved/unresolved/cannot_tell、独立证据；不得省略或自造编号。\n' + JSON.stringify(taskRun.pending.map(i => ({issue_id:i.id,description:i.description,author_submission:i.actions.at(-1)}))) : '';
             const prompt = args.experimental_guidance?.trim()
-              ? `${basePrompt}\n\n## 实验附加指导\n\n${args.experimental_guidance}` : basePrompt;
+              ? `${basePrompt}${issuePrompt}\n\n## 实验附加指导\n\n${args.experimental_guidance}` : basePrompt + issuePrompt;
             const artifactSnapshots: Record<string, unknown> = {};
             for (const [name, artifactPath] of Object.entries(artifacts)) {
               try {
@@ -718,7 +666,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               // 变成一个可能错误的通过。两次尝试都没拿到就是没拿到。
               const diag = result?.diagnostic;
               const reason = String(result?.stopReason ?? 'unknown');
-              return {
+              const unavailable: Verdict = {
                 status: 'needs_human',
                 summary:
                   `验证者未产出结构化裁决，无法据此判断。stop_reason=${reason}` +
@@ -738,6 +686,8 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
                 verifier_attempts?: number;
                 diagnostic?: string;
               };
+              if (taskRun) return completeTaskVerification(ctx,exec,taskRun,unavailable,{...unavailable,verification_complete:false},{criteria,intent_of_change:args.intent_of_change});
+              return unavailable;
             }
 
             // ── 强制策略：**没有验收标准就不许通过** ──────────────────────
@@ -754,6 +704,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
             const finalVerdict = {
               ...enforced,
+              verification_complete: recording.complete,
               // 报**做出裁决的那一次**（重试成功时即第二次）。
               verifier_session: lastSession,
               // 重试过就把每次都列出来：这样"第一次失败了"这件事不会消失，
@@ -767,58 +718,15 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               verifier_attempts?: number;
             };
 
-            // 落盘到任务目录**并登记进 state.yaml**。
-            //
-            // 只写文件是不够的：`sdlc_task_advance` 的门槛看的是 state.yaml 的
-            // `artifacts`，不是"磁盘上碰巧有这个文件"。不登记的话，状态机到
-            // REVIEWING 时会说"缺 verification 制品"——而它明明就在旁边。
-            // （这条是独立验证者指出的，它比我更早看到了这个不一致。）
-            //
-            // 写失败不掩盖裁决本身（裁决已经拿到了，先把它交出去）。
-            if (task !== undefined) {
-              try {
-                const policy = await writePolicy(ctx, exec);
-                await ctx.fs.writeText(
-                  await ctx.fs.resolve(
-                    `${task.dir}/verification.json`,
-                    resolveOptions(exec, policy?.workspaceRoot),
-                  ),
-                  JSON.stringify(
-                    {
-                      task: task.id,
-                      at: new Date().toISOString(),
-                      intent_of_change: args.intent_of_change,
-                      scope: args.scope,
-                      criteria,
-                      artifacts,
-                      verdict: finalVerdict,
-                    },
-                    null,
-                    2,
-                  ) + '\n',
-                  undefined,
-                  exec.signal,
-                  policy,
-                );
-                const registrationNote = await registerVerificationArtifact(ctx, exec, task);
-                return {
-                  ...finalVerdict,
-                  summary: `${finalVerdict.summary}\n\n${registrationNote}`,
-                } satisfies Verdict & { verifier_session?: string };
-              } catch (e) {
-                return {
-                  ...finalVerdict,
-                  summary:
-                    finalVerdict.summary +
-                    `\n\n⚠ 裁决未能写入 ${task.dir}/verification.json：` +
-                    `${e instanceof Error ? e.message : String(e)}`,
-                } satisfies Verdict & { verifier_session?: string };
-              }
-            }
+            if (taskRun) return await completeTaskVerification(ctx,exec,taskRun,verdict,finalVerdict,
+              {criteria,intent_of_change:args.intent_of_change,...(args.test_evidence ? {test_evidence:args.test_evidence} : {})});
 
             return finalVerdict;
           }),
-        );
+        ); } catch (error) {
+          if (taskRun) await abandonTaskVerification(ctx,exec,taskRun,error instanceof Error ? error.message : String(error));
+          throw error;
+        }
       },
     }),
   );

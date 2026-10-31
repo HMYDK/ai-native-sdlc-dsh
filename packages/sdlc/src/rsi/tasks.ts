@@ -7,6 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {Store,cwdOf,safeRelative,safeSegment,message,type Execution} from './store.js';
 import {object} from './analysis.js';
 import {Trace,readSession} from './trace.js';
+import {sessionView} from '../shared/session-view.js';
 import {LOADED_SUITE} from './runtime.js';
 import {hash} from './snapshot.js';
 import type {Collector} from './collector.js';
@@ -297,6 +298,7 @@ export class TaskCollector {
       issues.push(...trace.issues.map(issue=>`${session.id}: ${issue}`));
       const snapshot={...trace.snapshot(),role:session.role,windows:session.windows};snapshots.push(snapshot);
       await task.store.write(`tasks/${task.manifest.task_id}/sessions/${session.id}.json`,snapshot,true);
+      await task.store.write(`tasks/${task.manifest.task_id}/sessions/${session.id}.view.json`,sessionView(snapshot),true);
     }
     const runs=[];
     for(const id of task.manifest.runs) {

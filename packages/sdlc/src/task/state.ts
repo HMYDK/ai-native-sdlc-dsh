@@ -9,6 +9,8 @@
  * "让违规显眼、让误操作变难"，不是"让违规不可能"。
  */
 
+import {parseWorkflow, type TaskWorkflow} from './flow.js';
+
 /** 任务目录相对仓库根的路径。 */
 export const TASKS_DIR = '.ai/tasks';
 
@@ -96,6 +98,7 @@ export interface TaskState {
   updated: string;
   artifacts: Record<string, string>;
   history: HistoryEntry[];
+  workflow?: TaskWorkflow;
 }
 
 /** 任务 ID 的形状：大写字母/数字/连字符，且必须以字母数字开头结尾。 */
@@ -224,6 +227,7 @@ export function parseTaskState(taskId: string, raw: unknown): TaskState {
     updated: asTimestamp('updated', o['updated']),
     artifacts,
     history,
+    ...(o.workflow === undefined ? {} : {workflow: parseWorkflow(o.workflow)}),
   };
 }
 
@@ -284,6 +288,7 @@ export function serializeTaskState(state: TaskState): string {
       lines.push(`    reason: ${yamlText(h.reason)}`);
     }
   }
+  if (state.workflow) lines.push('workflow: ' + JSON.stringify(state.workflow));
   return lines.join('\n') + '\n';
 }
 

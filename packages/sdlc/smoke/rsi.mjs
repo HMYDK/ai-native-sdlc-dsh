@@ -70,7 +70,7 @@ try {
     }
     if(behavior==='throw'||behavior==='throw-with-noise'&&!text.includes('UNRELATED_CALL')) throw new Error('provider unavailable');
     const status=text.includes('CASE_HELP')?'needs_human':text.includes('CASE_BAD')&&!text.includes('candidate-guidance')?'approve':text.includes('CASE_BAD')?'reject':'approve';
-    const structured={status,summary:'fixture verdict',findings:[],criteria_results:[{result:status==='approve'?'met':status==='reject'?'not_met':'cannot_tell',evidence:'fixture observation'}]};
+    const structured={status,summary:'fixture verdict',findings:[],criteria_results:[{...(text.match(/AC-[a-f0-9]{16}/)?.[0] ? {criterion_id:text.match(/AC-[a-f0-9]{16}/)[0]} : {}),result:status==='approve'?'met':status==='reject'?'not_met':'cannot_tell',evidence:'fixture observation'}]};
     const result=behavior==='none'?{output:[],stopReason:'error',diagnostic:'fixture malformed'}:{output:[],stopReason:'completed',structured};
     if(behavior==='cancel') {
       const pending=new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(Object.assign(new Error('fixture cancelled'),{name:'AbortError'})),{once:true}));

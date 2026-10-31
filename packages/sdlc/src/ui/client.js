@@ -195,6 +195,17 @@ window.__ModuleLoader__.load({
 .sdlc-notice{font-size:12px;line-height:1.7;padding:10px 13px;border-left:2px solid var(--s-warning);background:color-mix(in srgb,var(--s-warning) 7%,var(--s-bg));color:var(--s-muted);margin-top:16px;border-radius:0 6px 6px 0}
 .sdlc-notice summary{cursor:pointer;color:var(--s-warning)}
 .sdlc-notice ul{margin:7px 0 0;padding-left:18px}
+.sdlc-issue-flow{margin:20px 0;padding:20px;border:1px solid var(--s-line);border-radius:16px;background:var(--s-surface)}
+.sdlc-issue-columns{display:grid;grid-template-columns:minmax(200px,0.8fr) minmax(0,1.4fr);gap:24px;margin-top:16px}
+.sdlc-issue-list{display:flex;flex-direction:column;gap:8px;max-height:500px;overflow:auto}
+.sdlc-issue-choice{display:flex;flex-direction:column;gap:7px;text-align:left;padding:14px;border:1px solid var(--s-line);border-radius:10px;background:transparent;color:inherit;cursor:pointer;overflow-wrap:anywhere}
+.sdlc-issue-choice.is-active{border-color:var(--s-accent);background:color-mix(in srgb,var(--s-accent) 8%,transparent)}
+.sdlc-issue-state{font-size:11px;color:var(--s-accent);font-weight:700}.sdlc-issue-detail{min-width:0;overflow-wrap:anywhere}
+.sdlc-issue-actions{list-style:none;margin:18px 0 0;padding:0 0 0 15px;border-left:1px solid var(--s-line)}
+.sdlc-issue-actions li{position:relative;padding:0 0 20px 8px}.sdlc-issue-actions li:before{content:"";position:absolute;left:-20px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--s-accent)}
+.sdlc-issue-route{display:block;margin:6px 0;color:var(--s-coral);font-size:12px}.sdlc-actor{overflow-wrap:anywhere}
+.sdlc-issue-pages{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px}
+@media(max-width:760px){.sdlc-issue-columns{grid-template-columns:1fr}.sdlc-issue-flow{padding:14px}.sdlc-issue-list{max-height:220px}}
 .sdlc-workbench{display:grid;grid-template-columns:minmax(370px,1.65fr) minmax(270px,1fr);gap:25px;margin-top:24px}
 .sdlc-canvas{min-width:0;display:flex;flex-direction:column}
 .sdlc-canvas-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:28px}
@@ -457,12 +468,13 @@ window.__ModuleLoader__.load({
     function Detail({ task: t, onOpen, onBack, theme, refresh, loading, listError, onRefresh }) {
       const [executionState, setExecutionState] = React.useState({ data: null, error: null, loading: true });
       const [panel, setPanel] = React.useState(null);
+      const [findingOffset, setFindingOffset] = React.useState(0);
       React.useEffect(() => {
         let alive = true, timer;
         const controller = new AbortController();
         async function load() {
           try {
-            const result = await readJson('./api/sdlc-ui.execution?task=' + encodeURIComponent(t.id) + '&root=' + encodeURIComponent(t.repoRoot), controller.signal);
+            const result = await readJson('./api/sdlc-ui.execution?task=' + encodeURIComponent(t.id) + '&root=' + encodeURIComponent(t.repoRoot) + '&findingOffset=' + findingOffset, controller.signal);
             if (result.taskId !== t.id || result.repoRoot !== t.repoRoot || !Array.isArray(result.rounds) || !Array.isArray(result.repairs)) throw new Error('执行记录的任务归属或格式不正确');
             if (alive) setExecutionState({ data: result, error: null, loading: false });
           } catch (e) {
@@ -473,7 +485,7 @@ window.__ModuleLoader__.load({
         }
         load();
         return () => { alive = false; controller.abort(); clearTimeout(timer); };
-      }, [t.id, t.repoRoot, refresh]);
+      }, [t.id, t.repoRoot, refresh, findingOffset]);
       return h('section', { className: 'sdlc-detail', 'aria-label': '任务详情' }, [
         h('div', { key: 'top', className: 'sdlc-detail-top' }, [
           h('div', { key: 'breadcrumb', className: 'sdlc-breadcrumb' }, [
@@ -491,6 +503,7 @@ window.__ModuleLoader__.load({
         listError ? h('div', { key: 'error', className: 'sdlc-notice', role: 'alert' }, '任务列表刷新失败，当前保留上次结果：' + listError) : null,
         h(FlowWorkbench, { key: 'flow', task: t, execution: executionState.data, loading: executionState.loading, error: executionState.error, theme,
           onOpen, onSelectStage: stage => setPanel({ kind: 'stage', stage }), onShowAll: () => setPanel({ kind: 'artifacts' }) }),
+        h(IssueFlow, { key: 'issues-flow', execution: executionState.data, loading: executionState.loading, theme, onPage: offset => { setFindingOffset(offset); setExecutionState(prev => ({ ...prev, loading: true })); } }),
         h('details', { key: 'verification-detail', className: 'sdlc-verification-detail' }, [
           h('summary', { key: 'heading' }, ['验证详情', h('span', { key: 'description' }, '逐轮裁决、测试证据与 Agent 操作')]),
           h(LoopWorkbench, { key: 'workbench', task: t, execution: executionState.data, loading: executionState.loading, error: executionState.error, theme }),
@@ -516,6 +529,54 @@ window.__ModuleLoader__.load({
           t.rsi && t.rsi.issues && t.rsi.issues.length ? h('ul', { key: 'issues' }, t.rsi.issues.map((x, i) => h('li', { key: i }, x))) : null,
         ]),
         panel ? h(TaskPanel, { key: 'panel:' + panel.kind + (panel.stage || ''), panel, task: t, theme, onClose: () => setPanel(null), onOpen }) : null,
+      ]);
+    }
+    function IssueFlow({ execution, loading, onPage, theme }) {
+      const [selected, setSelected] = React.useState(null);
+      const [evidence, setEvidence] = React.useState(null);
+      const issues = execution && execution.findings || [];
+      const current = issues.find(i => i.id === selected) || issues[0];
+      const labels = { open: '待处理', working: '处理中', submitted: '待独立复验', resolved: '复验通过', deferred: '延期处理' };
+      const actions = { reported: '发现问题', started: '开始处理', submitted: '提交修复证据', resolved: '独立复验通过', unresolved: '复验未通过', deferred: '说明原因后延期' };
+      const count = execution && execution.findingTotal || 0;
+      const offset = execution && execution.findingOffset || 0;
+      const activities = execution && execution.activities || [];
+      return h('section', { className: 'sdlc-issue-flow', 'aria-label': '问题处理与复验' }, [
+        h('div', { key: 'heading', className: 'sdlc-section-head' }, [h('h3', { key: 'title' }, '问题如何处理'), h('span', { key: 'count', className: 'sdlc-caption' }, count ? count + ' 项已登记问题' : '按实际记录展示')]),
+        issues.length ? h('div', { key: 'body', className: 'sdlc-issue-columns' }, [
+          h('div', { key: 'list', className: 'sdlc-issue-list', role: 'group', 'aria-label': '选择问题' }, issues.map(i => h('button', { key: i.id, className: 'sdlc-issue-choice' + (current.id === i.id ? ' is-active' : ''), 'aria-pressed': current.id === i.id, onClick: () => setSelected(i.id) }, [
+            h('span', { key: 'state', className: 'sdlc-issue-state' }, labels[i.status] || '状态未知'),
+            h('span', { key: 'description' }, i.description),
+            h('small', { key: 'kind', className: 'sdlc-caption' }, i.source === 'review' ? '审核发现' : '独立验证发现'),
+          ]))),
+          h('div', { key: current.id, className: 'sdlc-issue-detail', 'aria-label': '所选问题处理过程' }, [
+            h('strong', { key: 'title' }, current.description),
+            h('p', { key: 'status', className: 'sdlc-caption' }, labels[current.status] + (current.blocking ? ' · 阻断问题' : ' · 普通发现')),
+            h('p', { key: 'evidence', className: 'sdlc-summary' }, current.evidence || '发现时未附证据'),
+            h('ol', { key: 'actions', className: 'sdlc-issue-actions' }, (current.actions || []).map(a => {
+              const round = (execution.rounds || []).find(r => r.id === a.run_id);
+              return h('li', { key: a.id }, [
+                h('strong', { key: 'kind' }, actions[a.kind] || a.kind),
+                h('span', { key: 'route', className: 'sdlc-issue-route' }, a.from === a.to ? stageName(a.to) + '阶段内处理' : stageName(a.from) + ' → ' + stageName(a.to)),
+                h('p', { key: 'reason', className: 'sdlc-summary' }, a.reason),
+                a.evidence ? h('p', { key: 'proof', className: 'sdlc-caption' }, (a.kind === 'submitted' ? '作者提供，等待独立确认：' : '证据：') + a.evidence) : null,
+                h('p', { key: 'who', className: 'sdlc-caption sdlc-actor', title: a.actor }, shortTime(a.at) + ' · ' + a.actor),
+                round ? h('button', { key: 'run', className: 'sdlc-link', onClick: () => setEvidence(round) }, '查看' + roundName(round) + '的独立裁决') : null,
+              ]);
+            })),
+          ]),
+        ]) : h('p', { key: 'none', className: 'sdlc-caption' }, loading ? '正在读取问题处理记录…' : execution && execution.status === 'partial' ? '记录不完整，无法确认问题的处理过程。' : '尚未登记逐项处理关系；不能据此认定所有问题已经解决。'),
+        count > 20 ? h('div', { key: 'pages', className: 'sdlc-issue-pages' }, [
+          h('button', { key: 'prev', className: 'sdlc-link', disabled: loading || offset === 0, onClick: () => onPage(Math.max(0, offset - 20)) }, '上一页问题'),
+          h('span', { key: 'n', className: 'sdlc-caption' }, (offset + 1) + '–' + Math.min(count, offset + issues.length) + ' / ' + count),
+          h('button', { key: 'next', className: 'sdlc-link', disabled: loading || execution.findingNext === null, onClick: () => onPage(execution.findingNext) }, '下一页问题'),
+        ]) : null,
+        activities.length ? h('details', { key: 'legacy', className: 'sdlc-notice' }, [
+          h('summary', { key: 'title' }, '历史作者操作 · ' + activities.length + ' 条'),
+          h('p', { key: 'note', className: 'sdlc-caption' }, '这些文件操作有成功结果，但未与问题编号关联；不补造当时未登记的退回或解决结论。'),
+          h('ul', { key: 'list' }, activities.map(a => h('li', { key: a.id }, shortTime(a.at) + ' · ' + a.summary))),
+        ]) : null,
+        evidence ? h(RoundEvidence, { key: 'evidence', round: evidence, theme, onClose: () => setEvidence(null) }) : null,
       ]);
     }
     function FlowWorkbench({ task, execution, loading, error, theme, onOpen, onSelectStage, onShowAll }) {
@@ -579,7 +640,7 @@ window.__ModuleLoader__.load({
       const after = entries[entry.index + 1], next = after && after.from === entry.to && after.kind !== 'unknown' ? after : null;
       const inWindow = at => journey && journey.start !== null && at && Number.isFinite(Date.parse(at)) && Date.parse(at) >= journey.start && Date.parse(at) <= journey.end;
       const repairs = (execution && execution.repairs || []).filter(r => r.kind !== 'backtrack' && inWindow(r.at));
-      const rounds = (execution && execution.rounds || []).filter(r => r.source === 'rsi' && inWindow(r.startedAt));
+      const rounds = (execution && execution.rounds || []).filter(r => r.source !== 'current_verdict' && inWindow(r.startedAt));
       const changes = [...repairs.map(value => ({kind: 'repair', at: value.at, value})), ...rounds.map(value => ({kind: 'round', at: value.startedAt, value}))]
         .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
       const targetArtifacts = stageArtifacts(task, entry.to);
@@ -678,7 +739,7 @@ window.__ModuleLoader__.load({
               ]),
               ...[
                 ['findings', 'bug', '发现问题', findings.length ? findings.length + ' 项已记录发现' : '查看验收发现'],
-                ['repair', 'code', '修复实现', fixes ? '累计 ' + fixes + ' 次修复开始' : '尚无修复记录'],
+                ['repair', 'code', '修复实现', fixes ? '累计 ' + fixes + ' 次修复开始' : execution && execution.status === 'partial' ? '记录不完整，无法确认' : '尚无修复记录'],
                 ['checks', 'terminal-2', '执行检查', round && round.testEvidence ? '已提供测试证据' : '测试证据未记录'],
                 ['verify', 'search', '独立验证', outcome.label],
               ].map(([id, icon, title, caption]) => h('button', { key: id, type: 'button', className: 'sdlc-node ' + id + (selectedNode === id ? ' is-selected' : ''), 'aria-pressed': selectedNode === id, 'aria-label': '查看' + title, onClick: () => setNode(id) }, [
@@ -686,10 +747,10 @@ window.__ModuleLoader__.load({
                 h('span', { key: 'body' }, [h('span', { key: 'title', className: 'sdlc-node-title' }, title), h('span', { key: 'caption', className: 'sdlc-node-caption' }, caption)]),
               ])),
               h('div', { key: 'center', className: 'sdlc-loop-center' }, [
-                h('span', { key: 'over', className: 'sdlc-eyebrow' }, round && round.source === 'rsi' ? '验证轮次' : '验证结果'),
+                h('span', { key: 'over', className: 'sdlc-eyebrow' }, round && round.source !== 'current_verdict' ? '验证轮次' : '验证结果'),
                 h('p', { key: 'number', className: 'sdlc-round-number', style: round && round.source === 'current_verdict' ? { fontSize: '24px', letterSpacing: 0 } : undefined }, round ? round.source === 'current_verdict' ? '当前裁决' : String(round.number).padStart(2, '0') : '—'),
                 h('p', { key: 'label', className: 'sdlc-center-label sdlc-tone-' + outcome.tone }, outcome.label),
-                h('p', { key: 'repair', className: 'sdlc-caption' }, backtracks ? '任务累计 ' + backtracks + ' 次阶段回退记录' : fixes ? '任务累计 ' + fixes + ' 次修复开始记录' : '尚无修复记录'),
+                h('p', { key: 'repair', className: 'sdlc-caption' }, backtracks ? '任务累计 ' + backtracks + ' 次阶段回退记录' : fixes ? '任务累计 ' + fixes + ' 次修复开始记录' : execution && execution.status === 'partial' ? '记录不完整，无法确认修复' : '尚无修复记录'),
               ]),
               h('span', { key: 'return-label', className: 'sdlc-loop-return-label' }, '修复后可再次验证'),
               h('span', { key: 'exit-label', className: 'sdlc-loop-exit-label' }, '实际阶段去向见上方'),
@@ -706,7 +767,7 @@ window.__ModuleLoader__.load({
                 h('div', { key: 'verdict', className: 'sdlc-verdict-line sdlc-tone-' + outcome.tone }, [h(Icon, { key: 'icon', name: outcome.icon, size: 17 }), outcome.label]),
                 h('p', { key: 'summary', className: 'sdlc-summary sdlc-clamp' }, round.summary),
                 round.unverified && round.unverified.length ? h('p', { key: 'unverified', className: 'sdlc-caption sdlc-tone-warning' }, round.unverified.length + ' 项未复核，详见本轮证据') : null,
-                selectedNode === 'repair' ? h(RepairList, { key: 'repairs', repairs }) :
+                selectedNode === 'repair' ? h(RepairList, { key: 'repairs', repairs, partial: execution && execution.status === 'partial' }) :
                   selectedNode === 'checks' ? h('div', { key: 'test' }, [
                     h('p', { key: 'p', className: 'sdlc-summary' }, round.testEvidence || '本轮未保存测试证据。'),
                     h('p', { key: 'note', className: 'sdlc-caption' }, '测试输出来自验证输入，独立裁决单独确认。'),
@@ -725,7 +786,7 @@ window.__ModuleLoader__.load({
                 h('button', { key: 'evidence', className: 'sdlc-primary', onClick: () => setEvidence(true) }, [h(Icon, { key: 'doc', name: 'doc', size: 16 }), '查看本轮证据', h(Icon, { key: 'arrow', name: 'arrow', size: 15 })]),
               ] : [
                 h('p', { key: 'none', className: 'sdlc-summary' }, loading ? '正在读取这个任务的执行记录。' : '还没有可核对的验证轮次。创建任务并执行独立验证后，这里会逐轮保留结果。'),
-                repairs.length ? h(RepairList, { key: 'repairs', repairs }) : null,
+                repairs.length ? h(RepairList, { key: 'repairs', repairs, partial: execution && execution.status === 'partial' }) : null,
               ],
             ]),
             h('section', { key: 'trace', className: 'sdlc-trace', 'aria-label': 'Agent 执行轨迹' }, [
@@ -761,8 +822,8 @@ window.__ModuleLoader__.load({
         evidence && round ? h(RoundEvidence, { key: round.id, round, theme, onClose: () => setEvidence(false) }) : null,
       ]);
     }
-    function RepairList({ repairs }) {
-      if (!repairs.length) return h('p', { className: 'sdlc-summary' }, '尚无修复记录。验证未通过并不表示已经开始修复。');
+    function RepairList({ repairs, partial }) {
+      if (!repairs.length) return h('p', { className: 'sdlc-summary' }, partial ? '记录不完整，无法确认修复过程。' : '尚无修复记录。验证未通过并不表示已经开始修复。');
       return h('div', {}, [
         h('p', { key: 'note', className: 'sdlc-caption' }, '以下是任务实际记录的操作，尚未与具体发现建立关联。'),
         ...repairs.slice(-8).reverse().map(r => h('div', { key: r.id, className: 'sdlc-evidence-row' }, [
