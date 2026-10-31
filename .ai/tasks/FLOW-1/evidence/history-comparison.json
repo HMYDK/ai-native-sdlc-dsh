@@ -1,0 +1,42 @@
+{
+  "source": "只读核对本地真实任务，原始会话和业务代码不进入仓库",
+  "baseline": "0f7ba54",
+  "cases": [
+    {
+      "task": "DEMO-22149",
+      "before_rounds": 1,
+      "after_rounds": 6,
+      "before_oversize_gaps": 0,
+      "after_oversize_gaps": 0,
+      "after_author_file_operations": 0,
+      "recorded_returns": 0,
+      "inference": "操作存在不等于已登记退回，也不证明某个问题已解决"
+    },
+    {
+      "task": "DEMO-23846",
+      "before_rounds": 3,
+      "after_rounds": 3,
+      "before_oversize_gaps": 3,
+      "after_oversize_gaps": 0,
+      "after_author_file_operations": 34,
+      "recorded_returns": 0,
+      "inference": "操作存在不等于已登记退回，也不证明某个问题已解决"
+    },
+    {
+      "task": "DEMO-23882",
+      "before_rounds": 1,
+      "after_rounds": 1,
+      "before_oversize_gaps": 1,
+      "after_oversize_gaps": 0,
+      "after_author_file_operations": 11,
+      "recorded_returns": 0,
+      "inference": "操作存在不等于已登记退回，也不证明某个问题已解决"
+    }
+  ],
+  "findings": [
+    "DEMO-22149：6 轮验证、5 次 reject 后 approve；没有已登记阶段退回。",
+    "DEMO-23846：作者在多轮之间改过产品代码及测试，但没有阶段退回或问题处理登记。",
+    "DEMO-23882：只有 1 轮独立验证；缩写的 8 条验收结果对不上原标准，旧策略仍保留 approve。随后作者补测与证据不构成第二次独立复验。",
+    "真实任务中未发现最终 reject 却已完成；运行时夹具证明旧准入检查存在这种放行可能。"
+  ]
+}

@@ -1,13 +1,14 @@
 {
   "task": "FLOW-1",
   "title": "让问题处理、退回与复验使用同一份事实记录",
-  "status": "IMPLEMENTING",
+  "status": "VERIFYING",
   "created": "2026-10-31T11:22:37.600759Z",
-  "updated": "2026-10-31T11:22:37.600759Z",
+  "updated": "2026-10-31T14:29:29.252257+00:00",
   "artifacts": {
     "intent": "intent.md",
     "spec": "spec.md",
-    "plan": "plan.md"
+    "plan": "plan.md",
+    "proof": "proof.md"
   },
   "history": [
     {
@@ -15,6 +16,12 @@
       "from": "",
       "to": "IMPLEMENTING",
       "reason": "用户批准历史缺陷修复方案；在 Codex 中登记实现任务，尚未验证完成"
+    },
+    {
+      "at": "2026-10-31T14:29:29.252257+00:00",
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "reason": "实现及确定性回归完成，开始打包与安装核对；本 Codex 会话未取得独立模型裁决，不伪造 approve"
     }
   ]
 }
