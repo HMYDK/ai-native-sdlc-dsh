@@ -1,0 +1,20 @@
+{
+  "task": "FLOW-1",
+  "title": "让问题处理、退回与复验使用同一份事实记录",
+  "status": "IMPLEMENTING",
+  "created": "2026-10-31T11:22:37.600759Z",
+  "updated": "2026-10-31T11:22:37.600759Z",
+  "artifacts": {
+    "intent": "intent.md",
+    "spec": "spec.md",
+    "plan": "plan.md"
+  },
+  "history": [
+    {
+      "at": "2026-10-31T11:22:37.600759Z",
+      "from": "",
+      "to": "IMPLEMENTING",
+      "reason": "用户批准历史缺陷修复方案；在 Codex 中登记实现任务，尚未验证完成"
+    }
+  ]
+}

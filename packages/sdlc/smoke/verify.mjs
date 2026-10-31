@@ -1,3 +1,4 @@
+import {createHash as criterionHash} from 'node:crypto';
 /**
  * 插件运行时冒烟测试。
  *
@@ -618,8 +619,8 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
       capturedCriteriaPrompt = txt;
       return craftVerdict({
         criteria_results: [
-          { criterion: '接口在 p99 < 200ms', result: 'met', evidence: '压测输出见 /tmp/x' },
-          { criterion: '旧客户端不受影响', result: 'met', evidence: '契约测试通过' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('接口在 p99 < 200ms').digest('hex').slice(0,16), criterion: '接口在 p99 < 200ms', result: 'met', evidence: '压测输出见 /tmp/x' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('旧客户端不受影响').digest('hex').slice(0,16), criterion: '旧客户端不受影响', result: 'met', evidence: '契约测试通过' },
         ],
       });
     };
@@ -653,8 +654,8 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
     subagentsStub.impl = async () =>
       craftVerdict({
         criteria_results: [
-          { criterion: 'a', result: 'met', evidence: 'x' },
-          { criterion: 'b', result: 'cannot_tell', evidence: '范围外' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('a').digest('hex').slice(0,16), criterion: 'a', result: 'met', evidence: 'x' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('b').digest('hex').slice(0,16), criterion: 'b', result: 'cannot_tell', evidence: '范围外' },
         ],
       });
     const r = await dispatch(
@@ -672,7 +673,7 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
     const original = subagentsStub.impl;
     subagentsStub.impl = async () =>
       craftVerdict({
-        criteria_results: [{ criterion: 'a', result: 'not_met', evidence: '实测不成立' }],
+        criteria_results: [{ criterion_id: 'AC-' + criterionHash('sha256').update('a').digest('hex').slice(0,16), criterion: 'a', result: 'not_met', evidence: '实测不成立' }],
       });
     const r = await dispatch('sdlc_verify', { intent_of_change: 't', criteria: ['a'] }, fakeAgent);
     subagentsStub.impl = original;
@@ -684,7 +685,7 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
   {
     const original = subagentsStub.impl;
     subagentsStub.impl = async () =>
-      craftVerdict({ criteria_results: [{ criterion: 'a', result: 'met', evidence: 'x' }] });
+      craftVerdict({ criteria_results: [{ criterion_id: 'AC-' + criterionHash('sha256').update('a').digest('hex').slice(0,16), criterion: 'a', result: 'met', evidence: 'x' }] });
     const r = await dispatch(
       'sdlc_verify',
       { intent_of_change: 't', criteria: ['a', 'b', 'c'] },

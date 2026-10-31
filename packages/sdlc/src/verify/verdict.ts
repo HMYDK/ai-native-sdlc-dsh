@@ -8,6 +8,7 @@
  * type / properties / required / additionalProperties / items / enum / const / oneOf。
  */
 
+import {createHash} from 'node:crypto';
 import type { ObjectJsonSchema, ValueSchemaSpec } from '@deepseek-ai/dsh-tools';
 
 /** 裁决状态。`needs_human` 是刻意保留的第三条路——见 VERDICT_SCHEMA 的说明。 */
@@ -26,18 +27,13 @@ export type VerdictStatus = (typeof VERDICT_STATUSES)[number];
 export const CRITERION_RESULTS = ['met', 'not_met', 'cannot_tell'] as const;
 export type CriterionResultStatus = (typeof CRITERION_RESULTS)[number];
 
+/** IDs depend on the criterion text, so reordering cannot change its identity. */
+export function criterionEntries(criteria: string[]): {id: string; text: string}[] {
+  return criteria.map(text => ({id: 'AC-' + createHash('sha256').update(text.trim()).digest('hex').slice(0, 16), text}));
+}
 export interface CriterionResult {
-  /**
-   * 原样回抄调用方给的标准文本——**可选**。
-   *
-   * 省略即按序号与传入的 `criteria` 对应（推荐做法）。以前它必填，
-   * 理由是"便于对账、防止标准在传递中被悄悄改写"；但逐字回抄会把
-   * `structured_output` 的参数撑大，实测导致一次 5 条判据的验证
-   * **参数流整段为空**，整轮调查作废。
-   *
-   * 防篡改没有丢：给了就必须与传入的标准逐字相等，否则算漏报
-   * （见 `enforceCriteriaPolicy`）。
-   */
+  criterion_id?: string;
+  /** Original text is optional display metadata; new runs match only criterion_id. */
   criterion?: string;
   result: CriterionResultStatus;
   evidence: string;
@@ -102,6 +98,8 @@ export interface Verdict {
   verification_complete?: boolean;
   /** Observer failures are diagnostics, never a replacement verdict. */
   recording_errors?: string[];
+  raw_status?: VerdictStatus;
+  criteria_errors?: string[];
 }
 
 /**
@@ -110,7 +108,7 @@ export interface Verdict {
  * 规则：
  *  1. 没给 criteria 时，`approve` 降级为 `needs_human`——
  *     没有"对"的定义，就不存在"验证通过"这件事。
- *  2. 给了 criteria 时，每条标准都必须有结果；漏掉的补成一条 finding
+ *  2. 给了 criteria 时，每条标准都必须有结果；漏掉的补成 finding 且不得 approve
  *     （`cannot_tell` 是**正当答案**，漏报不是）。
  *  3. 有 `cannot_tell` 时，`approve` 也降级为 `needs_human`——
  *     标准没验完就宣布通过，与没给标准是同一个问题。
@@ -122,13 +120,16 @@ export function enforceCriteriaPolicy(
   verdict: Verdict,
   criteria: string[],
   sessionId: string | undefined,
+  mode: 'legacy' | 'ids' = 'legacy',
 ): Verdict & { verifier_session?: string } {
   const findings: Finding[] = [...(verdict.findings ?? [])];
   const results = Array.isArray(verdict.criteria_results) ? verdict.criteria_results : [];
   let status = verdict.status;
   const notes: string[] = [];
+  const errors: string[] = [];
 
   if (criteria.length === 0) {
+    errors.push('缺少验收标准');
     if (status === 'approve') {
       status = 'needs_human';
       notes.push(
@@ -147,40 +148,31 @@ export function enforceCriteriaPolicy(
       });
     }
   } else {
-    // ── 判据对齐：**不做逐字回抄** ────────────────────────────────
-    //
-    // 以前要求 `criterion` 必填且逐字相等，理由是防"标准在传递中被悄悄改写"。
-    // 但逐字回抄会把 structured_output 的参数撑大，实测导致一次 5 条判据的
-    // 验证参数流整段写崩（`tool input is invalid JSON`）。
-    //
-    // 现在两种写法都收，但**防篡改保证一样**：
-    //   · 全给 `criterion` → 必须与传入的标准逐字相等才算报了
-    //     （不能靠改写标准来让它匹配上）
-    //   · 有任一没给 → 整体按**序号**对齐，未给的取对应位标准
-    //   混用两种写法时按序号对齐，因为那时"标准文本"不可信。
-    const allEchoed = results.length === criteria.length
-      && results.every((r) => typeof r.criterion === 'string' && r.criterion.trim() !== '');
-    const reported = new Set(
-      results.map((r, i) => {
-        const echoed = typeof r.criterion === 'string' ? r.criterion.trim() : '';
-        if (allEchoed) return echoed;
-        return echoed !== '' ? echoed : (criteria[i] ?? `（第 ${i + 1} 条，无对应标准）`);
-      }).map((c) => c.trim()),
-    );
-    // ⚠️ 漏报必须**逐条比对**，不能只看条数：条数够但中间空了一格、
-    //    或者把两条标准报成同一条，只看条数都查不出来。
-    const missing = criteria.map((c) => c.trim()).filter((c) => !reported.has(c));
+    const entries = criterionEntries(criteria);
+    const byId = new Map(entries.map(c => [c.id, c]));
+    const counts = new Map<string, number>();
+    const useIds = mode === 'ids' || results.some(r => r.criterion_id !== undefined);
+    for (const [i, result] of results.entries()) {
+      const entry = useIds ? byId.get(result.criterion_id ?? '')
+        : result.criterion?.trim() ? entries.find(c => c.text.trim() === result.criterion!.trim()) : entries[i];
+      if (!entry) errors.push(`第 ${i + 1} 项结果无法匹配验收标准`);
+      else {
+        counts.set(entry.id, (counts.get(entry.id) ?? 0) + 1);
+        if ((counts.get(entry.id) ?? 0) > 1) errors.push(`验收标准 ${entry.id} 重复报告`);
+      }
+      if (!CRITERION_RESULTS.includes(result.result) || !result.evidence?.trim()) errors.push(`第 ${i + 1} 项缺少合法结论或证据`);
+    }
+    if (byId.size !== entries.length || criteria.some(c => !c.trim())) errors.push('输入验收标准为空或重复');
+    const missing = entries.filter(c => !counts.has(c.id)).map(c => c.text);
     if (missing.length > 0) {
-      findings.push({
-        severity: 'important',
-        category: 'missing_evidence',
-        reason: `验证者漏报了 ${missing.length} 条验收标准的结果`,
-        evidence: missing.map((m, i) => `${i + 1}. ${m}`).join('\n'),
-        suggestion:
-          '每条标准都必须给出 met / not_met / cannot_tell。`cannot_tell` 是正当答案，' +
-          '漏报不是——它会让调用方以为这条被检查过。' +
-          '`criteria_results` 按顺序一一对应传入的 criteria，省略 `criterion` 即按序号匹配。',
-      });
+      errors.push(`验证者漏报了 ${missing.length} 条验收标准的结果`);
+      findings.push({severity: 'important', category: 'missing_evidence',
+        reason: `验证者漏报了 ${missing.length} 条验收标准的结果`, evidence: missing.join('\n'),
+        suggestion: '每个 criterion_id 必须恰好对应一个结论和证据；名称简写不能作为标准身份。'});
+    }
+    if (errors.length && status === 'approve') {
+      status = 'needs_human';
+      notes.push('**已降级为 needs_human**：验收结果不完整或无法对齐：' + errors.join('；'));
     }
 
     const cannotTell = results.filter((r) => r.result === 'cannot_tell');
@@ -202,25 +194,12 @@ export function enforceCriteriaPolicy(
     }
   }
 
-  // ⚠️ 两条返回路径**都必须带 `findings`**。
-  //
-  // 这里曾有一个严重缺陷：未降级的分支写成 `return { ...verdict, verifier_session }`，
-  // 把本地攒的 `findings` 整个丢掉了。后果是「验证者漏报了 N 条验收标准」
-  // 这条 finding **永远不会出现在返回值里**——只有在恰好发生降级时才带出来。
-  // 也就是说：漏报标准这件事被静默吞掉了，而"静默吞掉"正是本项目最忌讳的失败模式。
-  //
-  // 抓不到它的原因值得记：我一直在**穿过整个工具调度**去测，
-  // 而那个回路里有两处会掩盖它。把它移到纯函数层、直接写单测后，一次就暴露了。
-  if (notes.length === 0) {
-    return { ...verdict, findings, verifier_session: sessionId };
+  if (status === 'approve' && findings.some(f => f.severity === 'blocking')) {
+    status = 'reject'; notes.push('存在阻断问题，不能判为 approve。');
   }
-  return {
-    ...verdict,
-    status,
-    summary: `${verdict.summary}\n\n${notes.join('\n\n')}`,
-    findings,
-    verifier_session: sessionId,
-  };
+  return {...verdict, status, findings, verifier_session: sessionId, raw_status: verdict.status,
+    ...(errors.length ? {criteria_errors: errors} : {}),
+    summary: [verdict.summary, ...notes].join('\n\n')};
 }
 
 export interface VerificationPromptInput {
@@ -273,16 +252,9 @@ export const VERDICT_SCHEMA: ObjectJsonSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        // `criterion` **不是必填**：省略即按序号与传入的 criteria 对应。
-        //
-        // 曾经要求必填 + 逐字回抄，理由是"防标准在传递中被悄悄改写"。
-        // 但回抄会把 structured_output 的参数撑大，实测导致一次 5 条判据的
-        // 验证**参数流整段写崩**（`tool input is invalid JSON`），
-        // 72 次工具调用的调查成果全部作废。
-        // 防篡改的保证没有丢——见 enforceCriteriaPolicy：
-        // 给了就必须逐字相等，没给就按序号对齐，条数不符算漏报。
         required: ['result', 'evidence'],
         properties: {
+          criterion_id: { type: 'string' },
           criterion: { type: 'string' },
           result: { type: 'string', enum: [...CRITERION_RESULTS] },
           evidence: { type: 'string' },
@@ -338,8 +310,7 @@ export const TOOL_OUTPUT_SCHEMA = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          // 与 VERDICT_SCHEMA 一致：`criterion` 可选（省略即按序号匹配）。
-          // 两处必须同步——`assertSchemasAligned` 会在加载时报漂移。
+          criterion_id: { type: 'string' },
           criterion: { type: 'string' },
           result: { type: 'string', required: true, enum: [...CRITERION_RESULTS] },
           evidence: { type: 'string', required: true },
@@ -356,6 +327,8 @@ export const TOOL_OUTPUT_SCHEMA = {
     verification_run_id: { type: 'string' },
     verification_complete: { type: 'boolean' },
     recording_errors: { type: 'array', items: { type: 'string' } },
+    raw_status: { type: 'string', enum: [...VERDICT_STATUSES] },
+    criteria_errors: { type: 'array', items: { type: 'string' } },
   },
 } as const;
 
@@ -459,6 +432,8 @@ const PLUGIN_METADATA_FIELDS = new Set([
   'verification_run_id',
   'verification_complete',
   'recording_errors',
+  'raw_status',
+  'criteria_errors',
 ]);
 
 export function assertSchemasAligned(): void {
@@ -568,13 +543,10 @@ export function buildVerificationPrompt(input: VerificationPromptInput): string 
         '⚠️ 只确认了前置条件（文件在、测试跑了）**不等于**该标准成立。',
         '每条 `met` 都要说明你实际观察到了什么行为。',
         '',
-        '`criteria_results` **按上面的顺序一一对应**，条数与顺序都必须一致。',
+        '每项必须返回对应的 `criterion_id`，不得省略、重复或自造编号。顺序可变。',
+        '无需复述标准原文；插件按编号检查覆盖情况。',
         '',
-        '⚠️ **不要回抄上面这些标准的原文。** 这个字段以前要求逐字回抄，',
-        '而回抄会把工具调用的参数撑大（实测一次 5 条判据的验证因此整段写崩，',
-        '成果全部作废）。省略 `criterion` 字段即按序号匹配，这是**推荐做法**。',
-        '',
-        ...input.criteria.map((c, i) => `${i + 1}. ${c}`),
+        ...criterionEntries(input.criteria).map(c => `${c.id}: ${c.text}`),
         '',
       ].join('\n'),
     );

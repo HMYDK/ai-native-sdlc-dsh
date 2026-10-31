@@ -748,7 +748,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             // 理由：验证者不知道"对"的定义时只能自己推断判据，于是"验证通过"
             // 退化成一句意见。这正是之前每一次验证都出现的弱点——验证者自称
             // "只覆盖了前置条件"，但那只是 summary 里的一句道歉，不是可检查的东西。
-            const enforced = enforceCriteriaPolicy(verdict, criteria, lastSession);
+            const enforced = enforceCriteriaPolicy(verdict, criteria, lastSession, 'ids');
 
             // satisfies：保留字面量类型，让 output.schema 的推断成立。
             // 运行时会按 schema 校验该值，形状不一致会直接报错而不是静默通过。
