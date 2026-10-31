@@ -1,266 +1,229 @@
 # AI 原生 SDLC × DeepSeek Harness
 
-把 Anthropic《[AI 原生 SDLC 实战手册](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)》
-的方法论落成 **一个 DeepSeek Harness 插件套件**（`packages/sdlc`，
-`@ai-native-sdlc/dsh-sdlc`）。手册中文全译在 [handbook/](handbook/)。
+一个 **DeepSeek Harness（DSH）插件**，把需求、计划、实现、独立验证和评审串成可追踪的开发流程。
+任务走到了哪一步、为什么退回、改了什么、复验是否通过，都有文件记录可以核对。
 
-## 定位（先读这段，它决定后面所有取舍）
+方法来自 Anthropic《AI 原生 SDLC 实战手册》，[中文全译](handbook/AI%20原生%20SDLC%20实战手册（中文翻译）.md)保存在本仓库。
+当前插件为 [`@ai-native-sdlc/dsh-sdlc@0.5.0`](packages/sdlc/package.json)，以一个 npm 包交付。
 
-**Harness 决定「Agent 如何工作」，Git/CI/RBAC 决定「工作对不对、能不能上线」。**
+**安装后，新建会话并选择「AI 原生 SDLC」模式才会启用工作流。** 标准会话不加载 SDLC 工具；侧栏只读看板常驻。
 
-这句话不是口号，是实测结论：客户端的一切控制都能被绕过。
-我对自己的门禁做过一次实验——`printf '%s' 'git push origin main' | base64 -D | sh`
-就绕过去了，因为门禁在匹配命令文本。
+## 它能做什么
 
-所以本仓库的目标**不是**「用 Harness 做合规管控」，而是：
-
-> 把方法论里**本来就该机器保证**的部分（验证、证据、流程状态）
-> 做成 Harness 里的一等公民；把**不能**由客户端保证的部分
-> （发布授权、分支保护、密钥）明确留给 Git/CI/K8s。
-
-## 架构：分发按套件合一，执行按机制拆行
-
-文档原方案按 SDLC 阶段拆 7 个插件。我改成按**扩展点 / 机制**拆，理由：
-
-- DSH 可挂的扩展点只有四个：工具拦截、工具 / Skill 注册、提示词组装、客户端 UI
-- 这四个点与 SDLC 六个阶段**完全不正交**
-- 按阶段拆会让**一个制品链跨六个包**，且**一个拦截点被六个插件注册**
-
-拆完之后，"按机制"只决定**执行单位**；**分发单位**是另一个层次，刻意收敛成一个。
-两者各归其位：
-
-| 层次 | 本仓库的选择 | 为什么 |
-|---|---|---|
-| **分发单位**：npm 包 / bundle / `dsh.profile.bundles` 条目 / tarball / 插件页卡片 | **一个** | 七个组件永远同装同升；制品链（`state.yaml` / `verification.json` / artifacts 语义）是跨组件协议，必须同版本发布 |
-| **执行单位**：Cordis 插件行 / fiber | **七个** | 每行有自己的 `inject` / `Config` / fiber：故障域、`fiberPhase` 诊断、行级开关、profile 按 id 覆盖都靠它 |
-
-所以最终形态是：**一个 npm 包、一个 bundle、一条 `dsh.profile.bundles` 条目、
-一个 tarball。** 从 `0.3.0` 起，`cordis.patch.yml` 是**一条 `insert`、两条宿主行**：
-`sdlc-ui`（常驻只读看板）+ `preset-sdlc`（一个 **Agent Preset** 声明，内部是
-standard preset 的完整副本 + 六个机制组件）。六个组件的行 id 仍是
-`sdlc-task`、`sdlc-verify`……，便于诊断。
-
-| preset 内的行 id | 行 name | 机制 | 文档 |
-|---|---|---|---|
-| `sdlc-task` | `@ai-native-sdlc/dsh-sdlc/task` | 任务状态机 + 制品链（`state.yaml` 在 git） | [TASK.md](packages/sdlc/TASK.md) |
-| `sdlc-artifact` | `@ai-native-sdlc/dsh-sdlc/artifact` | 制品撰写 + 结构检查（只查结构，不查质量） | [包总览](packages/sdlc/README.md) |
-| `sdlc-status` | `@ai-native-sdlc/dsh-sdlc/status` | 任务看板（一次盘出全部任务的状态 / 缺失 / 裁决） | [包总览](packages/sdlc/README.md) |
-| `sdlc-verify` | `@ai-native-sdlc/dsh-sdlc/verify` | 非 Actor 的独立验证 + 测试冻结 | [包总览](packages/sdlc/README.md) |
-| `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流本身，作为一份给验证者的判据清单 Skill 交付 | [包总览](packages/sdlc/README.md) |
-| `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 真实验证记录、复盘、指导文字对照实验 | [RSI.md](packages/sdlc/RSI.md) |
-| *（宿主行）* `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**包根**，不是子路径） | 客户端制品链面板（侧栏图标 + main 面板，常驻只读） | [改版记录](docs/sdlc-ui-redesign.md) |
-
-⚠️ `sdlc-ui` 是唯一指向**包名本身**的行。`@deepseek-ai/dsh-client-modules` 只按
-**精确包名**的 loader 行发现 `dsh.client`；写成 `.../ui` 子路径会让浏览器半
-**静默消失**（host 端点照常 200，只有面板不出现，日志无错）。本轮真实启动抓到过一次，
-现在 `smoke/ui.mjs` 有回归断言。其余六个组件仍走子路径导出。
-
-验证者 preset 内部还挂一行 `@ai-native-sdlc/dsh-sdlc/verify/preset-filter`
-（只在 preset 里生效，不是 bundle 行）。
-
-### 按会话选择才生效（0.3.0）
-
-**标准模式会话不加载这套 SDLC**：没有 `sdlc_*` 工具、没有 SDLC 提示词、Skill
-目录里也没有那两条 Skill。要用时，**新建会话并在模式选择器里选「AI 原生 SDLC」**
-（或把它设为新任务默认值）。已有会话保留原组合——这是 DSH Agent Preset 的既定语义。
-
-- 为什么不是"插件开关"：DSH 没有会话内按需加载插件的机制；唯一按会话选择的单位
-  就是 Agent Preset（官方：「由会话选择」「通过声明式 preset 选择工具、提示词和技能」）。
-- 为什么 preset 里要带一份 **standard 副本**：preset 不继承、不合并；只放六个组件时，
-  选了这个模式的会话连 `read` / `bash` / `write` 都没有。所以「AI 原生 SDLC」=
-  standard 完整副本 + 六个组件。App 升级后跑 `npm run preset-sync` 对账。
-- 为什么侧栏看板常驻：`dsh.client` 只按**宿主 Loader** 的精确包名行发现；preset 的
-  行在内存 Loader 树里，把 UI 搬进去会让面板**静默消失**。所以 UI 留在宿主层，
-  只读、不提供工具（方案 A 的取舍）。
-
-详细证据（官方文档引用、真实会话 RPC 读数、坑）见
-[docs/dsh-plugin-contracts.md](docs/dsh-plugin-contracts.md)、
-[docs/dsh-pitfalls.md](docs/dsh-pitfalls.md) §14 与 [包总览](packages/sdlc/README.md)。
-
-**为什么合并（而不是继续七个包）**：合并前是七个独立 bundle，实测代价都落在分发层——
-
-- 七份 `peerDependencies` 让 DSH 升级时七个包一起静默消失（版本门禁按包判定）；
-- 七个 tarball、七条 `dsh.profile.bundles` 条目、七次安装；
-- **跨包 import 走不通**：`sessionCwd` 等辅助函数在四个包里是逐字相同的副本，
-  靠四份"漂移检测"测试盯着；`sdlc-status` 还复制了一份状态机常量；
-- 插件页七张卡暗示这是七个可独立选择的东西。
-
-合并只动分发层，**没有**动执行层：组件行（0.3.0 起改由 preset 承载，行 id 不变）、工具名、Skill 内容、`state.yaml`
-契约、验证者 preset 的隔离策略全部原样保留。
-
-> ⚠️ 不要把它做成"一个插件行套子插件"：那会把唯一真正在起作用的隔离边界（fiber）
-> 压掉，而分发粒度并不因此变化，是纯粹变差。
-
-**顺序上先做 verifier，不是先做 plan**：verifier 输出结构化 PASS/FAIL，
-是唯一能被严格自动验证的机制；plan 输出给人看的 markdown，很难自动判断好坏。
-
-## 核心机制（一）：Actor ≠ Verifier
-
-实现在 [`packages/sdlc/src/verify/`](packages/sdlc/src/verify/)。
-启动一个验证子代理，五个机制共同保证它不是实现者：
-
-| 机制 | 作用 |
+| 开发中常见的问题 | 插件提供的能力 |
 |---|---|
-| **新会话** | 验证者看不到 Actor 的推理过程，只看制品 |
-| **独立 Agent Preset** | preset 里只挂只读工具：`tool-fs` 关掉 write/edit，不放委派 / 联网 |
-| **preset 内 deny 全部宿主 global 工具** | 宿主工具是全局注册的，不挡的话验证者能解冻测试、推进任务 |
-| **独立 `persona`** | 明确"你没写这段代码，也别相信关于它的说法" |
-| **`outputSchema` 强制结构化** | 必须提交机器可读裁决，不能只给一段自然语言 |
+| 换个会话就不知道任务做到哪了 | 任务状态、阶段交付物和流转原因保存在工作区，供后续会话继续读取 |
+| Agent 说“完成了”，却没有可核对的结果 | 按验收标准逐项独立验证，返回通过、拒绝或需要人工判断的结构化裁决 |
+| 评审发现问题后，只剩一句“已修改” | 给问题固定编号，记录退回阶段、修改证据和独立复验结果 |
+| 代码又改了，却继续引用上次的通过结论 | 裁决绑定当时的代码、需求、计划和验收标准；推进阶段时重新检查 |
+| 修 bug 时顺手改松了测试 | 复现后冻结测试资产，拦截已覆盖的文件写入和 shell 改写方式 |
+| 经常返工，却不知道该改进哪里 | 保存任务执行证据，支持复盘、提出插件改进、比较新旧版本和跟踪后续效果 |
 
-> **关于"只读"的如实说明**：真实运行时测到的工具面是
-> `bash glob grep read read_image skill structured_output`。
-> 保留 `bash` 是因为验证者必须能**跑测试**来复核作者的证据，而 `bash` 是通用 shell、
-> 技术上能写文件。persona 里如实写了这一点（约束来自职责，不是来自虚假的能力声明）。
-> 0.2.1 删除了请求上的 `toolFilter` / `persona`，改由 Agent Preset 承担；
-> preset 也不会自动隔离宿主全局工具，所以 preset 里还有一行
-> `ctx.tools.restrict({ deny: <全部 global> })`。见 `docs/dsh-plugin-contracts.md` §0.0。
+侧栏看板把这些记录放到一起：七个阶段及其交付物、每次推进与退回、逐项问题处理、历轮验证和记录缺口。
+它按实际记录展示路线，例如需求问题退回 `SPEC`、方案问题退回 `PLANNED`。
 
-裁决有**三态**：`approve` / `reject` / `needs_human`。
-第三条是刻意的——只给 PASS/FAIL 会逼验证者在**证据不足**时猜成 PASS。
+## 安装与开始使用
 
-结构化捕获失败时返回 `needs_human`，**绝不退化成"解析自由文本然后猜"**：
-那会把一个明确的失败变成一个可能错误的通过。
+以下步骤在 **macOS + DeepSeek Harness App** 上使用，需要本机有 Node.js 和 npm。
+执行独立验证还需要 DSH 已配置可用的模型。其他平台的完整安装流程尚未验收。
 
-## 核心机制（二）：测试冻结——单调 guard，不是提示词请求
+### 1. 构建安装包
 
-实现在 [`packages/sdlc/src/verify/test-freeze.ts`](packages/sdlc/src/verify/test-freeze.ts)。
+在仓库根目录执行；尚未获取仓库时，先克隆：
 
+```sh
+git clone https://github.com/HMYDK/ai-native-sdlc-dsh.git
+cd ai-native-sdlc-dsh
 ```
-Bug → 写失败的测试 → 确认复现 → sdlc_fix_start（冻结）→ 改产品代码 → sdlc_fix_end
-```
-
-用的是 `ctx.tools.guard()`：**返回字符串即拒绝，且没有任何后续监听器能翻回允许。**
-冻结是**进程级 / 仓库级**的——不按 agent 记账，所以派子代理绕过这条路被堵死了。
-
-能拦住的形式（都有回归测试）：`write` / `edit` 改测试文件；
-经 shell 的 `>tests/x`（含不带空格）、`rm` / `mv` / `cp` / `install` / `truncate` / `shred`、
-`sed -i`、`perl -pi`、`find -delete`、`python -c` / `node -e` 内写入、
-`git checkout|restore|reset|clean`（含 `git -C`）。
-
-> ⚠️ **两层都只是「提高成本」，不是硬边界。**
-> 文件工具通道（`write` / `edit` 的 `file_path`）参数是**结构化**的，编码绕不过去；
-> 但**是否算测试资产**仍靠上面的名字模式表——未覆盖的命名不会被冻结
-> （验证者实测过 `jest.config.js`、`testdata/`、`*.snap`，已补入）。
-> shell 通道判的是命令**文本**，不落进模式的等价写法仍可绕过
-> （自造二进制、heredoc、动态拼出的命令名）。
-> 而且**解冻只需 Actor 自己调一次 `sdlc_fix_end`**，所以它不是防篡改边界。
-> **真正的硬约束应落在工具限制或沙箱层**：冻结期直接 restrict 掉写能力。
-
-## 从真实任务中改进：`sdlc-rsi`
-
-使用说明见 [packages/sdlc/RSI.md](packages/sdlc/RSI.md)。安装后自动记录每次验证，
-包括无裁决、失败、中断与重试；可按运行查询、复盘、执行真实对照并保存人工反馈。
-首版实验只改变附加指导文字，不自动修改系统。
-
-参考答案目前与验证者共享文件系统，因此实验明确作为探索，不能据此推荐采用。
-原始输入、代码快照与工具输出默认留在本机 `.ai/rsi/`，核对后的结论写入真实任务制品。
-[本次实现与验证证据](.ai/tasks/RSI-1/proof.md) 分开记录单测、确定性冒烟和真实模型调用。
-
-## 安装与打包
 
 ```sh
 npm install
+export DSH_APP="/Applications/DeepSeek Harness.app"
+
+npm run compat
+npm run preset-sync
 npm run build --workspace packages/sdlc
-npm pack --workspace packages/sdlc        # → ai-native-sdlc-dsh-sdlc-0.3.1.tgz
-dsh plugin --profile <你的-profile> add <生成的.tgz>
+
+SDLC_PACK="$(npm pack --workspace packages/sdlc --silent)"
+SDLC_HASH="$(shasum -a 256 "$SDLC_PACK" | cut -c1-12)"
+SDLC_TGZ="$PWD/${SDLC_PACK%.tgz}-$SDLC_HASH.tgz"
+mv "$SDLC_PACK" "$SDLC_TGZ"
 ```
 
-一个 tarball 装一个常驻只读看板 + 一个可选工作模式（standard + 六个组件）。包自带 `dsh.bundle.patch`，安装后自动挂载。
+`compat` 检查包声明是否接受本机 DSH 版本，`preset-sync` 检查内置基础工具列表是否仍与 App 一致。
+任一检查失败时，先按输出处理再继续。DSH 升级后也要重新检查。
+安装包名自动取自打包结果，并加上内容哈希，避免同版本反复打包时安装器复用旧文件。
 
-⚠️ 用 **App 自带 CLI**，不要用 PATH 上的 `dsh`（可能是别的版本）：
+### 2. 安装到 DSH
+
+继续在同一个终端执行。下面以日常使用的 `desktop` profile 为例；其他 profile 请替换该名称。
+使用 **App 自带 CLI**，确保安装命令与实际运行的 DSH 来自同一版本。
 
 ```sh
-BASE="/Applications/DeepSeek Harness.app/Contents"
-CLI="$BASE/Resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js"
-APP="$BASE/MacOS/DeepSeek Harness"
-ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile <profile> add <tgz 绝对路径>
+DSH_CONTENTS="$DSH_APP/Contents"
+DSH_BIN="$DSH_CONTENTS/MacOS/DeepSeek Harness"
+DSH_CLI="$DSH_CONTENTS/Resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js"
+
+ELECTRON_RUN_AS_NODE=1 "$DSH_BIN" --expose-internals "$DSH_CLI" \
+  plugin --profile desktop add "$SDLC_TGZ"
 ```
 
-装完**核对 profile 的 `package.json`**：`dsh.profile.bundles` 里应有
-`@ai-native-sdlc/dsh-sdlc`。实测（DSH `0.2.1-rc.2`、tgz 安装）`plugin add` 会自动追加；
-更早版本 / 符号链接安装曾观察到**不追加**——所以以 profile manifest 为准，
-没出现就手补（GUI 插件管理器也会做这一步）。不要用"安装成功"推断"bundle 已登记"。
+包自带 `dsh.bundle.patch`，安装时会登记看板和工作模式。装完核对对应 profile 的 `package.json`：
+`dsh.profile.bundles` 中应包含 `@ai-native-sdlc/dsh-sdlc`。
+默认位置是 `~/.dsh/profiles/desktop/package.json`；设置过 `DSH_HOME` 时以该目录为准。
+若未登记，按[安装排查说明](docs/dsh-pitfalls.md)处理。
 
-安装后**新建会话，在模式选择器里选「AI 原生 SDLC」**才会挂载六个组件；
-标准会话不受影响。只想启用部分组件时，覆写 `preset-sdlc` 的 `config.plugins`——
-注意 preset 覆盖会替换完整列表（要带上 standard 副本与其余组件的完整行）。
+升级已有安装后，**完全退出并重新打开 DSH，再新建会话**，以确认使用新模块。
+安装成功本身不能证明旧进程已经加载新版。
 
-更多细节与"为什么合并"见 [packages/sdlc/README.md](packages/sdlc/README.md)。
+### 3. 在业务项目里开始任务
+
+1. 在 DSH 打开要开发的项目目录。
+2. 新建会话，选择 **「AI 原生 SDLC」** 模式。
+3. 描述目标和验收要求，让 Agent 创建任务并按流程推进。例如：
+
+```text
+创建任务 CART-1：修复会员订单优惠计算错误。
+先检查现有实现，明确预期行为和验收标准，再制定计划。
+用失败测试复现问题，修改后做独立验证；发现问题时记录退回、修改证据和复验结果。
+```
+
+这些步骤由会话中的 `sdlc_*` 工具完成。侧栏 SDLC 看板用于查看进度和证据。
+已有会话保留创建时的工具组合；安装插件或修改默认模式不会把旧标准会话切换成 SDLC 会话。
+
+## 一个任务怎样完成
+
+正常推进经过七个阶段；发现问题时，回到需要修改的阶段，再重新提交验证。
+
+```mermaid
+flowchart LR
+  intent["意图<br/>INTENT"] --> spec["规格<br/>SPEC"]
+  spec --> plan["计划<br/>PLANNED"]
+  plan --> impl["实现<br/>IMPLEMENTING"]
+  impl --> verify["独立验证<br/>VERIFYING"]
+  verify --> review["评审<br/>REVIEWING"]
+  review --> done["完成<br/>DONE"]
+  verify -. "实现有问题" .-> impl
+  verify -. "方案需调整" .-> plan
+  review -. "需求需澄清" .-> spec
+```
+
+推进通过 `sdlc_task_advance` 完成，每次都要写明原因并检查目标阶段的条件：
+
+- 进入规格、计划和实现阶段，要有对应的 `intent`、`spec`、`plan` 文件并登记到任务中。制品工具检查结构，内容质量由后续验证判断。
+- 重新进入验证前，上一轮问题要提交处理证据，或对允许延期的建议说明原因。
+- 进入评审需要最新、完整且仍适用于当前内容的 `approve`，并且没有未解决的阻断问题。
+- 完成任务还需要评审交付物；所有问题必须已独立复验解决，或明确延期。`DONE` 不代表已合并或已上线。
+
+### 发现问题以后
+
+验证发现会自动登记为任务问题；评审发现通过 `sdlc_task_issue action=report` 登记。
+之后按问题编号处理：
+
+1. **开始处理**：`action=start` 记录原因和目标阶段。改需求退回 `SPEC`，改方案退回 `PLANNED`，改代码退回 `IMPLEMENTING`；仅补证据可以留在当前阶段。
+2. **提交修改**：`action=submit` 填写实际改动和测试证据。此时状态是“等待复验”。
+3. **独立复验**：重新进入 `VERIFYING`，调用 `sdlc_verify`。验证者逐项返回结果，明确确认解决后才关闭问题；作者不能自行关闭。
+4. **明确延期**：非阻断建议可以 `action=defer`，但必须说明原因。阻断问题不能延期。
+
+看板展示每次退回的来源、目标、后续路线和复验结果。重新回到原阶段只表示重新提交，不表示已经通过。
+完成后报告新问题会重新进入评审。中断的验证要先用 `cancel_verification` 记录取消，再重试。
+完整工具和数据约定见[任务与返工流程](packages/sdlc/TASK.md)。
+
+## 记录保存在哪里
+
+任务记录默认位于**业务工作区**，可以随代码提交到 Git：
+
+```text
+.ai/tasks/<TASK-ID>/
+  state.yaml                 # 当前阶段、交付物索引、流转历史、问题和验证轮次
+  intent.md                  # 为什么做、要解决什么问题
+  spec.md                    # 预期行为与验收标准
+  plan.md                    # 实现计划
+  verifications/<run-id>.json # 每轮裁决、逐项结果和被验证的内容版本
+  verification.json          # 最新裁决的兼容副本
+  review.json                # 评审交付物
+  rsi.json                   # 执行记录完整性与复盘状态摘要
+```
+
+文件随流程逐步产生；也可以登记 `proof.md`、`evidence/` 下的文件等自定义交付物。
+`state.yaml` 是任务状态和文件索引的依据，`artifacts.verification` 指向具体轮次的裁决。
+历史轮次使用对应证据，缺失时明确显示缺口，不拿最新文件替代旧证据。
+
+原始代码快照、模型配置和工具输出保存在 `.ai/rsi/`，本仓库默认将其忽略。
+在业务仓库使用时也应配置忽略该目录；这些记录没有通用脱敏，只提交检查过的任务材料和摘要。
+
+## 验证与复盘
+
+**独立验证。** `sdlc_verify` 启动新的验证会话，不继承实现者的会话上下文。
+验证者读取交付物、检查代码、复跑测试，并按稳定编号逐项回答验收标准和待复验问题。
+结果为 `approve`、`reject` 或 `needs_human`。未拿到完整结构化裁决、漏项、重复或未知编号，以及与当前内容不一致的旧裁决，都不能作为通过依据。
+
+验证者使用单独的工具组合，关闭 `write`、`edit` 和任务推进等工具，但保留运行测试所需的 shell。
+**这不等于操作系统层面的只读隔离**：shell 仍有写文件的能力，独立会话也不保证模型判断一定正确。
+
+**测试冻结。** 修 bug 时先写失败测试并确认复现，再调用 `sdlc_fix_start`，修复和复测后调用 `sdlc_fix_end`。
+冻结按仓库生效，用于防止修复过程中改松测试。识别依赖文件名和命令模式，且作者可以主动解冻，因此它不是防篡改机制，也不能代替逐项问题处理。
+
+**任务复盘（RSI）。** 正常使用任务和验证工具时，插件记录已登记会话的执行过程、阶段变化与实际插件版本，并报告缺失或截断。
+任务完成后，让 Agent 调用 `sdlc_rsi_analyze` 阅读证据，再按需要提出改进、创建普通开发任务、比较新旧版本并记录采用决定和后续效果。
+复盘提醒不会在后台自动改代码或安装新版。工具用法见 [RSI 文档](packages/sdlc/RSI.md)。
+
+> 插件负责让开发过程可检查。发布授权、分支保护和密钥管理由 Git、CI 和权限系统负责。
+> 工作区记录可被人工修改，客户端检查也可被绕过；本项目不承担合规或发布管控。
 
 ## 开发与验证
 
-```sh
-npm run build --workspace packages/sdlc     # tsc → lib/（含手写的客户端 bundle 拷贝）
-npm run test  --workspace packages/sdlc     # 单测（先 build）
-DSH_APP="/Applications/DeepSeek Harness.app" npm run smoke --workspace packages/sdlc
-npm run verify --workspace packages/sdlc    # = build + test + smoke
-npm run compat                              # 按本机真实 App 的版本校验 peer 范围
-npm run preset-sync                         # standard preset 副本是否仍与 App 一致（App 升级后必跑）
-```
-
-冒烟测试用**真实 Cordis 上下文 + 真实 ToolRuntime** 挂载组件并真的 dispatch 工具调用；
-每个组件一个脚本 + `smoke/preset.mjs` 校验 bundle patch 形状，在 `packages/sdlc/smoke/`，`run-all.mjs` 统一驱动。
-
-验证插件真的能加载（**用隔离 profile，不碰正在用的 App**）：
+源码集中在 `packages/sdlc`。**一个包统一安装和升级，七个组件分别运行**：
+`task`、`artifact`、`status`、`verify`、`workflow`、`rsi` 和 `ui`。
+六个工作流组件挂在「AI 原生 SDLC」模式中；只读 UI 留在宿主层。
+各组件保留独立加载行，便于定位故障。详细说明见[包结构](packages/sdlc/README.md)。
 
 ```sh
-npm pack --workspace packages/sdlc
-# APP / CLI 同「安装与打包」
-ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" plugin --profile verifytest add "$PWD"/ai-native-sdlc-dsh-sdlc-0.3.1.tgz
-ELECTRON_RUN_AS_NODE=1 "$APP" --expose-internals "$CLI" --profile verifytest --port 19999
-# 看启动输出：出现 "entry did not activate" 就是失败
-# 再查 plugin_manager list_plugins 的 fiberPhase；它才是运行时真相
+export DSH_APP="/Applications/DeepSeek Harness.app"
+
+npm run verify --workspace packages/sdlc  # 构建 + 单测 + 宿主接口检查 + 运行时冒烟
+npm run compat                          # 包声明与本机 DSH 版本
+npm run preset-sync                     # 基础工具列表与 App 是否一致
+node tools/bench/run.mjs                 # 同一用例比较旧版与修复版
 ```
 
-### 验证纪律
+冒烟测试使用真实 Cordis 和 ToolRuntime 调用插件工具；涉及模型的集成用例使用预设返回结果。
+修改安装、加载或界面接线后，还要把实际 tarball 安装到**隔离 profile**，核对发布文件和运行状态。
+`plugin-activation-check.mjs` 可检查安装文件是否与构建一致；进程是否已加载，要继续查看运行时的 `fiberPhase` 和实际行为。
+检查工具及用法见 [tools/](tools/README.md)。
 
-- **跑 `npm run verify`（build + test + smoke），不要只看其中一项。**
-- **加载成功 ≠ 可用，单测通过 ≠ 端到端可用。** 任何涉及"接线"的改动都要真实操作验证；
-  汇报时不要把单测说成功能可用。
-- **符号链接安装通过 ≠ 真实分发可用。** 必须用 `npm pack` 出来的 tarball 装一遍。
-- **隔离 profile 验证，不碰正在用的 App**；装的是 tgz 副本时，改仓库的 `lib/`
-  重启也不会生效——必须重装 / 同步进 profile。
-- **`plugin_manager list_plugins` 是唯一的运行时真相**（含 `fiberPhase`），
-  不要靠推断；`cordis_inspect` 查 Service 对不注册服务的插件必然误报。
-- 核对 `node --test` 数字用 `grep -E "^[#ℹ] (pass|fail)"`，不要写 `^#`：
-  这个 Node 版本用 `ℹ` 前缀，写 `^#` 会零匹配、退出码 1，看起来像"测试失败"。
+DSH 的工作模式不支持继承，因此插件保留了一份 `standard` 基础工具列表。
+App 升级后若 `preset-sync` 发现差异，用 `npm run preset-sync:write` 同步，检查改动后重新跑完整验证。
+修改插件前请先读 [AGENTS.md](AGENTS.md) 和 [DSH 插件契约](docs/dsh-plugin-contracts.md)。
 
-### 当前实测读数（2026-10-19，DSH `0.2.1-rc.2`，合并 + 方案 A 后）
+### 已有验证证据
 
-| 检查 | 读数 |
+以下为 **2026-10-31、插件 0.5.0** 的已保存结果，来源是 [FLOW-1 验证记录](.ai/tasks/FLOW-1/proof.md)及其[结构化读数](.ai/tasks/FLOW-1/evidence/validation.json)：
+
+| 检查范围 | 结果 |
 |---|---|
-| `npm run test --workspace packages/sdlc` | 单测 **210**（lib 202 + UI 客户端交互 8；看板宿主测试 24 另计） |
-| `npm run smoke --workspace packages/sdlc` | 八脚本全过：artifact 39 / rsi 62 / status 69 / task 40 / ui 46 / verify 109 / workflow 12 / preset 19（共 396 条断言） |
-| `npm run compat` | 根工作区 + `@ai-native-sdlc/dsh-sdlc`（9 条 peer）全部接受 `0.2.1-rc.2` |
-| `npm pack --dry-run --workspace packages/sdlc` | `ai-native-sdlc-dsh-sdlc-0.3.1.tgz`，52 个文件 |
+| 库与客户端单测 | 242 + 30，共 272 项通过 |
+| 看板宿主接口 | 32 项通过 |
+| 运行时冒烟 | 10 组，共 455 项通过 |
+| 新旧版本对照 | 5 个用例成立；FLOW-1 旧版违反 9 项，修复版 0 项 |
+| 本地浏览器交互 | 桌面 1421px、手机 390px 各 45 项通过，使用明确标注的本地测试数据 |
+| DSH 兼容与模式列表 | `0.2.1-rc.5` 兼容检查通过；22 条基础组件 + 6 条 SDLC 组件一致 |
 
-单测从合并前 **251** 降到 **210**，减少的 41 条**全是重复覆盖**：
-3 份逐字相同的 `helpers.test` 副本（36 条）+ 1 条跨包漂移检测
-+ `status/contract.test` 的 4 条重复契约测试。没有删掉任何独有用例。
+这些结果证明相应程序行为，**不代表真实模型判断质量或最终 DSH 页面已验收**。
+0.5.0 已有隔离和 desktop profile 的安装文件核对记录，但当时未确认日常进程加载新版；
+FLOW-1 也未取得独立模型裁决，任务仍保留 `VERIFYING`。完整范围见[安装记录](.ai/tasks/FLOW-1/evidence/installation.json)。
+RSI 的指导文字对照实验仍与参考答案共享文件系统，仅供探索，不能据此推荐采用候选。
 
-## 文档
+## 目录与文档
 
-| 文件 | 内容 |
+| 入口 | 内容 |
 |---|---|
-| [AGENTS.md](AGENTS.md) | 项目记忆与工程约定（改代码前先读）|
-| [packages/sdlc/README.md](packages/sdlc/README.md) | **包总览**：一个包七个组件的边界、安装、测试、为什么合并 |
-| [packages/sdlc/TASK.md](packages/sdlc/TASK.md) | `sdlc-task`：状态机与 `state.yaml` 契约 |
-| [packages/sdlc/RSI.md](packages/sdlc/RSI.md) | `sdlc-rsi`：真实验证记录、复盘与对照实验 |
-| [docs/dsh-plugin-contracts.md](docs/dsh-plugin-contracts.md) | **插件 / preset 权威契约**，含三个静默失败的坑 |
-| [docs/dsh-pitfalls.md](docs/dsh-pitfalls.md) | DSH 实测坑清单 + 能力边界 |
-| [docs/dsh-plugin-authoring.md](docs/dsh-plugin-authoring.md) | 插件编写与分发的详细调研 |
-| [docs/sdlc-ui-redesign.md](docs/sdlc-ui-redesign.md) | 客户端看板的改版记录与验证读数 |
-| [docs/dsh-*.md](docs/) | 其余 DSH 子系统调研（带行号引用）|
-
-## 边界（不要高估这套东西）
-
-| 缺口 | 事实 |
-|---|---|
-| 网络出口管控 | **不存在**。DSH 沙箱明确"文件效果是全部策略词汇" |
-| 受保护路径 | **不存在**。沙箱按目录范围放行 |
-| 不可覆盖的管理层 | **不存在**。能改 `~/.dsh/` 的人可以摘掉任何插件 |
-| 客户端控制 | 上限是"提高成本"，**不能作为合规证据** |
-| 异构模型验证 | 当前版本做不到（外部 subagent 后端不在运行时里）|
-
-→ 真正不可绕过的只有两处：**服务端分支保护**（GitHub rulesets / GitLab
-protected branch）与 **host 层**（文件属主、MDM、独立运行身份）。
+| [packages/sdlc/](packages/sdlc/README.md) | 插件包、组件划分、工作模式与安装细节 |
+| [任务与返工流程](packages/sdlc/TASK.md) | 状态、问题处理、验证版本和工具用法 |
+| [RSI](packages/sdlc/RSI.md) | 执行证据、复盘、改进提案与版本对照 |
+| [看板实现记录](docs/design/sdlc-dashboard-2026-10-28/implementation.md) | 阶段流转、交付物、交互检查及验收范围 |
+| [tools/](tools/README.md) | 兼容、安装核对、基准、变异与时间偏移检查 |
+| [.ai/tasks/](.ai/tasks/) | 本项目的真实任务交付物与验证证据 |
+| [handbook/](handbook/) | 方法来源的中文全译与插图 |
+| [docs/](docs/) | DSH 接口调研、插件契约和实测问题记录 |
+| [AGENTS.md](AGENTS.md) | 项目决策、工程约定与历史教训 |
