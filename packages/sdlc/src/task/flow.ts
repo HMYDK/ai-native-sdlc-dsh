@@ -144,6 +144,13 @@ export function finishRun(state: TaskState, id: string, verdict: Verdict, criter
       from: next.status, to: next.status, reason: result.result === 'resolved' ? '独立复验确认' : '独立复验未确认修复', evidence: result.evidence, run_id: id});
   }
   const add = (key: string, description: string, evidence: string, severity: Severity, blocking: boolean, criterion_id?: string) => {
+    const existing = criterion_id && w.issues.find(i=>i.criterion_id===criterion_id && i.status!=='resolved');
+    if (existing) {
+      existing.status = 'open';
+      existing.actions.push({id:`${id}:${key}:reported`,at,actor,kind:'unresolved',from:next.status,to:next.status,
+        reason:'同一验收标准仍未通过',evidence:evidence.slice(0,4000),run_id:id});
+      return;
+    }
     w.issues.push({id: `${id}:${key}`, source: 'verification', source_run: id, ...(criterion_id ? {criterion_id} : {}),
       severity, blocking, description: description.slice(0, 2000), evidence: evidence.slice(0, 4000), status: 'open',
       actions: [{id: `${id}:${key}:reported`, at, actor, kind: 'reported', from: next.status, to: next.status, reason: description.slice(0, 2000), evidence: evidence.slice(0, 4000), run_id: id}]});

@@ -206,10 +206,12 @@ export function enforceCriteriaPolicy(
 }
 
 /** A second verify call must independently answer each submitted finding ID. */
-export function enforceIssuePolicy(verdict: Verdict, pending: {id: string}[]): Verdict {
+export function enforceIssuePolicy(verdict: Verdict, pending: {id: string; criterion_id?: string}[]): Verdict {
   const results = verdict.issue_results ?? [], expected = new Set(pending.map(i => i.id)), seen = new Set<string>(), errors: string[] = [];
   for (const r of results) {
     if (!expected.has(r.issue_id) || seen.has(r.issue_id) || !r.evidence?.trim() || !['resolved','unresolved','cannot_tell'].includes(r.result)) errors.push(`问题 ${r.issue_id} 的复验结果不合法或重复`);
+    const criterion = pending.find(i=>i.id===r.issue_id)?.criterion_id;
+    if (r.result === 'resolved' && criterion && !verdict.criteria_results?.some(c=>c.criterion_id===criterion && c.result==='met')) errors.push(`问题 ${r.issue_id} 声称已解决，但对应验收标准未通过`);
     seen.add(r.issue_id);
   }
   for (const id of expected) if (!seen.has(id)) errors.push(`未回答待复验问题 ${id}`);

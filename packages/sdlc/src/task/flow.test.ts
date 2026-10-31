@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {actOnIssue, beginRun, finishRun, checkSubmission, parseWorkflow} from './flow.js';
 import {parseTaskState, serializeTaskState, type TaskState} from './state.js';
-import {enforceIssuePolicy, type Verdict} from '../verify/verdict.js';
+import {enforceIssuePolicy, criterionEntries, type Verdict} from '../verify/verdict.js';
 import {load, JSON_SCHEMA} from 'js-yaml';
 const at = '2026-10-31T00:00:00Z';
 const task = (): TaskState => ({task:'TEST-1',title:'fixture',status:'REVIEWING',created:at,updated:at,artifacts:{},history:[]});
@@ -60,4 +60,16 @@ test('问题处理往返保存且损坏记录不能被静默忽略', () => {
 test('完成后发现新问题会明确重开审核，不能留在 DONE',()=>{
   const state=task();state.status='DONE';const next=report(state);
   assert.equal(next.status,'REVIEWING');assert.equal(next.history.at(-1)!.from,'DONE');
+});
+test('同一验收标准多次未通过保留问题编号，矛盾的已解决声明不能关闭它',()=>{
+  const criteria=['非目标场景保持原行为'], criterion_id=criterionEntries(criteria)[0]!.id;
+  const verdict:Verdict={status:'reject',summary:'probe failed',findings:[],criteria_results:[{criterion_id,result:'not_met',evidence:'probe still fails'}]};
+  let state=task();state.status='VERIFYING';state=finishRun(beginRun(state,'r1',at),'r1',verdict,criteria,'verifier',at,'verifications/r1.json');
+  const id=state.workflow!.issues[0]!.id;
+  state=act(state,'start','fix','IMPLEMENTING');state=act(state,'submit','submit');state.status='VERIFYING';
+  const checked=enforceIssuePolicy({...verdict,issue_results:[{issue_id:id,result:'resolved',evidence:'conflicting answer'}]},state.workflow!.issues);
+  assert.ok(checked.issue_errors?.length);
+  state=finishRun(beginRun(state,'r2',at),'r2',checked,criteria,'verifier',at,'verifications/r2.json');
+  assert.equal(state.workflow!.issues.length,1);assert.equal(state.workflow!.issues[0]!.id,id);
+  assert.equal(state.workflow!.issues[0]!.status,'open');
 });
