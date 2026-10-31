@@ -20,6 +20,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis';
+import {mutateTask} from '../task/io.js';
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
@@ -29,7 +30,6 @@ import {
   ARTIFACT_FILENAMES,
   ARTIFACT_KINDS,
   checkArtifact,
-  escapeRe,
   isArtifactKind,
   isUnmodifiedSkeleton,
   REQUIRED_SECTIONS,
@@ -95,77 +95,23 @@ async function writeFile(
   await ctx.fs.writeText(target, content, undefined, exec.signal, policy);
 }
 
-/**
- * 把制品登记进任务 `state.yaml` 的 `artifacts`。
- *
- * 与 sdlc-verify 里的同名逻辑同一套做法，理由也一样：**只写文件不够**，
- * `sdlc_task_advance` 的准入门槛看的是 `state.yaml` 的 `artifacts`，
- * 不是"磁盘上碰巧有这个文件"。
- *
- * 返回值是**给人看的一句话**，会出现在工具返回值里。为什么必须报出来：
- * 这个函数有多条"静默放弃"的路径，而静默成功与静默失败在制品上无法区分
- * （独立验证者指出过这一点）。最小编辑：只在 artifacts 段插一行——
- * state.yaml 是人也会手改的文件，整份重写风险太大。
- */
+/** Artifact registration shares the task lock and version guard with verification and issue handling. */
 async function registerArtifact(
-  ctx: Context,
-  paths: TaskPaths,
-  kind: ArtifactKind,
-  filename: string,
-  exec: { agent?: unknown; signal?: AbortSignal },
+  ctx: Context, paths: TaskPaths, kind: ArtifactKind, filename: string,
+  exec: {agent?: unknown; signal?: AbortSignal},
 ): Promise<string> {
-  const text = await readFileIfExists(ctx, paths.stateFile, exec);
-  if (text === undefined) {
+  if (await readFileIfExists(ctx,paths.stateFile,exec) === undefined) {
     return `⚠ 制品未登记：任务没有 state.yaml（${paths.stateFile}）。文件已写好，但状态机看不到它。`;
   }
-  // 必须比对**值**而不只是键：只写 `^\s*${kind}:` 会把
-  // `verification: "verification.json"` 误判成"已登记 intent"——
-  // 那样真正的文件名永远不会被写进去。冒烟测试抓到了这一点。
-  if (new RegExp(`^\\s*${kind}:\\s*"${escapeRe(filename)}"\\s*$`, 'm').test(text)) {
-    return `制品登记：${kind} → ${filename} 已在 state.yaml 中`;
-  }
-
-  const lines = text.split('\n');
-  // 两种形态都要认：
-  //   `artifacts:` 后面跟缩进块   —— 有制品时
-  //   `artifacts: {}` 同一行      —— 空时（sdlc-task 的序列化器写这个）
-  // 只认前者会让"第一个制品"永远登记不上，而且**静默跳过**
-  // （这个组合正是测试场抓到的：序列化器写 `  {}` 单独一行，
-  //   登记逻辑把 `{}` 当成已有条目插在它后面，写出非法 YAML）。
-  const start = lines.findIndex((l) => /^artifacts:\s*(\{\s*\})?\s*$/.test(l));
-  if (start < 0) {
-    return (
-      `⚠ 制品未登记：state.yaml 里找不到 \`artifacts:\` 段（可能被手改过）。` +
-      `文件已写好，请手动登记 ${kind}: "${filename}"`
-    );
-  }
-  if (/^artifacts:\s*\{\s*\}\s*$/.test(lines[start] ?? '')) {
-    // 空映射写在同一行 → 展开成缩进块并放入第一个制品
-    lines[start] = `artifacts:\n  ${kind}: "${filename}"`;
-    await writeFile(ctx, paths.stateFile, lines.join('\n'), exec);
-    return `制品登记：${kind} → ${filename}（artifacts 原为空）`;
-  }
-  let insertAt = start + 1;
-  while (insertAt < lines.length && /^\s{2}\S/.test(lines[insertAt] ?? '')) insertAt += 1;
-
-  // 同一个 kind 已存在但值不同 → 就地替换，不要插入重复键
-  //（重复键在 YAML 里是错的，而且后一个会静默覆盖前一个）
-  const existingAt = lines.findIndex(
-    (l, i) => i > start && i < insertAt && new RegExp(`^\\s{2}${escapeRe(kind)}:\\s`).test(l),
-  );
-  const line = `  ${kind}: "${filename}"`;
-  if (existingAt >= 0) {
-    lines[existingAt] = line;
-    await writeFile(ctx, paths.stateFile, lines.join('\n'), exec);
-    return `制品登记：${kind} → ${filename}（更新了原有登记）`;
-  }
-
-  lines.splice(insertAt, 0, line);
-  await writeFile(ctx, paths.stateFile, lines.join('\n'), exec);
-  return `制品登记：${kind} → ${filename} → state.yaml 的 artifacts`;
+  return mutateTask(ctx,exec,paths.taskDir,paths.taskDir.split('/').at(-1)!,state => {
+    if (state.artifacts[kind] === filename) return {state,value:`制品登记：${kind} → ${filename} 已在 state.yaml 中`};
+    const next = structuredClone(state);
+    next.artifacts[kind] = filename;
+    next.updated = new Date().toISOString();
+    return {state:next,value:`制品登记：${kind} → ${filename} → state.yaml 的 artifacts`};
+  });
 }
 
-/** 转义成可用于 RegExp 的字面量（制品名是我们自己定的，但不该依赖这一点）。 */
 import { requireSessionCwd, resolveOptions, writePolicy } from '../shared/helpers.js';
 
 export function apply(ctx: Context, config: SdlcArtifactConfig): void {

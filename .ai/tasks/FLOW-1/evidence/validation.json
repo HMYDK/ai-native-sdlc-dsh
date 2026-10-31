@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-31T14:28:13.803387+00:00",
+  "source_commit": "6cbb338",
+  "validation": {
+    "lib_unit": 242,
+    "client_unit": 30,
+    "host_routes": 32,
+    "smoke": 455,
+    "smoke_scripts": 10,
+    "flow_runtime_assertions": 27,
+    "playground_checks": 21,
+    "compat_runtime": "0.2.1-rc.5",
+    "preset_standard_rows": 22,
+    "preset_sdlc_rows": 6,
+    "browser": {
+      "plugin": "Browser plugin not available; Playwright CLI fallback",
+      "fixture": "local labeled fixtures with production client and host projection",
+      "desktop": {
+        "width": 1421,
+        "height": 1000,
+        "assertions": 45
+      },
+      "mobile": {
+        "width": 390,
+        "height": 844,
+        "assertions": 45
+      },
+      "javascript_errors": 0
+    },
+    "time_travel": "5 time points consistent"
+  },
+  "limits": [
+    "未重试此前拒绝的 DSH 浏览器认证；真实 DSH 页面尚未人工验收",
+    "工具集成中的模型输出为确定性夹具，未声称已完成新的独立模型验收",
+    "旧历史只有可核对轮次和操作，没有登记的问题对应关系不能补造"
+  ]
+}

@@ -54,6 +54,7 @@ export function isCancellation(error: unknown, signal?: AbortSignal): boolean {
 }
 
 export interface VerificationRecording {
+  readonly id: string;
   complete: boolean;
   cancelled: boolean;
   record(kind: VerificationRecord['kind'], data: Record<string, unknown>): Promise<void>;
@@ -73,6 +74,7 @@ export async function recordVerificationRun(
   let failure: unknown;
   let failed = false;
   const run: VerificationRecording = {
+    id: runId,
     complete: false,
     cancelled: false,
     async record(kind, data) {

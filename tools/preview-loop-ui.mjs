@@ -29,10 +29,14 @@ const fileSystem = {
 };
 apply({fs: fileSystem, connection: {fetch: {register(route) { routes.set(route.path, route.fetch); return () => {}; }}}, effect(fn) { fn(); }}, {tasksDir: '.ai/tasks'});
 const request = async (route, params = {}) => (await routes.get('/api/sdlc-ui.' + route)(new Request('http://fixture.local/api/sdlc-ui.' + route + '?' + new URLSearchParams(params)))).json();
-const data = {tasks: await request('tasks'), executions: {}, artifacts: {}};
+const data = {tasks: await request('tasks'), executions: {}, pages: {}, artifacts: {}};
 data.tasks.tasks = data.tasks.tasks.filter(t => t.repoRoot === workspace);
 for (const task of data.tasks.tasks) {
   data.executions[task.id] = await request('execution', {task: task.id, root: workspace});
+  for (let offset = data.executions[task.id].findingNext; offset !== null;) {
+    const page = await request('execution', {task:task.id,root:workspace,findingOffset:String(offset)});
+    data.pages[task.id+'/'+offset] = page; offset = page.findingNext;
+  }
   for (const artifact of task.artifacts) data.artifacts[task.id + '/' + artifact.file] = await request('artifact', {task: task.id, root: workspace, file: artifact.file});
 }
 const fixtureJSON = JSON.stringify(data).replaceAll('<', '\\u003c');
@@ -48,7 +52,7 @@ window.__LOOP_ERRORS__ = [];
 window.addEventListener('error', e => window.__LOOP_ERRORS__.push(e.message));
 window.fetch = async url => {
   const parsed = new URL(String(url), 'http://fixture.local/'), q = parsed.searchParams;
-  const body = parsed.pathname.endsWith('.tasks') ? data.tasks : parsed.pathname.endsWith('.execution') ? data.executions[q.get('task')] : data.artifacts[q.get('task') + '/' + q.get('file')];
+  const body = parsed.pathname.endsWith('.tasks') ? data.tasks : parsed.pathname.endsWith('.execution') ? (data.pages[q.get('task')+'/'+q.get('findingOffset')] || data.executions[q.get('task')]) : data.artifacts[q.get('task') + '/' + q.get('file')];
   return new Response(JSON.stringify(body || {error: 'fixture not found'}), {status: body ? 200 : 404, headers: {'content-type': 'application/json'}});
 };
 window.__ModuleLoader__ = {load({factory}) {
@@ -63,5 +67,5 @@ ${checks}
 `;
 const bundle = await build({stdin: {contents: entry, resolveDir: repo, loader: 'js'}, bundle: true, write: false, minify: true, define: {'process.env.NODE_ENV': '"production"'}, platform: 'browser'});
 await fs.mkdir(output, {recursive: true});
-await fs.writeFile(path.join(output, 'index.html'), '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SDLC 循环工作台 · 本地示例</title><style>html,body,#root{margin:0;width:100%;height:100%;overflow:hidden}</style><div id="root"></div><script>' + bundle.outputFiles[0].text.replaceAll('</script', '<\\/script') + '</script></html>');
+await fs.writeFile(path.join(output, 'index.html'), '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SDLC 循环工作台 · 本地示例</title><link rel="icon" href="data:,"><style>html,body,#root{margin:0;width:100%;height:100%;overflow:hidden}</style><div id="root"></div><script>' + bundle.outputFiles[0].text.replaceAll('</script', '<\\/script') + '</script></html>');
 console.log(path.join(output, 'index.html'));

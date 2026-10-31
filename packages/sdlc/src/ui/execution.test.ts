@@ -177,3 +177,39 @@ test('自定义 RSI 目录可读，返回受限且没有创建或改写任何文
   assert.equal(value.rounds[0].testEvidence, '测试通过'); assert.equal(value.rounds[0].changesSummary, '修复边界');
   assert.doesNotMatch(JSON.stringify(value), /RAW_CODE_SECRET/); assert.deepEqual(await fs.readdir(f.repoRoot, {recursive: true}), before);
 });
+
+test('正常采集的 4–16 MiB 会话仍可恢复成功动作，消息正文不进入响应', async t => {
+  const f = await fixture(t); await f.manifest(['round'],[session('author')]);await f.run('round',1);
+  await f.trace('author','author',[
+    {seq:0,type:'assistant/message',data:{content:'PRIVATE_REASONING'.repeat(400000)}},
+    call(1,'edit-1','edit',{path:'src/product.ts',new_string:'PRIVATE_CODE'}),result(2,'edit-1'),
+    call(3,'start','sdlc_fix_start',{task_id:'TASK-1',reason:'fix consumer'}),result(4,'start'),
+  ]);
+  const value=await f.read();
+  assert.equal(value.repairs[0].kind,'fix_start'); assert.match(value.activities[0].summary,/src\/product.ts/);
+  assert.doesNotMatch(JSON.stringify(value),/PRIVATE_CODE|PRIVATE_REASONING|读取上限/);
+});
+test('优先使用精简过程记录，不读取原始长会话和工具输出', async t => {
+  const f=await fixture(t);await f.manifest(['round'],[session('author')]);await f.run('round',1);
+  await f.trace('author','author',[],{secret:'PRIVATE_CONFIG'});
+  await f.writes('.ai/rsi/tasks/TASK-1/sessions/author.view.json',{schema_version:1,session_id:'author',role:'author',source_verified:true,truncated:false,issues:[],events:[call(0,'start','sdlc_fix_start',{task_id:'TASK-1',reason:'compact'}),result(1,'start')]});
+  const value=await f.read(); assert.equal(value.repairs[0].kind,'fix_start');
+  assert.ok(!f.reads.includes('.ai/rsi/tasks/TASK-1/sessions/author.json')); assert.doesNotMatch(JSON.stringify(value),/PRIVATE_CONFIG/);
+});
+test('旧轮次恢复必须同时核对任务 ID 和制品实际归属，不能借用别的任务', async t => {
+  const f=await fixture(t);await f.run('old',1);await f.run('wrong',6);
+  await f.writes('.ai/tasks/TASK-1/spec.md','# acceptance');
+  await f.writes('.ai/rsi/runs/old/000001.json',{schema_version:1,run_id:'old',seq:1,kind:'prepared',at:at(2),data:{artifacts:{spec:path.join(f.repoRoot,'.ai/tasks/TASK-1/spec.md')},prompt:'PRIVATE_PROMPT'}});
+  await f.writes('.ai/rsi/runs/wrong/000001.json',{schema_version:1,run_id:'wrong',seq:1,kind:'prepared',at:at(7),data:{artifacts:{spec:path.join(f.repoRoot,'.ai/tasks/OTHER/spec.md')}}});
+  const value=await f.read(); assert.deepEqual(value.rounds.map((r:any)=>r.id),['old']);assert.deepEqual(value.repairs,[]);
+  assert.match(value.issues.join(' '),/旧验证轮次/);assert.doesNotMatch(JSON.stringify(value),/PRIVATE_PROMPT/);
+});
+test('任务内的问题和精简裁决不依赖 RSI 会话，按页返回明确关联的动作', async t => {
+  const f=await fixture(t);
+  const issues=Array.from({length:21},(_,i)=>({id:`issue-${i}`,source:'review',severity:'blocking',blocking:true,description:`问题 ${i}`,evidence:'probe',status:'submitted',actions:[{id:`action-${i}`,at:at(1),actor:'author',kind:'started',from:'REVIEWING',to:'IMPLEMENTING',reason:'修复最终行为',evidence:'tests/consumer'}]}));
+  await f.writes('.ai/tasks/TASK-1/state.yaml',{task:'TASK-1',history:[],workflow:{version:1,issues,runs:[{id:'r1',started_at:at(1),finished_at:at(2),outcome:'approve',file:'verifications/r1.json',summary:'verified'}],latest_run:'r1'}});
+  await f.writes('.ai/tasks/TASK-1/verifications/r1.json',{schema_version:2,task:'TASK-1',criteria:['actual behavior'],verdict:{verification_run_id:'r1',status:'approve',summary:'probe',findings:[],criteria_results:[]},raw_verdict:{hidden:'PRIVATE_RAW'}});
+  const page1=await f.read(),page2=await f.read({findingOffset:20});
+  assert.equal(page1.findings.length,20);assert.equal(page1.findingNext,20);assert.equal(page2.findings[0].id,'issue-20');assert.equal(page2.findingNext,null);
+  assert.equal(page1.rounds[0].source,'task_record');assert.equal(page1.findings[0].actions[0].to,'IMPLEMENTING');assert.doesNotMatch(JSON.stringify(page1),/PRIVATE_RAW/);
+});

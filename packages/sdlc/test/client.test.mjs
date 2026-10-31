@@ -353,3 +353,31 @@ test('通过结论下的未复核事项仍可看见，并进入本轮证据', ()
   ui.click(ui.find(n => n.type === 'button' && text(n).includes('查看本轮证据'))[0]);
   assert.ok(text(ui.find(n => n.component === 'RoundEvidence')[0]).includes('尚未复核线上环境'));
 });
+
+test('问题处理展示明确退回、作者证据与独立复验，并可打开对应轮次', () => {
+  const execution={status:'recorded',issues:[],rounds:[{id:'run-2',number:2,source:'task_record',outcome:'approve',summary:'独立验证通过',criteria:[],findings:[],toolEvents:[]}],repairs:[],findingTotal:1,findingOffset:0,findingNext:null,findings:[{
+    id:'finding-1',source:'review',description:'非目标场景被改变',evidence:'consumer probe failed',status:'resolved',blocking:true,actions:[
+      {id:'start',kind:'started',from:'REVIEWING',to:'IMPLEMENTING',reason:'修正错误分支',evidence:'',actor:'author',at:'2026-10-31T00:00:00Z'},
+      {id:'submit',kind:'submitted',from:'IMPLEMENTING',to:'IMPLEMENTING',reason:'修正并补测试',evidence:'tests/consumer PASS',actor:'author',at:'2026-10-31T00:01:00Z'},
+      {id:'confirm',kind:'resolved',from:'VERIFYING',to:'VERIFYING',reason:'独立复验确认',evidence:'independent probe PASS',actor:'verifier',run_id:'run-2',at:'2026-10-31T00:02:00Z'},
+    ],
+  }]};
+  const ui=mount(payload,{IssueFlow:{execution,loading:false,onPage(){}}}); ui.click(ui.rows()[0]);
+  const panel=ui.find(n=>n.component==='IssueFlow')[0];const body=text(panel);
+  assert.match(body,/复验通过/);assert.match(body,/修正错误分支/);assert.match(body,/作者提供，等待独立确认/);assert.match(body,/independent probe PASS/);
+  ui.click(ui.find(n=>n.type==='button'&&text(n).includes('独立裁决'),panel)[0]);
+  assert.equal(ui.find(n=>n.component==='RoundEvidence')[0].props.round.id,'run-2');
+});
+test('缺失记录明确显示无法确认，历史文件操作不能冒充正式退回', () => {
+  const execution={status:'partial',issues:['missing'],rounds:[],repairs:[],findings:[],findingTotal:0,activities:[{id:'old-edit',at:null,summary:'作者修改文件：src/app.ts'}]};
+  const ui=mount(payload,{IssueFlow:{execution,loading:false}});ui.click(ui.rows()[0]);
+  const body=text(ui.find(n=>n.component==='IssueFlow')[0]);
+  assert.match(body,/记录不完整，无法确认/);assert.match(body,/不补造当时未登记的退回/);assert.match(body,/src\/app.ts/);
+});
+test('问题分页请求实际偏移，待复验与延期不会显示成已经解决', () => {
+  let offset=null;
+  const execution={status:'recorded',issues:[],rounds:[],repairs:[],findingTotal:21,findingOffset:0,findingNext:20,findings:[{id:'pending',source:'verification',description:'等待复验',evidence:'author only',status:'submitted',actions:[]},{id:'later',source:'review',description:'稍后补充',evidence:'',status:'deferred',actions:[]}]};
+  const ui=mount(payload,{IssueFlow:{execution,loading:false,onPage:n=>{offset=n;}}});ui.click(ui.rows()[0]);
+  const panel=ui.find(n=>n.component==='IssueFlow')[0];assert.match(text(panel),/待独立复验/);assert.match(text(panel),/延期处理/);
+  ui.click(ui.find(n=>n.type==='button'&&text(n)==='下一页问题',panel)[0]);assert.equal(offset,20);
+});

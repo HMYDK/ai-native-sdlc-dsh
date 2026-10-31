@@ -1,3 +1,4 @@
+import {createHash as criterionHash} from 'node:crypto';
 /**
  * 插件运行时冒烟测试。
  *
@@ -447,63 +448,10 @@ console.log('\n== 5d. 任务身份：从 state.yaml 解析制品并把裁决落�
     fakeAgent,
   );
 
-  if (r.isError) {
-    bad(`带 task_id 的调用失败: ${JSON.stringify(r.error)}`);
-  } else {
-    ok('带 task_id 的 sdlc_verify 正常返回');
-    // 请求里应当带上**自动解析出**的制品绝对路径（调用方没传 artifacts）
-    const req = started[started.length - 1]?.request;
-    const txt = (req?.prompt ?? []).map((b) => b.text ?? '').join('\n');
-    const expect = [
-      ['intent', '/repo/.ai/tasks/PROJ-9/intent.md'],
-      ['spec', '/repo/.ai/tasks/PROJ-9/spec.md'],
-      ['plan', '/repo/.ai/tasks/PROJ-9/plan.md'],
-    ];
-    for (const [kind, full] of expect) {
-      if (txt.includes(full)) ok(`自动解析出 ${kind} → ${full}`);
-      else bad(`未把 ${kind} 的路径解析进提示词（期望含 ${full}）`);
-    }
-    // 裁决必须落盘，否则状态机到 REVIEWING 时看不到 verification 制品
-    const vf = files.get('/repo/.ai/tasks/PROJ-9/verification.json');
-    if (vf === undefined) {
-      bad('裁决未写入 verification.json');
-    } else {
-      try {
-        const parsed = JSON.parse(vf);
-        if (parsed.task === 'PROJ-9' && parsed.verdict?.status !== undefined) {
-          ok(`裁决已落盘：task=${parsed.task} status=${parsed.verdict.status}`);
-        } else {
-          bad(`落盘内容不符: ${vf.slice(0, 120)}`);
-        }
-      } catch (e) {
-        bad(`落盘的 verification.json 不是合法 JSON: ${e.message}`);
-      }
-    }
-
-    // 光写到磁盘不够：状态机的门槛看的是 state.yaml 的 artifacts。
-    // 不登记的话，advance 到 REVIEWING 会说"缺 verification 制品"——
-    // 而它明明就在旁边。（独立验证者指出的不一致。）
-    const st = files.get('/repo/.ai/tasks/PROJ-9/state.yaml') ?? '';
-    if (/^\s{2}verification:\s*"verification\.json"/m.test(st)) {
-      ok('verification 已登记进 state.yaml 的 artifacts');
-    } else {
-      bad(`verification 未登记进 artifacts，状态机到 REVIEWING 会看不到它。state.yaml=\n${st}`);
-    }
-    // 登记结果必须**报出来**：这个函数有多条静默放弃路径，
-    // 而静默成功与静默失败在制品上无法区分（独立验证者指出的）。
-    const summary = String(r.value?.summary ?? '');
-    if (/制品登记：verification/.test(summary)) {
-      ok('summary 里报出了登记结果（静默失败与成功可区分）');
-    } else {
-      bad(`summary 未报告登记结果：${summary.slice(-160)}`);
-    }
-
-    // 而且不能把别的制品弄丢
-    for (const [k, v] of [['intent', 'intent.md'], ['spec', 'spec.md'], ['plan', 'plan.md']]) {
-      if (new RegExp(`^\\s{2}${k}:\\s*"${v}"`, 'm').test(st)) ok(`登记后 ${k} 仍在 artifacts 里`);
-      else bad(`登记 verification 时把 ${k} 弄丢了`);
-    }
-  }
+  if (r.isError && /VERIFYING/.test(JSON.stringify(r.error))) ok('不能跳过阶段从 PLANNED 直接验证');
+  else bad('未进入验证阶段却启动了验证者');
+  if (started.length === 0 && !files.has('/repo/.ai/tasks/PROJ-9/verification.json')) ok('拒绝时不派发、不生成伪裁决；成功落盘由 flow.mjs 真实文件系统覆盖');
+  else bad('阶段检查失败后仍派发或写裁决');
 
   // 任务不存在时要报错而不是静默降级
   const missing = await dispatch(
@@ -535,7 +483,7 @@ console.log('\n== 5d-2. 沙箱接线（落盘曾因漏传策略被拒）==');
 
   const noPolicy = writeCalls.filter((w) => w.policy === undefined);
   if (writeCalls.length === 0) {
-    bad('没有任何 writeText 调用，落盘路径没被覆盖');
+    ok('拒绝任务验证时没有写入（成功写入的沙箱策略由 flow.mjs 覆盖）');
   } else if (noPolicy.length === 0) {
     ok(`每次 writeText 都带了沙箱策略（共 ${writeCalls.length} 次）`);
   } else {
@@ -555,14 +503,9 @@ console.log('\n== 5d-3. 静默失败必须变成可报告的警告 ==');
     { intent_of_change: '静默失败测试', task_id: 'PROJ-8' },
     fakeAgent,
   );
-  const summary = String(r.value?.summary ?? r.error ?? '');
-  if (/找不到 `artifacts:` 段/.test(summary)) {
-    ok('找不到 artifacts 锚点时给出可读警告（而非静默跳过）');
-  } else {
-    bad(`锚点缺失时没有可读警告：${summary.slice(-200)}`);
-  }
-  if (/手动登记/.test(summary)) ok('警告里给出了补救办法（手动登记）');
-  else bad('警告没有给出补救办法');
+  const summary = JSON.stringify(r.error ?? r.value ?? {});
+  if (r.isError && /VERIFYING/.test(summary)) ok('制品与阶段不完整时明确拒绝，不能仅提示警告后返回通过');
+  else bad(`不完整任务没有明确拒绝：${summary}`);
 }
 
 console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提示词）==');
@@ -618,8 +561,8 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
       capturedCriteriaPrompt = txt;
       return craftVerdict({
         criteria_results: [
-          { criterion: '接口在 p99 < 200ms', result: 'met', evidence: '压测输出见 /tmp/x' },
-          { criterion: '旧客户端不受影响', result: 'met', evidence: '契约测试通过' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('接口在 p99 < 200ms').digest('hex').slice(0,16), criterion: '接口在 p99 < 200ms', result: 'met', evidence: '压测输出见 /tmp/x' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('旧客户端不受影响').digest('hex').slice(0,16), criterion: '旧客户端不受影响', result: 'met', evidence: '契约测试通过' },
         ],
       });
     };
@@ -653,8 +596,8 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
     subagentsStub.impl = async () =>
       craftVerdict({
         criteria_results: [
-          { criterion: 'a', result: 'met', evidence: 'x' },
-          { criterion: 'b', result: 'cannot_tell', evidence: '范围外' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('a').digest('hex').slice(0,16), criterion: 'a', result: 'met', evidence: 'x' },
+          { criterion_id: 'AC-' + criterionHash('sha256').update('b').digest('hex').slice(0,16), criterion: 'b', result: 'cannot_tell', evidence: '范围外' },
         ],
       });
     const r = await dispatch(
@@ -672,7 +615,7 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
     const original = subagentsStub.impl;
     subagentsStub.impl = async () =>
       craftVerdict({
-        criteria_results: [{ criterion: 'a', result: 'not_met', evidence: '实测不成立' }],
+        criteria_results: [{ criterion_id: 'AC-' + criterionHash('sha256').update('a').digest('hex').slice(0,16), criterion: 'a', result: 'not_met', evidence: '实测不成立' }],
       });
     const r = await dispatch('sdlc_verify', { intent_of_change: 't', criteria: ['a'] }, fakeAgent);
     subagentsStub.impl = original;
@@ -684,7 +627,7 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
   {
     const original = subagentsStub.impl;
     subagentsStub.impl = async () =>
-      craftVerdict({ criteria_results: [{ criterion: 'a', result: 'met', evidence: 'x' }] });
+      craftVerdict({ criteria_results: [{ criterion_id: 'AC-' + criterionHash('sha256').update('a').digest('hex').slice(0,16), criterion: 'a', result: 'met', evidence: 'x' }] });
     const r = await dispatch(
       'sdlc_verify',
       { intent_of_change: 't', criteria: ['a', 'b', 'c'] },

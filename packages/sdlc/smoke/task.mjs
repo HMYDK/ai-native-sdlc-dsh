@@ -151,8 +151,8 @@ console.log('\n== 3b. 提示词段：不许把一项工作拆成两个任务');
     if (t.includes('换了对象') && t.includes('而不是换了阶段')) {
       ok('给出了何时才该另开任务的判据（换对象，不是换阶段）');
     } else bad('没有给出另开任务的判据 —— 只有禁令没有边界，会被过度套用');
-    if (t.includes('history') && t.includes('验证了几轮')) {
-      ok('说明了同一任务里多轮验证是正常的、且 history 会留痕');
+    if (t.includes('逐轮保存裁决') && t.includes('sdlc_task_issue')) {
+      ok('说明了独立轮次留档与问题处理工具');
     } else bad('没有说明多轮验证在 history 里留痕 —— 会让人以为重验会丢记录');
   }
 }

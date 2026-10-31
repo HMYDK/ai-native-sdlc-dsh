@@ -1,0 +1,495 @@
+[
+  {
+    "id": "STATUS-PAGE-1",
+    "title": "sdlc_status 的默认页不再显示\"该动手的\"任务",
+    "baselineRev": "60825a2",
+    "fixedRev": "HEAD",
+    "ok": true,
+    "baseFails": 4,
+    "fixedFails": 0,
+    "rows": [
+      {
+        "label": "基线 60825a2（默认页也按 id 序切窗）",
+        "checks": [
+          [
+            "夹具越过默认页上限",
+            true,
+            "共 60 个任务"
+          ],
+          [
+            "默认页第一条是紧迫任务",
+            false,
+            "第一条=AA-000"
+          ],
+          [
+            "默认页含全部紧迫任务",
+            false,
+            "0/3"
+          ],
+          [
+            "默认路径 == 呈现序取前 50",
+            false,
+            "50 条"
+          ],
+          [
+            "同一 offset 跨时间给同一批",
+            true,
+            "呈现序已重排 AA-000,AA-001,AA-002,AA-003,AA-004"
+          ],
+          [
+            "码元序区分 localeCompare 判等的 id",
+            false,
+            "判等=true 序1→K-1 序2→K-​1"
+          ]
+        ]
+      },
+      {
+        "label": "当前 HEAD",
+        "checks": [
+          [
+            "夹具越过默认页上限",
+            true,
+            "共 60 个任务"
+          ],
+          [
+            "默认页第一条是紧迫任务",
+            true,
+            "第一条=ZZ-001"
+          ],
+          [
+            "默认页含全部紧迫任务",
+            true,
+            "3/3"
+          ],
+          [
+            "默认路径 == 呈现序取前 50",
+            true,
+            "50 条"
+          ],
+          [
+            "同一 offset 跨时间给同一批",
+            true,
+            "呈现序已重排 AA-000,AA-001,AA-002,AA-003,AA-004"
+          ],
+          [
+            "码元序区分 localeCompare 判等的 id",
+            true,
+            "判等=true 序1→K-1 序2→K-1"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": "FALSE-ALARM-1",
+    "title": "看板把「已 approve 的 REVIEWING」误报成在等人",
+    "baselineRev": "671a683",
+    "fixedRev": "ddc4241",
+    "ok": true,
+    "baseFails": 2,
+    "fixedFails": 0,
+    "rows": [
+      {
+        "label": "基线 671a683（所有 REVIEWING 都算 waiting）",
+        "checks": [
+          [
+            "REVIEWING + approve（2h）不是「在等人」",
+            false,
+            "class=waiting"
+          ],
+          [
+            "REVIEWING + approve（48h）不是「在等人」",
+            false,
+            "class=waiting"
+          ],
+          [
+            "REVIEWING + needs_human 仍是「在等人」",
+            true,
+            "class=waiting（期望 waiting）"
+          ],
+          [
+            "REVIEWING + reject 仍是「在等人」",
+            true,
+            "class=waiting（期望 waiting）"
+          ],
+          [
+            "REVIEWING + 无裁决 仍是「在等人」",
+            true,
+            "class=waiting（期望 waiting）"
+          ],
+          [
+            "IMPLEMENTING + approve（48h）仍是停滞",
+            true,
+            "class=stale（期望 stale）"
+          ],
+          [
+            "DONE + approve（48h）仍是终态",
+            true,
+            "class=closed（期望 closed）"
+          ]
+        ]
+      },
+      {
+        "label": "修复 ddc4241（按\"下一步该谁动\"分）",
+        "checks": [
+          [
+            "REVIEWING + approve（2h）不是「在等人」",
+            true,
+            "class=active"
+          ],
+          [
+            "REVIEWING + approve（48h）不是「在等人」",
+            true,
+            "class=stale"
+          ],
+          [
+            "REVIEWING + needs_human 仍是「在等人」",
+            true,
+            "class=waiting（期望 waiting）"
+          ],
+          [
+            "REVIEWING + reject 仍是「在等人」",
+            true,
+            "class=waiting（期望 waiting）"
+          ],
+          [
+            "REVIEWING + 无裁决 仍是「在等人」",
+            true,
+            "class=waiting（期望 waiting）"
+          ],
+          [
+            "IMPLEMENTING + approve（48h）仍是停滞",
+            true,
+            "class=stale（期望 stale）"
+          ],
+          [
+            "DONE + approve（48h）仍是终态",
+            true,
+            "class=closed（期望 closed）"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": "PWSH-1",
+    "title": "验证者工具白名单没按平台选（两个平台都会报错）",
+    "baselineRev": "896d569",
+    "fixedRev": "52212ad",
+    "ok": true,
+    "baseFails": 4,
+    "fixedFails": 0,
+    "rows": [
+      {
+        "label": "基线 896d569（bash + pwsh 都写）",
+        "checks": [
+          [
+            "darwin: 白名单里没有该平台不存在的工具",
+            false,
+            "不存在的: pwsh"
+          ],
+          [
+            "darwin: shell 恰好一个且是 bash",
+            false,
+            "shell=[bash,pwsh]"
+          ],
+          [
+            "darwin: 只读三件套在",
+            true,
+            "read, grep, glob, bash, pwsh"
+          ],
+          [
+            "darwin: 不含写能力",
+            true,
+            "read, grep, glob, bash, pwsh"
+          ],
+          [
+            "win32: 白名单里没有该平台不存在的工具",
+            false,
+            "不存在的: bash"
+          ],
+          [
+            "win32: shell 恰好一个且是 pwsh",
+            false,
+            "shell=[bash,pwsh]"
+          ],
+          [
+            "win32: 只读三件套在",
+            true,
+            "read, grep, glob, bash, pwsh"
+          ],
+          [
+            "win32: 不含写能力",
+            true,
+            "read, grep, glob, bash, pwsh"
+          ]
+        ]
+      },
+      {
+        "label": "修复 52212ad（按平台选）",
+        "checks": [
+          [
+            "darwin: 白名单里没有该平台不存在的工具",
+            true,
+            "read, grep, glob, bash"
+          ],
+          [
+            "darwin: shell 恰好一个且是 bash",
+            true,
+            "shell=[bash]"
+          ],
+          [
+            "darwin: 只读三件套在",
+            true,
+            "read, grep, glob, bash"
+          ],
+          [
+            "darwin: 不含写能力",
+            true,
+            "read, grep, glob, bash"
+          ],
+          [
+            "win32: 白名单里没有该平台不存在的工具",
+            true,
+            "read, grep, glob, pwsh"
+          ],
+          [
+            "win32: shell 恰好一个且是 pwsh",
+            true,
+            "shell=[pwsh]"
+          ],
+          [
+            "win32: 只读三件套在",
+            true,
+            "read, grep, glob, pwsh"
+          ],
+          [
+            "win32: 不含写能力",
+            true,
+            "read, grep, glob, pwsh"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": "RSI-SCOPE-1",
+    "title": "真实任务的验证日志必须进入 RSI，而不是只留下裁决",
+    "baselineRev": "0025acf",
+    "fixedRev": "working-tree build",
+    "ok": true,
+    "baseFails": 4,
+    "fixedFails": 0,
+    "rows": [
+      {
+        "label": "基线 0025acf",
+        "checks": [
+          [
+            "保存验证者的真实配置",
+            false,
+            "configs=0"
+          ],
+          [
+            "保存跨 preset 工具结果",
+            false,
+            "tool_results=0"
+          ],
+          [
+            "补齐漏发通知并与原始日志对账",
+            false,
+            "{\"suite_fingerprint\":\"5e464b8f27de3eacc221e3ac222f2329c67d0194ea601b57d27e2d1df8859807\",\"tool_results\":0,\"configs\":0,\"source_verified\":false,\"evidence_complete\":false,\"missing_event_recovered\":false}"
+          ],
+          [
+            "完整证据具有独立的健康状态",
+            false,
+            "evidence_complete=false"
+          ]
+        ]
+      },
+      {
+        "label": "修复 working-tree build",
+        "checks": [
+          [
+            "保存验证者的真实配置",
+            true,
+            "configs=1"
+          ],
+          [
+            "保存跨 preset 工具结果",
+            true,
+            "tool_results=1"
+          ],
+          [
+            "补齐漏发通知并与原始日志对账",
+            true,
+            "{\"suite_fingerprint\":\"247779f00af290f295770b1f06f43b258c4a23d7e68515f463c225198cc01da7\",\"tool_results\":1,\"configs\":1,\"source_verified\":true,\"evidence_complete\":true,\"missing_event_recovered\":true}"
+          ],
+          [
+            "完整证据具有独立的健康状态",
+            true,
+            "evidence_complete=true"
+          ]
+        ]
+      }
+    ],
+    "comparison": {
+      "baseline": {
+        "revision": "0025acf",
+        "fingerprint": "5e464b8f27de3eacc221e3ac222f2329c67d0194ea601b57d27e2d1df8859807"
+      },
+      "candidate": {
+        "revision": "working-tree build",
+        "fingerprint": "247779f00af290f295770b1f06f43b258c4a23d7e68515f463c225198cc01da7"
+      },
+      "command": "npm run build --workspace packages/sdlc && node tools/bench/case-rsi-scope.mjs --json",
+      "cases": [
+        {
+          "id": "保存验证者的真实配置",
+          "baseline_pass": false,
+          "candidate_pass": true,
+          "evidence": "{\"baseline\":\"configs=0\",\"candidate\":\"configs=1\"}"
+        },
+        {
+          "id": "保存跨 preset 工具结果",
+          "baseline_pass": false,
+          "candidate_pass": true,
+          "evidence": "{\"baseline\":\"tool_results=0\",\"candidate\":\"tool_results=1\"}"
+        },
+        {
+          "id": "补齐漏发通知并与原始日志对账",
+          "baseline_pass": false,
+          "candidate_pass": true,
+          "evidence": "{\"baseline\":\"{\\\"suite_fingerprint\\\":\\\"5e464b8f27de3eacc221e3ac222f2329c67d0194ea601b57d27e2d1df8859807\\\",\\\"tool_results\\\":0,\\\"configs\\\":0,\\\"source_verified\\\":false,\\\"evidence_complete\\\":false,\\\"missing_event_recovered\\\":false}\",\"candidate\":\"{\\\"suite_fingerprint\\\":\\\"247779f00af290f295770b1f06f43b258c4a23d7e68515f463c225198cc01da7\\\",\\\"tool_results\\\":1,\\\"configs\\\":1,\\\"source_verified\\\":true,\\\"evidence_complete\\\":true,\\\"missing_event_recovered\\\":true}\"}"
+        },
+        {
+          "id": "完整证据具有独立的健康状态",
+          "baseline_pass": false,
+          "candidate_pass": true,
+          "evidence": "{\"baseline\":\"evidence_complete=false\",\"candidate\":\"evidence_complete=true\"}"
+        }
+      ],
+      "limits": "真实 Cordis/ToolRuntime/文件系统；模型返回是确定性夹具，不证明真实任务质量或耗时普遍改善。"
+    }
+  },
+  {
+    "id": "FLOW-1",
+    "title": "问题、裁决与历史记录不能在流程中消失",
+    "baselineRev": "0f7ba54",
+    "fixedRev": "HEAD",
+    "ok": true,
+    "baseFails": 9,
+    "fixedFails": 0,
+    "rows": [
+      {
+        "label": "基线 0f7ba54",
+        "checks": [
+          [
+            "reject cannot enter REVIEWING",
+            false,
+            "{\"accepted\":true}"
+          ],
+          [
+            "reject cannot enter DONE",
+            false,
+            "{\"accepted\":true}"
+          ],
+          [
+            "invalid_json cannot enter REVIEWING",
+            false,
+            "{\"accepted\":true}"
+          ],
+          [
+            "invalid_json cannot enter DONE",
+            false,
+            "{\"accepted\":true}"
+          ],
+          [
+            "approve_without_results cannot enter REVIEWING",
+            false,
+            "{\"accepted\":true}"
+          ],
+          [
+            "approve_without_results cannot enter DONE",
+            false,
+            "{\"accepted\":true}"
+          ],
+          [
+            "abbreviated unmatched results cannot stay approve",
+            false,
+            "approve"
+          ],
+          [
+            "complete legacy mapping remains readable",
+            true,
+            "approve"
+          ],
+          [
+            "6 MiB recorded author repair remains visible",
+            false,
+            "{\"repairs\":0,\"issues\":[\"tasks/TEST/sessions/author.json: 记录超过读取上限\",\"没有可核对的验证历史；当前裁决不能还原此前轮次\"]}"
+          ],
+          [
+            "unindexed owned verification history preserves six rounds",
+            false,
+            "0"
+          ]
+        ]
+      },
+      {
+        "label": "修复 HEAD",
+        "checks": [
+          [
+            "reject cannot enter REVIEWING",
+            true,
+            "{\"accepted\":false}"
+          ],
+          [
+            "reject cannot enter DONE",
+            true,
+            "{\"accepted\":false}"
+          ],
+          [
+            "invalid_json cannot enter REVIEWING",
+            true,
+            "{\"accepted\":false}"
+          ],
+          [
+            "invalid_json cannot enter DONE",
+            true,
+            "{\"accepted\":false}"
+          ],
+          [
+            "approve_without_results cannot enter REVIEWING",
+            true,
+            "{\"accepted\":false}"
+          ],
+          [
+            "approve_without_results cannot enter DONE",
+            true,
+            "{\"accepted\":false}"
+          ],
+          [
+            "abbreviated unmatched results cannot stay approve",
+            true,
+            "needs_human"
+          ],
+          [
+            "complete legacy mapping remains readable",
+            true,
+            "approve"
+          ],
+          [
+            "6 MiB recorded author repair remains visible",
+            true,
+            "{\"repairs\":1,\"issues\":[\"没有可核对的验证历史；当前裁决不能还原此前轮次\"]}"
+          ],
+          [
+            "unindexed owned verification history preserves six rounds",
+            true,
+            "6"
+          ]
+        ]
+      }
+    ]
+  }
+]

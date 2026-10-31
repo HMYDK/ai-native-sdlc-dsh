@@ -3,12 +3,15 @@ import type {Context} from '@deepseek-ai/cordis';
 import type {FsTarget} from '@deepseek-ai/dsh-fs';
 import {JSON_SCHEMA, load as parseYaml} from 'js-yaml';
 import {STATUSES} from '../task/state.js';
+import {parseWorkflow, type TaskWorkflow, type FlowIssue} from '../task/flow.js';
+import {sessionView} from '../shared/session-view.js';
+import {enforceCriteriaPolicy, type Verdict} from '../verify/verdict.js';
 
 type FileSystem = Pick<Context['fs'], 'resolve' | 'contains' | 'stat' | 'readBytes' | 'listDir'>;
 type ObjectValue = Record<string, unknown>;
 type Outcome = 'approve' | 'reject' | 'needs_human' | 'error' | 'cancelled' | 'no_verdict' | 'incomplete';
 export interface ExecutionRound {
-  id: string; number: number; source: 'rsi' | 'current_verdict';
+  id: string; number: number; source: 'rsi' | 'current_verdict' | 'task_record';
   startedAt: string | null; finishedAt: string | null; outcome: Outcome; attemptCount: number;
   summary: string; criteria: {criterion: string; status: string; evidence: string}[];
   findings: {id: string; severity: string; description: string; evidence: string}[];
@@ -22,13 +25,15 @@ export interface ExecutionRepair {
 export interface TaskExecution {
   taskId: string; repoRoot: string; status: 'recorded' | 'partial' | 'unavailable';
   issues: string[]; rounds: ExecutionRound[]; repairs: ExecutionRepair[];
+  findings: FlowIssue[]; findingTotal: number; findingOffset: number; findingNext: number | null;
+  activities: {id:string;at:string|null;summary:string}[];
 }
-interface ReadOptions {repoRoot: string; taskId: string; tasksDir?: string; rsiDir?: string; signal?: AbortSignal}
+interface ReadOptions {repoRoot: string; taskId: string; tasksDir?: string; rsiDir?: string; signal?: AbortSignal; findingOffset?: number}
 interface RecordEvent {seq: number; kind: string; at: string | null; data: ObjectValue}
 interface SessionEntry {id: string; role: string; parent?: string; windows: {from: number | null; to: number | null}[]}
 const STAGES: readonly string[] = STATUSES;
 const MAX_ROUNDS = 50, MAX_SESSIONS = 64, MAX_RECORDS = 64, MAX_EVENTS = 8192;
-const MAX_FILE = 2 * 1024 * 1024, MAX_TRACE = 4 * 1024 * 1024, MAX_TOTAL = 24 * 1024 * 1024;
+const MAX_FILE = 2 * 1024 * 1024, MAX_TRACE = 32 * 1024 * 1024, MAX_TOTAL = 64 * 1024 * 1024;
 const object = (value: unknown): ObjectValue => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : {};
 const text = (value: unknown, length = 600): string => typeof value === 'string' ? value.slice(0, length) : '';
 const timestamp = (value: unknown): string | null => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
@@ -43,7 +48,7 @@ const verdictStatus = (value: unknown): value is 'approve' | 'reject' | 'needs_h
 /** Uses DSH's identity/containment and byte-limited reads; never invokes the RSI collector. */
 export async function readExecution(fs: FileSystem, options: ReadOptions): Promise<TaskExecution> {
   const {repoRoot, taskId, signal} = options;
-  const output: TaskExecution = {taskId, repoRoot, status: 'unavailable', issues: [], rounds: [], repairs: []};
+  const output: TaskExecution = {taskId, repoRoot, status: 'unavailable', issues: [], rounds: [], repairs: [], findings: [], findingTotal: 0, findingOffset: 0, findingNext: null, activities: []};
   const issue = (message: string) => { if (output.issues.length < 30 && !output.issues.includes(message)) output.issues.push(message); };
   if (!/^[A-Za-z0-9_-]{1,96}$/.test(taskId)) { issue('任务标识不合法'); return output; }
   let remaining = MAX_TOTAL;
@@ -54,7 +59,7 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
   const rsiRoot = await fs.resolve(rsiDir, {cwd: repoRoot, signal});
   const target = async (base: FsTarget, prefix: string, name: string) => {
     relative(name);
-    const value = await fs.resolve(`${prefix}/${name}`, {cwd: repoRoot, signal});
+    const value = await fs.resolve(`${prefix}/${name}`, {cwd: workspace.displayPath || repoRoot, signal});
     if (!fs.contains(workspace, base) || !fs.contains(base, value)) throw new Error('路径越出记录目录');
     return value;
   };
@@ -95,11 +100,20 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     // A caller's short change intent is available; raw diffs/code are never returned.
     changesSummary: text(inputs.intent_of_change, 800) || null,
   });
+  let workflow: TaskWorkflow | undefined;
   try {
-    const raw = await read(taskRoot, taskDir, 'state.yaml', 256 * 1024);
+    const raw = await read(taskRoot, taskDir, 'state.yaml', 2 * 1024 * 1024);
     if (raw === undefined) throw new Error('任务状态缺失');
     const state = object(parseYaml(raw, {schema: JSON_SCHEMA}));
     if (state.task !== taskId) throw new Error('任务状态归属不符');
+    if (state.workflow) workflow = parseWorkflow(state.workflow);
+    if (workflow) {
+      const offset = Math.min(Math.max(0,Math.floor((workflow.issues.length-1)/20)*20),Math.max(0, Number.isSafeInteger(options.findingOffset) ? options.findingOffset! : 0));
+      output.findingTotal = workflow.issues.length; output.findingOffset = offset;
+      output.findings = workflow.issues.slice(offset,offset+20).map(i => ({...i,actions:i.actions.slice(-100)}));
+      output.findingNext = offset+20 < workflow.issues.length ? offset+20 : null;
+      if (output.findings.some(i=>i.actions.length===100)) issue('单个问题仅展示最近 100 个处理动作');
+    }
     for (const [i, entry] of array(state.history ?? [], 256, '任务历史').entries()) {
       const h = object(entry), from = STAGES.indexOf(String(h.from)), to = STAGES.indexOf(String(h.to));
       if (from >= 0 && to >= 0 && to < from) output.repairs.push({id: `history:${i}`, at: timestamp(h.at), kind: 'backtrack', summary: `${String(h.from)} → ${String(h.to)}${text(h.reason) ? `：${text(h.reason)}` : ''}`, source: `${taskDir}/state.yaml#history[${i}]`});
@@ -139,7 +153,9 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     const location = `tasks/${taskId}/sessions/${entry.id}.json`;
     const events: ObjectValue[] = [];
     try {
-      const snapshot = object(await json(location, MAX_TRACE));
+      const compact = await json(location.replace(/\.json$/, '.view.json'));
+      const snapshot = compact === undefined ? object(sessionView(object(await json(location, MAX_TRACE)))) : object(compact);
+      if (compact !== undefined && snapshot.schema_version !== 1) throw new Error('精简过程记录格式不符');
       if (snapshot.session_id !== entry.id || snapshot.role !== entry.role || !Array.isArray(snapshot.events)) throw new Error('会话归属或形状不符');
       if (snapshot.source_verified !== true || snapshot.truncated === true) issue(`${entry.id}: 会话证据未确认完整`);
       for (const value of array(snapshot.issues ?? [], 8, `${entry.id} 问题`)) if (typeof value === 'string') issue(`${entry.id}: ${text(value)}`);
@@ -163,12 +179,50 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
   });
 
   const registeredRuns = manifest && Array.isArray(manifest.runs) ? [...new Set(manifest.runs)] : [];
+  if (!manifest) {
+    try {
+      const folder = await target(rsiRoot,rsiDir,'runs');
+      const names = (await fs.listDir(folder,signal)).map(e=>e.name).filter(segment).sort();
+      if (names.length > 200) issue('旧轮次目录超过 200 个，本次仅核对部分');
+      for (const id of names.slice(0,200)) {
+        try {
+        const start = object(await json(`runs/${id}/000000.json`));
+        if (start.run_id !== id || start.kind !== 'started' || object(object(start.data).inputs).task_id !== taskId) continue;
+        const prepared = object(await json(`runs/${id}/000001.json`));
+        const artifacts = Object.values(object(object(prepared.data).artifacts));
+        if (prepared.run_id !== id || prepared.kind !== 'prepared' || !artifacts.length) continue;
+        let owned = true;
+        for (const artifact of artifacts) {
+          if (typeof artifact !== 'string' || !fs.contains(taskRoot,await fs.resolve(artifact,{cwd:repoRoot,signal}))) {owned=false;break;}
+        }
+        if (owned) registeredRuns.push(id);
+        } catch { issue(`旧轮次 ${id} 无法核对，未归入当前任务`); }
+      }
+      if (registeredRuns.length) issue('旧验证轮次按任务编号和制品归属恢复；未登记的阶段退回无法还原');
+    } catch { /* Legacy directories can be absent. The current-verdict fallback remains explicit. */ }
+  }
   if (manifest && !Array.isArray(manifest.runs)) issue('验证轮次格式不完整');
   if (registeredRuns.length > MAX_ROUNDS) issue(`验证轮次超过展示上限 ${MAX_ROUNDS}，仅展示最近登记的轮次`);
+  if (workflow) for (const run of workflow.runs.slice(-MAX_ROUNDS)) {
+    try {
+      let doc: ObjectValue = {};
+      if (run.file) {
+        const raw = await read(taskRoot,taskDir,run.file);
+        doc = object(raw === undefined ? undefined : JSON.parse(raw));
+        if (doc.task !== taskId || (!run.legacy && object(doc.verdict).verification_run_id !== run.id)) throw new Error('裁决归属不符');
+        if (run.legacy) issue('已保留旧裁决问题；旧记录没有代码版本绑定，需重新验证');
+      }
+      const verdict = object(doc.verdict);
+      output.rounds.push({id:run.id,number:0,source:'task_record',startedAt:timestamp(run.started_at),finishedAt:timestamp(run.finished_at),
+        outcome:run.outcome,attemptCount:Number(verdict.verifier_attempts)|| (run.finished_at ? 1 : 0),
+        ...normalizeVerdict(run.id,verdict,doc),toolEvents:[],summary:text(run.summary)||'运行未完成，不能确认是否仍在执行'});
+    } catch(error) {failed(run.file ?? run.id,error);}
+  }
   // Start with recent runs so the shared byte budget cannot hide the latest result behind old traces.
   for (const value of registeredRuns.slice(-MAX_ROUNDS).reverse()) {
     if (!segment(value)) { issue('验证运行标识不合法'); continue; }
     const id = value, records: RecordEvent[] = [];
+    const taskRound = output.rounds.find(r=>r.id===id);
     try {
       const folder = await target(rsiRoot, rsiDir, `runs/${id}`);
       const names = (await fs.listDir(folder, signal)).map(entry => entry.name).filter(name => /^\d{6}\.json$/.test(name)).sort();
@@ -190,6 +244,10 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     if (finishes.length > 1) issue(`${id}: 结束记录重复，结果未确认`);
     if (!finish) issue(`${id}: 缺少结束记录，是否已结束无法确认`);
     const inputs = object(start.data.inputs), verdict = object(finish?.data.result);
+    if (verdict.status === 'approve' && Array.isArray(inputs.criteria) && Array.isArray(verdict.findings)) {
+      const checked = enforceCriteriaPolicy(verdict as unknown as Verdict,inputs.criteria as string[],undefined);
+      if (checked.status !== 'approve') issue(`${id}: 历史原结论为通过，但验收结果校验不完整；保留原记录，不能据此确认有效通过`);
+    }
     let outcome: Outcome = 'incomplete';
     if (finish) {
       if (['cancelled', 'error', 'no_verdict'].includes(String(finish.data.outcome))) outcome = String(finish.data.outcome) as Outcome;
@@ -213,11 +271,18 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
           summary: call.status === 'completed' ? '工具调用已完成' : call.status === 'error' ? '工具调用报错' : '缺少可配对的工具结果'});
       }
     }
-    output.rounds.push(round);
+    if (taskRound) {
+      taskRound.toolEvents = round.toolEvents;
+      taskRound.attemptCount = round.attemptCount;
+    } else output.rounds.push(round);
   }
   // Fix calls must carry this task ID and have a paired successful result. A reject proves neither.
   for (const entry of sessions.values()) if (entry.role === 'author' || entry.role === 'worker') {
     for (const call of toolCalls(await trace(entry))) {
+      if (['edit','write'].includes(String(call.data.name)) && call.status === 'completed' && output.activities.length < 100) {
+        const args = object(call.data.arguments), file = text(args.path,500);
+        if (file) output.activities.push({id:`${entry.id}:${call.id}`,at:eventTime(call.result!),summary:`作者修改文件：${file}（未据此认定问题已解决）`});
+      }
       if (!['sdlc_fix_start', 'sdlc_fix_end'].includes(String(call.data.name)) || call.status !== 'completed') continue;
       let args: ObjectValue;
       try { args = object(typeof call.data.arguments === 'string' ? JSON.parse(call.data.arguments) : call.data.arguments); } catch { continue; }
@@ -228,6 +293,7 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
         summary: text(args.reason) || (kind === 'fix_start' ? '进入修复并冻结测试' : '结束修复并解除测试冻结'), source: `${rsiDir}/tasks/${taskId}/sessions/${entry.id}.json#${call.event.seq}`});
     }
   }
+  if (output.activities.length === 100) issue('历史作者操作仅展示前 100 条；未展示的操作不代表没有发生');
   if (!output.rounds.length) {
     // Legacy files are a current verdict, not a reconstructed first historical round.
     try {
@@ -246,6 +312,6 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
   output.rounds.sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? '') || a.id.localeCompare(b.id));
   output.rounds.forEach((round, i) => { round.number = Math.max(0, registeredRuns.length - MAX_ROUNDS) + i + 1; });
   output.repairs.sort((a, b) => (a.at ?? '').localeCompare(b.at ?? '') || a.id.localeCompare(b.id));
-  output.status = output.rounds.length || output.repairs.length ? output.issues.length ? 'partial' : 'recorded' : 'unavailable';
+  output.status = output.rounds.length || output.repairs.length || output.findings.length || output.activities.length ? output.issues.length ? 'partial' : 'recorded' : 'unavailable';
   return output;
 }

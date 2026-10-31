@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-31T14:28:25.578921+00:00",
+  "package": "ai-native-sdlc-dsh-sdlc-0.5.0-flow-a5aaac074538.tgz",
+  "sha256": "a5aaac0745383bfdf00f6545bff5e71c8949940d24393f4abb35af6bf3967083",
+  "version": "0.5.0",
+  "tarball_files": 67,
+  "published_javascript_files": 40,
+  "isolated_install": true,
+  "isolated_startup_activation_warnings": 0,
+  "isolated_api": "authentication required; no authenticated GUI visit",
+  "desktop_install": true,
+  "installed_javascript_and_patch_match": true,
+  "other_profile_package_fields_unchanged": true,
+  "profile_patch_unchanged": true,
+  "backup": "<DSH_HOME>/backups/sdlc-flow-0.5.0-2026-10-31T14-27-54Z",
+  "running_desktop_restarted": false,
+  "running_desktop_loaded_version_confirmed": false
+}

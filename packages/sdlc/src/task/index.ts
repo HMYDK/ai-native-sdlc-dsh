@@ -192,9 +192,14 @@ function coerceArtifactMap(raw: unknown): Record<string, string> {
 
 import { requireSessionCwd, resolveOptions, sessionCwd, writePolicy } from '../shared/helpers.js';
 import {recordTask} from '../shared/task-recording.js';
+import {mutateTask} from './io.js';
+import {checkSubmission, requireIdle} from './flow.js';
+import {checkApproval} from './approval.js';
+import {registerIssueTool} from './issues.js';
 
 export function apply(ctx: Context, config: SdlcTaskConfig): void {
   const cfg = config;
+  registerIssueTool(ctx, cfg.tasksDir);
 
   // ────────────────────────────────────────────────────────────── 建任务
   ctx.tools.register(
@@ -318,6 +323,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             missing_for_status: { type: 'array', required: true, items: { type: 'string' } },
             missing_on_disk: { type: 'array', required: true, items: { type: 'string' } },
             next_required: { type: 'array', required: true, items: { type: 'string' } },
+            workflow: {type: 'json'},
             history: { type: 'array', required: true, items: { type: 'string' } },
           },
         },
@@ -331,6 +337,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             missing_for_status?: unknown;
             missing_on_disk?: unknown;
             next_required?: unknown;
+            workflow?: {issues?: {id:string;status:string;description:string}[]};
           };
           const list = (x: unknown) => (Array.isArray(x) && x.length ? x.join(', ') : '（无）');
           return [
@@ -343,6 +350,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
                 `当前状态缺失：${list(o.missing_for_status)}`,
                 `磁盘上找不到：${list(o.missing_on_disk)}`,
                 `下一状态所需：${list(o.next_required)}`,
+                ...(o.workflow?.issues ?? []).filter(i => i.status !== 'resolved').map(i => `${i.id} [${i.status}] ${i.description}`),
               ].join('\n'),
             },
           ];
@@ -374,6 +382,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           missing_for_status: report.missingForStatus,
           missing_on_disk: report.missingOnDisk,
           next_required: nextRequired,
+          ...(state.workflow ? {workflow: JSON.parse(JSON.stringify(state.workflow))} : {}),
           history: state.history.map((h) => `${h.at} ${h.from}→${h.to}: ${h.reason}`),
         };
       },
@@ -438,11 +447,9 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             `非法目标状态：${JSON.stringify(args.to)}。允许值：${STATUSES.join(' / ')}`,
           );
         }
-        const loaded = await readState(ctx, paths, id, exec);
-        if (loaded === undefined) {
-          throw new Error(`任务 ${id} 不存在：${paths.stateFile}`);
-        }
-
+        const to = args.to;
+        const next = await mutateTask(ctx, exec, paths.taskDir, id, async loaded => {
+        requireIdle(loaded);
         // 先把本次要登记的制品并进来，再校验门槛——这样"移动 + 登记"是原子的。
         // 没有这一步，调用方只能手改 state.yaml 才能满足下一状态的门槛，
         // 状态机也就守不住自己的规矩了。
@@ -466,7 +473,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         const presence = await probeArtifacts(ctx, paths, state, exec);
         const verdict = checkAdvance(
           state.status,
-          args.to,
+          to,
           state,
           (rel) => presence.get(rel) === true,
           args.reason,
@@ -484,8 +491,9 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         // 证据见 `state.ts` 里 `checkPriorResponse` 的注释：一次真实任务里
         // 同一条判据（R3）被 reject 了两次，因为作者修的是"相关的地方"
         // 而不是判据说的那个点，代价是两次 21 分钟的换层验证。
-        if (args.to === 'VERIFYING') {
-          const prior = await readPriorVerification(ctx, paths, state, exec);
+        if (to === 'VERIFYING') {
+          checkSubmission(state);
+          const prior = state.workflow ? undefined : await readPriorVerification(ctx, paths, state, exec);
           const resp = checkPriorResponse(prior, args.reason);
           if (!resp.ok) {
             throw new Error(
@@ -502,11 +510,15 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           }
         }
 
-        const next = applyAdvance(state, args.to, args.reason);
-        await writeState(ctx, paths, next, exec);
-        const recordingErrors=await recordTask(ctx,{kind:'advanced',task_dir:`${cfg.tasksDir.replace(/\/+$/, '')}/${state.task}`,state:next},exec);
-        return { task: next.task, from: state.status, to: next.status, direction: verdict.direction,
-          ...(recordingErrors.length?{recording_errors:recordingErrors}:{}), };
+        if ((to === 'REVIEWING' || to === 'DONE') && verdict.direction === 'forward') {
+          await checkApproval(ctx, exec, paths.taskDir, state, to === 'DONE');
+        }
+        const updated = applyAdvance(state, to, args.reason);
+        return {state: updated, value: {updated, from: state.status, direction: verdict.direction}};
+        });
+        const recordingErrors = await recordTask(ctx, {kind:'advanced',task_dir:`${cfg.tasksDir.replace(/\/+$/, '')}/${id}`,state:next.updated},exec);
+        return {task:id,from:next.from,to:next.updated.status,direction:next.direction,
+          ...(recordingErrors.length ? {recording_errors:recordingErrors} : {})};
       },
     }),
   );
@@ -538,8 +550,9 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
       '',
       '  **什么时候才该另开任务**：换了对象（另一个缺陷、另一个模块），',
       '  而不是换了阶段。一个任务里重新验证多次是正常的，',
-      '  `history` 会显出验证了几轮；上一轮的裁决想留档就另存一份文件',
-      '  （状态机认的是 `artifacts` 里那一份，其余是你的自由）。',
+      '  验证工具逐轮保存裁决。发现问题用 sdlc_task_issue start 同时登记原因和目标阶段，',
+      '  修改后 submit 填写证据，再进入 VERIFYING。只有独立复验能关闭问题；普通建议可 defer 说明原因。',
+      '  审核发现的问题先 report。不要在 VERIFYING 内直接改产品代码而省略返工；再次验证与任务完成都会检查记录。',
     ].join('\n'),
   });
 }

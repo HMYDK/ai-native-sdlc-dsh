@@ -9,7 +9,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { enforceCriteriaPolicy, type Verdict } from './verdict.js';
+import { enforceCriteriaPolicy, criterionEntries, type Verdict } from './verdict.js';
 
 const approve = (over: Partial<Verdict> = {}): Verdict => ({
   status: 'approve',
@@ -120,10 +120,10 @@ test('给齐 criteria 且全部 met 时放行（不改动）', () => {
   assert.ok(!/已降级/.test(r.summary), '不该出现降级说明');
 });
 
-test('漏报标准 → 补一条 important finding，但不改状态', () => {
+test('漏报标准必须阻止 approve，并点名缺失项', () => {
   const v = approve({ criteria_results: [met('a')] });
   const r = enforceCriteriaPolicy(v, ['a', 'b', 'c'], 's');
-  assert.equal(r.status, 'approve', '漏报不该直接降级（验证者说 approve 且有 met 证据）');
+  assert.equal(r.status, 'needs_human');
   const imp = r.findings.filter((f) => f.severity === 'important');
   assert.equal(imp.length, 1);
   assert.match(imp[0]?.reason ?? '', /漏报了 2 条/);
@@ -171,7 +171,7 @@ test('criteria_results 缺失时按"一条都没报"处理（不是当成没有 
   // 这条区分很重要：没给 criteria 与 给了但验证者没报，是两件事，
   // 提示信息与处置都不同。
   const r = enforceCriteriaPolicy(approve(), ['a', 'b'], 's');
-  assert.equal(r.status, 'approve', '只漏报不该降级');
+  assert.equal(r.status, 'needs_human');
   assert.match(r.findings[0]?.reason ?? '', /漏报了 2 条/);
 });
 
@@ -191,4 +191,21 @@ test('原有 findings 被保留，不会被覆盖', () => {
   const r = enforceCriteriaPolicy(v, ['a'], 's');
   assert.equal(r.findings.length, 1);
   assert.match(r.findings[0]?.reason ?? '', /原有一条/);
+});
+
+// DEMO-23882 returned eight abbreviated names: eight results did not prove coverage.
+test('历史名称简写不能一边报全部漏报一边 approve', () => {
+  const criteria = Array.from({length: 8}, (_, i) => `R${i + 1} 完整的可证伪行为要求`);
+  const r = enforceCriteriaPolicy(approve({criteria_results: criteria.map((_, i) => met(`R${i + 1}`))}), criteria, 's');
+  assert.equal(r.status, 'needs_human'); assert.equal(r.raw_status, 'approve');
+  assert.match(r.findings[0]!.reason, /漏报了 8 条/);
+});
+test('稳定编号允许结果重排与显示名称简写，不能遗漏/重复/自造编号', () => {
+  const criteria = ['输出有单位', '旧调用不改变'];
+  const rows = criterionEntries(criteria).map(c => ({criterion_id: c.id, criterion: '简写', result: 'met' as const, evidence: 'actual probe'}));
+  assert.equal(enforceCriteriaPolicy(approve({criteria_results: [...rows].reverse()}), criteria, 's', 'ids').status, 'approve');
+  for (const bad of [[rows[0]!], [rows[0]!, rows[0]!], [...rows, {...rows[0]!, criterion_id: 'unknown'}], [metNoEcho, metNoEcho]]) {
+    assert.equal(enforceCriteriaPolicy(approve({criteria_results: bad}), criteria, 's', 'ids').status, 'needs_human');
+  }
+  assert.deepEqual(criterionEntries([...criteria].reverse()).map(c => c.id), rows.map(r => r.criterion_id).reverse());
 });

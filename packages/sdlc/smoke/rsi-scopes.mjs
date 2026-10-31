@@ -12,6 +12,7 @@ const {LocalFileSystem}=require('@deepseek-ai/dsh-fs-local');
 const {createScope,scopeTarget}=require('@deepseek-ai/dsh-scope');
 const {SkillRegistry}=require('@deepseek-ai/dsh-skill');
 const lib=process.env.RSI_BENCH_LIB??path.resolve(import.meta.dirname,'../lib');
+const currentVersion=JSON.parse(await fs.readFile(path.join(lib,'../package.json'),'utf8')).version;
 const rsi=await import(pathToFileURL(path.join(lib,'rsi/index.js')));
 const verify=await import(pathToFileURL(path.join(lib,'verify/index.js')));
 const artifactPlugin=await import(pathToFileURL(path.join(lib,'artifact/index.js')));
@@ -46,7 +47,8 @@ try {
     return {...source,[Symbol.dispose]:()=>{}};
   }});
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture verifier'})});
-  ctx.provide('subagents',{startActivation:async()=>{
+  ctx.provide('subagents',{startActivation:async({request})=>{
+    const criterion_id=(request.prompt??[]).map(p=>p.text??'').join(' ').match(/AC-[a-f0-9]{16}/)?.[0];
     const id=`child-${++childCounter}`,session={id,header:{cwd:root,parentSession:'author',origin:'subagent'}};
     const child={},scope=createScope(ctx,child,{parent:verifierKey}),events=[];
     sources.set(id,{header:session.header,events});
@@ -55,7 +57,7 @@ try {
     events.push({seq:events.length,time:Date.now(),type:'tool/call',data:{name:'bash',arguments:'{"command":"test"}'}});
     emit(session,child,events,'tool/result',{message:{content:[{type:'text',text:'test passed'}]}});
     emit(session,child,events,'turn/end',{stopReason:'completed'});
-    return {childId:id,result:Promise.resolve({output:[],stopReason:'completed',structured:{status:'approve',summary:'fixture',findings:[],criteria_results:[{result:'met',evidence:'fixture result'}]}}),dispose:()=>scope.dispose()};
+    return {childId:id,result:Promise.resolve({output:[],stopReason:'completed',structured:{status:'approve',summary:'fixture',findings:[],criteria_results:[{...(criterion_id?{criterion_id}:{}),result:'met',evidence:'fixture result'}]}}),dispose:()=>scope.dispose()};
   }});
   rsi.apply(sdlc.ctx,rsi.Config['~standard'].validate({}).value);
   verify.apply(sdlc.ctx,verify.Config['~standard'].validate({}).value);
@@ -86,6 +88,11 @@ try {
     const created=await call('sdlc_task_create',{task_id:'SCOPE-1',title:'Task evidence fixture'});
     check(!created.isError&&!created.value.recording_errors,'task creation persists a start checkpoint');
     emit(authorSession,author,authorEvents,'tool/result',{message:{content:[{type:'text',text:'author implementation'}]}});
+    // Task-bound verification now requires real foundation artifacts and the actual verification stage.
+    const setupFile=path.join(root,'.ai/tasks/SCOPE-1/state.yaml');
+    const yaml=require('js-yaml');const setup=yaml.load(await fs.readFile(setupFile,'utf8'),{schema:yaml.JSON_SCHEMA});
+    for(const kind of ['intent','spec','plan']) {setup.artifacts[kind]=`${kind}.md`;await fs.writeFile(path.join(root,'.ai/tasks/SCOPE-1',`${kind}.md`),'# fixture');}
+    setup.status='VERIFYING';await fs.writeFile(setupFile,yaml.dump(setup,{schema:yaml.JSON_SCHEMA}));
     const verified=await call('sdlc_verify',{task_id:'SCOPE-1',intent_of_change:'fixture',criteria:['fixture passes']});
     check(!verified.isError,'verification attaches to the explicit task');
     const task=await call('sdlc_rsi_tasks',{task_id:'SCOPE-1'});
@@ -93,10 +100,10 @@ try {
     check(task.value.task.sessions.some(s=>s.role==='author')&&task.value.task.sessions.some(s=>s.role==='verifier'),'task includes author and verifier');
     check(task.value.evidence.evidence_complete===true,'task evidence is distinct from unfinished business status');
     check(task.value.evidence.task_complete===false,'recording success never completes the business task');
-    const concurrent=await Promise.all([1,2].map(()=>call('sdlc_verify',{task_id:'SCOPE-1',intent_of_change:'parallel',criteria:['fixture']})));
-    const ids=concurrent.map(r=>r.value.verification_run_id);
+    const concurrent=await Promise.all([1,2].map(()=>call('sdlc_verify',{task_id:'SCOPE-1',intent_of_change:'parallel',criteria:['fixture passes']})));
+    const ids=concurrent.filter(r=>!r.isError).map(r=>r.value.verification_run_id);
     const parallelTask=await call('sdlc_rsi_tasks',{task_id:'SCOPE-1'});
-    check(new Set(ids).size===2&&ids.every(id=>parallelTask.value.task.runs.includes(id)),'concurrent runs keep distinct explicit task links');
+    check(ids.length===1&&concurrent.filter(r=>r.isError).length===1&&ids.every(id=>parallelTask.value.task.runs.includes(id)),'same-task concurrent verification is refused; both invocations remain attributable');
     const {TaskCollector}=await import(pathToFileURL(path.join(lib,'rsi/tasks.js')));
     const {Collector}=await import(pathToFileURL(path.join(lib,'rsi/collector.js')));
     const recovered=await new TaskCollector(sdlc.ctx,'.ai/rsi',new Collector(sdlc.ctx,'.ai/rsi')).inspect({agent:author},'SCOPE-1');
@@ -165,7 +172,7 @@ try {
     emit(author2Session,author2,author2Events,'turn/start',{});
     emit(author2Session,author2,author2Events,'request/header',{header:{config:{model:'author-2'}}});
     const call2=(name,args={})=>ctx.tools.execute({callId:`author2-${++callCounter}`,name,arguments:args,agent:author2,signal:new AbortController().signal});
-    const written=await call2('sdlc_artifact_write',{task_id:'SCOPE-1',kind:'intent',content:'# Intent\n\n## Problem\nA problem\n\n## Proposed outcome\nAn outcome\n\n## Affected users and systems\nUsers\n\n## Constraints\nNo constraints\n\n## Open questions\nNone\n'});
+    const written=await call2('sdlc_artifact_write',{task_id:'SCOPE-1',kind:'intent',overwrite:true,content:'# Intent\n\n## Problem\nA problem\n\n## Proposed outcome\nAn outcome\n\n## Affected users and systems\nUsers\n\n## Constraints\nNo constraints\n\n## Open questions\nNone\n'});
     emit(author2Session,author2,author2Events,'tool/result',{message:{content:[{type:'text',text:'AUTHOR2_WORK_MARKER'}]}});
     emit(author2Session,author2,author2Events,'turn/end',{stopReason:'completed'});
     const afterAuthor2=await call('sdlc_rsi_tasks',{task_id:'SCOPE-1'});
@@ -218,7 +225,7 @@ try {
     const upgraded=new TaskCollector(sdlc.ctx,'.ai/rsi',new Collector(sdlc.ctx,'.ai/rsi'));
     await upgraded.record({kind:'advanced',task_dir:'.ai/tasks/FAULT-1',state:nextFaultState},{agent:author});
     const versions=await upgraded.inspect({agent:author},'FAULT-1');
-    check(versions.evidence.execution_suites.some(s=>s.suite?.version==='0.3.9')&&versions.evidence.execution_suites.some(s=>s.suite?.version==='0.4.0'),'task continuing across plugin versions retains each recorded execution version');
+    check(versions.evidence.execution_suites.some(s=>s.suite?.version==='0.3.9')&&versions.evidence.execution_suites.some(s=>s.suite?.version===currentVersion),'task continuing across plugin versions retains each recorded execution version');
 
     await call('sdlc_task_create',{task_id:'VERSION-ONLY',title:'Artifact operation after upgrade'});
     const versionManifest=JSON.parse(await fs.readFile(path.join(root,'.ai/rsi/tasks/VERSION-ONLY/task.json'),'utf8'));
@@ -233,7 +240,7 @@ try {
     emit(authorSession,author,authorEvents,'tool/call',{name:'sdlc_artifact_write',arguments:'{"task_id":"VERSION-ONLY","kind":"spec"}',callId:`test-${callCounter+1}`});
     const artifactOnly=await call('sdlc_artifact_write',{task_id:'VERSION-ONLY',kind:'spec'});
     const artifactVersions=await new TaskCollector(sdlc.ctx,'.ai/rsi',new Collector(sdlc.ctx,'.ai/rsi')).inspect({agent:author},'VERSION-ONLY');
-    check(!artifactOnly.isError&&artifactVersions.evidence.execution_suites.some(s=>s.suite?.version==='0.4.0'),'artifact-only continuation persists actual execution version across restart');
+    check(!artifactOnly.isError&&artifactVersions.evidence.execution_suites.some(s=>s.suite?.version===currentVersion),'artifact-only continuation persists actual execution version across restart');
 
     emit(authorSession,author,authorEvents,'turn/start',{});
     await call('sdlc_task_create',{task_id:'WRITE-OLD',title:'Old task before failed switch'});
