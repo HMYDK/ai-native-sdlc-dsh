@@ -6,17 +6,54 @@
   const until = async predicate => { for (let i = 0; i < 200; i++) { if (predicate()) return; await pause(); } throw new Error('等待页面状态超时'); };
   const all = selector => [...document.querySelectorAll(selector)];
   const one = selector => document.querySelector(selector);
-  const click = async element => { if (!element) throw new Error('找不到操作按钮'); element.focus(); element.click(); await pause(); };
+  const click = async element => {
+    if (!element) throw new Error('找不到操作按钮');
+    if (!element.getClientRects().length) throw new Error('操作按钮不可见：' + (element.getAttribute('aria-label') || element.textContent));
+    element.scrollIntoView({block: 'nearest', inline: 'nearest'}); element.focus(); element.click(); await pause();
+  };
   const textButton = text => all('button').find(b => b.textContent.trim() === text);
+  const selectTask = async id => {
+    if (innerWidth <= 720 && one('.sdlc-shell.is-detail')) await click(one('[aria-label="返回任务列表"]'));
+    await click(all('.sdlc-task').find(b => b.querySelector('.sdlc-task-meta')?.textContent.includes(id)));
+    await until(() => one('.sdlc-breadcrumb')?.textContent.includes(id) && all('.sdlc-round').length === (id === 'FLOW-DEMO' ? 4 : 3));
+  };
   const reports = [];
   const assert = (condition, label) => { reports.push((condition ? 'PASS ' : 'FAIL ') + label); if (!condition) throw new Error(label); };
   try {
-    await until(() => all('.sdlc-round').length === 3);
-    if (innerWidth <= 720) await click(one('.sdlc-task'));
+    await until(() => all('.sdlc-round').length === 4);
+    await selectTask('FLOW-DEMO');
     if (mode === 'light') await click(one('[aria-label="切换浅色主题"]'));
-    if (mode === 'history') await click(one('[data-run-id="loop-round-2"]'));
-    if (mode === 'evidence') { await click(one('[data-run-id="loop-round-1"]')); await click(textButton('查看本轮证据')); }
+    if (mode === 'history' || mode === 'evidence') {
+      await selectTask('LOOP-DEMO');
+      await click(one('.sdlc-verification-detail > summary'));
+      if (mode === 'history') await click(one('[data-run-id="loop-round-2"]'));
+      if (mode === 'evidence') { await click(one('[data-run-id="loop-round-1"]')); await click(textButton('查看本轮证据')); }
+    }
     if (mode === 'checks') {
+      const flowDetail = () => one('.sdlc-flow-inspector').textContent;
+      assert(all('.sdlc-return-route').length === 3 && all('.sdlc-return-route').some(b => b.textContent.includes('验证 → 计划')) && all('.sdlc-return-route').some(b => b.textContent.includes('评审 → 规格')), '实际退回路线覆盖验证退计划、评审退规格');
+      assert(flowDetail().includes('审核发现多币种的舍入规则没有写进规格') && flowDetail().includes('规格 → 计划 → 实现 → 验证 → 评审'), '默认展开最近退回的原因和完整后续路线');
+      assert(flowDetail().includes('已按币种处理精度，新增多币种回归用例') && flowDetail().includes('按时间展示') && flowDetail().includes('已重新提交'), '修改说明有真实记录来源，重新提交不冒充审核通过');
+      await click(all('.sdlc-flow-repair button')[0]);
+      await until(() => one('#sdlc-round-evidence')?.open);
+      assert(one('#sdlc-round-evidence').textContent.includes('24 passed') && !one('#sdlc-round-evidence').textContent.includes('第 1 轮测试输出'), '退回详情打开该时间段内第四轮的历史证据');
+      await click(one('#sdlc-round-evidence .sdlc-dialog-close'));
+      await click(one('[aria-label="查看退回路线：验证 → 计划，第 2 次"]'));
+      assert(flowDetail().includes('计划 → 实现 → 验证') && flowDetail().includes('已再次进入验证') && !flowDetail().includes('已按币种处理精度'), '切换路线后显示对应目标、重新提交和当时的修改范围');
+      await click(textButton('只看退回'));
+      assert(all('.sdlc-flow-event').length === 3, '只看退回筛选保留三次真实退回');
+      await click(one('[aria-label="刷新看板"]'));
+      await until(() => !one('[aria-label="刷新看板"]').disabled);
+      assert(one('[aria-label="查看退回路线：验证 → 计划，第 2 次"]').getAttribute('aria-pressed') === 'true' && flowDetail().includes('计划 → 实现 → 验证'), '刷新后保留正在查看的退回路线');
+      await click(textButton('全部流转'));
+      assert(all('.sdlc-flow-event').length === 16, '全部流转保留推进和退回的完整顺序');
+      await click(one('[aria-label="查看流转 16：验证 → 评审"]'));
+      assert(flowDetail().includes('多币种与原优惠测试均通过，再次提交审核') && !flowDetail().includes('为什么退回'), '普通推进可查看自身原因，不冒充退回');
+      await click(one('[aria-label="查看退回路线：评审 → 规格，第 3 次"]'));
+      assert(one('.sdlc-stage[data-flow-target=true]').textContent.includes('规格') && one('.sdlc-stage[data-flow-source=true]').textContent.includes('评审'), '阶段条同步标出退回的来源和目标');
+      assert(one('.sdlc-app').scrollWidth <= one('.sdlc-app').clientWidth + 1, '阶段流转主视图没有横向溢出');
+      await selectTask('LOOP-DEMO');
+      await click(one('.sdlc-verification-detail > summary'));
       assert(all('.sdlc-round').length === 3 && one('[data-run-id="loop-round-3"]').getAttribute('aria-selected') === 'true', '三轮保留，默认选中最新轮次');
       assert(one('.sdlc-loop-center').textContent.includes('2 次阶段回退记录'), '回退次数来自明确记录');
       await click(one('[data-run-id="loop-round-1"]'));
@@ -74,9 +111,11 @@
       assert(all('.sdlc-history-item').length === 9, '完整迁移记录含两次回退');
       await click(one('#sdlc-task-panel .sdlc-dialog-close'));
       const theme = one('.sdlc-app').dataset.theme;
+      if (innerWidth <= 720) await click(one('[aria-label="返回任务列表"]'));
       await click(one('.sdlc-sidebar-bottom button'));
       assert(one('.sdlc-app').dataset.theme !== theme, '主题切换生效');
       await click(one('.sdlc-sidebar-bottom button'));
+      if (innerWidth <= 720) await selectTask('LOOP-DEMO');
       const ex = window.__LOOP_FIXTURE__.executions['LOOP-DEMO'];
       await click(one('[data-run-id="loop-round-1"]'));
       ex.rounds.push({...ex.rounds[2], id: 'preview-round-4', number: 4});
@@ -103,6 +142,6 @@
     document.body.append(result);
     localStorage.setItem('sdlc.preview.checks', JSON.stringify(reports));
   }
-  if (mode !== 'checks' && one('.sdlc-app')) one('.sdlc-app').scrollTop = 0;
+  if (mode !== 'checks' && one('.sdlc-app')) { one('.sdlc-app').scrollTop = 0; one('.sdlc-detail').scrollTop = 0; }
   document.documentElement.dataset.previewReady = 'true';
 })();

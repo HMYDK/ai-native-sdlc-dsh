@@ -12,8 +12,8 @@ const write = async (relative, value) => {
   await fs.mkdir(path.dirname(file), {recursive: true});
   await fs.writeFile(file, typeof value === 'string' ? value : JSON.stringify(value, null, 2));
 };
-const state = (id, title, status, history, artifacts = '  intent: "intent.md"') => [
-  `task: ${id}`, `title: "${title}"`, `status: ${status}`, `created: "${when(0)}"`, `updated: "${when(id === task ? 58 : 1)}"`,
+const state = (id, title, status, history, artifacts = '  intent: "intent.md"', updated = id === task ? 58 : 1) => [
+  `task: ${id}`, `title: "${title}"`, `status: ${status}`, `created: "${when(0)}"`, `updated: "${when(updated)}"`,
   'artifacts:', artifacts, 'history:', ...history.flatMap(([at, from, to, reason]) => [`  - at: "${when(at)}"`, `    from: "${from}"`, `    to: "${to}"`, `    reason: "${reason}"`]), '',
 ].join('\n');
 await write(`.ai/tasks/${task}/state.yaml`, state(task, '修复订单优惠计算', 'VERIFYING', [
@@ -67,6 +67,53 @@ for (const [id, title, status] of [['SEARCH-DEMO', '优化搜索召回质量', '
   await write(`.ai/tasks/${id}/state.yaml`, state(id, title, status, [[0, '', 'INTENT', '界面验证夹具'], [1, 'INTENT', status, '展示不同任务状态']]));
   await write(`.ai/tasks/${id}/intent.md`, '# 界面验证夹具\n\n用于验证任务筛选和切换。');
 }
+// A review can return all the way to specification; the later route can contain another verification.
+const flowTask = 'FLOW-DEMO';
+await write(`.ai/tasks/${flowTask}/state.yaml`, state(flowTask, '订单优惠：从审核退回到重新提交', 'REVIEWING', [
+  [0, '', 'INTENT', '明确优惠叠加的边界'], [3, 'INTENT', 'SPEC', '补齐满减与会员折扣的验收标准'],
+  [6, 'SPEC', 'PLANNED', '确认改动与测试范围'], [9, 'PLANNED', 'IMPLEMENTING', '开始实现'],
+  [12, 'IMPLEMENTING', 'VERIFYING', '提交第一轮验收检查'], [21, 'VERIFYING', 'IMPLEMENTING', '验收发现优惠叠加顺序和金额边界有误'],
+  [28, 'IMPLEMENTING', 'VERIFYING', '统一优惠叠加顺序，保留原失败测试'], [37, 'VERIFYING', 'PLANNED', '验收发现会员折扣边界未覆盖，需要补充测试方案'],
+  [40, 'PLANNED', 'IMPLEMENTING', '补上零金额与折扣边界的实现和测试步骤'], [45, 'IMPLEMENTING', 'VERIFYING', '边界问题已修复，提交第三轮验收检查'],
+  [52, 'VERIFYING', 'REVIEWING', '三项验收标准通过，提交审核'],
+  [56, 'REVIEWING', 'SPEC', '审核发现多币种的舍入规则没有写进规格，当前实现无法确认是否满足业务要求'],
+  [60, 'SPEC', 'PLANNED', '补齐人民币、日元的金额精度和舍入验收规则'],
+  [64, 'PLANNED', 'IMPLEMENTING', '补充按币种处理精度的方案及边界回归测试'],
+  [70, 'IMPLEMENTING', 'VERIFYING', '按币种处理金额精度，新增多币种回归用例，提交复验'],
+  [78, 'VERIFYING', 'REVIEWING', '多币种与原优惠测试均通过，再次提交审核'],
+], '  intent: "intent.md"\n  spec: "spec.md"\n  plan: "plan.md"\n  verification: "verification.json"\n  proof: "proof.md"', 78));
+for (const [file, body] of Object.entries({
+  intent: '# 订单优惠与多币种金额\n\n界面验证夹具，不是业务执行结果。\n\n## 问题\n优惠叠加与币种舍入规则需要明确。',
+  spec: '# 验收标准\n\n- 满减与会员折扣按统一顺序叠加。\n- 人民币保留两位小数，日元舍入到整数（界面示例规则）。\n- 覆盖金额边界，不削弱原有测试。',
+  plan: '# 修订后的计划\n\n## 金额精度\n按币种处理精度与舍入。\n\n## 回归范围\n保留优惠叠加用例，新增人民币和日元边界。',
+  proof: '# 验证证据\n\n此内容为界面验证夹具。\n\n## 多币种回归\n第四轮示例结果：24 passed / 0 failed。\n\n## 再次提交\n已提交审核，尚无审核通过记录。',
+})) await write(`.ai/tasks/${flowTask}/${file}.md`, body);
+const flowRuns = ['flow-round-1', 'flow-round-2', 'flow-round-3', 'flow-round-4'];
+const flowSessions = [{id: 'flow-author', role: 'author', windows: [{from: 0, to: null, registered: 0}]}, ...flowRuns.map((_, i) => ({id: `flow-verifier-${i + 1}`, role: 'verifier', parent: 'flow-author', windows: [{from: 0, to: null, registered: 0}]}))];
+await write(`.ai/rsi/tasks/${flowTask}/task.json`, {schema_version: 1, task_id: flowTask, task_dir: `.ai/tasks/${flowTask}`, workspace: root, status: 'REVIEWING', title: '订单优惠：从审核退回到重新提交', sessions: flowSessions, runs: flowRuns, checkpoints: [], issues: []});
+for (const [i, run] of runIds.entries()) {
+  for (const file of await fs.readdir(path.join(root, `.ai/rsi/runs/${run}`))) {
+    const doc = JSON.parse(await fs.readFile(path.join(root, `.ai/rsi/runs/${run}/${file}`), 'utf8'));
+    doc.run_id = flowRuns[i];
+    if (doc.data.inputs) doc.data.inputs.task_id = flowTask;
+    if (doc.data.parent_session_id) doc.data.parent_session_id = 'flow-author';
+    if (doc.data.session_id) doc.data.session_id = `flow-verifier-${i + 1}`;
+    await write(`.ai/rsi/runs/${flowRuns[i]}/${file}`, doc);
+  }
+  await write(`.ai/rsi/tasks/${flowTask}/sessions/flow-verifier-${i + 1}.json`, snapshot(`flow-verifier-${i + 1}`, 'verifier', [call(0, 'read', 'read', [12, 28, 45][i]), result(1, 'read', [13, 29, 46][i])]));
+}
+const flowVerdict = {status: 'approve', summary: '多币种精度与原优惠行为已复核，满足修订后的验收规则。', criteria_results: [{criterion: '不同币种按规格舍入', result: 'met', evidence: '人民币和日元边界用例通过（界面示例）。'}], findings: [], unverified: [], verification_complete: true};
+for (const [seq, [kind, data]] of [
+  ['started', {parent_session_id: 'flow-author', inputs: {task_id: flowTask, criteria: ['不同币种按规格舍入'], intent_of_change: '按币种处理金额精度，新增人民币和日元边界用例；保留原优惠回归测试。', test_evidence: '界面验证夹具：24 passed / 0 failed'}}],
+  ['attempt_started', {attempt: 1}], ['attempt_session', {attempt: 1, session_id: 'flow-verifier-4'}],
+  ['attempt_finished', {attempt: 1, session_id: 'flow-verifier-4', stop_reason: 'end_turn'}], ['finished', {outcome: 'completed', result: flowVerdict}],
+].entries()) await write(`.ai/rsi/runs/flow-round-4/${String(seq).padStart(6, '0')}.json`, {schema_version: 1, run_id: 'flow-round-4', seq, at: when(70 + seq), kind, data});
+await write(`.ai/rsi/tasks/${flowTask}/sessions/flow-verifier-4.json`, snapshot('flow-verifier-4', 'verifier', [call(0, 'test', 'bash', 71), result(1, 'test', 72)]));
+await write(`.ai/rsi/tasks/${flowTask}/sessions/flow-author.json`, snapshot('flow-author', 'author', [
+  call(0, 'currency-start', 'sdlc_fix_start', 64, {task_id: flowTask, reason: '按修订的多币种规格开始修复，保留已有测试'}), result(1, 'currency-start', 64),
+  call(2, 'currency-end', 'sdlc_fix_end', 69, {task_id: flowTask, reason: '已按币种处理精度，新增多币种回归用例，原优惠测试保持通过'}), result(3, 'currency-end', 69),
+]));
+await write(`.ai/tasks/${flowTask}/verification.json`, {task: flowTask, at: when(74), verdict: flowVerdict});
 await fs.mkdir(path.join(repo, '.verify-home/storages'), {recursive: true});
 await fs.writeFile(path.join(repo, '.verify-home/storages/workspace.json'), JSON.stringify({unit: {name: 'workspace', version: 2}, global: {initialized: true, workspaceIds: ['loop-ui-fixture']}, tables: {workspaces: {'loop-ui-fixture': {path: root, title: '界面验证 · 示例数据', sessionIds: [], createdAt: when(0), updatedAt: when(49)}}}}, null, 2));
 console.log(root);

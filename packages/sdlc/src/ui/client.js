@@ -21,6 +21,34 @@ window.__ModuleLoader__.load({
     const STAGE_ARTIFACTS = { INTENT: ['intent'], SPEC: ['spec'], PLANNED: ['plan'], IMPLEMENTING: ['plan'], VERIFYING: ['verification', 'proof'], REVIEWING: ['review'] };
     const ARTIFACT_CN = { intent: '意图', spec: '规格', plan: '计划', verification: '验证记录', review: '评审', proof: '验证证据' };
     const stageArtifacts = (task, stage) => (task.artifacts || []).filter(a => stage === 'DONE' || (STAGE_ARTIFACTS[stage] || []).includes(a.kind));
+    const FLOW_KIND = { backtrack: '退回', forward: '推进', created: '创建', same: '阶段内更新', unknown: '记录待核对' };
+    // 只用实际迁移画路线。裁决、测试结果和当前状态都不能代替一次迁移记录。
+    function flowEntries(task) {
+      const seen = new Map(); let returns = 0;
+      return (task.timeline || []).map((raw, index) => {
+        const row = raw || {}, from = typeof row.from === 'string' ? row.from : '', to = typeof row.to === 'string' ? row.to : '';
+        const a = STAGES.indexOf(from), b = STAGES.indexOf(to);
+        const kind = typeof row.from !== 'string' || b < 0 || (from && a < 0) || (!from && index > 0) ? 'unknown' : !from ? 'created' : b < a ? 'backtrack' : b > a ? 'forward' : 'same';
+        const signature = JSON.stringify([row.at || '', from, to, row.reason || '']);
+        const occurrence = (seen.get(signature) || 0) + 1; seen.set(signature, occurrence);
+        return { id: signature + ':' + occurrence, index, number: index + 1, at: row.at, from, to, reason: row.reason || '', kind,
+          returnNumber: kind === 'backtrack' ? ++returns : null };
+      });
+    }
+    function returnJourney(entry, entries, task) {
+      const steps = []; let cursor = entry, resumed = null, passed = null, gap = '';
+      for (const next of entries.slice(entry.index + 1)) {
+        if (next.kind === 'unknown' || !next.from || next.from !== cursor.to) { gap = '流转记录不连续，无法确认这次退回之后的完整去向。'; break; }
+        steps.push(next); cursor = next;
+        if (next.to === entry.from) { resumed = next; break; }
+        if (STAGES.indexOf(next.to) > STAGES.indexOf(entry.from)) { passed = next; break; }
+      }
+      if (!resumed && !passed && !gap && cursor.to !== task.status) gap = '最后一条流转记录与当前阶段不一致，后续去向尚未确认。';
+      const times = [entry, ...steps].map(e => e.at ? Date.parse(e.at) : NaN);
+      const orderedTime = !gap && times.every((at, i) => Number.isFinite(at) && (!i || at >= times[i - 1]));
+      return {steps, resumed, passed, gap, start: orderedTime ? times[0] : null,
+        end: orderedTime ? resumed || passed ? times[times.length - 1] : Infinity : null};
+    }
     const OUTCOMES = {
       approve: { label: '验证通过', tone: 'success', icon: 'circle-check' },
       reject: { label: '未通过', tone: 'error', icon: 'alert-triangle' },
@@ -114,9 +142,56 @@ window.__ModuleLoader__.load({
 .sdlc-stage-missing,.sdlc-stage-reference{color:var(--s-muted);font-size:10px}
 .sdlc-stage-dot{width:33px;height:33px;border:1px solid var(--s-line);border-radius:50%;display:grid;place-items:center;background:var(--s-bg);font-size:12px;font-variant-numeric:tabular-nums}
 .sdlc-stage.visited .sdlc-stage-dot{background:var(--s-accent);border-color:var(--s-accent);color:var(--s-bg)}
+.sdlc-stage-visits{font-size:10px;color:var(--s-muted);font-weight:400}
 .sdlc-stage.visited .sdlc-stage-select{color:var(--s-fg)}
 .sdlc-stage[aria-current=step] .sdlc-stage-dot{color:var(--s-accent);border:2px solid var(--s-accent);box-shadow:0 0 0 4px var(--s-accent-bg)}
 .sdlc-stage[aria-current=step] .sdlc-stage-select{color:var(--s-accent);font-weight:600}
+.sdlc-stage[data-flow-source=true] .sdlc-stage-dot{border-color:var(--s-coral);box-shadow:0 0 0 3px color-mix(in srgb,var(--s-coral) 15%,transparent)}
+.sdlc-stage[data-flow-target=true] .sdlc-stage-select{color:var(--s-coral)}
+.sdlc-stage[data-flow-target=true] .sdlc-stage-dot{outline:2px solid var(--s-coral);outline-offset:4px}
+.sdlc-flow{margin-top:20px}
+.sdlc-flow-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.sdlc-flow-heading h3{font-size:16px;font-weight:600}.sdlc-flow-stats{display:flex;gap:15px;font-size:12px;color:var(--s-muted)}
+.sdlc-flow-stats strong{color:var(--s-coral);font-weight:550}
+.sdlc-flow .sdlc-stage-scroll{padding-top:18px}
+.sdlc-return-map{padding:14px 0 18px;border-bottom:1px solid var(--s-line)}
+.sdlc-return-map-heading{display:flex;justify-content:space-between;gap:12px;color:var(--s-muted);font-size:12px;margin-bottom:8px}
+.sdlc-return-routes{max-height:220px;overflow:auto;scrollbar-gutter:stable}
+.sdlc-return-route{display:block;width:100%;padding:4px 0 10px;border:1px solid transparent;border-radius:8px;background:none;color:var(--s-muted)!important;text-align:left}
+.sdlc-return-route:hover,.sdlc-return-route[aria-pressed=true]{background:color-mix(in srgb,var(--s-coral) 6%,var(--s-bg));border-color:color-mix(in srgb,var(--s-coral) 38%,var(--s-line));color:var(--s-coral)!important}
+.sdlc-return-route svg{display:block;width:100%;height:36px;color:var(--s-coral)}
+.sdlc-route-caption{display:flex;align-items:baseline;justify-content:center;gap:12px;font-size:12px;padding:0 14px}
+.sdlc-route-caption strong{white-space:nowrap;font-weight:550}.sdlc-route-caption>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%;color:var(--s-muted)}
+.sdlc-flow-body{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.4fr);gap:24px;margin-top:22px}
+.sdlc-flow-list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;font-size:12px;color:var(--s-muted)}
+.sdlc-flow-filters{display:flex;gap:4px}.sdlc-flow-filter{padding:4px 9px;background:none;border:1px solid var(--s-line);border-radius:5px;font-size:11px!important}
+.sdlc-flow-filter[aria-pressed=true]{color:var(--s-accent);background:var(--s-accent-bg);border-color:var(--s-accent)}
+.sdlc-flow-list{list-style:none;padding:0;margin:0;max-height:540px;overflow:auto;scrollbar-gutter:stable}
+.sdlc-flow-event{width:100%;display:block;text-align:left;padding:13px 12px;margin-bottom:7px;background:none;border:1px solid var(--s-line);border-radius:8px}
+.sdlc-flow-event:hover{background:var(--s-surface)}.sdlc-flow-event[aria-pressed=true]{background:var(--s-accent-bg);border-color:var(--s-accent)}
+.sdlc-flow-event[data-kind=backtrack][aria-pressed=true]{background:color-mix(in srgb,var(--s-coral) 8%,var(--s-bg));border-color:var(--s-coral)}
+.sdlc-flow-event-head{display:flex;align-items:center;gap:8px;font-size:12px}.sdlc-flow-number{color:var(--s-dim);font-variant-numeric:tabular-nums}.sdlc-flow-event-head strong{font-weight:550}
+.sdlc-flow-kind{margin-left:auto;color:var(--s-muted);font-size:10px}.sdlc-flow-event[data-kind=backtrack] .sdlc-flow-kind{color:var(--s-coral)}
+.sdlc-flow-reason{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:12px;color:var(--s-muted);line-height:1.7;margin-top:7px}
+.sdlc-flow-event time{display:block;color:var(--s-dim);font-size:11px;margin-top:6px}
+.sdlc-flow-inspector{border:1px solid var(--s-line);border-radius:10px;background:var(--s-surface);padding:22px;min-width:0;align-self:start}
+.sdlc-flow-inspector h3{font-size:20px;line-height:1.5;margin:7px 0 4px}.sdlc-flow-inspector h4{font-size:13px;font-weight:550;margin:0 0 8px}
+.sdlc-flow-inspector p{font-size:13px;line-height:1.85;overflow-wrap:anywhere}
+.sdlc-flow-inspector .sdlc-caption{font-size:12px}
+.sdlc-flow-block{margin-top:20px;padding-top:18px;border-top:1px solid var(--s-line)}
+.sdlc-flow-route{border-left:2px solid var(--s-coral);padding-left:12px;color:var(--s-fg)}
+.sdlc-flow-path{margin-top:10px!important;color:var(--s-accent);font-size:14px!important}
+.sdlc-flow-steps{list-style:none;padding:0;margin:12px 0 0}.sdlc-flow-step{padding:0 0 14px 15px;border-left:1px solid var(--s-line);position:relative}
+.sdlc-flow-step:last-child{padding-bottom:0}.sdlc-flow-step::before{content:"";position:absolute;left:-3px;top:8px;width:5px;height:5px;border-radius:50%;background:var(--s-accent)}
+.sdlc-flow-step strong{font-size:12px;font-weight:550}.sdlc-flow-step p{color:var(--s-muted);font-size:12px}
+.sdlc-flow-step time{display:block;font-size:11px;color:var(--s-muted);margin-top:3px}
+.sdlc-flow-repair{padding:10px 0;border-bottom:1px solid var(--s-line)}.sdlc-flow-repair:last-child{border-bottom:0}.sdlc-flow-repair strong{font-size:12px;font-weight:550}
+.sdlc-verification-detail{border-top:1px solid var(--s-line);margin-top:24px;padding-top:18px}
+.sdlc-verification-detail>summary{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:550;list-style:none}
+.sdlc-verification-detail>summary::before{content:"›";font-size:20px;color:var(--s-accent)}.sdlc-verification-detail[open]>summary::before{transform:rotate(90deg)}
+.sdlc-verification-detail>summary span{font-size:12px;font-weight:400;color:var(--s-muted)}
+@container(max-width:1100px){.sdlc-flow-body{grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr);gap:16px}.sdlc-flow-inspector{padding:18px}.sdlc-route-caption>span:last-child{max-width:40%}}
+@container(max-width:800px){.sdlc-flow-body{grid-template-columns:1fr}.sdlc-flow-list{max-height:260px}.sdlc-flow-inspector{padding:16px;grid-row:1}.sdlc-route-caption{gap:7px;flex-wrap:wrap;font-size:11px}.sdlc-route-caption>span:last-child{flex-basis:100%;max-width:100%;text-align:center}.sdlc-flow-stats{gap:10px}.sdlc-verification-detail>summary{flex-wrap:wrap}.sdlc-flow-heading h3{font-size:15px}}
 .sdlc-notice{font-size:12px;line-height:1.7;padding:10px 13px;border-left:2px solid var(--s-warning);background:color-mix(in srgb,var(--s-warning) 7%,var(--s-bg));color:var(--s-muted);margin-top:16px;border-radius:0 6px 6px 0}
 .sdlc-notice summary{cursor:pointer;color:var(--s-warning)}
 .sdlc-notice ul{margin:7px 0 0;padding-left:18px}
@@ -337,20 +412,24 @@ window.__ModuleLoader__.load({
         ]),
       ]);
     }
-    function StageRibbon({ task, onSelect, onOpen, onShowAll }) {
+    function StageRibbon({ task, onSelect, onOpen, onShowAll, selectedTransition }) {
       const visited = new Set((task.timeline || []).flatMap(e => [e.from, e.to]));
       return h('div', { className: 'sdlc-stage-scroll' }, [
         h('div', { key: 'heading', className: 'sdlc-stage-heading' }, [
-          h('span', { key: 'title' }, '阶段与交付物'),
+          h('span', { key: 'title' }, '阶段顺序与交付物'),
           h('button', { key: 'all', className: 'sdlc-link', type: 'button', 'aria-label': '查看全部交付物', onClick: onShowAll }, ['全部交付物 · ' + (task.artifacts || []).length, h(Icon, { key: 'i', name: 'chevron-right', size: 13 })]),
         ]),
         h('ol', { key: 'stages', className: 'sdlc-stages', 'aria-label': '任务阶段与交付物' }, STAGES.map((stage, i) => {
         const past = stage !== task.status && visited.has(stage);
         const artifacts = stageArtifacts(task, stage);
-        return h('li', { key: stage, className: 'sdlc-stage' + (past ? ' visited' : ''), 'aria-current': stage === task.status ? 'step' : undefined }, [
+        const visits = (task.timeline || []).filter(entry => entry.to === stage).length;
+        return h('li', { key: stage, className: 'sdlc-stage' + (past ? ' visited' : ''), 'aria-current': stage === task.status ? 'step' : undefined,
+          'data-flow-source': selectedTransition && selectedTransition.kind === 'backtrack' && stage === selectedTransition.from ? 'true' : undefined,
+          'data-flow-target': selectedTransition && selectedTransition.kind === 'backtrack' && stage === selectedTransition.to ? 'true' : undefined }, [
           h('button', { key: 'stage', type: 'button', className: 'sdlc-stage-select', onClick: () => onSelect(stage), 'aria-label': '查看' + stageName(stage) + '阶段' }, [
-            h('span', { key: 'dot', className: 'sdlc-stage-dot' }, past ? h(Icon, { name: 'check', size: 16 }) : i + 1),
+            h('span', { key: 'dot', className: 'sdlc-stage-dot' }, i + 1),
             h('span', { key: 'label' }, stageName(stage)),
+            h('span', { key: 'visits', className: 'sdlc-stage-visits' }, visits ? '进入 ' + visits + ' 次' : task.status === stage ? '当前阶段' : '未记录'),
           ]),
           h('div', { key: 'files', className: 'sdlc-stage-files' }, stage === 'DONE' ?
             h('button', { type: 'button', className: 'sdlc-stage-file', onClick: onShowAll }, '交付清单') : [
@@ -409,9 +488,13 @@ window.__ModuleLoader__.load({
           h(Status, { key: 'status', task: t }),
           h('span', { key: 'at' }, shortTime(t.updated) + ' 更新'),
         ]),
-        h(StageRibbon, { key: 'stages', task: t, onOpen, onSelect: stage => setPanel({ kind: 'stage', stage }), onShowAll: () => setPanel({ kind: 'artifacts' }) }),
         listError ? h('div', { key: 'error', className: 'sdlc-notice', role: 'alert' }, '任务列表刷新失败，当前保留上次结果：' + listError) : null,
-        h(LoopWorkbench, { key: 'workbench', task: t, execution: executionState.data, loading: executionState.loading, error: executionState.error, theme }),
+        h(FlowWorkbench, { key: 'flow', task: t, execution: executionState.data, loading: executionState.loading, error: executionState.error, theme,
+          onOpen, onSelectStage: stage => setPanel({ kind: 'stage', stage }), onShowAll: () => setPanel({ kind: 'artifacts' }) }),
+        h('details', { key: 'verification-detail', className: 'sdlc-verification-detail' }, [
+          h('summary', { key: 'heading' }, ['验证详情', h('span', { key: 'description' }, '逐轮裁决、测试证据与 Agent 操作')]),
+          h(LoopWorkbench, { key: 'workbench', task: t, execution: executionState.data, loading: executionState.loading, error: executionState.error, theme }),
+        ]),
         h('section', { key: 'artifacts', className: 'sdlc-deliverables', 'aria-label': '任务交付物' }, [
           h('div', { key: 'heading', className: 'sdlc-deliverables-heading' }, [
             h('h3', { key: 'title', className: 'sdlc-deliverables-label' }, [h(Icon, { key: 'i', name: 'doc', size: 15 }), '任务交付物']),
@@ -433,6 +516,118 @@ window.__ModuleLoader__.load({
           t.rsi && t.rsi.issues && t.rsi.issues.length ? h('ul', { key: 'issues' }, t.rsi.issues.map((x, i) => h('li', { key: i }, x))) : null,
         ]),
         panel ? h(TaskPanel, { key: 'panel:' + panel.kind + (panel.stage || ''), panel, task: t, theme, onClose: () => setPanel(null), onOpen }) : null,
+      ]);
+    }
+    function FlowWorkbench({ task, execution, loading, error, theme, onOpen, onSelectStage, onShowAll }) {
+      const [selectedId, setSelectedId] = React.useState(null);
+      const [onlyReturns, setOnlyReturns] = React.useState(false);
+      const [evidence, setEvidence] = React.useState(null);
+      const entries = flowEntries(task), returns = entries.filter(e => e.kind === 'backtrack');
+      const selected = selectedId ? entries.find(e => e.id === selectedId) : returns[returns.length - 1] || entries[entries.length - 1];
+      const visible = (onlyReturns ? returns : entries).slice().reverse();
+      const choose = entry => setSelectedId(entry.id);
+      return h('section', { className: 'sdlc-flow', 'aria-label': 'SDLC 阶段流转' }, [
+        h('header', { key: 'heading', className: 'sdlc-flow-heading' }, [
+          h('h3', { key: 'title' }, '阶段流转'),
+          h('div', { key: 'stats', className: 'sdlc-flow-stats' }, [
+            h('span', { key: 'current' }, '当前：' + stageName(task.status)),
+            h('span', { key: 'count' }, entries.length + ' 条流转记录'),
+            h('strong', { key: 'returns' }, returns.length + ' 次退回'),
+          ]),
+        ]),
+        h(StageRibbon, { key: 'stages', task, onOpen, onSelect: onSelectStage, onShowAll, selectedTransition: selected }),
+        h('div', { key: 'routes', className: 'sdlc-return-map' }, [
+          h('div', { key: 'heading', className: 'sdlc-return-map-heading' }, [h('span', { key: 'title' }, '实际退回路线'), h('span', { key: 'hint' }, '点击路线查看原因和后续去向')]),
+          returns.length ? h('div', { key: 'list', className: 'sdlc-return-routes' }, returns.slice().reverse().map(entry => {
+            const from = STAGES.indexOf(entry.from) * 100 + 50, to = STAGES.indexOf(entry.to) * 100 + 50, marker = 'sdlc-flow-arrow-' + entry.index;
+            return h('button', { key: entry.id, type: 'button', className: 'sdlc-return-route', 'aria-pressed': selected && selected.id === entry.id,
+              'aria-label': '查看退回路线：' + stageName(entry.from) + ' → ' + stageName(entry.to) + '，第 ' + entry.returnNumber + ' 次', onClick: () => choose(entry) }, [
+              h('svg', { key: 'route', viewBox: '0 0 700 40', preserveAspectRatio: 'none', 'aria-hidden': true }, [
+                h('defs', { key: 'defs' }, h('marker', { id: marker, viewBox: '0 0 8 8', refX: 6, refY: 4, markerWidth: 6, markerHeight: 6, orient: 'auto' }, h('path', { d: 'M0 0 L8 4 L0 8 Z', fill: 'currentColor' }))),
+                h('circle', { key: 'start', cx: from, cy: 7, r: 3, fill: 'currentColor' }),
+                h('path', { key: 'line', d: `M${from} 7 V18 Q${from} 30 ${from - 12} 30 H${to + 12} Q${to} 30 ${to} 18 V7`, fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, markerEnd: 'url(#' + marker + ')' }),
+              ]),
+              h('span', { key: 'caption', className: 'sdlc-route-caption' }, [h('span', { key: 'number' }, '第 ' + entry.returnNumber + ' 次退回'), h('strong', { key: 'path' }, stageName(entry.from) + ' → ' + stageName(entry.to)), h('span', { key: 'reason' }, entry.reason || '未记录退回原因')]),
+            ]);
+          })) : h('p', { key: 'none', className: 'sdlc-caption' }, entries.length ? '尚无退回记录。下面按实际记录展示阶段流转。' : '尚无阶段流转记录，无法还原此前经过的阶段。'),
+        ]),
+        error ? h('p', { key: 'error', className: 'sdlc-notice', role: 'alert' }, '修复与验证记录读取失败：' + error + '。阶段路线仍按任务流转记录展示。') : null,
+        selectedId && !selected ? h('p', { key: 'missing', className: 'sdlc-notice' }, ['你选择的流转已不在当前记录中。', h('button', { key: 'latest', className: 'sdlc-link', onClick: () => setSelectedId(null) }, '查看最新流转')]) : null,
+        entries.length ? h('div', { key: 'body', className: 'sdlc-flow-body' }, [
+          h('section', { key: 'list', 'aria-label': '流转记录' }, [
+            h('div', { key: 'heading', className: 'sdlc-flow-list-head' }, [h('span', { key: 'title' }, '流转记录 · 最近在上'), h('div', { key: 'filters', className: 'sdlc-flow-filters' }, [
+              h('button', { key: 'all', className: 'sdlc-flow-filter', 'aria-pressed': !onlyReturns, onClick: () => setOnlyReturns(false) }, '全部流转'),
+              h('button', { key: 'returns', className: 'sdlc-flow-filter', 'aria-pressed': onlyReturns, onClick: () => setOnlyReturns(true) }, '只看退回'),
+            ])]),
+            h('ol', { key: 'events', className: 'sdlc-flow-list' }, visible.map(entry => h('li', { key: entry.id }, h('button', {
+              type: 'button', className: 'sdlc-flow-event', 'data-kind': entry.kind, 'aria-pressed': !!selected && selected.id === entry.id,
+              'aria-label': '查看流转 ' + entry.number + '：' + (entry.from ? stageName(entry.from) + ' → ' : '') + stageName(entry.to), onClick: () => choose(entry),
+            }, [
+              h('span', { key: 'head', className: 'sdlc-flow-event-head' }, [h('span', { key: 'number', className: 'sdlc-flow-number' }, String(entry.number).padStart(2, '0')), h('strong', { key: 'path' }, (entry.from ? stageName(entry.from) + ' → ' : '') + stageName(entry.to)), h('span', { key: 'kind', className: 'sdlc-flow-kind' }, FLOW_KIND[entry.kind])]),
+              h('span', { key: 'reason', className: 'sdlc-flow-reason' }, entry.reason || '未记录流转原因'),
+              h('time', { key: 'at', dateTime: entry.at }, shortTime(entry.at)),
+            ])))),
+            !visible.length ? h('p', { key: 'none', className: 'sdlc-caption' }, '没有退回记录。') : null,
+          ]),
+          selected ? h(FlowInspector, { key: 'inspector', entry: selected, entries, task, execution, loading, onOpen, onEvidence: setEvidence }) : null,
+        ]) : null,
+        evidence ? h(RoundEvidence, { key: 'flow-evidence:' + evidence.id, round: evidence, theme, onClose: () => setEvidence(null) }) : null,
+      ]);
+    }
+    function FlowInspector({ entry, entries, task, execution, loading, onOpen, onEvidence }) {
+      const backtrack = entry.kind === 'backtrack', journey = backtrack ? returnJourney(entry, entries, task) : null;
+      const after = entries[entry.index + 1], next = after && after.from === entry.to && after.kind !== 'unknown' ? after : null;
+      const inWindow = at => journey && journey.start !== null && at && Number.isFinite(Date.parse(at)) && Date.parse(at) >= journey.start && Date.parse(at) <= journey.end;
+      const repairs = (execution && execution.repairs || []).filter(r => r.kind !== 'backtrack' && inWindow(r.at));
+      const rounds = (execution && execution.rounds || []).filter(r => r.source === 'rsi' && inWindow(r.startedAt));
+      const changes = [...repairs.map(value => ({kind: 'repair', at: value.at, value})), ...rounds.map(value => ({kind: 'round', at: value.startedAt, value}))]
+        .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+      const targetArtifacts = stageArtifacts(task, entry.to);
+      return h('aside', { className: 'sdlc-flow-inspector', 'aria-label': '本次流转详情' }, [
+        h('span', { key: 'kind', className: 'sdlc-caption' }, backtrack ? '第 ' + entry.returnNumber + ' 次退回' : '第 ' + entry.number + ' 条流转 · ' + FLOW_KIND[entry.kind]),
+        h('h3', { key: 'path' }, (entry.from ? stageName(entry.from) + ' → ' : '') + stageName(entry.to)),
+        h('time', { key: 'at', dateTime: entry.at, className: 'sdlc-caption' }, shortTime(entry.at)),
+        h('section', { key: 'reason', className: 'sdlc-flow-block' }, [
+          h('h4', { key: 'title' }, backtrack ? '为什么退回' : '为什么流转到这里'),
+          h('p', { key: 'text', className: 'sdlc-flow-route' }, entry.reason || '这条流转未记录原因。'),
+        ]),
+        backtrack ? h('section', { key: 'journey', className: 'sdlc-flow-block' }, [
+          h('h4', { key: 'title' }, '退回之后，去了哪里'),
+          h('p', { key: 'result', className: journey.gap ? 'sdlc-tone-warning' : 'sdlc-tone-success' }, journey.gap || (journey.resumed ? '已再次进入' + stageName(entry.from) : journey.passed ? '后续已进入' + stageName(journey.passed.to) + '，未记录再次进入' + stageName(entry.from) : journey.steps.length ? '最后记录停在' + stageName(journey.steps[journey.steps.length - 1].to) : '尚无后续阶段流转')),
+          h('p', { key: 'path', className: 'sdlc-flow-path' }, [entry.to, ...journey.steps.map(e => e.to)].map(stageName).join(' → ')),
+          journey.resumed ? h('p', { key: 'boundary', className: 'sdlc-caption' }, '再次进入该阶段表示已重新提交；是否通过请查看对应裁决。') : null,
+          h('ol', { key: 'steps', className: 'sdlc-flow-steps' }, journey.steps.map(step => h('li', { key: step.id, className: 'sdlc-flow-step' }, [
+            h('strong', { key: 'path' }, stageName(step.from) + ' → ' + stageName(step.to)),
+            h('p', { key: 'reason' }, step.reason || '未记录这次流转的说明'),
+            h('time', { key: 'at', dateTime: step.at }, shortTime(step.at)),
+          ]))),
+        ]) : h('section', { key: 'next', className: 'sdlc-flow-block' }, [
+          h('h4', { key: 'title' }, '之后的流转'),
+          h('p', { key: 'path' }, next ? stageName(next.from) + ' → ' + stageName(next.to) : after ? '下一条记录与这里不连续，无法确认去向。' : '尚无下一次阶段流转记录。'),
+          next ? h('p', { key: 'reason', className: 'sdlc-caption' }, next.reason) : null,
+        ]),
+        backtrack ? h('section', { key: 'repairs', className: 'sdlc-flow-block' }, [
+          h('h4', { key: 'title' }, '这段时间，记录了哪些修改'),
+          h('p', { key: 'scope', className: 'sdlc-caption' }, '以下按时间展示修复操作与验证提交，修改说明来自提交者；尚无逐条问题与修改的对应记录。'),
+          execution && execution.issues && execution.issues.length ? h('details', { key: 'issues', className: 'sdlc-notice' }, [
+            h('summary', { key: 'title' }, '修复与验证记录不完整，以下仅展示已读取的部分'),
+            h('ul', { key: 'list' }, execution.issues.map((issue, i) => h('li', { key: i }, issue))),
+          ]) : null,
+          journey.start === null ? h('p', { key: 'time-gap', className: 'sdlc-caption' }, '时间缺失、顺序异常或路线中断，不能把修复操作归入这次退回。') : null,
+          ...changes.map(({kind, value}) => h('div', { key: kind + ':' + value.id, className: 'sdlc-flow-repair' }, kind === 'repair' ? [
+            h('strong', { key: 'kind' }, (value.kind === 'fix_start' ? '开始修复' : '结束修复') + ' · ' + shortTime(value.at)),
+            h('p', { key: 'text' }, value.summary),
+          ] : [
+            h('strong', { key: 'title' }, roundName(value) + '提交的改动说明 · ' + shortTime(value.startedAt)),
+            h('p', { key: 'text' }, value.changesSummary || '未记录改动说明'),
+            h('button', { key: 'evidence', className: 'sdlc-link', onClick: () => onEvidence(value) }, '查看这次验证的证据'),
+          ])),
+          !repairs.length ? h('p', { key: 'none', className: 'sdlc-caption' }, loading ? '正在读取修复操作记录…' : '尚无可归入这段时间的修复操作记录。上方保留了后续每次流转的原始说明。') : null,
+        ]) : null,
+        targetArtifacts.length ? h('section', { key: 'artifacts', className: 'sdlc-flow-block' }, [
+          h('h4', { key: 'title' }, stageName(entry.to) + (entry.to === 'IMPLEMENTING' ? '依据 · 当前文件' : '交付物 · 当前文件')),
+          h(ArtifactList, { key: 'list', artifacts: targetArtifacts, onOpen }),
+        ]) : null,
       ]);
     }
     function LoopWorkbench({ task, execution, loading, error, theme }) {
@@ -471,7 +666,7 @@ window.__ModuleLoader__.load({
               historical ? h('span', { key: 'historical', className: 'sdlc-history-badge' }, ['历史' + roundName(round), h('button', { key: 'back', className: 'sdlc-link', onClick: () => { setSelectedId(null); setNode(null); } }, '返回最新轮次')]) :
                 h('span', { key: 'state', className: 'sdlc-caption' }, loading ? '读取执行记录…' : round && round.source === 'current_verdict' ? '历史未记录' : '已记录的执行过程'),
             ]),
-            h('div', { key: 'loop', className: 'sdlc-loop', role: 'group', 'aria-label': '发现问题、修复实现、执行检查、独立验证；未通过返回修复，通过后进入评审' }, [
+            h('div', { key: 'loop', className: 'sdlc-loop', role: 'group', 'aria-label': '验证记录中的发现、修复、测试与裁决；实际阶段去向见上方流转' }, [
               h('svg', { key: 'lines', className: 'sdlc-loop-lines', viewBox: '0 0 600 470', preserveAspectRatio: 'none', 'aria-hidden': true }, [
                 h('defs', { key: 'defs' }, ['muted', 'coral', 'accent'].map((color, i) => h('marker', { key: color, id: 'sdlc-loop-arrow-' + color, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' },
                   h('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: ['var(--s-dim)', 'var(--s-coral)', 'var(--s-accent)'][i] })))),
@@ -496,8 +691,8 @@ window.__ModuleLoader__.load({
                 h('p', { key: 'label', className: 'sdlc-center-label sdlc-tone-' + outcome.tone }, outcome.label),
                 h('p', { key: 'repair', className: 'sdlc-caption' }, backtracks ? '任务累计 ' + backtracks + ' 次阶段回退记录' : fixes ? '任务累计 ' + fixes + ' 次修复开始记录' : '尚无修复记录'),
               ]),
-              h('span', { key: 'return-label', className: 'sdlc-loop-return-label' }, '未通过 → 返回修复'),
-              h('span', { key: 'exit-label', className: 'sdlc-loop-exit-label' }, '通过后 → 评审'),
+              h('span', { key: 'return-label', className: 'sdlc-loop-return-label' }, '修复后可再次验证'),
+              h('span', { key: 'exit-label', className: 'sdlc-loop-exit-label' }, '实际阶段去向见上方'),
             ]),
             h('div', { key: 'context', className: 'sdlc-context-line' }, [
               h('span', { key: 'attempts' }, round ? round.attemptCount ? round.attemptCount + ' 次尝试 · ' + (historical ? '历史记录' : '最新记录') : '尝试次数未记录' : '运行独立验证后，轮次会出现在这里'),

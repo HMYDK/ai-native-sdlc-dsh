@@ -1,26 +1,29 @@
 {
-  "date": "2026-10-30",
+  "date": "2026-10-31",
   "branch": "codex/sdlc-loop-workbench",
   "library_tests": 227,
-  "client_tests": 21,
+  "client_tests": 27,
   "host_checks": 32,
   "smoke_checks": 437,
   "smoke_scripts": 9,
-  "runtime_compatibility": "0.2.1-rc.3",
+  "runtime_compatibility": "0.2.1-rc.5",
   "preset_standard_rows": 22,
   "preset_sdlc_rows": 6,
   "local_component_browser_checks": {
-    "1421px": 29,
-    "390px": 29
+    "1421px": 40,
+    "1120px": 40,
+    "390px": 40
   },
   "browser_data": "deterministic fixtures, no DSH HTTP connection",
   "real_dsh_gui": "not verified; authenticated browser access was declined and not retried",
   "desktop_profile": "updated and installed files verified; application restart and real page confirmation pending",
-  "desktop_backup": "~/.dsh/backups/sdlc-deliverables-2026-10-30T02-49-04-049Z/",
+  "desktop_backup": "~/.dsh/backups/sdlc-stage-flow-2026-10-31T01-56-42-126Z/",
   "final_package": {
-    "filename": "ai-native-sdlc-dsh-sdlc-0.4.0-deliverables-dae2636cbe51.tgz",
-    "sha256": "dae2636cbe514e2ff7c85a74d384d9535f5f30ed535ef3e3722a1eb3d26a946e",
+    "filename": "ai-native-sdlc-dsh-sdlc-0.4.0-flow-46e802f88e84.tgz",
+    "sha256": "46e802f88e84f1aa81ff3a5e5015e13e2a905f0c5a1a3a92a3cc392271d69002",
     "files": 60,
     "javascript_files": 33
-  }
+  },
+  "final_client_validation": "rebuilt and reran all 27 client tests after the final chronological-order change",
+  "profile_scope": "only the SDLC dependency and its lockfile entries changed; other dependencies, bundles and profile patch unchanged"
 }

@@ -135,6 +135,94 @@ test('完整交付物清单保留自定义文件，完成阶段可回看全部�
   ui.click(ui.find(n => n.props['aria-label'] === '查看评审阶段')[0]);
   assert.ok(text(ui.find(n => n.component === 'TaskPanel')[0]).includes('暂无已登记的交付物'));
 });
+
+const flowAt = minute => new Date(Date.UTC(2026, 9, 30, 8, minute)).toISOString();
+const flowEntry = (minute, from, to, reason) => ({at: flowAt(minute), from, to, reason});
+function flowData() {
+  const data = structuredClone(payload);
+  data.tasks[0].status = 'REVIEWING';
+  data.tasks[0].timeline = [
+    flowEntry(0, '', 'INTENT', '创建任务'), flowEntry(1, 'INTENT', 'SPEC', '确认重试问题'),
+    flowEntry(2, 'SPEC', 'PLANNED', '形成验收标准'), flowEntry(3, 'PLANNED', 'IMPLEMENTING', '按计划实现'),
+    flowEntry(4, 'IMPLEMENTING', 'VERIFYING', '提交测试'), flowEntry(5, 'VERIFYING', 'REVIEWING', '提交评审'),
+    flowEntry(6, 'REVIEWING', 'SPEC', '审核发现重复请求的处理规则不清楚'),
+    flowEntry(7, 'SPEC', 'PLANNED', '补齐重复请求验收规则'), flowEntry(8, 'PLANNED', 'IMPLEMENTING', '确认幂等改动方案'),
+    flowEntry(9, 'IMPLEMENTING', 'VERIFYING', '按请求号去重并补并发回归'),
+    flowEntry(10, 'VERIFYING', 'REVIEWING', '并发与重试测试通过，重新提交评审'),
+  ];
+  return data;
+}
+const flowDetail = ui => ui.find(n => n.props['aria-label'] === '本次流转详情')[0];
+test('评审退回规格时，主视图串起原因、修改经过和重新提交评审的完整路线', () => {
+  const data = flowData();
+  const ui = mount(data, {FlowWorkbench: {execution: {rounds: [
+    {id: 'run-a', number: 1, source: 'rsi', startedAt: flowAt(8), changesSummary: '先提交并发用例的第一版修改'},
+  ], repairs: [
+    {id: 'fix-a', kind: 'fix_end', at: flowAt(9), summary: '按 request_id 去重，保留已有失败测试', source: 'author'},
+  ]}}});
+  assert.ok(ui.find(n => n.type === 'button' && n.props['aria-label'] === '查看退回路线：评审 → 规格，第 1 次').length);
+  const detail = text(flowDetail(ui));
+  for (const expected of ['审核发现重复请求的处理规则不清楚', '补齐重复请求验收规则', '按请求号去重并补并发回归', '按 request_id 去重', '已再次进入评审']) assert.ok(detail.includes(expected), expected);
+  assert.ok(detail.includes('规格 → 计划 → 实现 → 验证 → 评审'));
+  assert.ok(detail.includes('按时间展示'));
+  const changes = ui.find(n => n.props.className === 'sdlc-flow-repair', flowDetail(ui)).map(text);
+  assert.ok(changes[0].includes('先提交并发用例'));
+  assert.ok(changes[1].includes('按 request_id 去重'));
+});
+test('验收退回哪里由真实迁移决定，不能固定画成退回实现', () => {
+  const data = flowData(); data.tasks[0].status = 'VERIFYING';
+  data.tasks[0].timeline = data.tasks[0].timeline.slice(0, 5).concat([
+    flowEntry(5, 'VERIFYING', 'PLANNED', '验收发现测试方案遗漏异常恢复'),
+    flowEntry(6, 'PLANNED', 'IMPLEMENTING', '重排异常恢复的实现和测试步骤'),
+    flowEntry(7, 'IMPLEMENTING', 'VERIFYING', '补上恢复逻辑并再次提交验收'),
+  ]);
+  const ui = mount(data, {FlowWorkbench: {loading: false, execution: {rounds: [], repairs: []}}});
+  assert.ok(ui.find(n => n.props['aria-label'] === '查看退回路线：验证 → 计划，第 1 次').length);
+  assert.ok(text(flowDetail(ui)).includes('计划 → 实现 → 验证'));
+  assert.ok(text(flowDetail(ui)).includes('已再次进入验证'));
+  assert.ok(text(flowDetail(ui)).includes('尚无可归入这段时间的修复操作记录'));
+});
+test('历史中断不能自动接上后续阶段，也不能混入中断后的修复说明', () => {
+  const data = flowData(); data.tasks[0].timeline.splice(7, 2);
+  const ui = mount(data, {FlowWorkbench: {execution: {rounds: [], repairs: [
+    {id: 'wrong', kind: 'fix_end', at: flowAt(9), summary: '不应挂到这条中断路线的说明'},
+  ]}}});
+  const detail = text(flowDetail(ui));
+  assert.ok(detail.includes('流转记录不连续'));
+  assert.ok(!detail.includes('已再次进入评审'));
+  assert.ok(!detail.includes('不应挂到这条中断路线的说明'));
+});
+test('没有流转历史时不从 reject 或最新阶段编造退回路线', () => {
+  const data = flowData(); data.tasks[0].timeline = [];
+  data.tasks[0].verdict = {status: 'reject'};
+  const ui = mount(data, {FlowWorkbench: {execution: {rounds: [{outcome: 'reject'}], repairs: []}}});
+  const flow = ui.find(n => n.component === 'FlowWorkbench')[0];
+  assert.ok(text(flow).includes('尚无阶段流转记录'));
+  assert.equal(ui.find(n => n.props['aria-label']?.startsWith('查看退回路线')).length, 0);
+});
+test('时间缺失或倒序时保留阶段路线，但不关联修复或验证记录', () => {
+  for (const invalidTime of [undefined, flowAt(4)]) {
+    const data = flowData(); data.tasks[0].timeline[8].at = invalidTime;
+    const ui = mount(data, {FlowWorkbench: {execution: {rounds: [
+      {id: 'wrong-run', source: 'rsi', startedAt: flowAt(9), changesSummary: '不能按异常时间关联的验证提交'},
+    ], repairs: [{id: 'wrong-fix', kind: 'fix_end', at: flowAt(9), summary: '不能按异常时间关联的修改'}]}}});
+    const detail = text(flowDetail(ui));
+    assert.ok(detail.includes('规格 → 计划 → 实现 → 验证 → 评审'));
+    assert.ok(detail.includes('时间缺失、顺序异常'));
+    assert.ok(!detail.includes('不能按异常时间关联'));
+  }
+});
+test('流转刷新不切走正在查看的路线，所选记录消失后明确提示', () => {
+  const data = flowData(), ui = mount(data);
+  ui.click(ui.find(n => n.props['aria-label'] === '查看退回路线：评审 → 规格，第 1 次')[0]);
+  data.tasks[0].timeline.push(flowEntry(11, 'REVIEWING', 'PLANNED', '后来发现需要修订方案'));
+  data.tasks[0].status = 'PLANNED'; ui.render();
+  assert.ok(text(flowDetail(ui)).includes('审核发现重复请求的处理规则不清楚'));
+  assert.ok(!text(flowDetail(ui)).includes('后来发现需要修订方案'));
+  data.tasks[0].timeline.splice(6, 1); ui.render();
+  assert.equal(flowDetail(ui), undefined);
+  assert.ok(ui.find(n => text(n).includes('你选择的流转已不在当前记录中')).length);
+});
 test('状态筛选显示真实任务行，完成和未完成互斥', () => {
   const ui = mount();
   ui.click(ui.find(n => n.type === 'button' && text(n).startsWith('进行中'))[0]);
