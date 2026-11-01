@@ -3,7 +3,7 @@
 由 `node tools/mutation-score.mjs` 生成。**这是合并前四个包测试套件信号率的基线。**
 
 > ⚠️ **2026-10-19 路径迁移，不是重新测量。** 仓库已把七个插件合并成一个包
-> （`packages/sdlc`，commit 959f3ee），本文件里的路径已按新布局**机械映射**：
+> （`packages/sdlc`，commit 83d86b0），本文件里的路径已按新布局**机械映射**：
 > `packages/sdlc-<comp>/lib/...` → `packages/sdlc/lib/<comp>/...`。
 > 合并前四份逐字相同的 `helpers.js` 现在只剩一份，故
 > `packages/sdlc-status/lib/helpers.js` → `packages/sdlc/lib/shared/helpers.js`。

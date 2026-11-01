@@ -1,6 +1,6 @@
 {
   "source": "只读核对本地真实任务，原始会话和业务代码不进入仓库",
-  "baseline": "0f7ba54",
+  "baseline": "ec1f3ed",
   "cases": [
     {
       "task": "DEMO-22149",

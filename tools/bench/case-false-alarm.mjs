@@ -3,8 +3,8 @@
  * 基准用例 FALSE-ALARM-1：看板的「在等人」是不是**真的**在等人。
  *
  * 两侧对照：
- *   基线 671a683   所有 REVIEWING 都算 waiting
- *   修复 ddc4241   只有"下一步该人动"的才算 waiting
+ *   基线 d946c9d   所有 REVIEWING 都算 waiting
+ *   修复 6ae7e09   只有"下一步该人动"的才算 waiting
  *
  * ## 这个 bug 的性质：**误伤**，不是漏检
  *
@@ -73,10 +73,10 @@ export default async function main({ json } = {}) {
   return runCase({
     id: 'FALSE-ALARM-1',
     title: '看板把「已 approve 的 REVIEWING」误报成在等人',
-    baselineRev: '671a683',
-    fixedRev: 'ddc4241',
-    baselineLabel: '基线 671a683（所有 REVIEWING 都算 waiting）',
-    fixedLabel: '修复 ddc4241（按"下一步该谁动"分）',
+    baselineRev: 'd946c9d',
+    fixedRev: '6ae7e09',
+    baselineLabel: '基线 d946c9d（所有 REVIEWING 都算 waiting）',
+    fixedLabel: '修复 6ae7e09（按"下一步该谁动"分）',
     compile,
     judge,
     json,

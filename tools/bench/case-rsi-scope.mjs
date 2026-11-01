@@ -7,8 +7,8 @@ import {compileMerged,runCase,REPO} from './lib.mjs';
 export async function main({json=false}={}) {
   const observed=[];
   const result=await runCase({id:'RSI-SCOPE-1',title:'真实任务的验证日志必须进入 RSI，而不是只留下裁决',
-    baselineRev:'0025acf',fixedRev:'working-tree build',json,moduleType:'module',
-    compile:(revision,work)=>revision==='0025acf'?compileMerged(revision,work):path.join(REPO,'packages/sdlc/lib'),
+    baselineRev:'7955ddd',fixedRev:'working-tree build',json,moduleType:'module',
+    compile:(revision,work)=>revision==='7955ddd'?compileMerged(revision,work):path.join(REPO,'packages/sdlc/lib'),
     judge:async lib=>{
       const runtime=path.join(process.env.DSH_APP??'/Applications/DeepSeek Harness.app','Contents/MacOS/DeepSeek Harness');
       const output=execFileSync(runtime,['--expose-internals',path.join(REPO,'packages/sdlc/smoke/rsi-scopes.mjs')],{
@@ -25,7 +25,7 @@ export async function main({json=false}={}) {
       ];
     },
   });
-  return {...result,comparison:{baseline:{revision:'0025acf',fingerprint:observed[0].suite_fingerprint},candidate:{revision:'working-tree build',fingerprint:observed[1].suite_fingerprint},command:'npm run build --workspace packages/sdlc && node tools/bench/case-rsi-scope.mjs --json',cases:result.rows[0].checks.map(([id,pass,detail],i)=>({id,baseline_pass:pass,candidate_pass:result.rows[1].checks[i][1],evidence:JSON.stringify({baseline:detail,candidate:result.rows[1].checks[i][2]})})),limits:'真实 Cordis/ToolRuntime/文件系统；模型返回是确定性夹具，不证明真实任务质量或耗时普遍改善。'}};
+  return {...result,comparison:{baseline:{revision:'7955ddd',fingerprint:observed[0].suite_fingerprint},candidate:{revision:'working-tree build',fingerprint:observed[1].suite_fingerprint},command:'npm run build --workspace packages/sdlc && node tools/bench/case-rsi-scope.mjs --json',cases:result.rows[0].checks.map(([id,pass,detail],i)=>({id,baseline_pass:pass,candidate_pass:result.rows[1].checks[i][1],evidence:JSON.stringify({baseline:detail,candidate:result.rows[1].checks[i][2]})})),limits:'真实 Cordis/ToolRuntime/文件系统；模型返回是确定性夹具，不证明真实任务质量或耗时普遍改善。'}};
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)) {
   const result=await main({json:process.argv.includes('--json')});

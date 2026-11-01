@@ -20,10 +20,10 @@
 
 | 用例 | 基线 → 修复 | 在测什么 | 判据来源 |
 |---|---|---|---|
-| `STATUS-PAGE-1` | `60825a2` → `HEAD` | 看板默认页丢了"该动手的"任务 | intent「不改变默认行为」+ spec R1「向后兼容（逐字）」 |
-| `FALSE-ALARM-1` | `671a683` → `ddc4241` | 已 `approve` 的 REVIEWING 被报成"在等人" | 看板的存在理由：一次调用答出"哪些卡住了" |
-| `RSI-SCOPE-1` | `0025acf` → 当前构建 | 验证者处于另一个 preset，记录为空却未报错 | RSI-2 R1/R3，DEMO-22149 六次真实运行 |
-| `PWSH-1` | `896d569` → `52212ad` | 工具白名单没按平台选，两个平台都报错 | `tools.restrict()` 对不存在的工具名抛错 |
+| `STATUS-PAGE-1` | `80d8edc` → `HEAD` | 看板默认页丢了"该动手的"任务 | intent「不改变默认行为」+ spec R1「向后兼容（逐字）」 |
+| `FALSE-ALARM-1` | `d946c9d` → `6ae7e09` | 已 `approve` 的 REVIEWING 被报成"在等人" | 看板的存在理由：一次调用答出"哪些卡住了" |
+| `RSI-SCOPE-1` | `7955ddd` → 当前构建 | 验证者处于另一个 preset，记录为空却未报错 | RSI-2 R1/R3，DEMO-22149 六次真实运行 |
+| `PWSH-1` | `ccb880e` → `6bed6ea` | 工具白名单没按平台选，两个平台都报错 | `tools.restrict()` 对不存在的工具名抛错 |
 
 ## 每个用例都必须是**两侧对照**
 
@@ -62,16 +62,16 @@
 
 用例钉在**历史提交**上，所以冻结代码的失败报告会包含**当时真实的缺陷**。
 
-实测踩到：独立验证者跑冻结的 `60825a2`，报
+实测踩到：独立验证者跑冻结的 `80d8edc`，报
 `冒烟 59/60 · 停滞计数应为 1，实际 4`，我把它当成当前待办——
-其实那条早在 `c4712d8` 就修了，当前代码是 69/69。
+其实那条早在 `dac82db` 就修了，当前代码是 69/69。
 
 **先问一句"这是历史快照的问题，还是当前的？"，再动手。**
 
 ## 已知边界
 
 - **用例数量还少（3 条）**。历史上可收集的**任务制品只有 3 个**
-  （E2E-1 / STATUS-PAGE / WF-1，在 `f412a67` 被删、可从 git 历史取回），
+  （E2E-1 / STATUS-PAGE / WF-1，在 `4eda7a0` 被删、可从 git 历史取回），
   撑不起基准。所以用例的真实来源是**修过的 bug**——每个 bug 天然自带
   「坏的那版在父提交里、好的那版在修复提交里」这一对，git 历史里全在。
 - **`E2E-1` 的制品现在不可用**：它被重新界定过（从"实现理赔功能"改成
@@ -85,15 +85,15 @@
 
 ## 2026-10-19：七个插件合并成一个包之后的适配
 
-仓库把七个插件合并成一个包 `packages/sdlc`（`959f3ee`）。对基准的影响是
+仓库把七个插件合并成一个包 `packages/sdlc`（`83d86b0`）。对基准的影响是
 **两侧的源码布局可能不同**，而"基线用旧路径、修复版用新路径"正是这段历史
 本身的一部分：
 
 | 用例 | 基线侧（历史提交，旧路径保留） | 修复侧 |
 |---|---|---|
-| `STATUS-PAGE-1` | `60825a2` → `packages/sdlc-status/src/scan.ts` | `HEAD` → `packages/sdlc/src/status`（合并布局） |
-| `FALSE-ALARM-1` | `671a683` → 旧路径 | `ddc4241` → 旧路径 |
-| `PWSH-1` | `896d569` → 旧路径 | `52212ad` → 旧路径 |
+| `STATUS-PAGE-1` | `80d8edc` → `packages/sdlc-status/src/scan.ts` | `HEAD` → `packages/sdlc/src/status`（合并布局） |
+| `FALSE-ALARM-1` | `d946c9d` → 旧路径 | `6ae7e09` → 旧路径 |
+| `PWSH-1` | `ccb880e` → 旧路径 | `6bed6ea` → 旧路径 |
 
 所以 `lib.mjs` 不再假设一种布局，而是按 revision 判形：
 
@@ -109,7 +109,7 @@
 
 合并后第一次跑 `node tools/bench/run.mjs` 时 PWSH-1 报 tsc 失败。原始输出：
 
-    $ tsc -p …/896d569-module/tsconfig.json
+    $ tsc -p …/ccb880e-module/tsconfig.json
     src/index.ts(297,11): error TS2353: Object literal may only specify known
       properties, and 'toolFilter' does not exist in type 'SubagentStartRequest'.
     src/index.ts(313,58): error TS2339: Property 'start' does not exist on
@@ -124,7 +124,7 @@
 处置：`compileFiles` 支持 `{ noCheck: true }`（只转译、不类型检查），
 PWSH-1 的两个历史版本都用它。**不是**改历史源码去迁就新类型——那会伪造历史。
 
-### 实测（2026-10-19，HEAD `a6ac82d`，Node v26.8.2）
+### 实测（2026-10-19，HEAD `7f2be0a`，Node v26.8.2）
 
     $ node tools/bench/run.mjs
     ### STATUS-PAGE-1 … ✅ 有效：基线违反 4 条，修复版 0 条。

@@ -16,7 +16,7 @@
 
 ## 2026-10-19 单包合并后的适配
 
-背景（commit `959f3ee` + `a6ac82d`）：七个插件合并为**一个包**
+背景（commit `83d86b0` + `7f2be0a`）：七个插件合并为**一个包**
 `packages/sdlc`（`@ai-native-sdlc/dsh-sdlc@0.2.0`）。
 
 - 源码 `packages/sdlc/src/<comp>/`，产物 `packages/sdlc/lib/<comp>/`；
@@ -42,10 +42,10 @@
   `package.json`（`type: module`）与 `tsconfig.json` 编译，再 `import()` 加载；
   旧布局的 revision 保持原来的 `git show` 单文件 + `require` 加载。两种形态在
   同一个 work 目录里共存（嵌套 package.json 优先）。
-- `case-status-page.mjs`：基线 `60825a2` 仍取 `packages/sdlc-status/src/scan.ts`；
+- `case-status-page.mjs`：基线 `80d8edc` 仍取 `packages/sdlc-status/src/scan.ts`；
   修复版 `HEAD` 走合并布局 `packages/sdlc/src/status`。
 - `case-pwsh-toolfilter.mjs`：两个 revision 都是历史提交，旧路径不动。但
-  **tsc 失败是类型漂移，不是用例失败**：896d569/52212ad 针对 0.2.0 API 写的
+  **tsc 失败是类型漂移，不是用例失败**：ccb880e/6bed6ea 针对 0.2.0 API 写的
   （`ctx.subagents.start` / `SubagentStartRequest.toolFilter`），拿 App 升级后的
   0.2.1 类型检查必然报 TS2353/TS2339。修法是用 `compileFiles(..., { noCheck: true })`
   只转译——本用例测的是**运行时行为**，不是历史源码对新类型的兼容性。顺便删掉了
@@ -96,7 +96,7 @@
 - `--smoke` 只把合并包的冒烟套件**跑一次**作为可用性检查，并明确标注
   "这次运行没有经过假时钟"——不假装做了时间旅行。
 
-## 实测记录（2026-10-19，HEAD `a6ac82d`，Node v26.8.2，macOS）
+## 实测记录（2026-10-19，HEAD `7f2be0a`，Node v26.8.2，macOS）
 
 ### `node tools/bench/run.mjs`（约 4 秒）
 

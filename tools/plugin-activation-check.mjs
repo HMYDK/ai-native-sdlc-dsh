@@ -315,7 +315,7 @@ for (const row of moduleRows) {
  *  · `@deepseek-ai/dsh-client-modules` 只扫描宿主 Loader 里精确包名的行来发现
  *    `dsh.client`，写成 `@ai-native-sdlc/dsh-sdlc/ui` 时 host 半照常工作、
  *    `/api/sdlc-ui.tasks` 照常 200，但浏览器半不会进 `window.__DSH_BOOT__`
- *    ——面板不出现，日志无错（a6ac82d 实测抓到）。
+ *    ——面板不出现，日志无错（7f2be0a 实测抓到）。
  *  · preset 的行在注册表自己的**内存 Loader 树**里，不是宿主 Loader 行，
  *    所以把 ui 搬进 preset 同样会让浏览器半消失（方案 A 因此让 UI 常驻）。
  */

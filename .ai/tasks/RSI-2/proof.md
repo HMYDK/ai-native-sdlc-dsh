@@ -50,7 +50,7 @@ npm run preset-sync
 
 ## 两版对照
 
-[version-comparison.json](evidence/version-comparison.json) 来自真实 Cordis/ToolRuntime/LocalFileSystem 夹具。基线 `0025acf` 失败四项，候选全部满足：实际配置 0 → 1，工具结果 0 → 1，缺失通知得到补录，证据健康状态可独立判断。
+[version-comparison.json](evidence/version-comparison.json) 来自真实 Cordis/ToolRuntime/LocalFileSystem 夹具。基线 `7955ddd` 失败四项，候选全部满足：实际配置 0 → 1，工具结果 0 → 1，缺失通知得到补录，证据健康状态可独立判断。
 
 基线 JS 指纹：`5e464b8f27de3eacc221e3ac222f2329c67d0194ea601b57d27e2d1df8859807`。
 

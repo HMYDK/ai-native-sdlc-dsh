@@ -328,6 +328,6 @@ if (bad === 0) {
 } else {
   console.log(`❌ 有 ${bad} 个对象的结果随日期改变：上面带 ✗ 的行。`);
   console.log('   修法通常是让夹具相对当前时间，或把"现在"从配置/参数注入');
-  console.log('   （sdlc-status 的 nowForTests 就是后者，见 c4712d8）。');
+  console.log('   （sdlc-status 的 nowForTests 就是后者，见 dac82db）。');
 }
 process.exit(bad === 0 ? 0 : 1);

@@ -3,7 +3,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {compileMerged,runCase,sh} from './lib.mjs';
 export async function main({json=false}={}){
- return runCase({id:'FLOW-1',title:'问题、裁决与历史记录不能在流程中消失',baselineRev:'0f7ba54',fixedRev:'HEAD',moduleType:'module',json,
+ return runCase({id:'FLOW-1',title:'问题、裁决与历史记录不能在流程中消失',baselineRev:'ec1f3ed',fixedRev:'HEAD',moduleType:'module',json,
   compile:(rev,work)=>compileMerged(rev,work),
   judge:lib=>JSON.parse(sh('/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness',['--expose-internals',path.join(import.meta.dirname,'flow-probe.mjs'),lib],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1'}}).split('\n').find(s=>s.startsWith('FLOW_PROBE ')).slice(11))});
 }

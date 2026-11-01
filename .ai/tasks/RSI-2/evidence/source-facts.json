@@ -1,6 +1,6 @@
 {
   "source_task": "DEMO-22149",
-  "baseline_commit": "0025acf",
+  "baseline_commit": "7955ddd",
   "method": "Read original run lifecycle, capture.json and code.json. Only selected counts and booleans are exported; no raw tool text or code.",
   "runs": [
     {

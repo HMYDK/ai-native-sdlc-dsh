@@ -17,7 +17,7 @@ DEMO-23846 有产品代码和测试修改，却没有登记退回；DEMO-23882 �
 
 - `DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -w packages/sdlc`：库 242、客户端 30、宿主接口 32、10 组冒烟共 455，全部通过。
 - 新流程真实 ToolRuntime + LocalFileSystem + 临时 Git 仓库：27 项，覆盖正常通过、审核退回、独立关闭、版本过期、标准变更、取消迟到结果及旧裁决保留。模型输出为确定性夹具。
-- `node tools/bench/run.mjs --json`：5 个双侧用例全部成立；FLOW-1 的旧版 `0f7ba54` 违反 9 项，修复版 0 项。正常完整裁决的守恒项两侧都通过。
+- `node tools/bench/run.mjs --json`：5 个双侧用例全部成立；FLOW-1 的旧版 `ec1f3ed` 违反 9 项，修复版 0 项。正常完整裁决的守恒项两侧都通过。
 - 测试场 `make check`：21 项通过。compat 对当前 DSH `0.2.1-rc.5` 通过；standard preset 22 行 + SDLC 6 行一致。
 - 时间偏移检查：5 个时点结果一致。
 - 本地真实浏览器，1421×1000、390×844：各 45 项交互通过，无脚本错误。覆盖问题分页、提交/复验区别、审核与验证退回、证据弹窗、交付物和刷新。页面明确使用夹具。

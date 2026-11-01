@@ -1,14 +1,14 @@
 {
   "id": "RSI-SCOPE-1",
   "title": "真实任务的验证日志必须进入 RSI，而不是只留下裁决",
-  "baselineRev": "0025acf",
+  "baselineRev": "7955ddd",
   "fixedRev": "working-tree build",
   "ok": true,
   "baseFails": 4,
   "fixedFails": 0,
   "rows": [
     {
-      "label": "基线 0025acf",
+      "label": "基线 7955ddd",
       "checks": [
         [
           "保存验证者的真实配置",

@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-10-08T04:22:55.069Z",
   "migratedAt": "2026-10-19",
-  "migration": "路径迁移到单包布局（959f3ee/a6ac82d），**未重新测量**。file 已映射：packages/sdlc-<comp>/lib/*.js → packages/sdlc/lib/<comp>/*.js；合并前四份逐字相同的 helpers.js 现在只剩一份，packages/sdlc-status/lib/helpers.js → packages/sdlc/lib/shared/helpers.js，pkg 相应改为 sdlc-shared。line/src 仍是旧布局编译产物的行号，仅作参考；门禁键是 pkg|op|file|site（不含行号）。重新跑 --update-allowlist 会整体替换本文件。",
+  "migration": "路径迁移到单包布局（83d86b0/7f2be0a），**未重新测量**。file 已映射：packages/sdlc-<comp>/lib/*.js → packages/sdlc/lib/<comp>/*.js；合并前四份逐字相同的 helpers.js 现在只剩一份，packages/sdlc-status/lib/helpers.js → packages/sdlc/lib/shared/helpers.js，pkg 相应改为 sdlc-shared。line/src 仍是旧布局编译产物的行号，仅作参考；门禁键是 pkg|op|file|site（不含行号）。重新跑 --update-allowlist 会整体替换本文件。",
   "entries": [
     {
       "pkg": "sdlc-artifact",

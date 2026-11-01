@@ -111,7 +111,7 @@ export function compileFiles(rev, repoRelDir, fileNames, work, { as = 'module', 
 /**
  * 这个 revision 的源码是不是**合并后的单包布局**。
  *
- * 2026-10-19 的 959f3ee 把七个包合并成一个 `packages/sdlc`，组件源码从
+ * 2026-10-19 的 83d86b0 把七个包合并成一个 `packages/sdlc`，组件源码从
  * `packages/sdlc-<comp>/src` 搬到了 `packages/sdlc/src/<comp>`。
  * 基准用例的**基线**一律钉在历史提交上，那里旧路径仍然真实存在；
  * 只有"当前/修复版"一侧会走到合并布局。所以按 revision 判形，而不是全局改路径。

@@ -3,13 +3,13 @@
  * 基准用例 STATUS-PAGE-1：sdlc_status 的**默认页语义**。
  *
  * 两侧对照：
- *   基线 60825a2   默认页也按 task id 排序切窗 → 卡住的任务被挤出默认页
+ *   基线 80d8edc   默认页也按 task id 排序切窗 → 卡住的任务被挤出默认页
  *   当前 HEAD      两种模式分开：默认按呈现序、显式分页按码元序
  *
  * ## 判据的来源（不是这里编的）
  *
  * 从**当时的制品**搬来：intent 写着「不改变默认行为」，spec R1 是
- * 「向后兼容（逐字）」。而 60825a2 的实现把默认路径也改成按 id 排序切窗——
+ * 「向后兼容（逐字）」。而 80d8edc 的实现把默认路径也改成按 id 排序切窗——
  * **它自己违反了 R1**。CI 与仓库自带测试都看不见，因为夹具是**同质**的
  * （id 序恰好等于紧迫序）。
  *
@@ -25,13 +25,13 @@
  */
 import { compileFiles, compileMerged, loadMerged, loadModule, mergedAt, runCase } from './lib.mjs';
 
-const BASELINE_REV = '60825a2';
+const BASELINE_REV = '80d8edc';
 const CURRENT_REV = 'HEAD';
 const BASELINE_LABEL = `基线 ${BASELINE_REV}（默认页也按 id 序切窗）`;
 const CURRENT_LABEL = '当前 HEAD';
 
 /**
- * ⚠️ 两个版本的**源码布局不同**：基线 60825a2 在七个独立包时代
+ * ⚠️ 两个版本的**源码布局不同**：基线 80d8edc 在七个独立包时代
  * （`packages/sdlc-status/src/scan.ts`），修复版 HEAD 在合并后的单包时代
  * （`packages/sdlc/src/status/scan.ts`，且 `scan.ts` 现在 import `../task/state.js`）。
  * 所以按 revision 判形：合并布局走整包编译 + ESM 加载，旧布局保持原路径。

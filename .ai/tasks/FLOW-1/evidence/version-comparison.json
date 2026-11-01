@@ -2,14 +2,14 @@
   {
     "id": "STATUS-PAGE-1",
     "title": "sdlc_status 的默认页不再显示\"该动手的\"任务",
-    "baselineRev": "60825a2",
+    "baselineRev": "80d8edc",
     "fixedRev": "HEAD",
     "ok": true,
     "baseFails": 4,
     "fixedFails": 0,
     "rows": [
       {
-        "label": "基线 60825a2（默认页也按 id 序切窗）",
+        "label": "基线 80d8edc（默认页也按 id 序切窗）",
         "checks": [
           [
             "夹具越过默认页上限",
@@ -83,14 +83,14 @@
   {
     "id": "FALSE-ALARM-1",
     "title": "看板把「已 approve 的 REVIEWING」误报成在等人",
-    "baselineRev": "671a683",
-    "fixedRev": "ddc4241",
+    "baselineRev": "d946c9d",
+    "fixedRev": "6ae7e09",
     "ok": true,
     "baseFails": 2,
     "fixedFails": 0,
     "rows": [
       {
-        "label": "基线 671a683（所有 REVIEWING 都算 waiting）",
+        "label": "基线 d946c9d（所有 REVIEWING 都算 waiting）",
         "checks": [
           [
             "REVIEWING + approve（2h）不是「在等人」",
@@ -130,7 +130,7 @@
         ]
       },
       {
-        "label": "修复 ddc4241（按\"下一步该谁动\"分）",
+        "label": "修复 6ae7e09（按\"下一步该谁动\"分）",
         "checks": [
           [
             "REVIEWING + approve（2h）不是「在等人」",
@@ -174,14 +174,14 @@
   {
     "id": "PWSH-1",
     "title": "验证者工具白名单没按平台选（两个平台都会报错）",
-    "baselineRev": "896d569",
-    "fixedRev": "52212ad",
+    "baselineRev": "ccb880e",
+    "fixedRev": "6bed6ea",
     "ok": true,
     "baseFails": 4,
     "fixedFails": 0,
     "rows": [
       {
-        "label": "基线 896d569（bash + pwsh 都写）",
+        "label": "基线 ccb880e（bash + pwsh 都写）",
         "checks": [
           [
             "darwin: 白名单里没有该平台不存在的工具",
@@ -226,7 +226,7 @@
         ]
       },
       {
-        "label": "修复 52212ad（按平台选）",
+        "label": "修复 6bed6ea（按平台选）",
         "checks": [
           [
             "darwin: 白名单里没有该平台不存在的工具",
@@ -275,14 +275,14 @@
   {
     "id": "RSI-SCOPE-1",
     "title": "真实任务的验证日志必须进入 RSI，而不是只留下裁决",
-    "baselineRev": "0025acf",
+    "baselineRev": "7955ddd",
     "fixedRev": "working-tree build",
     "ok": true,
     "baseFails": 4,
     "fixedFails": 0,
     "rows": [
       {
-        "label": "基线 0025acf",
+        "label": "基线 7955ddd",
         "checks": [
           [
             "保存验证者的真实配置",
@@ -334,7 +334,7 @@
     ],
     "comparison": {
       "baseline": {
-        "revision": "0025acf",
+        "revision": "7955ddd",
         "fingerprint": "5e464b8f27de3eacc221e3ac222f2329c67d0194ea601b57d27e2d1df8859807"
       },
       "candidate": {
@@ -374,14 +374,14 @@
   {
     "id": "FLOW-1",
     "title": "问题、裁决与历史记录不能在流程中消失",
-    "baselineRev": "0f7ba54",
+    "baselineRev": "ec1f3ed",
     "fixedRev": "HEAD",
     "ok": true,
     "baseFails": 9,
     "fixedFails": 0,
     "rows": [
       {
-        "label": "基线 0f7ba54",
+        "label": "基线 ec1f3ed",
         "checks": [
           [
             "reject cannot enter REVIEWING",

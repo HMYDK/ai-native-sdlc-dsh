@@ -3,8 +3,8 @@
  * 基准用例 PWSH-1：验证者工具白名单的**平台分支**。
  *
  * 两侧对照：
- *   基线 896d569   白名单同时写 `bash` 与 `pwsh`
- *   修复 52212ad   按 `process.platform` 只放本平台存在的那个
+ *   基线 ccb880e   白名单同时写 `bash` 与 `pwsh`
+ *   修复 6bed6ea   按 `process.platform` 只放本平台存在的那个
  *
  * ## 为什么它是一个"类"而不是一个"点"
  *
@@ -38,10 +38,10 @@ import path from 'node:path';
 import { compileFiles, runCase, require } from './lib.mjs';
 import { pathToFileURL } from 'node:url';
 
-const BASELINE_REV = '896d569';
-const FIX_REV = '52212ad';
+const BASELINE_REV = 'ccb880e';
+const FIX_REV = '6bed6ea';
 // ⚠️ 这里**不能**写 `helpers.ts`：这两个历史 revision 的 src 下从来没有它
-// （实测 `git show 896d569:packages/sdlc-verify/src/helpers.ts` → 不存在）。
+// （实测 `git show ccb880e:packages/sdlc-verify/src/helpers.ts` → 不存在）。
 // `compileFiles` 会静默跳过缺失文件，写错一个名字会让人误以为它被编译了。
 const SRC = ['index.ts', 'verdict.ts', 'test-freeze.ts'];
 
@@ -136,11 +136,11 @@ async function judge(mod) {
 /**
  * ⚠️ 验证者的产物需要 **ESM** 加载：它 `import` 别的模块，
  * 而 `makeWorkdir` 默认声明 `commonjs`。所以这里给该版本单独标 `type: module`。
- * （`52212ad` 的包本来就是 `"type": "module"`。）
+ * （`6bed6ea` 的包本来就是 `"type": "module"`。）
  *
  * ⚠️ 编译用 `noCheck`（只转译、不类型检查）——这是**实测诊断**出来的，不是猜：
  *
- *     $ tsc -p …/896d569-module/tsconfig.json
+ *     $ tsc -p …/ccb880e-module/tsconfig.json
  *     src/index.ts(297,11): error TS2353: 'toolFilter' does not exist in type 'SubagentStartRequest'
  *     src/index.ts(313,58): error TS2339: Property 'start' does not exist on type 'SubagentRuntime'
  *
