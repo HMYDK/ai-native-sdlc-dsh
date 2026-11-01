@@ -3,8 +3,16 @@
 一个 **DeepSeek Harness（DSH）插件**，把需求、计划、实现、独立验证和评审串成可追踪的开发流程。
 任务走到了哪一步、为什么退回、改了什么、复验是否通过，都有文件记录可以核对。
 
-方法来自 Anthropic《AI 原生 SDLC 实战手册》，[中文全译](handbook/AI%20原生%20SDLC%20实战手册（中文翻译）.md)保存在本仓库。
-当前插件为 [`@ai-native-sdlc/dsh-sdlc@0.5.0`](packages/sdlc/package.json)，以一个 npm 包交付。
+[![CI](https://github.com/HMYDK/ai-native-sdlc-dsh/actions/workflows/ci.yml/badge.svg)](https://github.com/HMYDK/ai-native-sdlc-dsh/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+方法来自 Anthropic《AI 原生 SDLC 实战手册》（[原文](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)，作者 Louis Claxton）。
+本仓库不收录全文翻译，只提供一篇原创[中文导读](docs/playbook-notes.md)。
+
+当前插件为 [`@ai-native-sdlc/dsh-sdlc@0.5.0`](packages/sdlc/package.json)，以一个 npm bundle 交付。
+本项目是社区实现，与 Anthropic、DeepSeek 均无隶属关系。
+
+![SDLC 看板](docs/design/sdlc-dashboard-2026-10-28/loop-workbench.png)
 
 **安装后，新建会话并选择「AI 原生 SDLC」模式才会启用工作流。** 标准会话不加载 SDLC 工具；侧栏只读看板常驻。
 
@@ -17,31 +25,35 @@
 | 评审发现问题后，只剩一句“已修改” | 给问题固定编号，记录退回阶段、修改证据和独立复验结果 |
 | 代码又改了，却继续引用上次的通过结论 | 裁决绑定当时的代码、需求、计划和验收标准；推进阶段时重新检查 |
 | 修 bug 时顺手改松了测试 | 复现后冻结测试资产，拦截已覆盖的文件写入和 shell 改写方式 |
-| 经常返工，却不知道该改进哪里 | 保存任务执行证据，支持复盘、提出插件改进、比较新旧版本和跟踪后续效果 |
+| 经常返工，却不知道该改进哪里 | 保存任务执行证据，支持复盘、提出改进、比较新旧版本和跟踪后续效果 |
 
 侧栏看板把这些记录放到一起：七个阶段及其交付物、每次推进与退回、逐项问题处理、历轮验证和记录缺口。
 它按实际记录展示路线，例如需求问题退回 `SPEC`、方案问题退回 `PLANNED`。
 
 ## 安装与开始使用
 
-以下步骤在 **macOS + DeepSeek Harness App** 上使用，需要本机有 Node.js 和 npm。
-执行独立验证还需要 DSH 已配置可用的模型。其他平台的完整安装流程尚未验收。
+以下步骤在 **macOS + DeepSeek Harness App** 上验证过；其他平台的完整安装流程尚未验收。
+执行独立验证还需要 DSH 已配置可用的模型。
 
-### 1. 构建安装包
+### 方式一：使用 GitHub Release 的安装包（推荐）
 
-在仓库根目录执行；尚未获取仓库时，先克隆：
+1. 打开 [Releases](https://github.com/HMYDK/ai-native-sdlc-dsh/releases)，下载最新的 `.tgz` 与 `SHA256SUMS.txt` 校验文件。
+2. 校验后按下面的 **「安装到 DSH」** 步骤安装。
+
+```sh
+shasum -a 256 -c SHA256SUMS.txt
+```
+
+### 方式二：从源码构建
 
 ```sh
 git clone https://github.com/HMYDK/ai-native-sdlc-dsh.git
 cd ai-native-sdlc-dsh
-```
-
-```sh
 npm install
-export DSH_APP="/Applications/DeepSeek Harness.app"
 
-npm run compat
-npm run preset-sync
+export DSH_APP="/Applications/DeepSeek Harness.app"
+npm run compat          # 包声明是否接受本机 DSH 版本
+npm run preset-sync     # 内置基础工具列表是否仍与 App 一致
 npm run build --workspace packages/sdlc
 
 SDLC_PACK="$(npm pack --workspace packages/sdlc --silent)"
@@ -50,14 +62,12 @@ SDLC_TGZ="$PWD/${SDLC_PACK%.tgz}-$SDLC_HASH.tgz"
 mv "$SDLC_PACK" "$SDLC_TGZ"
 ```
 
-`compat` 检查包声明是否接受本机 DSH 版本，`preset-sync` 检查内置基础工具列表是否仍与 App 一致。
-任一检查失败时，先按输出处理再继续。DSH 升级后也要重新检查。
-安装包名自动取自打包结果，并加上内容哈希，避免同版本反复打包时安装器复用旧文件。
+`compat` 与 `preset-sync` 任一失败时，先按输出处理再继续；DSH 升级后也要重新检查。
+安装包名加上内容哈希，避免同版本反复打包时安装器复用旧文件。
 
-### 2. 安装到 DSH
+### 安装到 DSH
 
-继续在同一个终端执行。下面以日常使用的 `desktop` profile 为例；其他 profile 请替换该名称。
-使用 **App 自带 CLI**，确保安装命令与实际运行的 DSH 来自同一版本。
+使用 **App 自带 CLI**，确保安装命令与实际运行的 DSH 来自同一版本。下面以 `desktop` profile 为例，其他 profile 请替换名称。
 
 ```sh
 DSH_CONTENTS="$DSH_APP/Contents"
@@ -76,7 +86,7 @@ ELECTRON_RUN_AS_NODE=1 "$DSH_BIN" --expose-internals "$DSH_CLI" \
 升级已有安装后，**完全退出并重新打开 DSH，再新建会话**，以确认使用新模块。
 安装成功本身不能证明旧进程已经加载新版。
 
-### 3. 在业务项目里开始任务
+### 在业务项目里开始任务
 
 1. 在 DSH 打开要开发的项目目录。
 2. 新建会话，选择 **「AI 原生 SDLC」** 模式。
@@ -195,24 +205,26 @@ node tools/bench/run.mjs                 # 同一用例比较旧版与修复版
 DSH 的工作模式不支持继承，因此插件保留了一份 `standard` 基础工具列表。
 App 升级后若 `preset-sync` 发现差异，用 `npm run preset-sync:write` 同步，检查改动后重新跑完整验证。
 修改插件前请先读 [AGENTS.md](AGENTS.md) 和 [DSH 插件契约](docs/dsh-plugin-contracts.md)。
+贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全问题见 [SECURITY.md](SECURITY.md)。
 
-### 已有验证证据
+### 已保存的验证证据
 
-以下为 **2026-10-31、插件 0.5.0** 的已保存结果，来源是 [FLOW-1 验证记录](.ai/tasks/FLOW-1/proof.md)及其[结构化读数](.ai/tasks/FLOW-1/evidence/validation.json)：
+以下为 **2026-11-01、插件 0.5.0** 的已保存结果，来源是 [ARTIFACT-READ-1 验证记录](.ai/tasks/ARTIFACT-READ-1/proof.md)：
 
 | 检查范围 | 结果 |
 |---|---|
-| 库与客户端单测 | 242 + 30，共 272 项通过 |
-| 看板宿主接口 | 32 项通过 |
-| 运行时冒烟 | 10 组，共 455 项通过 |
-| 新旧版本对照 | 5 个用例成立；FLOW-1 旧版违反 9 项，修复版 0 项 |
-| 本地浏览器交互 | 桌面 1421px、手机 390px 各 45 项通过，使用明确标注的本地测试数据 |
+| 库与客户端单测 | 242 + 35，共 277 项通过 |
+| 看板宿主接口 | 51 项通过 |
+| 运行时冒烟 | 10 组，共 459 条通过 |
+| 回归 A/B 对照 | 旧版宿主 41 通过 / 10 失败 → 新版 51 / 0；旧版客户端 30 / 5 → 新版 35 / 0 |
+| 本地浏览器交互 | 1421×1000 深色、390×844 浅色共 39 项通过，使用明确标注的本地测试数据 |
 | DSH 兼容与模式列表 | `0.2.1-rc.5` 兼容检查通过；22 条基础组件 + 6 条 SDLC 组件一致 |
 
 这些结果证明相应程序行为，**不代表真实模型判断质量或最终 DSH 页面已验收**。
-0.5.0 已有隔离和 desktop profile 的安装文件核对记录，但当时未确认日常进程加载新版；
-FLOW-1 也未取得独立模型裁决，任务仍保留 `VERIFYING`。完整范围见[安装记录](.ai/tasks/FLOW-1/evidence/installation.json)。
+本轮是自动回归和作者复查，没有独立模型裁决，任务保留 `VERIFYING`；日常 DSH 进程是否加载新版也未确认。
+更早的 FLOW-1 双侧基准（5 个用例）仍成立，读数见 [FLOW-1 验证记录](.ai/tasks/FLOW-1/proof.md)。
 RSI 的指导文字对照实验仍与参考答案共享文件系统，仅供探索，不能据此推荐采用候选。
+最新提交的构建与单测由 [CI](https://github.com/HMYDK/ai-native-sdlc-dsh/actions/workflows/ci.yml) 持续检查。
 
 ## 目录与文档
 
@@ -221,9 +233,24 @@ RSI 的指导文字对照实验仍与参考答案共享文件系统，仅供探�
 | [packages/sdlc/](packages/sdlc/README.md) | 插件包、组件划分、工作模式与安装细节 |
 | [任务与返工流程](packages/sdlc/TASK.md) | 状态、问题处理、验证版本和工具用法 |
 | [RSI](packages/sdlc/RSI.md) | 执行证据、复盘、改进提案与版本对照 |
+| [中文导读](docs/playbook-notes.md) | Anthropic 方法论要点与本插件的对应关系 |
 | [看板实现记录](docs/design/sdlc-dashboard-2026-10-28/implementation.md) | 阶段流转、交付物、交互检查及验收范围 |
 | [tools/](tools/README.md) | 兼容、安装核对、基准、变异与时间偏移检查 |
-| [.ai/tasks/](.ai/tasks/) | 本项目的真实任务交付物与验证证据 |
-| [handbook/](handbook/) | 方法来源的中文全译与插图 |
+| [.ai/tasks/](.ai/tasks/) | 本项目的真实任务交付物与验证证据（已脱敏） |
 | [docs/](docs/) | DSH 接口调研、插件契约和实测问题记录 |
 | [AGENTS.md](AGENTS.md) | 项目决策、工程约定与历史教训 |
+
+## 许可证与第三方
+
+本项目以 [MIT 许可证](LICENSE) 发布。
+看板使用 [Tabler Icons](https://github.com/tabler/tabler-icons)（MIT），完整声明见 [packages/sdlc/THIRD_PARTY_NOTICES.md](packages/sdlc/THIRD_PARTY_NOTICES.md)。
+Anthropic 方法论原文的版权归 Anthropic 所有，本仓库只提供原创导读与链接，不包含原文译文或插图。
+
+## English summary
+
+A community **DeepSeek Harness (DSH) plugin** that turns an AI-native SDLC into a verifiable workflow:
+task state and artifact chain, independent verification with structured verdicts, per-issue rework
+and re-verification, test freezing, and RSI-based retrospectives. It ships as one DSH bundle
+(`@ai-native-sdlc/dsh-sdlc`) with a read-only dashboard plus an optional "AI 原生 SDLC" Agent Preset.
+Licensed MIT. The workflow is verified on macOS with the DeepSeek Harness App; other platforms are untested.
+Not affiliated with Anthropic or DeepSeek.

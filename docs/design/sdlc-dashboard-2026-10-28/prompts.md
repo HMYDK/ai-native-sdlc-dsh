@@ -2,7 +2,7 @@
 
 日期：2026-10-28。工具：内置 image_gen。
 
-三次调用都附入已查看的现有截图 `output/playwright/rsi2-record-health.png`，作为语义参考。
+三次调用都附入已查看的现有截图 `rsi2-record-health.png`，作为语义参考。
 
 ## 流程画布
 

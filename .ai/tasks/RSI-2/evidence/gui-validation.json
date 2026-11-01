@@ -12,7 +12,7 @@
     "expanded_issue": "验证者记录为空，尚未取得实际模型配置",
     "legacy_without_summary": "尚未确认执行记录是否完整"
   },
-  "screenshot": "output/playwright/rsi2-record-health.png",
+  "screenshot": "docs/design/sdlc-dashboard-2026-10-28/rsi2-record-health.png",
   "screenshot_sha256": "959d3ed2df23cf63c4c2d67478ee5535bdba590e19cf488f3e211037b2b36680",
   "console": {
     "sdlc_errors": 0,

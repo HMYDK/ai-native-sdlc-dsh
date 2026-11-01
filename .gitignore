@@ -4,12 +4,16 @@ packages/*/node_modules/
 packages/*/lib/
 *.tsbuildinfo
 *.tgz
+coverage/
 
-# 手册的 docx 派生版（md 为准）
-*.docx
-~$*.docx
+# 本机 IDE / 本地预览产物
+.idea/
+output/
+.vscode/
 
-# macOS
+# 日志与临时文件
+*.log
+npm-debug.log*
 .DS_Store
 
 # 凭据与本地状态
@@ -18,17 +22,14 @@ packages/*/lib/
 *.pem
 *.key
 
+# 手册全文因版权原因仅保留在本机，不进入公开仓库；公开仓库用 docs/playbook-notes.md
+handbook/
 
-.ai
-.idea
-docs
-output
-
-# RSI 的完整输入、代码快照与会话记录留在本机；经核对的结论进入真实任务制品。
+# RSI 的完整输入、代码快照与会话记录留在本机；经核对的结论进入真实任务制品
 .ai/rsi/
+# 冒烟测试造的临时任务（真实任务制品应当提交）
+.ai/tasks/SMOKE-*/
 
-# 合并探针的隔离 DSH_HOME 与 fixture（可丢弃，永不提交）
+# 合并探针 / 隔离验证用的 DSH_HOME（可丢弃，永不提交）
 .probe/
-
-# 隔离验证用的 DSH_HOME（真实 tarball 安装验证，可丢弃）
 .verify-home/

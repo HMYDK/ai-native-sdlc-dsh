@@ -78,7 +78,7 @@ DSH_PROFILE_DIR="$PWD/.verify-home/profiles/verify-sdlc" node tools/plugin-activ
 
 随后实际启动隔离进程，经本机登录链接换取 cookie 后访问 `/api/sdlc-ui.tasks` 和首页。摘要夹具返回 `evidence_complete=false`、六次验证、七个会话，未被 DONE 状态掩盖。临时访问 token 没有写入交付记录。
 
-真实 Chrome 中打开 SDLC 看板，筛选隔离工作区，展开记录缺口并检查截图。界面显示「执行证据不完整」「7 个会话 · 6 次验证 · 待复盘」及具体缺口；没有摘要的任务显示「尚未确认」。见 [浏览器检查记录](evidence/gui-validation.json) 和 [隔离任务截图](../../../output/playwright/rsi2-record-health.png)。这是明确标注的夹具，不是新增业务任务的读数。
+真实 Chrome 中打开 SDLC 看板，筛选隔离工作区，展开记录缺口并检查截图。界面显示「执行证据不完整」「7 个会话 · 6 次验证 · 待复盘」及具体缺口；没有摘要的任务显示「尚未确认」。见 [浏览器检查记录](evidence/gui-validation.json) 和 [隔离任务截图](../../../docs/design/sdlc-dashboard-2026-10-28/rsi2-record-health.png)。这是明确标注的夹具，不是新增业务任务的读数。
 
 用户正在使用的 desktop profile 没有升级；没有发布 npm 包，没有自动替换运行中的插件。
 

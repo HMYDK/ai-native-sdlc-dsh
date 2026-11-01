@@ -520,7 +520,7 @@ test('上一轮有 not_met 且理由没点到 → 拒绝，并列出没点到的
       { criterion: 'R4: 幂等', result: 'not_met' },
     ],
   };
-  const r = checkPriorResponse(prior, '我改了 配置对象，应该好了');
+  const r = checkPriorResponse(prior, '我改了配置对象，应该好了');
   assert.equal(r.ok, false);
   // 只报 not_met 的，met 的不该出现
   assert.deepEqual(r.unaddressed, ['R3', 'R4']);
@@ -537,7 +537,7 @@ test('理由逐条点到 → 放行（只要求点到，不判断说得对不对
   };
   const r = checkPriorResponse(
     prior,
-    'R3：把 配置文件 改成 camelCase 并在真上下文断言 getProperty 非 null，证据 /tmp/probe5.out；R4：加了重复注册断言',
+    'R3：把配置文件改成 camelCase 并在真上下文断言 getProperty 非 null，证据 /tmp/probe.out；R4：加了重复注册断言',
   );
   assert.equal(r.ok, true);
   assert.deepEqual(r.unaddressed, []);

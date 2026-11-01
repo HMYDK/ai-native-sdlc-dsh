@@ -303,7 +303,7 @@ else bad('空 reason 的迁移被放行');
       criteria_results: [
         { criterion: 'AC1: 拦截器链存在', result: 'met' },
         { criterion: 'AC2: 分页生效', result: 'met' },
-        { criterion: 'R3: 配置文件 的配置真的被拦截器读到', result: 'not_met' },
+        { criterion: 'R3: 配置文件里的配置真的被拦截器读到', result: 'not_met' },
       ],
     },
   }, null, 2));
@@ -327,7 +327,7 @@ else bad('空 reason 的迁移被放行');
   const informed = await dispatch('sdlc_task_advance', {
     task_id: 'PROJ-7',
     to: 'VERIFYING',
-    reason: 'R3：把 配置文件 改成 camelCase 并在真上下文断言 getProperty 非 null，证据 /tmp/probe5.out',
+    reason: 'R3：把配置文件改成 camelCase 并在真上下文断言 getProperty 非 null，证据 /tmp/probe.out',
   });
   if (informed.isError) bad(`逐条点到 R3 后仍被拒: ${JSON.stringify(informed.error)}`);
   else ok(`逐条回应后放行 → ${informed.value.from} → ${informed.value.to}`);

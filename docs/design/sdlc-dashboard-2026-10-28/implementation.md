@@ -31,7 +31,7 @@ Browser plugin not available，使用已缓存的 Playwright CLI + Chrome。地�
 `http://127.0.0.1:4326/` 只服务明确标注的本地夹具，没有连接 DSH 认证服务。
 最终源码在 **1421×1058、1120×1058、390×844 各 40 项**交互通过。页面身份、非空、
 无框架报错、无控制台错误/警告、截图和操作结果均已检查；手机优先展示选中退回的详情。
-截图已查看，保存在 `<本机临时截图>/`。
+截图已查看，保存在 `<本机临时截图>`。
 
 最终包 `ai-native-sdlc-dsh-sdlc-0.4.0-flow-46e802f88e84.tgz` 含 60 文件、33 个 JS。
 先安装隔离 `verify-sdlc`，随后更新日常 desktop；发布 JS 与 patch 逐文件一致。
@@ -60,7 +60,7 @@ Browser plugin not available；使用已缓存的 Playwright CLI + Chrome，地�
 `http://127.0.0.1:4326/`，仅服务本地示例组件，没有连接 DSH 认证服务。
 最终源码在 1421×1058、390×844 各通过 29 项交互；1120×1058 也在最后的手机文件名
 截断调整前通过 29 项。页面标题与内容正确、没有空白或框架错误界面、控制台无错误与警告，
-截图已人工查看，阶段入口和弹窗未发生遮挡。截图保存于本机 `<本机临时截图>/*.png`。
+截图已人工查看，阶段入口和弹窗未发生遮挡。截图保存于本机 `<本机临时截图>*.png`。
 
 60 文件、33 JS 的修正版包先安装隔离 profile，随后安装到日常 desktop；发布 JS 与
 patch 逐文件核对一致，profile 仅改 SDLC 的包引用。完整 SHA256 见 `verification.json`。
@@ -99,16 +99,16 @@ npm run preset-sync
 
 截图（均为本地组件与示例数据）：
 
-- [深色桌面](../../../output/playwright/loop-workbench-desktop.png)
-- [浅色桌面](../../../output/playwright/loop-workbench-light.png)
-- [390px 窄屏](../../../output/playwright/loop-workbench-mobile.png)
-- [历史轮次](../../../output/playwright/loop-workbench-history.png)
-- [本轮证据弹窗](../../../output/playwright/loop-workbench-evidence.png)
-- [浏览器检查结果](../../../output/playwright/loop-workbench-checks.png)
-- [1120px 检查结果](../../../output/playwright/loop-workbench-checks-narrow.png)
-- [整体对照](../../../output/playwright/loop-workbench-comparison.png)与[详情对照](../../../output/playwright/loop-workbench-comparison-detail.png)
+- [深色桌面](loop-workbench-desktop.png)
+- [浅色桌面](loop-workbench-light.png)
+- [390px 窄屏](loop-workbench-mobile.png)
+- [历史轮次](loop-workbench-history.png)
+- [本轮证据弹窗](loop-workbench-evidence.png)
+- [浏览器检查结果](loop-workbench-checks.png)
+- [1120px 检查结果](loop-workbench-checks-narrow.png)
+- [整体对照](loop-workbench-comparison.png)与[详情对照](loop-workbench-comparison-detail.png)
 
-视觉检查结论见根目录 [design-qa.md](../../../design-qa.md)。
+视觉检查结论见根目录 [design-qa.md](design-qa.md)。
 
 ## 本地复跑
 

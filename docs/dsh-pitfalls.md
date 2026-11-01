@@ -91,7 +91,7 @@ dsh plugin --profile <p> add <pkg>@<与运行时一致的版本>
 仓库路径含空格时，`command` 若写裸可执行文件路径，展开后会被 shell 分词拆开：
 
 ```
-exitCode 126 | bash: <WORKSPACE>/AI: is a directory
+exitCode 126 | bash: <workspace>/AI: is a directory
 ```
 
 而按桥接契约，**除 `exit 2` 外的任何失败都是"非阻断失败"**——记录后继续执行，

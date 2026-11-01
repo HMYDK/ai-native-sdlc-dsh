@@ -1,6 +1,6 @@
 # @ai-native-sdlc/dsh-sdlc
 
-把 Anthropic《AI 原生 SDLC 实战手册》的方法论落成 **一个 DeepSeek Harness bundle**。
+把 Anthropic《AI 原生 SDLC 实战手册》的方法论落成 **一个 DeepSeek Harness bundle**。方法论要点与本插件的对应关系见[中文导读](../../docs/playbook-notes.md)。
 
 ## 一个包：常驻的只读看板 + 一个可选的工作模式
 
