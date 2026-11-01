@@ -97,6 +97,9 @@
     "artifact-chain"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "prepack": "npm run build",
     "build": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').copyFileSync('src/ui/client.js','lib/ui/client.js')\"",
