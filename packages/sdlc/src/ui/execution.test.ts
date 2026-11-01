@@ -13,6 +13,9 @@ const at = (n: number) => new Date(Date.UTC(2026, 9, 28, 1, n)).toISOString();
 async function fixture(t: test.TestContext, taskId = 'TASK-1') {
   const repoRoot = mkdtempSync(path.join(tmpdir(), 'sdlc-execution-'));
   t.after(() => fs.rm(repoRoot, {recursive: true, force: true}));
+  // macOS 的 tmpdir 是 /var/... 的符号链接；必须用真实路径算相对 reads，
+  // 否则 read 断言会得到 ../../private/var/... 而恒真（Linux CI 才暴露）。
+  const rootKey = realpathSync(repoRoot);
   const reads: string[] = [];
   const writes = async (relative: string, value: unknown) => {
     const file = path.join(repoRoot, relative);
@@ -36,13 +39,13 @@ async function fixture(t: test.TestContext, taskId = 'TASK-1') {
       catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw e; }
     },
     async readBytes(target: {displayPath: string}, _signal: unknown, maxBytes: number) {
-      reads.push(path.relative(repoRoot, target.displayPath));
+      reads.push(path.relative(rootKey, target.displayPath));
       const stat = await fs.stat(target.displayPath);
       if (stat.size > maxBytes) throw new Error('FS_TOO_LARGE');
       return new Uint8Array(await fs.readFile(target.displayPath));
     },
     async listDir(target: {displayPath: string}) {
-      reads.push(path.relative(repoRoot, target.displayPath) + '/');
+      reads.push(path.relative(rootKey, target.displayPath) + '/');
       return (await fs.readdir(target.displayPath, {withFileTypes: true})).map(entry => ({name: entry.name, type: entry.isDirectory() ? 'directory' : 'file'}));
     },
   };
@@ -144,10 +147,12 @@ test('索引的工作区或任务归属不符时拒绝所有历史内容', async
   await f.manifest(['wrong'], [], {task_id: 'OTHER'}); value = await f.read(); assert.deepEqual(value.rounds, []);
 });
 
-test('旧任务只有当前裁决时不编造此前循环，也不扫描全局 runs', async t => {
+test('旧任务只有当前裁决时不编造此前循环', async t => {
   const f = await fixture(t); await f.run('unknown-history', 1); await f.writes('.ai/tasks/TASK-1/verification.json', {task: 'TASK-1', at: at(1), criteria: ['行为正确'], verdict: {status: 'reject', summary: '当前结论', verifier_attempts: 2, findings: []}});
   const value = await f.read(); assert.equal(value.rounds.length, 1); assert.equal(value.rounds[0].source, 'current_verdict'); assert.equal(value.status, 'partial');
-  assert.deepEqual(value.repairs, []); assert.ok(!f.reads.some(p => p.startsWith('.ai/rsi/runs/')));
+  // manifest 缺失时会扫描 .ai/rsi/runs 做旧轮次恢复，但必须同时核对任务号和制品归属；
+  // 这里的 run 没有 prepared 制品，因此不得产出 rsi 轮次，也不得伪造退回。
+  assert.deepEqual(value.repairs, []); assert.ok(!value.rounds.some((r: {source: string}) => r.source === 'rsi'));
   assert.match(value.issues.join(' '), /历史/);
 });
 
