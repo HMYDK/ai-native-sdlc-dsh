@@ -310,11 +310,27 @@ window.__ModuleLoader__.load({
 .sdlc-dialog-panel{display:flex;flex-direction:column;max-height:calc(100dvh - 66px);min-width:0}
 .sdlc-dialog-head{display:flex;align-items:center;gap:12px;padding:19px 24px;border-bottom:1px solid var(--s-line);font-size:13px}
 .sdlc-dialog-head>span{color:var(--s-muted);font-size:11px}
+.sdlc-dialog-head>strong{min-width:0;overflow-wrap:anywhere}.sdlc-dialog-close{flex-shrink:0}
 .sdlc-dialog-close{margin-left:auto;display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:6px;background:var(--s-raised)}
 .sdlc-document{padding:25px 28px;overflow:auto;font-size:13px;min-height:120px}
 .sdlc-document pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:var(--s-muted);padding:14px;background:var(--s-surface);border:1px solid var(--s-line);border-radius:7px}
 .sdlc-document h3{font-size:13px;margin:22px 0 10px}.sdlc-document h3:first-child{margin-top:0}
 .sdlc-document p{color:var(--s-muted);font-size:13px;line-height:1.8;overflow-wrap:anywhere}
+.sdlc-report{overflow-wrap:anywhere}.sdlc-report-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.sdlc-report-heading h2{font-size:20px}.sdlc-report-status{font-size:12px;border-radius:5px;padding:4px 9px;background:var(--s-raised);color:var(--s-warning)}
+.sdlc-report-status.is-pass{background:var(--s-accent-bg);color:var(--s-accent)}.sdlc-report-status.is-fail{color:var(--s-coral)}
+.sdlc-report-summary{white-space:pre-wrap}.sdlc-report-meta{font-size:11px;color:var(--s-muted);margin:8px 0 18px;overflow-wrap:anywhere}
+.sdlc-report-section{border-top:1px solid var(--s-line);padding-top:18px;margin-top:22px}.sdlc-document .sdlc-report-section h3{margin:0 0 12px;font-size:14px}
+.sdlc-report-fields{margin:0;display:grid;gap:12px}.sdlc-report-field{min-width:0}.sdlc-report-field>dt{font-size:12px;color:var(--s-muted);margin-bottom:4px}.sdlc-report-field>dd{margin:0;min-width:0}
+.sdlc-report-field .sdlc-report-fields{border-left:2px solid var(--s-line);padding-left:14px;margin-top:8px}
+.sdlc-report-text{white-space:pre-wrap;line-height:1.8;overflow-wrap:anywhere}.sdlc-report-text a{color:var(--s-accent)}
+.sdlc-report-list{padding-left:20px;margin:0;display:grid;gap:12px}.sdlc-report-list>li{padding-left:3px;min-width:0}
+.sdlc-report-cards{list-style:none;padding:0;margin:0;display:grid;gap:12px}.sdlc-report-card{border:1px solid var(--s-line);border-radius:8px;padding:16px;background:var(--s-surface)}
+.sdlc-report-row-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px}.sdlc-report-row-head strong{flex:1;min-width:120px;font-size:13px}
+.sdlc-report-fold{margin-top:18px}.sdlc-report-fold>summary{cursor:pointer;color:var(--s-muted);font-size:12px}.sdlc-report-fold>div{padding-top:12px}
+.sdlc-report-source{border-top:1px solid var(--s-line);margin-top:24px;padding-top:16px}.sdlc-report-source button{border:1px solid var(--s-line);background:var(--s-raised);padding:7px 11px;border-radius:6px;font-size:12px}
+.sdlc-report-warning{border-left:3px solid var(--s-warning);padding:9px 12px;background:var(--s-surface);margin:12px 0;color:var(--s-warning)}
+@media(max-width:600px){.sdlc-dialog-head{padding:14px;gap:8px;flex-wrap:wrap}.sdlc-dialog-head>strong{flex:1}.sdlc-dialog-head>span{display:none}.sdlc-document{padding:18px 16px}.sdlc-report-card{padding:12px}}
 .sdlc-evidence-row{padding:13px 0;border-bottom:1px solid var(--s-line)}
 .sdlc-evidence-row strong{font-size:13px}.sdlc-evidence-row p{margin:6px 0 0}
 .sdlc-evidence-row .sdlc-caption{display:block;margin-top:5px}
@@ -986,6 +1002,105 @@ window.__ModuleLoader__.load({
     }
 
 
+    const reportObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+    const reportArray = value => Array.isArray(value) ? value : [];
+    const REPORT_LABELS = {
+      task: '任务', title: '标题', at: '记录时间', decision: '评审结论', status: '状态', summary: '结论说明', lead_review: '评审意见',
+      rounds: '评审过程', reviewer: '评审者', recorded_by: '记录者', method: '评审方式', result: '结果', issues: '发现的问题',
+      findings: '发现的问题', reason: '问题说明', severity: '严重程度', category: '问题类型', file: '文件', line: '行号',
+      evidence: '依据', suggestion: '修改建议', resolution: '处理说明', observations: '复核记录', limits: '复核范围与限制',
+      not_accepted: '未采纳事项', honest_notes: '说明与限制', unverified: '未验证事项', residual_risks: '剩余风险',
+      deferred_product_questions: '延期确认的产品问题', follow_ups: '后续事项', verification: '验证记录', verdict: '验证结论',
+      final_run: '最终验证轮次', previous_run: '上一轮验证', resolved_issues: '问题处理记录', criteria: '提交的验收标准',
+      criterion: '验收标准', criterion_id: '标准编号', criteria_results: '逐条验收结果', issue_results: '问题复验结果', issue_id: '问题编号',
+      intent_of_change: '改动说明（提交者提供）', test_evidence: '测试证据（提交者提供）', evidence_of_fix: '修复证据',
+      prefix_failing: '修复前失败证据', postfix_passing: '修复后通过证据', state_and_diff: '代码状态与差异',
+      environment: '环境', base: '基线', branch: '开发分支', remote_branch: '远端分支', commits: '代码提交', files: '改动文件',
+      product: '产品代码', tests: '测试', merge_request: '合并请求', merge_request_info: '合并信息', redmine: '问题链接',
+      source_branch: '来源分支', target_branch: '目标分支', state: '状态', created_at: '创建时间', merged_at: '合并时间',
+      number: '编号', pipeline_url: '流水线', pipeline_state: '流水线状态', merge_commit: '合并提交',
+      post_deploy_verification: '部署后验证', verified_at: '验证时间', page_verification: '页面验证',
+      redmine_update: '问题单更新', redmine_closure: '问题单关闭记录', dingtalk_notification: '通知记录',
+      verification_run_id: '验证轮次', verifier_session: '验证会话', verifier_sessions: '验证会话', verifier_attempts: '尝试次数',
+      verification_complete: '是否形成完整裁决', raw_status: '验证者原始判定', diagnostic: '运行诊断',
+      criteria_errors: '验收记录异常', issue_errors: '问题复验异常', recording_errors: '记录异常', snapshot_error: '内容版本异常',
+    };
+    const REPORT_VALUES = {approve:'通过',accept:'接受',approved:'通过',reject:'不通过',rejected:'不通过',needs_human:'需要人工确认',
+      changes_requested:'需要修改',met:'通过',not_met:'未通过',cannot_tell:'无法确认',resolved:'已解决',unresolved:'未解决',
+      blocking:'阻断',important:'重要',minor:'一般',spec_mismatch:'与规格不符',missing_evidence:'缺少证据',logic_error:'逻辑错误',
+      security:'安全问题',test_integrity:'测试完整性',architecture:'架构问题',other:'其他',merged:'已合并',
+      no_remaining_critical_or_important_in_reviewed_scope:'本次复核范围内无剩余严重或重要问题'};
+    const reportLabel = key => Object.hasOwn(REPORT_LABELS, key) ? REPORT_LABELS[key] : key;
+    const reportValueLabel = value => typeof value === 'string' && Object.hasOwn(REPORT_VALUES, value) ? REPORT_VALUES[value] : String(value ?? '未记录');
+    const reportFields = (value, omitted = []) => Object.fromEntries(Object.entries(value).filter(([key]) => !omitted.includes(key)));
+
+    // 评审没有固定 JSON 结构。递归保留未知字段，避免为了好看而漏掉风险或备注。
+    function ReportValue({value, field, depth = 0}) {
+      if (value === null || value === undefined) return h('span', {className:'sdlc-muted'}, '未记录');
+      if (depth > 12 && typeof value === 'object') return h('p', {}, '更深层的内容请展开底部原始 JSON 查看。');
+      if (Array.isArray(value)) return value.length ? h('ol', {className:'sdlc-report-list'}, value.map((item, i) => h('li', {key:i}, h(ReportValue, {value:item, depth:depth+1})))) : h('span', {className:'sdlc-muted'}, '无记录项');
+      if (reportObject(value)) return Object.keys(value).length ? h('dl', {className:'sdlc-report-fields'}, Object.entries(value).map(([key, item]) => h('div', {key, className:'sdlc-report-field'}, [
+        h('dt', {key:'label'}, reportLabel(key)), h('dd', {key:'value'}, h(ReportValue, {value:item, field:key, depth:depth+1})),
+      ]))) : h('span', {className:'sdlc-muted'}, '无记录项');
+      const content = typeof value === 'boolean' ? (value ? '是' : '否') : ['status','decision','result','severity','category','verdict','state'].includes(field) ? reportValueLabel(value) : String(value);
+      return h('div', {className:'sdlc-report-text'}, /^https?:\/\/\S+$/.test(content) ? h('a', {href:content, target:'_blank', rel:'noopener noreferrer'}, content) : content);
+    }
+    function ReportSection({title, value, children}) {
+      return h('section', {className:'sdlc-report-section'}, [h('h3', {key:'title'}, title), children || h(ReportValue, {key:'value', value})]);
+    }
+    function ReportStatus({value, incomplete}) {
+      const tone = incomplete ? '' : ['approve','approved','accept','met','resolved'].includes(value) ? ' is-pass' : ['reject','rejected','not_met','unresolved','changes_requested'].includes(value) ? ' is-fail' : '';
+      return h('span', {className:'sdlc-report-status'+tone}, incomplete ? '未形成完整裁决' : reportValueLabel(value));
+    }
+    function VerificationReport({doc, criteria = []}) {
+      const verdict = reportObject(doc.verdict) ? doc.verdict : doc;
+      const results = reportArray(verdict.criteria_results), findings = reportArray(verdict.findings);
+      return h('article', {className:'sdlc-report', 'aria-label':'验证报告'}, [
+        h('div', {key:'heading', className:'sdlc-report-heading'}, [h('h2', {key:'title'}, '验证报告'), h(ReportStatus, {key:'status',value:verdict.status, incomplete:verdict.verification_complete === false})]),
+        h('div', {key:'meta',className:'sdlc-report-meta'}, [doc.at ? '记录于 '+String(doc.at) : '', verdict.verification_run_id ? ' · 轮次 '+verdict.verification_run_id : ''].join('')),
+        h(ReportValue, {key:'summary', value:verdict.summary ?? '未记录结论说明'}),
+        ...['criteria_errors','issue_errors','recording_errors','snapshot_error','diagnostic'].filter(key => verdict[key] && (!Array.isArray(verdict[key]) || verdict[key].length)).map(key => h('div', {key,className:'sdlc-report-warning'}, [h('strong', {key:'label'}, reportLabel(key)),h(ReportValue,{key:'value',value:verdict[key]})])),
+        h(ReportSection, {key:'criteria',title:'验收结果 · '+results.filter(r => r?.result === 'met').length+' / '+results.length+' 项记录通过'},
+          results.length ? h('ol', {className:'sdlc-report-cards'}, results.map((row,i) => h('li', {key:i,className:'sdlc-report-card'}, reportObject(row) ? [
+            h('div', {key:'heading',className:'sdlc-report-row-head'}, [h('strong',{key:'title'}, criteria.find(c => c.id === row.criterion_id)?.text || row.criterion || row.criterion_id || '第 '+(i+1)+' 条标准'),h(ReportStatus,{key:'status',value:row.result})]),
+            h(ReportValue, {key:'body',value:reportFields(row,['criterion','result'])}),
+          ] : h(ReportValue,{value:row})))) : verdict.criteria_results != null && !Array.isArray(verdict.criteria_results) ? h(ReportValue,{value:verdict.criteria_results}) : h('p', {}, '没有逐条验收结果。')),
+        // 标准 ID 优先。不要按数组位置把可能重排的结果绑定到另一条标准。
+        doc.criteria !== undefined ? h('details', {key:'submitted',className:'sdlc-report-fold'}, [h('summary',{key:'label'},'查看提交时的完整验收标准'), h('div',{key:'value'},h(ReportValue,{value:doc.criteria}))]) : null,
+        h(ReportSection, {key:'findings',title:'发现的问题 · '+findings.length}, findings.length ? h('ol', {className:'sdlc-report-cards'}, findings.map((row,i) => h('li',{key:i,className:'sdlc-report-card'},h(ReportValue,{value:row})))) : verdict.findings != null && !Array.isArray(verdict.findings) ? h(ReportValue,{value:verdict.findings}) : h('p',{},'本轮未记录问题。')),
+        verdict.issue_results !== undefined ? h(ReportSection,{key:'issues',title:'问题复验结果',value:verdict.issue_results}) : null,
+        h(ReportSection,{key:'unverified',title:'未验证事项'}, verdict.unverified === undefined ? h('p',{},'未记录验证范围限制。') : h(ReportValue,{value:verdict.unverified})),
+        ...['intent_of_change','test_evidence'].filter(key => doc[key] !== undefined).map(key => h(ReportSection,{key,title:reportLabel(key),value:doc[key]})),
+        h('details',{key:'other',className:'sdlc-report-fold'}, [h('summary',{key:'label'},'其他记录'),h('div',{key:'body'}, h(ReportValue,{value:{
+          ...reportFields(doc,doc === verdict ? Object.keys(doc) : ['verdict','raw_verdict','binding','criteria','intent_of_change','test_evidence','at']),
+          ...reportFields(verdict,['status','summary','criteria_results','findings','issue_results','unverified','criteria_errors','issue_errors','recording_errors','snapshot_error','diagnostic']),
+        }}))]),
+      ]);
+    }
+    function ReviewReport({doc}) {
+      const summaryKey = doc.summary !== undefined ? 'summary' : doc.lead_review !== undefined ? 'lead_review' : null;
+      return h('article',{className:'sdlc-report','aria-label':'评审报告'},[
+        h('div',{key:'heading',className:'sdlc-report-heading'},[h('h2',{key:'title'},'评审报告'),h(ReportStatus,{key:'status',value:doc.decision ?? '未记录评审结论'})]),
+        doc.at ? h('div',{key:'meta',className:'sdlc-report-meta'},'记录于 '+String(doc.at)) : null,
+        summaryKey ? h(ReportValue,{key:'summary',value:doc[summaryKey]}) : null,
+        ...Object.entries(reportFields(doc,['decision','at',...(summaryKey ? [summaryKey] : [])])).map(([key,value]) => h(ReportSection,{key,title:reportLabel(key),value})),
+      ]);
+    }
+    function JsonArtifact({text, kind, criteria}) {
+      const [raw, setRaw] = React.useState(false);
+      let doc;
+      try { doc = JSON.parse(text); } catch {
+        return h('div',{},[h('p',{key:'error',role:'alert'},'文件不是完整有效的 JSON，暂时无法生成阅读视图。以下保留文件原文。'),h('pre',{key:'text',style:F.mono},text)]);
+      }
+      return h('div',{},[
+        kind === 'verification' && reportObject(doc) ? h(VerificationReport,{key:'report',doc,criteria}) : kind === 'review' && reportObject(doc) ? h(ReviewReport,{key:'report',doc}) : h(ReportValue,{key:'report',value:doc}),
+        h('div',{key:'source',className:'sdlc-report-source'},[
+          h('button',{key:'toggle',type:'button','aria-expanded':raw,onClick:()=>setRaw(!raw)},raw ? '收起原始 JSON' : '查看原始 JSON'),
+          raw ? h('pre',{key:'raw',style:F.mono},text) : null,
+        ]),
+      ]);
+    }
+
     /** 原生 dialog 提供焦点圈定和 Escape；关闭后归还触发按钮焦点。 */
     function ArtifactViewer(props) {
       const [state, setState] = React.useState({ phase: 'loading' });
@@ -995,7 +1110,7 @@ window.__ModuleLoader__.load({
         const qs = './api/sdlc-ui.artifact?task=' + encodeURIComponent(props.task) + '&file=' + encodeURIComponent(props.file) + (props.root ? '&root=' + encodeURIComponent(props.root) : '');
         fetch(qs, { credentials: 'same-origin', signal: controller.signal })
           .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status); return d; }))
-          .then(d => { if (alive) setState({ phase: 'ready', text: d.text, bytes: d.bytes }); })
+          .then(d => { if (alive) setState({ phase: 'ready', text: d.text, bytes: d.bytes, kind: d.kind, criteria: d.criteria }); })
           .catch(e => { if (alive) setState({ phase: 'error', error: String(e.message || e) }); });
         return () => { alive = false; controller.abort(); };
       }, [props.task, props.root, props.file]);
@@ -1009,9 +1124,8 @@ window.__ModuleLoader__.load({
       if (state.phase === 'loading') body = h('p', { role: 'status' }, '读取中…');
       else if (state.phase === 'error') body = h('p', { role: 'alert' }, '读不出来：' + state.error);
       else if (/\.json$/i.test(props.file)) {
-        let text = state.text;
-        try { text = JSON.stringify(JSON.parse(text), null, 2); } catch (e) { /* 非 JSON 内容原样展示。 */ }
-        body = h('pre', { style: F.mono }, text);
+        const kind = state.kind || (/(^|\/)verification(?:s\/[^/]+)?\.json$/i.test(props.file) ? 'verification' : /(^|\/)review\.json$/i.test(props.file) ? 'review' : '');
+        body = h(JsonArtifact, {text:state.text || '',kind,criteria:state.criteria});
       } else body = h('div', {}, renderMarkdown(state.text || ''));
       return h('dialog', { id: 'sdlc-artifact-dialog', className: 'sdlc-dialog', 'data-theme': props.theme || 'dark', 'aria-label': '交付物 ' + props.file, onCancel: e => { e.preventDefault(); props.onClose(); }, onClick: e => { if (e.target === e.currentTarget) props.onClose(); } },
         h('div', { className: 'sdlc-dialog-panel' }, [

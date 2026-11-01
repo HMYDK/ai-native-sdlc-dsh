@@ -1,0 +1,176 @@
+{
+  "reports": [
+    {
+      "name": "1421 dark 主题正确",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 页面身份",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 页面非空",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 嵌套验证文件原样读取",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 默认是报告且无 JSON 代码块",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 结论与问题复验保留",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 弹窗没有横向溢出",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 长文件名不挤掉关闭按钮",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 未验证事项可滚动阅读",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 原始 JSON 展开后与返回全文一致",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 原始 JSON 可以收起",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 关闭后焦点返回文件入口",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 评审默认为报告",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 评审过程、风险与未知字段保留",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 评审无横向溢出",
+      "pass": true
+    },
+    {
+      "name": "1421 dark Escape 返回原阶段面板",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 损坏文件明确提示且保留原文",
+      "pass": true
+    },
+    {
+      "name": "1421 dark Markdown 原有阅读方式保留",
+      "pass": true
+    },
+    {
+      "name": "1421 dark 无框架错误覆盖层",
+      "pass": true
+    },
+    {
+      "name": "390 light 主题正确",
+      "pass": true
+    },
+    {
+      "name": "390 light 页面身份",
+      "pass": true
+    },
+    {
+      "name": "390 light 页面非空",
+      "pass": true
+    },
+    {
+      "name": "390 light 嵌套验证文件原样读取",
+      "pass": true
+    },
+    {
+      "name": "390 light 默认是报告且无 JSON 代码块",
+      "pass": true
+    },
+    {
+      "name": "390 light 结论与问题复验保留",
+      "pass": true
+    },
+    {
+      "name": "390 light 弹窗没有横向溢出",
+      "pass": true
+    },
+    {
+      "name": "390 light 长文件名不挤掉关闭按钮",
+      "pass": true
+    },
+    {
+      "name": "390 light 未验证事项可滚动阅读",
+      "pass": true
+    },
+    {
+      "name": "390 light 原始 JSON 展开后与返回全文一致",
+      "pass": true
+    },
+    {
+      "name": "390 light 原始 JSON 可以收起",
+      "pass": true
+    },
+    {
+      "name": "390 light 关闭后焦点返回文件入口",
+      "pass": true
+    },
+    {
+      "name": "390 light 评审默认为报告",
+      "pass": true
+    },
+    {
+      "name": "390 light 评审过程、风险与未知字段保留",
+      "pass": true
+    },
+    {
+      "name": "390 light 评审无横向溢出",
+      "pass": true
+    },
+    {
+      "name": "390 light Escape 返回原阶段面板",
+      "pass": true
+    },
+    {
+      "name": "390 light 损坏文件明确提示且保留原文",
+      "pass": true
+    },
+    {
+      "name": "390 light Markdown 原有阅读方式保留",
+      "pass": true
+    },
+    {
+      "name": "390 light 无框架错误覆盖层",
+      "pass": true
+    },
+    {
+      "name": "无浏览器错误或警告",
+      "pass": true
+    }
+  ],
+  "errors": [],
+  "browser": "Chrome via Playwright CLI",
+  "browser_plugin": "not available",
+  "environment": "local HTTP fixture + shipped client + host route; no DSH authentication",
+  "viewports": [
+    {
+      "width": 1421,
+      "height": 1000,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "theme": "light"
+    }
+  ]
+}

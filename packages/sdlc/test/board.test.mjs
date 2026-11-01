@@ -36,7 +36,7 @@ const bad = (m) => { fail += 1; console.log(`  \u2717 ${m}`); };
 const check = (cond, m) => (cond ? ok(m) : bad(m));
 
 // ── 隔离：通过 DSH_HOME 指定独立存储，不改 HOME，也不读取日常工作区列表。
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'boardtest-'));
+const TMP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'boardtest-')));
 const TEST_DSH_HOME = path.join(TMP, 'isolated-dsh');
 process.env.DSH_HOME = TEST_DSH_HOME;
 // 进程 cwd 及其祖先也是一路候选根，所以 cwd 放在一个**没有** .ai/tasks 的地方
@@ -193,6 +193,45 @@ const escape = await get(artifactRoute, 'task=BBB-2&file=../../../../etc/passwd'
 check(escape.status === 400, 'file 参数仍拒绝路径穿越');
 const unknown = await get(artifactRoute, 'task=NOPE-9&file=intent.md');
 check(unknown.status === 404, '不存在的任务仍 404');
+
+console.log('\n== 登记、列表和打开使用同一条文件路径 ==');
+const taskDir = path.join(WS_A, '.ai/tasks/AAA-1');
+const nestedFile = 'verifications/51fe59b3-2244-4db4-bdc9-041ec7c9c59e.json';
+const registerFile = (kind, file) => {
+  const stateFile = path.join(taskDir, 'state.yaml');
+  fs.writeFileSync(stateFile, fs.readFileSync(stateFile, 'utf8').replace('artifacts:\n', `artifacts:\n  ${kind}: "${file}"\n`));
+};
+fs.mkdirSync(path.join(taskDir, 'verifications'));
+const nestedText = JSON.stringify({task:'AAA-1',criteria:['完整验收标准'],verdict:{status:'reject',summary:'这份是所选轮次',findings:[]}});
+fs.writeFileSync(path.join(taskDir, nestedFile), nestedText);
+registerFile('verification', nestedFile);
+const nested = await get(artifactRoute, new URLSearchParams({task:'AAA-1',root:WS_A,file:nestedFile}));
+const nestedBody = await nested.json();
+check(nested.status === 200 && nestedBody.text === nestedText, '逐轮验证文件按登记路径打开，不替换成最新 verification.json');
+check(nestedBody.kind === 'verification', '响应带登记的制品类型，阅读视图不依赖固定文件名');
+check(nestedBody.criteria?.[0]?.text === '完整验收标准' && /^AC-[a-f0-9]{16}$/.test(nestedBody.criteria[0].id), '完整标准带稳定 ID，结果重排也能找到正确正文');
+fs.writeFileSync(path.join(taskDir, 'verifications/unregistered.json'), '{}');
+check((await get(artifactRoute, 'task=AAA-1&file=verifications/unregistered.json')).status === 403, '嵌套目录里的未登记文件仍不可读');
+for (const file of ['/etc/passwd', '../intent.md', 'verifications/../intent.md', 'verifications//r.json', './intent.md', 'verifications\\r.json', 'verifications/%2e%2e/secret', 'file:/etc/passwd']) {
+  check((await get(artifactRoute, new URLSearchParams({task:'AAA-1',file}))).status === 400, `拒绝不规范路径 ${file}`);
+}
+fs.symlinkSync(path.join(WS_B, '.ai/tasks/BBB-2/intent.md'), path.join(taskDir, 'outside.md'));
+registerFile('outside', 'outside.md');
+check((await get(artifactRoute, 'task=AAA-1&file=outside.md')).status === 403, '登记也不能让软链读取另一个任务的文件');
+fs.symlinkSync(path.join(WS_B, '.ai/tasks/BBB-2'), path.join(taskDir, 'linked'));
+registerFile('linked', 'linked/intent.md');
+check((await get(artifactRoute, 'task=AAA-1&file=linked/intent.md')).status === 403, '目录软链也不能越出任务目录');
+const listed = (await (await get(tasksRoute, '')).json()).tasks.find(t => t.id === 'AAA-1');
+check(listed.artifacts.find(a => a.kind === 'verification')?.bytes > 0, '列表能读到与打开接口一致的逐轮裁决');
+check(listed.artifacts.filter(a => ['outside','linked'].includes(a.kind)).every(a => a.bytes === 0 && a.sections.length === 0), '列表同样不读取越界交付物');
+const longText = JSON.stringify({decision:'accept',summary:'长评审记录。'.repeat(42000)});
+fs.writeFileSync(path.join(taskDir,'review.json'),longText); registerFile('review','review.json');
+const longBody = await (await get(artifactRoute,'task=AAA-1&file=review.json')).json();
+check(longBody.text === longText && longBody.bytes === Buffer.byteLength(longText), '长 JSON 完整返回且按字节计数，不切断后伪装成损坏文件');
+fs.writeFileSync(path.join(taskDir,'too-big.json'), ' '.repeat(16 * 1024 * 1024 + 1)); registerFile('large','too-big.json');
+check((await get(artifactRoute,'task=AAA-1&file=too-big.json')).status === 413, '超过读取上限明确说明，不能悄悄截断');
+registerFile('missing','verifications/missing.json');
+check((await get(artifactRoute,'task=AAA-1&file=verifications/missing.json')).status === 404, '登记但已缺失的文件明确返回 404');
 
 console.log('\n== 客户端给的候选根也会被扫（?cwd= 是**追加候选**，不是过滤） ==');
 const withC = await (await get(tasksRoute, 'cwd=' + encodeURIComponent(WS_C))).json();

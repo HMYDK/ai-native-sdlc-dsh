@@ -1,0 +1,33 @@
+{
+  "at": "2026-11-01T03:48:22.181859+00:00",
+  "library_tests": 242,
+  "client_tests": 35,
+  "host_route_checks": 51,
+  "smoke": {
+    "artifact": 39,
+    "flow": 27,
+    "preset": 19,
+    "rsi_scopes": 39,
+    "rsi": 62,
+    "status": 69,
+    "task": 40,
+    "ui": 50,
+    "verify": 102,
+    "workflow": 12
+  },
+  "playground_checks": 21,
+  "old_host_with_new_checks": {
+    "pass": 41,
+    "fail": 10
+  },
+  "old_client_with_new_checks": {
+    "pass": 30,
+    "fail": 5
+  },
+  "compat_runtime": "0.2.1-rc.5",
+  "preset": {
+    "standard": 22,
+    "sdlc": 6
+  },
+  "independent_model_verdict": false
+}

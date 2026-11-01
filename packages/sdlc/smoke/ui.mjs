@@ -19,6 +19,8 @@
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -358,9 +360,36 @@ console.log('\n== 4f. 交付物端点的安全（新开了一个读取面，所�
   } else bad('白名单没有走 artifacts 登记表 —— 可能变成任意文件读取器');
   if (hostSrc.includes('不在该任务的 artifacts 登记表里')) ok('越权时明确拒绝并说明可读清单');
   else bad('越权时没有拒绝');
-  // 路径穿越
-  if (hostSrc.includes("want.includes('..')")) ok('拒绝含 .. 的文件名（路径穿越）');
-  else bad('没有拒绝路径穿越');
+  // 用宿主真实 fs 请求文件；检查某段源码字符串会误报，也测不到嵌套文件被误拦。
+  const runtimeRequire = createRequire('/Applications/DeepSeek Harness.app/Contents/Resources/app.asar/dsh/node_modules/noop.js');
+  const {Context} = runtimeRequire('@deepseek-ai/cordis');
+  const {LocalFileSystem} = runtimeRequire('@deepseek-ai/dsh-fs-local');
+  const realCtx = new Context();
+  new LocalFileSystem(realCtx, LocalFileSystem.Config['~standard'].validate({}).value);
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-artifact-smoke-')));
+  const originalHome = process.env.DSH_HOME;
+  process.env.DSH_HOME = root;
+  try {
+    const taskDir = path.join(root,'.ai/tasks/READ-1');
+    fs.mkdirSync(path.join(taskDir,'verifications'),{recursive:true});
+    fs.writeFileSync(path.join(taskDir,'state.yaml'),'task: READ-1\nstatus: VERIFYING\nartifacts:\n  verification: "verifications/run-1.json"\n  linked: "outside.md"\n  missing: "missing.json"\n');
+    fs.writeFileSync(path.join(taskDir,'verifications/run-1.json'),'{"verdict":{"status":"reject"}}');
+    fs.writeFileSync(path.join(root,'private.md'),'outside task');
+    fs.symlinkSync(path.join(root,'private.md'),path.join(taskDir,'outside.md'));
+    const handlers = new Map();
+    const host = await import(pathToFileURL(path.join(DIR,'..','lib','ui','index.js')).href);
+    host.apply({fs:realCtx.fs,connection:{fetch:{register(route){handlers.set(route.path,route.fetch);return()=>{}}}},effect(fn){fn()}},{tasksDir:'.ai/tasks'});
+    const read = file => handlers.get('/api/sdlc-ui.artifact')(new Request('http://local/api/sdlc-ui.artifact?'+new URLSearchParams({cwd:root,root,task:'READ-1',file})));
+    const nested = await read('verifications/run-1.json');
+    if(nested.status===200 && (await nested.json()).kind==='verification') ok('真实 fs 可打开登记的逐轮验证文件'); else bad('真实 fs 无法打开逐轮验证文件');
+    for(const [file,status,label] of [['../private.md',400,'路径穿越'],['verifications/other.json',403,'未登记的嵌套文件'],['outside.md',403,'越界软链'],['missing.json',404,'缺失文件']]) {
+      const response = await read(file);
+      if(response.status===status) ok(`真实 fs 的${label}返回 ${status}`); else bad(`真实 fs 的${label}应为 ${status}，实际 ${response.status}`);
+    }
+  } finally {
+    if(originalHome===undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME=originalHome;
+    fs.rmSync(root,{recursive:true,force:true}); await realCtx.fiber.dispose();
+  }
   if (hostSrc.includes('/^[A-Za-z0-9_-]+$/.test(task)')) ok('task 名有形状校验');
   else bad('task 名没有形状校验');
   // 客户端必须真的会去取内容

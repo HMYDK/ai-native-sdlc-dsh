@@ -27,6 +27,7 @@ import z from '@deepseek-ai/schemastery';
 import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
 import type {} from '@deepseek-ai/dsh-client-connection';
 import { readExecution } from './execution.js';
+import { criterionEntries } from '../verify/verdict.js';
 
 export const name = 'sdlc-ui';
 
@@ -166,6 +167,15 @@ function sectionsOf(md: string): string[] {
   return out;
 }
 
+// 制品可以位于任务内的子目录；登记和读取必须遵守同一个相对路径约定。
+function artifactPath(file: string): boolean {
+  return !!file && file.split('/').every(part => /^[A-Za-z0-9_.-]+$/.test(part) && part !== '.' && part !== '..');
+}
+
+class ArtifactReadError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+}
+
 /** 每个阶段**应该**有哪个制品。缺了就是卡在这一门。 */
 const STAGE_ARTIFACT: Record<string, string> = {
   INTENT: 'intent',
@@ -193,6 +203,24 @@ function blockedBy(status: string, artifacts: Record<string, string>): string[] 
 
 export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string }): void {
   const dir = config.tasksDir.replace(/\/+$/, '');
+
+  // 列表与打开共用读取：允许子目录，但解析软链后的目标仍必须在这个任务内。
+  const readArtifact = async (repoRoot: string, task: string, file: string, signal?: AbortSignal): Promise<string> => {
+    if (!artifactPath(file)) throw new ArtifactReadError(400, 'file 不合法：请使用任务目录内的相对文件路径');
+    const workspace = await ctx.fs.resolve(repoRoot, {cwd: repoRoot, signal});
+    const taskRoot = await ctx.fs.resolve(`${dir}/${task}`, {cwd: repoRoot, signal});
+    const target = await ctx.fs.resolve(`${dir}/${task}/${file}`, {cwd: repoRoot, signal});
+    if (!ctx.fs.contains(workspace, taskRoot) || !ctx.fs.contains(taskRoot, target)) {
+      throw new ArtifactReadError(403, '交付物路径越出任务目录');
+    }
+    const info = await ctx.fs.stat(target, signal);
+    if (!info) throw new ArtifactReadError(404, '已登记的交付物文件不存在');
+    if (info.type !== 'file') throw new ArtifactReadError(400, '交付物不是普通文件');
+    const limit = 16 * 1024 * 1024;
+    if (info.size !== undefined && info.size > limit) throw new ArtifactReadError(413, '交付物超过 16 MiB，无法在看板完整打开');
+    const bytes = await ctx.fs.readBytes(target, signal, limit);
+    return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+  };
 
   /**
    * 候选仓库根（按可靠性）：`?cwd=` → DSH 持久化的工作区列表 → 进程 cwd 及其祖先。
@@ -429,9 +457,7 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
           const artifactDetail: { kind: string; file: string; sections: string[]; bytes: number }[] = [];
           for (const [kind, file] of Object.entries(st.artifacts)) {
             try {
-              const text = await ctx.fs.readText(
-                await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/${file}`, { cwd: repoRoot }),
-              );
+              const text = await readArtifact(repoRoot, id, file, request.signal);
               artifactDetail.push({
                 kind,
                 file,
@@ -439,7 +465,7 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
                 sections: file.endsWith('.json')
                   ? Object.keys(JSON.parse(text)).slice(0, 12)
                   : sectionsOf(text),
-                bytes: text.length,
+                bytes: new TextEncoder().encode(text).byteLength,
               });
             } catch {
               // 登记了但读不出来 —— 如实报一个空形状，不假装它有内容
@@ -530,12 +556,12 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
    * "任意文件读取器" —— 而它挂在已认证通道上，意味着**任何登录的
    * 浏览器会话都能读这台机器的任何文件**。所以三重限制：
    *
-   *   ① `task` / `file` 只允许 `[A-Za-z0-9_.-]`，且不得含 `..`
+   *   ① `task` 是单段标识，`file` 是规范的相对路径，允许子目录、拒绝 . / .. 段
    *   ② **`file` 必须在 `artifacts` 登记表里** —— 白名单来自**事实来源**
    *      （`state.yaml` 的 artifacts），不是来自我临时写的正则。
    *      任务目录里还有别的东西（如 `verification-observations.json`），
    *      它们**不该**被这个端点读到。
-   *   ③ 仓库根复用 tasks 端点那一套候选逻辑
+   *   ③ 仓库根复用 tasks 端点那一套候选逻辑，解析后的目标不得越出任务目录
    */
   const artifactHandler = async (request: Request): Promise<Response> => {
     const fail = (code: number, message: string): Response =>
@@ -548,7 +574,7 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
       const task = q.get('task') ?? '';
       const want = q.get('file') ?? '';
       if (!/^[A-Za-z0-9_-]+$/.test(task)) return fail(400, 'task 不合法');
-      if (!/^[A-Za-z0-9_.-]+$/.test(want) || want.includes('..')) return fail(400, 'file 不合法');
+      if (!artifactPath(want)) return fail(400, 'file 不合法');
 
       const hit = await rootForTask(request, task);
       if (!hit) return fail(404, `在任何工作区里都找不到任务 ${task}`);
@@ -565,14 +591,22 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
         return fail(403, `"${want}" 不在该任务的 artifacts 登记表里（可读：${allowed.join(', ') || '无'}）`);
       }
 
-      const text = await ctx.fs.readText(
-        await ctx.fs.resolve(`${repoRoot}/${dir}/${task}/${want}`, { cwd: repoRoot }),
-      );
+      const text = await readArtifact(repoRoot, task, want, request.signal);
+      const kind = Object.entries(st.artifacts).find(([, file]) => file === want)?.[0];
+      // 验证者可以省略标准正文，也可能重排结果。复用写入方的稳定 ID，不能按位置猜。
+      let criteria: {id: string; text: string}[] | undefined;
+      if (kind === 'verification') {
+        try {
+          const doc = JSON.parse(text);
+          if (Array.isArray(doc?.criteria) && doc.criteria.every((value: unknown) => typeof value === 'string')) criteria = criterionEntries(doc.criteria);
+        } catch { /* 损坏 JSON 仍交给阅读器显示原文和明确错误。 */ }
+      }
       return new Response(
-        JSON.stringify({ task, file: want, bytes: text.length, text: text.slice(0, 200_000) }),
+        JSON.stringify({ task, file: want, kind, criteria, bytes: new TextEncoder().encode(text).byteLength, text }),
         { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } },
       );
     } catch (err) {
+      if (err instanceof ArtifactReadError) return fail(err.status, err.message);
       return fail(500, err instanceof Error ? err.message : String(err));
     }
   };

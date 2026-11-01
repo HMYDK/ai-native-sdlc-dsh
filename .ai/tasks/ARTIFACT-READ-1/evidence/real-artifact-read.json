@@ -1,0 +1,24 @@
+{
+  "runtime": "DSH LocalFileSystem",
+  "task": "DEMO-23998",
+  "results": [
+    {
+      "file": "verifications/51fe59b3-2244-4db4-bdc9-041ec7c9c59e.json",
+      "status": 200,
+      "kind": "verification",
+      "bytes": 25483,
+      "sha256": "b9c8bb33fdfc1f2d6b59bc0669e93d531b65998f578f8b538f6070d626e017db",
+      "file_unchanged": true
+    },
+    {
+      "file": "review.json",
+      "status": 200,
+      "kind": "review",
+      "bytes": 10456,
+      "sha256": "28d52f2fe0fa890397e4e6441e2ec89fa5e563ab48a14a449d45b374c8d7cfcd",
+      "file_unchanged": true
+    }
+  ],
+  "module_source": "installed desktop package",
+  "running_desktop_process_checked": false
+}

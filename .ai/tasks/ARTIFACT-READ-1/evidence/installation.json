@@ -1,0 +1,19 @@
+{
+  "package": "<REPO>/packages/sdlc/ai-native-sdlc-dsh-sdlc-0.5.0-reports-f47c1e3a16f3.tgz",
+  "sha256": "f47c1e3a16f32b338e634fb40fefd777c37e4c8689feb515813a58eb086783cf",
+  "files": 67,
+  "js_files": 40,
+  "backup": "<DSH_HOME>/backups/sdlc-readable-reports-2026-11-01T11-46-12+0800",
+  "desktop_install": true,
+  "isolated_install": true,
+  "other_package_fields_unchanged": true,
+  "profile_config_unchanged": true,
+  "old_reference": "file:<REPO>/packages/sdlc/ai-native-sdlc-dsh-sdlc-0.5.0-flow-a5aaac074538.tgz",
+  "new_reference": "file:<REPO>/packages/sdlc/ai-native-sdlc-dsh-sdlc-0.5.0-reports-f47c1e3a16f3.tgz",
+  "running_desktop_restarted": false,
+  "running_desktop_loaded_version_confirmed": false,
+  "non_sdlc_lock_entries_unchanged": true,
+  "installed_javascript_and_patch_match": true,
+  "isolated_startup_activation_warnings": 0,
+  "at": "2026-11-01T03:48:22.181859+00:00"
+}

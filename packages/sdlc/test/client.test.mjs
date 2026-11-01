@@ -10,7 +10,7 @@ const payload = { roots: [{ root: '/alpha', label: 'alpha' }, { root: '/beta', l
   task('/alpha', 'DONE', '已完成的第一个同名任务'), task('/beta', 'SPEC', '另一个工作区的同名任务'),
 ] };
 
-function mount(data = payload, componentProps = {}) {
+function mount(data = payload, componentProps = {}, componentState = {}) {
   let spec, component, current, initial = true;
   const stores = new Map();
   const jsx = (type, props, key) => ({ type, props: props || {}, key });
@@ -19,7 +19,7 @@ function mount(data = payload, componentProps = {}) {
       const { values } = current;
       const slot = current.index++;
       if (!(slot in values)) {
-        values[slot] = initial ? data : typeof init === 'function' ? init() : init;
+        values[slot] = initial ? data : componentState[current.name]?.[slot] ?? (typeof init === 'function' ? init() : init);
         initial = false;
       }
       return [values[slot], v => { values[slot] = typeof v === 'function' ? v(values[slot]) : v; }];
@@ -42,7 +42,7 @@ function mount(data = payload, componentProps = {}) {
       const props = extra ? { ...node.props, ...(typeof extra === 'function' ? extra(node.props) : extra) } : node.props;
       const id = path + ':' + node.type.name;
       const values = stores.get(id) || [];
-      stores.set(id, values); current = { values, index: 0 };
+      stores.set(id, values); current = { values, index: 0, name:node.type.name };
       const result = node.type(props);
       return { component: node.type.name, props, child: expand(result, id) };
     }
@@ -60,6 +60,59 @@ function mount(data = payload, componentProps = {}) {
     click: n => { assert.ok(n, 'control exists'); n.props.onClick(); render(); } };
 }
 const text = n => n == null ? '' : typeof n !== 'object' ? String(n) : Array.isArray(n) ? n.map(text).join('') : text(n.child);
+
+function openDocument(doc, kind, file = kind + '.json', criteria) {
+  const raw = typeof doc === 'string' ? doc : JSON.stringify(doc);
+  const ui = mount(payload, {}, {ArtifactViewer:[{phase:'ready',text:raw,kind,criteria}]});
+  ui.detail().props.onOpen(file); ui.render();
+  return {ui,raw,viewer:()=>ui.find(n=>n.component === 'ArtifactViewer')[0]};
+}
+test('嵌套验证文件默认展示结论、逐条证据、发现和复验，原始 JSON 按需展开', () => {
+  const doc = {criteria:['先提交的第一条','先提交的第二条'],verdict:{status:'reject',summary:'重复请求仍扣款',verification_run_id:'run-b',
+    criteria_results:[{criterion_id:'AC-second',criterion:'重排后的第二条',result:'not_met',evidence:'重复请求扣款两次'}],
+    findings:[{severity:'blocking',reason:'扣款不幂等',evidence:'余额变化两次',suggestion:'按请求号去重'}],
+    issue_results:[{issue_id:'F1',result:'unresolved',evidence:'复验仍失败'}],unverified:['尚未检查退款'],
+  },raw_verdict:{summary:'内部原始结构'}};
+  const {ui,raw,viewer} = openDocument(doc,'verification','verifications/run-b.json');
+  for (const label of ['验证报告','不通过','重复请求仍扣款','重排后的第二条','重复请求扣款两次','阻断','按请求号去重','问题复验结果','未解决','尚未检查退款']) assert.ok(text(viewer()).includes(label),label);
+  assert.equal(ui.find(n=>n.type === 'pre',viewer()).length,0,'默认没有 JSON 代码块');
+  assert.ok(!text(viewer()).includes('内部原始结构'));
+  ui.click(ui.find(n=>n.type === 'button' && text(n)==='查看原始 JSON')[0]);
+  assert.equal(text(ui.find(n=>n.type === 'pre',viewer())[0]),raw);
+  ui.click(ui.find(n=>n.type === 'button' && text(n)==='收起原始 JSON')[0]);
+  assert.equal(ui.find(n=>n.type === 'pre',viewer()).length,0);
+});
+test('评审报告兼容任意字段和多轮结构，风险、未采纳与未知内容不会消失', () => {
+  const {ui,viewer} = openDocument({decision:'accept',lead_review:'变更范围符合规格',rounds:[{reviewer:'reviewer-1',result:'changes_requested',issues:['遗漏并发'],resolution:'保留测试后修复'}],
+    not_accepted:['不扩大本轮改动'],honest_notes:['仅复查本次改动'],residual_risks:['上线后需复核'],future_custom:{detail:'额外记录保留',items:[false,0,null]},
+  },'review','evidence/acceptance-v2.json');
+  for(const label of ['评审报告','接受','变更范围符合规格','评审过程','需要修改','遗漏并发','保留测试后修复','未采纳事项','仅复查本次改动','剩余风险','上线后需复核','future_custom','额外记录保留']) assert.ok(text(viewer()).includes(label),label);
+  assert.equal(ui.find(n=>n.type === 'pre',viewer()).length,0);
+});
+test('没有评审结论不能借验证通过；未完成裁决也不能显示通过徽章', () => {
+  const review = openDocument({verification:{verdict:'approve'},lead_review:'待负责人审阅'},'review');
+  assert.ok(text(review.viewer()).includes('未记录评审结论'));
+  const verification = openDocument({verdict:{status:'approve',verification_complete:false,summary:'中途结束'}},'verification');
+  assert.ok(text(verification.viewer()).includes('未形成完整裁决'));
+  assert.equal(verification.ui.find(n=>n.props.className?.includes('is-pass'),verification.viewer()).length,0);
+});
+test('省略标准正文且结果重排时按稳定 ID 显示完整标准，未知 ID 不借用别的标准', () => {
+  const {ui,viewer} = openDocument({verdict:{status:'needs_human',criteria_results:[{criterion_id:'second',result:'met',evidence:'第二条结果'},{criterion_id:'unknown',result:'cannot_tell'}]}},'verification','verification.json',[
+    {id:'first',text:'标准一完整正文'},{id:'second',text:'标准二完整正文'},
+  ]);
+  const cards = ui.find(n=>n.props.className === 'sdlc-report-card',viewer());
+  assert.ok(text(cards[0]).includes('标准二完整正文')); assert.ok(!text(cards[0]).includes('标准一完整正文'));
+  assert.ok(text(cards[1]).includes('unknown')); assert.ok(!text(cards[1]).includes('标准二完整正文'));
+});
+test('旧验证、损坏 JSON 和普通 JSON 均能读，内容按文本渲染', () => {
+  const legacy = openDocument({criteria:['已有标准'],verdict:{status:'needs_human',summary:'证据不足',criteria_results:[{result:'cannot_tell',evidence:'服务未启动'}]}},undefined,'verification.json');
+  assert.ok(text(legacy.viewer()).includes('验证报告')); assert.ok(text(legacy.viewer()).includes('无法确认'));
+  const broken = openDocument('{"verdict":', 'verification');
+  assert.ok(text(broken.viewer()).includes('不是完整有效的 JSON')); assert.equal(text(broken.ui.find(n=>n.type === 'pre')[0]),'{"verdict":');
+  const normal = openDocument({message:'<img src=x onerror=alert(1)>',url:'javascript:alert(1)'},'custom','data.json');
+  assert.ok(text(normal.viewer()).includes('<img src=x onerror=alert(1)>'));
+  assert.equal(normal.ui.find(n=>n.type === 'img' || n.type === 'a',normal.viewer()).length,0);
+});
 
 test('同名任务各自留在列表里，带有自己的工作区', () => {
   const ui = mount();

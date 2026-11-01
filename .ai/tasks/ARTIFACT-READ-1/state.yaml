@@ -1,0 +1,15 @@
+task: ARTIFACT-READ-1
+title: "让验证和评审交付物能打开并直接阅读"
+status: VERIFYING
+created: "2026-11-01T03:48:22.181859+00:00"
+updated: "2026-11-01T03:48:22.181859+00:00"
+artifacts:
+  intent: "intent.md"
+  spec: "spec.md"
+  plan: "plan.md"
+  proof: "proof.md"
+history:
+  - at: "2026-11-01T03:48:22.181859+00:00"
+    from: ""
+    to: "VERIFYING"
+    reason: "补录 Codex 中已完成的修复、自测和安装；没有独立模型裁决，不补造既往 DSH 阶段流转"
