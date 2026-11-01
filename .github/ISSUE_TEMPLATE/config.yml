@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞（私密报告）
+    url: https://github.com/HMYDK/ai-native-sdlc-dsh/security/advisories/new
+    about: 不要先开公开 issue。请通过 GitHub Security Advisories 报告，并附上版本与复现步骤。
+  - name: 安装与使用文档
+    url: https://github.com/HMYDK/ai-native-sdlc-dsh/blob/master/README.md
+    about: 安装步骤、模式选择、验证流程，以及 packages/sdlc 下的详细文档。

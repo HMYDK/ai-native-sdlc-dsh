@@ -1,0 +1,92 @@
+name: Bug 报告
+description: 报告插件行为、看板界面或文档中的可复现问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。提交前请先搜索已有 issue，确认不是重复报告。
+
+        安全漏洞**不要**在这里公开，请按 [SECURITY.md](https://github.com/HMYDK/ai-native-sdlc-dsh/blob/master/SECURITY.md) 走私密渠道。
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 涉及组件
+      description: 不确定时选“不确定”。
+      options:
+        - 任务状态机与制品链
+        - 独立验证与测试冻结
+        - 看板与界面
+        - 工作流 Skill
+        - RSI 复盘
+        - 安装、打包或模式加载
+        - 文档
+        - 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: 插件版本
+      description: 见 packages/sdlc/package.json 的 version 字段。
+      placeholder: 0.5.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: DSH 与系统版本
+      description: DeepSeek Harness 版本、macOS 版本；如果与安装有关，也写 Node 与 npm 版本。
+      placeholder: DSH 0.2.1-rc.5 / macOS 15.x
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从干净状态开始的最小步骤，并说明会话模式（标准 / AI 原生 SDLC）。
+      placeholder: |
+        1. 新建会话并选择「AI 原生 SDLC」
+        2. 调用 sdlc_task_create …
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 期望行为与实际行为
+      description: 分别写清楚。涉及任务记录时，请贴经过脱敏的 state.yaml 片段。
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 请先去掉工作区内容、模型输入输出和凭据。
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试的排查
+      description: 例如是否读过 README 与 docs/dsh-pitfalls.md，是否在隔离 profile 复现。
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索过已有 issue，确认这不是重复报告
+          required: true
+        - label: 这不是安全漏洞；安全漏洞按 SECURITY.md 走私密渠道
+          required: true

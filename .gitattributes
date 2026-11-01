@@ -1,0 +1,10 @@
+# 统一按文本管理；仓库内与工作区都用 LF，避免跨平台 diff 噪音
+* text=auto eol=lf
+
+# 二进制文件不做行尾转换和文本 diff
+*.png binary
+*.jpg binary
+*.tgz binary
+
+# SVG 保持文本，便于 diff 和审查
+*.svg text
