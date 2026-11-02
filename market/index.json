@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "title": {
+    "en": "AI-native SDLC",
+    "zh": "AI 原生 SDLC"
+  },
+  "description": {
+    "en": "Plugins that bring the AI-native SDLC workflow to DeepSeek Harness.",
+    "zh": "把 AI 原生 SDLC 工作流带进 DeepSeek Harness 的插件。"
+  },
+  "metadata": {
+    "categories": {
+      "workflow": {
+        "title": {
+          "en": "Workflow",
+          "zh": "工作流"
+        }
+      }
+    },
+    "labels": {
+      "verification": {
+        "title": {
+          "en": "Verification",
+          "zh": "独立验证"
+        }
+      },
+      "artifacts": {
+        "title": {
+          "en": "Artifact chain",
+          "zh": "制品链"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "@ai-native-sdlc/dsh-sdlc",
+      "title": {
+        "en": "AI-native SDLC",
+        "zh": "AI 原生 SDLC"
+      },
+      "description": {
+        "en": "Task state machine, artifact chain, independent verification, issue closure and RSI as one DSH bundle with an Agent Preset.",
+        "zh": "任务状态机、制品链、独立验证、问题闭环与 RSI，作为一个 DSH 组合包并提供「AI 原生 SDLC」Agent 预设。"
+      },
+      "icon": "../packages/sdlc/icon.svg",
+      "author": "HMYDK",
+      "homepage": "https://github.com/HMYDK/ai-native-sdlc-dsh",
+      "repository": {
+        "url": "https://github.com/HMYDK/ai-native-sdlc-dsh",
+        "directory": "packages/sdlc"
+      },
+      "metadata": {
+        "category": "workflow",
+        "keywords": [
+          "dsh",
+          "deepseek-harness",
+          "sdlc",
+          "verification",
+          "artifact-chain"
+        ],
+        "labels": [
+          "verification",
+          "artifacts"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.5.0",
+          "publishTimestamp": 1793542614,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/HMYDK/ai-native-sdlc-dsh",
+            "commit": "7483e2c051b48dda4edc57faf0b1c58888ed3327",
+            "path": "packages/sdlc"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.2 <0.3.0"
+          }
+        }
+      ]
+    }
+  ]
+}
