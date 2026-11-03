@@ -218,3 +218,16 @@ test('任务内的问题和精简裁决不依赖 RSI 会话，按页返回明确
   assert.equal(page1.findings.length,20);assert.equal(page1.findingNext,20);assert.equal(page2.findings[0].id,'issue-20');assert.equal(page2.findingNext,null);
   assert.equal(page1.rounds[0].source,'task_record');assert.equal(page1.findings[0].actions[0].to,'IMPLEMENTING');assert.doesNotMatch(JSON.stringify(page1),/PRIVATE_RAW/);
 });
+test('损坏或不支持版本的 acceptance 只回退本轮标准文本，不吞掉整轮执行记录', async t => {
+  const f = await fixture(t); await f.manifest(['bad-reject', 'bad-approve']);
+  const write = async (id: string, finish: unknown) => {
+    await f.writes(`.ai/rsi/runs/${id}/000000.json`, {schema_version: 1, run_id: id, seq: 0, at: at(1), kind: 'started', data: {inputs: {task_id: 'TASK-1', criteria: ['行为正确']}}});
+    await f.writes(`.ai/rsi/runs/${id}/000001.json`, {schema_version: 1, run_id: id, seq: 1, at: at(2), kind: 'prepared', data: {criteria: ['行为正确'], acceptance: {version: 1}}});
+    await f.writes(`.ai/rsi/runs/${id}/000002.json`, {schema_version: 1, run_id: id, seq: 2, at: at(3), kind: 'finished', data: finish});
+  };
+  await write('bad-reject', {outcome: 'completed', result: {status: 'reject', summary: '当前结论', findings: [], criteria_results: [{result: 'not_met', evidence: '失败测试'}]}});
+  await write('bad-approve', {outcome: 'completed', result: {status: 'approve', summary: '通过', findings: [], criteria_results: [{result: 'met', evidence: '通过测试'}]}});
+  const value = await f.read();
+  assert.deepEqual(value.rounds.map((r: {id: string}) => r.id).sort(), ['bad-approve', 'bad-reject']);
+  assert.ok(value.issues.some((i: string) => i.includes('验收标准来源受损')));
+});
