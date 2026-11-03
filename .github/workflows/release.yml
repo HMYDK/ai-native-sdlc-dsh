@@ -29,11 +29,15 @@ jobs:
         run: npm run build --workspace packages/sdlc
 
       - name: Pack
-        run: npm pack --workspace packages/sdlc
+        id: pack
+        run: |
+          TGZ="$(npm pack --workspace packages/sdlc --silent)"
+          echo "tgz=$TGZ" >> "$GITHUB_OUTPUT"
+          echo "packed $TGZ"
 
       - name: Checksums
         run: |
-          TGZ="$(ls ai-native-sdlc-dsh-sdlc-*.tgz)"
+          TGZ="${{ steps.pack.outputs.tgz }}"
           sha256sum "$TGZ" > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
@@ -44,5 +48,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            ai-native-sdlc-dsh-sdlc-*.tgz \
+            "${{ steps.pack.outputs.tgz }}" \
             SHA256SUMS.txt

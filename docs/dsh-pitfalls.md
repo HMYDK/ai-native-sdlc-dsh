@@ -316,7 +316,7 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 
 合并后同一个包叫 `@ai-native-sdlc-plugin/dsh-sdlc`，安装形态不变：
 
-    "@ai-native-sdlc-plugin/dsh-sdlc": "file:.../ai-native-sdlc-dsh-sdlc-0.2.0.tgz"
+    "@ai-native-sdlc-plugin/dsh-sdlc": "file:.../ai-native-sdlc-plugin-dsh-sdlc-0.2.0.tgz"
 
 `file:` 指向 **tgz**，装的是**解压出来的副本**。所以：
 
