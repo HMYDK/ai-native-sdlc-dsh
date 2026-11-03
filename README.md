@@ -5,6 +5,7 @@
 
 [![CI](https://github.com/HMYDK/ai-native-sdlc-dsh/actions/workflows/ci.yml/badge.svg)](https://github.com/HMYDK/ai-native-sdlc-dsh/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@ai-native-sdlc-plugin/dsh-sdlc)](https://www.npmjs.com/package/@ai-native-sdlc-plugin/dsh-sdlc)
+[![dshfind](https://dshfind.com/api/badge/HMYDK/ai-native-sdlc-dsh)](https://dshfind.com/en/plugins/HMYDK/ai-native-sdlc-dsh?ref=badge)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 方法来自 Anthropic《AI 原生 SDLC 实战手册》（[原文](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)，作者 Louis Claxton）。
