@@ -3,7 +3,7 @@
  * 轮次来自独立运行 ID，未结束记录不代表 Agent 仍在执行。
  */
 window.__ModuleLoader__.load({
-  id: '@ai-native-sdlc/dsh-sdlc',
+  id: '@ai-native-sdlc-plugin/dsh-sdlc',
   factory: (require) => {
     const React = require('react');
     const runtime = require('react/jsx-runtime');

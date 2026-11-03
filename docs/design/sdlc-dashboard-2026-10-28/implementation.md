@@ -82,7 +82,7 @@ patch 逐文件核对一致，profile 仅改 SDLC 的包引用。完整 SHA256 �
 最终源码运行：
 
 ```sh
-DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -w @ai-native-sdlc/dsh-sdlc
+DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -w @ai-native-sdlc-plugin/dsh-sdlc
 npm run compat
 npm run preset-sync
 ```

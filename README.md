@@ -9,7 +9,7 @@
 方法来自 Anthropic《AI 原生 SDLC 实战手册》（[原文](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)，作者 Louis Claxton）。
 本仓库不收录全文翻译，只提供一篇原创[中文导读](docs/playbook-notes.md)。
 
-当前插件为 [`@ai-native-sdlc/dsh-sdlc@0.6.0`](packages/sdlc/package.json)，以一个 npm bundle 交付。
+当前插件为 [`@ai-native-sdlc-plugin/dsh-sdlc@0.6.0`](packages/sdlc/package.json)，以一个 npm bundle 交付。
 本项目是社区实现，与 Anthropic、DeepSeek 均无隶属关系。
 
 ![SDLC 看板](docs/design/sdlc-dashboard-2026-10-28/loop-workbench.png)
@@ -79,7 +79,7 @@ ELECTRON_RUN_AS_NODE=1 "$DSH_BIN" --expose-internals "$DSH_CLI" \
 ```
 
 包自带 `dsh.bundle.patch`，安装时会登记看板和工作模式。装完核对对应 profile 的 `package.json`：
-`dsh.profile.bundles` 中应包含 `@ai-native-sdlc/dsh-sdlc`。
+`dsh.profile.bundles` 中应包含 `@ai-native-sdlc-plugin/dsh-sdlc`。
 默认位置是 `~/.dsh/profiles/desktop/package.json`；设置过 `DSH_HOME` 时以该目录为准。
 若未登记，按[安装排查说明](docs/dsh-pitfalls.md)处理。
 
@@ -251,6 +251,6 @@ Anthropic 方法论原文的版权归 Anthropic 所有，本仓库只提供原�
 A community **DeepSeek Harness (DSH) plugin** that turns an AI-native SDLC into a verifiable workflow:
 task state and artifact chain, independent verification with structured verdicts, per-issue rework
 and re-verification, test freezing, and RSI-based retrospectives. It ships as one DSH bundle
-(`@ai-native-sdlc/dsh-sdlc`) with a read-only dashboard plus an optional "AI 原生 SDLC" Agent Preset.
+(`@ai-native-sdlc-plugin/dsh-sdlc`) with a read-only dashboard plus an optional "AI 原生 SDLC" Agent Preset.
 Licensed MIT. The workflow is verified on macOS with the DeepSeek Harness App; other platforms are untested.
 Not affiliated with Anthropic or DeepSeek.

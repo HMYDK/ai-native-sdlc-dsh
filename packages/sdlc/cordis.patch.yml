@@ -24,7 +24,7 @@
 - insert:
     # ① 宿主行：UI（host 半 + 浏览器半的发现前提）。
     - id: sdlc-ui
-      name: '@ai-native-sdlc/dsh-sdlc'
+      name: '@ai-native-sdlc-plugin/dsh-sdlc'
 
     # ② 宿主行：preset 声明。用户在新会话选择器/设置页里选「AI 原生 SDLC」。
     - id: preset-sdlc
@@ -156,14 +156,14 @@
             disabled: true
           # ==== standard 副本结束；以下是本套件追加的六个机制组件 ====
           - id: sdlc-task
-            name: '@ai-native-sdlc/dsh-sdlc/task'
+            name: '@ai-native-sdlc-plugin/dsh-sdlc/task'
           - id: sdlc-artifact
-            name: '@ai-native-sdlc/dsh-sdlc/artifact'
+            name: '@ai-native-sdlc-plugin/dsh-sdlc/artifact'
           - id: sdlc-status
-            name: '@ai-native-sdlc/dsh-sdlc/status'
+            name: '@ai-native-sdlc-plugin/dsh-sdlc/status'
           - id: sdlc-verify
-            name: '@ai-native-sdlc/dsh-sdlc/verify'
+            name: '@ai-native-sdlc-plugin/dsh-sdlc/verify'
           - id: sdlc-workflow
-            name: '@ai-native-sdlc/dsh-sdlc/workflow'
+            name: '@ai-native-sdlc-plugin/dsh-sdlc/workflow'
           - id: sdlc-rsi
-            name: '@ai-native-sdlc/dsh-sdlc/rsi'
+            name: '@ai-native-sdlc-plugin/dsh-sdlc/rsi'

@@ -44,7 +44,7 @@
  *
  * ⚠️ 合并后 `--gate` 的语义变了：旧 package.json 的 mutation-gate 是
  * `--gate`（无值）；合并后是 `--gate sdlc`。所以 `sdlc` / `dsh-sdlc` /
- * `@ai-native-sdlc/dsh-sdlc` 被当成"全部目标"的别名，组件名照旧可单独选。
+ * `@ai-native-sdlc-plugin/dsh-sdlc` 被当成"全部目标"的别名，组件名照旧可单独选。
  * 未知名字显式失败，不静默当成空跑。
  *
  * ## 两阶段策略（决定它能不能跑完）
@@ -93,7 +93,7 @@ const TARGETS = {
   'sdlc-shared': { lib: 'lib/shared', src: 'src/shared', smoke: null },
 };
 const ALL_PACKAGES = Object.keys(TARGETS);
-const PACKAGE_ALIASES = new Set(['sdlc', 'dsh-sdlc', '@ai-native-sdlc/dsh-sdlc']);
+const PACKAGE_ALIASES = new Set(['sdlc', 'dsh-sdlc', '@ai-native-sdlc-plugin/dsh-sdlc']);
 
 /** 把命令行里的目标名展开：`sdlc` = 全部组件；组件名 = 单个目标。 */
 function expandTargets(names) {

@@ -1,5 +1,5 @@
 /**
- * @ai-native-sdlc/dsh-sdlc/workflow
+ * @ai-native-sdlc-plugin/dsh-sdlc/workflow
  *
  * AI 原生 SDLC 的**工作流本身**，作为一个 Skill 交付。
  *

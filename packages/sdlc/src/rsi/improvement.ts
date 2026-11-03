@@ -81,7 +81,7 @@ export function registerImprovementTools(ctx:Context,root:string,tasks:TaskColle
   },output,async execute(args,exec){
     const packet=parsePacket(args.packet),id=normalizeTaskId(args.task_id),store=new Store(ctx,exec,root);
     const pkg=object(await new Store(ctx,exec,'packages/sdlc').read('package.json'));
-    if(pkg.name!=='@ai-native-sdlc/dsh-sdlc')throw new Error('请在 SDLC 插件源码仓库中创建改进任务');
+    if(pkg.name!=='@ai-native-sdlc-plugin/dsh-sdlc')throw new Error('请在 SDLC 插件源码仓库中创建改进任务');
     for(const name of ['sdlc_task_create','sdlc_artifact_write'])if(!ctx.tools.get(name,exec.agent))throw new Error(`当前 preset 缺少 ${name}`);
     const created=await invoke(ctx,exec,'sdlc_task_create',{task_id:id,title:packet.proposal.title,problem:packet.proposal.problem});
     const dir=safeRelative(path.relative(cwdOf(exec),String(created.task_dir)).split(path.sep).join('/'));

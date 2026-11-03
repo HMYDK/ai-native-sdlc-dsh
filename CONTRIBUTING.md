@@ -1,7 +1,7 @@
 # 贡献指南
 
 本仓库把《AI 原生 SDLC 实战手册》的方法论落成一个 DeepSeek Harness（DSH）插件，
-只有一个包：`packages/sdlc`（`@ai-native-sdlc/dsh-sdlc`）。开始之前请先读：
+只有一个包：`packages/sdlc`（`@ai-native-sdlc-plugin/dsh-sdlc`）。开始之前请先读：
 
 - [README.md](README.md)：插件能做什么、怎样安装到 DSH、怎样验证；
 - [packages/sdlc/README.md](packages/sdlc/README.md)：一个包与七个组件的关系、宿主行与 Agent Preset 的划分；

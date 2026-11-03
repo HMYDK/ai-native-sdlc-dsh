@@ -1,5 +1,5 @@
 {
-  "name": "@ai-native-sdlc/dsh-sdlc",
+  "name": "@ai-native-sdlc-plugin/dsh-sdlc",
   "version": "0.6.0",
   "private": false,
   "author": "HMYDK",

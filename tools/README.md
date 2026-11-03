@@ -17,13 +17,13 @@
 ## 2026-10-19 单包合并后的适配
 
 背景（commit `83d86b0` + `7f2be0a`）：七个插件合并为**一个包**
-`packages/sdlc`（`@ai-native-sdlc/dsh-sdlc@0.2.0`）。
+`packages/sdlc`（`@ai-native-sdlc-plugin/dsh-sdlc@0.2.0`）。
 
 - 源码 `packages/sdlc/src/<comp>/`，产物 `packages/sdlc/lib/<comp>/`；
 - 一个 bundle：`packages/sdlc/cordis.patch.yml` 里**一条 insert + 七行**，
   行 id 仍是 `sdlc-task` / `sdlc-artifact` / `sdlc-status` / `sdlc-verify` /
   `sdlc-workflow` / `sdlc-rsi` / `sdlc-ui`；
-- ⚠️ **`sdlc-ui` 行的 name 是精确包名** `@ai-native-sdlc/dsh-sdlc`（包根
+- ⚠️ **`sdlc-ui` 行的 name 是精确包名** `@ai-native-sdlc-plugin/dsh-sdlc`（包根
   `lib/index.js`），其余六行是子路径。原因：`@deepseek-ai/dsh-client-modules`
   只扫描精确包名的 loader 行来发现 `dsh.client`，写成 `./ui` 子路径会让
   浏览器半**静默消失**（host 端点照常 200，只有面板不出现）。所以
@@ -62,7 +62,7 @@
   组件各测一遍、存活点重复登记）。原 `sdlc-status/lib/helpers.js` 的存活点
   归到 `sdlc-shared`；
 - `--gate` 语义更新：`package.json` 的 `mutation-gate` 现在是 `--gate sdlc`。
-  `sdlc` / `dsh-sdlc` / `@ai-native-sdlc/dsh-sdlc` 是"全部目标"的别名；
+  `sdlc` / `dsh-sdlc` / `@ai-native-sdlc-plugin/dsh-sdlc` 是"全部目标"的别名；
   组件名照旧可单独选；**未知名字显式失败**，不静默空跑；
 - 还原自检补强：`lib/` 不进 git（`.gitignore`），旧版只查 `git status` 在单包
   布局下**看不见 lib 残留**。现在收尾把每个被改文件与改动前原文**逐字节比对**
@@ -77,7 +77,7 @@
   `name === patch 行 id`、七行 id 不多不少；
 - 七行 `inject` **并集**逐个对 `HOST_SERVICES` 校验；
 - `sdlc-ui` 行单独钉一条断言：name 必须是精确包名（来历见上）；
-- profile 漂移：`<profile>/node_modules/@ai-native-sdlc/dsh-sdlc` 与仓库
+- profile 漂移：`<profile>/node_modules/@ai-native-sdlc-plugin/dsh-sdlc` 与仓库
   `packages/sdlc` 的**整棵 lib 树**逐文件 sha256（只比会发布的 `.js`，排除
   `*.test.js`；`.d.ts` 不发布），额外比 `cordis.patch.yml`（App 按装进去的
   那份 patch 挂行）与版本号；缺文件/旧代码/多余旧文件都点名；
@@ -202,7 +202,7 @@ profile 副本: 已安装 @0.2.0，逐文件 sha256 比对 26 个发布文件 �
 ```
 DSH runtime (from /Applications/DeepSeek Harness.app): 0.2.1-rc.2
   ai-native-sdlc-harness@0.1.0  peers=0
-  @ai-native-sdlc/dsh-sdlc@0.2.0  peers=8
+  @ai-native-sdlc-plugin/dsh-sdlc@0.2.0  peers=8
 
 ✓ 全部 2 个包与 DSH 0.2.1-rc.2 兼容
 ```

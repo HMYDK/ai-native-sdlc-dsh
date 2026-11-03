@@ -58,10 +58,10 @@ console.log('\n== 1b. UI 行必须挂在包根（否则浏览器半会被静默�
   } else bad('包根插件 inject 不含 connection（host 起不来）');
 
   const patch = fs.readFileSync(path.join(DIR, '..', 'cordis.patch.yml'), 'utf8');
-  if (/\n\s+- id: sdlc-ui\n\s+name: '@ai-native-sdlc\/dsh-sdlc'\n/.test(patch)) {
+  if (/\n\s+- id: sdlc-ui\n\s+name: '@ai-native-sdlc-plugin\/dsh-sdlc'\n/.test(patch)) {
     ok("patch 里 sdlc-ui 行的 name 是精确包名（客户端发现的前提）");
   } else {
-    bad("patch 里 sdlc-ui 行不是精确包名 '@ai-native-sdlc/dsh-sdlc'——浏览器半会被静默丢弃");
+    bad("patch 里 sdlc-ui 行不是精确包名 '@ai-native-sdlc-plugin/dsh-sdlc'——浏览器半会被静默丢弃");
   }
 
   // 插件页展示元数据：宿主 app-boot 的 readPluginMeta 只读 <specifier>/locale/en.json。
@@ -159,7 +159,7 @@ const src = fs.readFileSync(bundle, 'utf8');
 new Function(src)();
 if (loaded === null) { bad('__ModuleLoader__.load 没被调用'); process.exit(1); }
 ok('__ModuleLoader__.load 被调用');
-if (loaded.id === '@ai-native-sdlc/dsh-sdlc') ok(`id=${loaded.id}`);
+if (loaded.id === '@ai-native-sdlc-plugin/dsh-sdlc') ok(`id=${loaded.id}`);
 else bad(`id 应为包名，实际 ${JSON.stringify(loaded.id)}`);
 if (typeof loaded.factory === 'function') ok('factory 是函数');
 else { bad('factory 不是函数'); process.exit(1); }

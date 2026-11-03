@@ -27,7 +27,7 @@
 
 ## 3. 验证和交付
 
-- [x] 跑 `DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -w @ai-native-sdlc/dsh-sdlc`，以及 compat/preset-sync。
+- [x] 跑 `DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -w @ai-native-sdlc-plugin/dsh-sdlc`，以及 compat/preset-sync。
 - [ ] 最终包的真实 DSH GUI 验收：初始测试包已在隔离 profile 安装和启动；认证页面访问被拒绝，未重试。
 - [x] 使用同一客户端源码、真实 React 和三轮夹具生成本地预览；Chrome DOM 交互检查及深浅主题、窄屏、历史、弹窗截图完成，与第二版整体/细节并排对照。此项不等于 DSH 实机验收。
 - [x] 修复发现的问题，更新设计 QA、包说明与本次证据；审查 `git ls-files` 后仅提交相关文件。

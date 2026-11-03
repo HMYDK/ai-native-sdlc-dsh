@@ -40,13 +40,13 @@
 用 gitignore 的隔离 home（`.verify-home`）验证真实安装，不碰日常使用环境：
 
 - 模板 profile 先建，再 `plugin add`；
-- bundles 变成 `["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app","@ai-native-sdlc/dsh-sdlc"]`；
+- bundles 变成 `["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app","@ai-native-sdlc-plugin/dsh-sdlc"]`；
 - `--dump-config` 七行；
 - 真实启动无激活警告；
-- `__DSH_BOOT__.entries` 含 `{"id":"@ai-native-sdlc/dsh-sdlc","url":"plugins/…/client.js","inject":["…client-ui-sidebar"]}`；
+- `__DSH_BOOT__.entries` 含 `{"id":"@ai-native-sdlc-plugin/dsh-sdlc","url":"plugins/…/client.js","inject":["…client-ui-sidebar"]}`；
 - `GET /api/sdlc-ui.tasks` 返回 200，81975 字节，聚合 3 个工作区 / 13 个任务；最终复验 86730 字节，因为新增了一个任务。
 
-最终 tarball 为 52 文件。换入后重新读过一次 `plugin_manager list_plugins`：七行全部 `fiberPhase: active`，`sdlc-ui` 行 moduleName 是精确包名 `@ai-native-sdlc/dsh-sdlc`。换包只改了 locale/icon 与注释，host 行为不变。
+最终 tarball 为 52 文件。换入后重新读过一次 `plugin_manager list_plugins`：七行全部 `fiberPhase: active`，`sdlc-ui` 行 moduleName 是精确包名 `@ai-native-sdlc-plugin/dsh-sdlc`。换包只改了 locale/icon 与注释，host 行为不变。
 
 同一轮还清掉了旧 profile 里残留的旧包依赖和 bundles 条目；仓库根 `node_modules` 的七个悬空 workspace 链接随 `npm install` 收敛为只有一个 `dsh-sdlc → packages/sdlc`。
 
@@ -131,7 +131,7 @@ web/desktop 有，headless 没有。不要写进 `inject`（会停 pending），
 ### 2.5 隔离 profile 的真实读数
 
 - `dsh web` 启动无 `entry did not activate`。
-- `__DSH_BOOT__` 里有 `@ai-native-sdlc/dsh-sdlc-ui`。
+- `__DSH_BOOT__` 里有 `@ai-native-sdlc-plugin/dsh-sdlc-ui`。
 - `GET /api/sdlc-ui.tasks` 200，聚合 3 个工作区 / 13 个任务。
 - 真实验证者工具面：`bash glob grep read read_image skill structured_output`（无 write/edit、无 `sdlc_*`、无 subagent）。
 - 无模型凭据时 `sdlc_verify` 仍走完 2 次派发并返回 `needs_human`，未崩。
@@ -186,7 +186,7 @@ verify 冒烟 111/111
 ### 3.2 形态
 
 ```text
-宿主行 ① sdlc-ui        name=@ai-native-sdlc/dsh-sdlc（精确包名，常驻只读看板）
+宿主行 ① sdlc-ui        name=@ai-native-sdlc-plugin/dsh-sdlc（精确包名，常驻只读看板）
 宿主行 ② preset-sdlc    name=@deepseek-ai/dsh-agent-preset，id=sdlc
 preset 内               standard preset 完整副本（22 行）+ 六个机制组件（6 行）
 ```
