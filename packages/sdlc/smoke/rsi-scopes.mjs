@@ -122,7 +122,7 @@ try {
     const outside=await call('sdlc_rsi_improve',{task_id:'IMPROVE-1',packet:proposed.value.packet});
     check(outside.isError,'a business workspace cannot accidentally receive a plugin development task');
     await fs.mkdir(path.join(root,'packages/sdlc'),{recursive:true});
-    await fs.writeFile(path.join(root,'packages/sdlc/package.json'),JSON.stringify({name:'@ai-native-sdlc/dsh-sdlc'}));
+    await fs.writeFile(path.join(root,'packages/sdlc/package.json'),JSON.stringify({name:'@ai-native-sdlc-plugin/dsh-sdlc'}));
     const imported=await call('sdlc_rsi_improve',{task_id:'IMPROVE-1',packet:proposed.value.packet});
     check(!imported.isError&&!imported.value.incomplete&&imported.value.intent.structure_ok,'proposal creates an ordinary task and structurally valid intent');
     const state=await fs.readFile(path.join(root,'.ai/tasks/IMPROVE-1/state.yaml'),'utf8');

@@ -20,7 +20,7 @@
  *
  * ## 布局（2026-10-19 方案 A 之后）
  *
- * 一个 npm 包 `@ai-native-sdlc/dsh-sdlc`，bundle patch 里是**两条宿主行 + 一个
+ * 一个 npm 包 `@ai-native-sdlc-plugin/dsh-sdlc`，bundle patch 里是**两条宿主行 + 一个
  * preset 声明**（`packages/sdlc/cordis.patch.yml`）：
  *
  *   宿主 ① sdlc-ui           → 指向精确包名（浏览器半的发现前提）
@@ -44,7 +44,7 @@
  * 3. **inject 可解析**：宿主行 + preset 子行的 inject **并集**里每个服务名，
  *    宿主服务集合里有没有。没有 = 该行会停在 pending，而且**静默**。
  *    preset 行消费宿主服务是官方允许的（"等待 Host 服务的行保持挂载"）。
- * 4. **漂移**：profile 里装的 `@ai-native-sdlc/dsh-sdlc` 与仓库刚构建的
+ * 4. **漂移**：profile 里装的 `@ai-native-sdlc-plugin/dsh-sdlc` 与仓库刚构建的
  *    `packages/sdlc` 整棵树是否一致——`lib/` 下每个发布文件（`.js`、
  *    排除 `*.test.js`；`.d.ts` 不发布所以也不比）逐文件 sha256，
  *    外加 `cordis.patch.yml`（App 实际按**装进去的那份** patch 挂载行）。
@@ -129,12 +129,12 @@ const EXPECTED_HOST_ROWS = ['sdlc-ui', 'preset-sdlc'];
 
 /** preset 内的六个机制组件行（id → 本包 exports 子路径）。 */
 const EXPECTED_PRESET_ROWS = [
-  ['sdlc-task', '@ai-native-sdlc/dsh-sdlc/task'],
-  ['sdlc-artifact', '@ai-native-sdlc/dsh-sdlc/artifact'],
-  ['sdlc-status', '@ai-native-sdlc/dsh-sdlc/status'],
-  ['sdlc-verify', '@ai-native-sdlc/dsh-sdlc/verify'],
-  ['sdlc-workflow', '@ai-native-sdlc/dsh-sdlc/workflow'],
-  ['sdlc-rsi', '@ai-native-sdlc/dsh-sdlc/rsi'],
+  ['sdlc-task', '@ai-native-sdlc-plugin/dsh-sdlc/task'],
+  ['sdlc-artifact', '@ai-native-sdlc-plugin/dsh-sdlc/artifact'],
+  ['sdlc-status', '@ai-native-sdlc-plugin/dsh-sdlc/status'],
+  ['sdlc-verify', '@ai-native-sdlc-plugin/dsh-sdlc/verify'],
+  ['sdlc-workflow', '@ai-native-sdlc-plugin/dsh-sdlc/workflow'],
+  ['sdlc-rsi', '@ai-native-sdlc-plugin/dsh-sdlc/rsi'],
 ];
 
 const sha = (p) => createHash('sha256').update(readFileSync(p)).digest('hex');
@@ -159,7 +159,7 @@ function publishedFiles(pkgDir) {
  * 把 loader 行里的 `name` 解析成仓库里对应的文件。
  *
  * 走 package.json `exports`，**不靠字符串拼接**——`sdlc-ui` 行指向精确包名，
- * `@ai-native-sdlc/dsh-sdlc` 解析到 `./lib/index.js`（包根重新导出 ui 插件定义）。
+ * `@ai-native-sdlc-plugin/dsh-sdlc` 解析到 `./lib/index.js`（包根重新导出 ui 插件定义）。
  */
 function resolveLoaderName(pkgJson, spec) {
   if (spec === pkgJson.name) return pkgJson.exports?.['.'] ?? pkgJson.main;
@@ -313,7 +313,7 @@ for (const row of moduleRows) {
  *
  * 这一条是有来历的，不是风格检查：
  *  · `@deepseek-ai/dsh-client-modules` 只扫描宿主 Loader 里精确包名的行来发现
- *    `dsh.client`，写成 `@ai-native-sdlc/dsh-sdlc/ui` 时 host 半照常工作、
+ *    `dsh.client`，写成 `@ai-native-sdlc-plugin/dsh-sdlc/ui` 时 host 半照常工作、
  *    `/api/sdlc-ui.tasks` 照常 200，但浏览器半不会进 `window.__DSH_BOOT__`
  *    ——面板不出现，日志无错（7f2be0a 实测抓到）。
  *  · preset 的行在注册表自己的**内存 Loader 树**里，不是宿主 Loader 行，

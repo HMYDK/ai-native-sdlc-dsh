@@ -57,7 +57,7 @@ test('保留 skill 通道：验证纪律做成 Skill 后，没有这个工具就
 test('必须有工具过滤行：宿主工具是全局注册的，preset 不会自动隔离', () => {
   // 实测（0.2.1 真实宿主）：没有这一行时，验证者的工具面里仍然有
   // sdlc_task_create / sdlc_fix_end / sdlc_verify —— 它能解冻测试、推进任务。
-  assert.ok(names.includes('@ai-native-sdlc/dsh-sdlc/verify/preset-filter'), '缺少 preset-filter 行');
+  assert.ok(names.includes('@ai-native-sdlc-plugin/dsh-sdlc/verify/preset-filter'), '缺少 preset-filter 行');
 });
 
 test('过滤行 deny 掉当前 global 层的全部工具（而不是固定名单）', () => {

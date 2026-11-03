@@ -12,7 +12,7 @@
 ## 0.0 先读：0.2.1 的兼容性破坏（2026-10-17 实测）
 
 > **历史背景（合并前）**：这次事故发生在「七个独立 npm 包、每个包各自钉 peer」
-> 的形态下。2026-10-19 仓库已合并为一个包（`@ai-native-sdlc/dsh-sdlc`，只有
+> 的形态下。2026-10-19 仓库已合并为一个包（`@ai-native-sdlc-plugin/dsh-sdlc`，只有
 > 一份 peer 范围、一条 profile.bundles 条目），这类「七包同升、一起静默消失」的
 > 失败模式从根上消失；事故记录保留，因为它正解释了为什么要合并。现状见 §1.1。
 
@@ -269,12 +269,12 @@ bundle 会被**自动追加到 `dsh.profile.bundles`**——这一点已实测�
 
 ### 1.1 本仓库的分发形态：一个 bundle = 两条宿主行 + 一个 Agent Preset
 
-本仓库把七个机制合并为**一个包** `@ai-native-sdlc/dsh-sdlc`。从 `0.3.0` 起，
+本仓库把七个机制合并为**一个包** `@ai-native-sdlc-plugin/dsh-sdlc`。从 `0.3.0` 起，
 `cordis.patch.yml` 是**一条 `insert`、两条宿主行**：
 
 | 宿主行 | name | 作用 |
 |---|---|---|
-| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（精确包名） | 只读看板；浏览器半的发现前提 |
+| `sdlc-ui` | `@ai-native-sdlc-plugin/dsh-sdlc`（精确包名） | 只读看板；浏览器半的发现前提 |
 | `preset-sdlc` | `@deepseek-ai/dsh-agent-preset` | 声明 Agent Preset「AI 原生 SDLC」 |
 
 `preset-sdlc` 的 `config.plugins` 是**DSH 内置 `standard` preset 的完整副本

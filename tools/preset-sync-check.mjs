@@ -65,12 +65,12 @@ const schema = yaml.DEFAULT_SCHEMA.extend([jsType]);
 const parse = (text) => yaml.load(text, { schema });
 
 const SDLC_ROWS = [
-  ['sdlc-task', '@ai-native-sdlc/dsh-sdlc/task'],
-  ['sdlc-artifact', '@ai-native-sdlc/dsh-sdlc/artifact'],
-  ['sdlc-status', '@ai-native-sdlc/dsh-sdlc/status'],
-  ['sdlc-verify', '@ai-native-sdlc/dsh-sdlc/verify'],
-  ['sdlc-workflow', '@ai-native-sdlc/dsh-sdlc/workflow'],
-  ['sdlc-rsi', '@ai-native-sdlc/dsh-sdlc/rsi'],
+  ['sdlc-task', '@ai-native-sdlc-plugin/dsh-sdlc/task'],
+  ['sdlc-artifact', '@ai-native-sdlc-plugin/dsh-sdlc/artifact'],
+  ['sdlc-status', '@ai-native-sdlc-plugin/dsh-sdlc/status'],
+  ['sdlc-verify', '@ai-native-sdlc-plugin/dsh-sdlc/verify'],
+  ['sdlc-workflow', '@ai-native-sdlc-plugin/dsh-sdlc/workflow'],
+  ['sdlc-rsi', '@ai-native-sdlc-plugin/dsh-sdlc/rsi'],
 ];
 
 const stdText = readFileSync(STD_PATCH, 'utf8');

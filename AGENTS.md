@@ -4,7 +4,7 @@
 
 本文件面向任何 clone 仓库的 agent 与贡献者，只保留仍然约束当前实现的结论；详细历史、事故与读数见 [`docs/history/lessons.md`](docs/history/lessons.md)。
 
-当前插件：`@ai-native-sdlc/dsh-sdlc@0.6.0`，源码在 `packages/sdlc/`。
+当前插件：`@ai-native-sdlc-plugin/dsh-sdlc@0.6.0`，源码在 `packages/sdlc/`。
 
 ## 项目目标与边界
 
@@ -26,13 +26,13 @@
 
 | 行 id | 行 name | 机制 |
 |---|---|---|
-| `sdlc-task` | `@ai-native-sdlc/dsh-sdlc/task` | 任务状态机 + 制品链（`state.yaml` 在 git） |
-| `sdlc-artifact` | `@ai-native-sdlc/dsh-sdlc/artifact` | 制品撰写 + 结构检查（只查结构） |
-| `sdlc-status` | `@ai-native-sdlc/dsh-sdlc/status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） |
-| `sdlc-verify` | `@ai-native-sdlc/dsh-sdlc/verify` | 独立验证 + 测试冻结 |
-| `sdlc-workflow` | `@ai-native-sdlc/dsh-sdlc/workflow` | 工作流本身，作为 Skill 交付给验证者 |
-| `sdlc-rsi` | `@ai-native-sdlc/dsh-sdlc/rsi` | 执行证据、复盘、改进任务与反馈 |
-| `sdlc-ui` | `@ai-native-sdlc/dsh-sdlc`（**精确包名**） | 客户端制品链面板（侧栏图标 + main 面板） |
+| `sdlc-task` | `@ai-native-sdlc-plugin/dsh-sdlc/task` | 任务状态机 + 制品链（`state.yaml` 在 git） |
+| `sdlc-artifact` | `@ai-native-sdlc-plugin/dsh-sdlc/artifact` | 制品撰写 + 结构检查（只查结构） |
+| `sdlc-status` | `@ai-native-sdlc-plugin/dsh-sdlc/status` | 任务看板（一次盘出所有任务的状态/缺失/裁决） |
+| `sdlc-verify` | `@ai-native-sdlc-plugin/dsh-sdlc/verify` | 独立验证 + 测试冻结 |
+| `sdlc-workflow` | `@ai-native-sdlc-plugin/dsh-sdlc/workflow` | 工作流本身，作为 Skill 交付给验证者 |
+| `sdlc-rsi` | `@ai-native-sdlc-plugin/dsh-sdlc/rsi` | 执行证据、复盘、改进任务与反馈 |
+| `sdlc-ui` | `@ai-native-sdlc-plugin/dsh-sdlc`（**精确包名**） | 客户端制品链面板（侧栏图标 + main 面板） |
 
 宿主层还有一条 `preset-sdlc`（`@deepseek-ai/dsh-agent-preset`，id=`sdlc`），它不是机制行，只声明 preset。
 

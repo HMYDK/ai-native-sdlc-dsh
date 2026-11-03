@@ -312,11 +312,11 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 
 **本机 desktop profile 不是这种情况。** 它的 `package.json` 里是（合并前的读数）：
 
-    "@ai-native-sdlc/dsh-sdlc-verify": "file:.../packages/sdlc-verify/<pkg>.tgz"
+    "@ai-native-sdlc-plugin/dsh-sdlc-verify": "file:.../packages/sdlc-verify/<pkg>.tgz"
 
-合并后同一个包叫 `@ai-native-sdlc/dsh-sdlc`，安装形态不变：
+合并后同一个包叫 `@ai-native-sdlc-plugin/dsh-sdlc`，安装形态不变：
 
-    "@ai-native-sdlc/dsh-sdlc": "file:.../ai-native-sdlc-dsh-sdlc-0.2.0.tgz"
+    "@ai-native-sdlc-plugin/dsh-sdlc": "file:.../ai-native-sdlc-dsh-sdlc-0.2.0.tgz"
 
 `file:` 指向 **tgz**，装的是**解压出来的副本**。所以：
 
@@ -333,8 +333,8 @@ await ctx.fs.writeText(target, content, intent, exec.signal, policy);  // ③ �
 它同时检查下面 §12.3 那条。
 
 **同步方式**：合并后只有一个包——把 `packages/sdlc/lib/**/*.js` 拷进 profile 的
-`node_modules/@ai-native-sdlc/dsh-sdlc/lib/`（保留子目录结构），再重启。
-（合并前是按组件拷进 `node_modules/@ai-native-sdlc/dsh-sdlc-<组件>/lib/`。）
+`node_modules/@ai-native-sdlc-plugin/dsh-sdlc/lib/`（保留子目录结构），再重启。
+（合并前是按组件拷进 `node_modules/@ai-native-sdlc-plugin/dsh-sdlc-<组件>/lib/`。）
 
 ⚠️ 顺带一个同类的坑：环境里的 `DSH_PROFILE` 值是 **`desktop`（名字，不是路径）**，
 绝对路径在 `DSH_PROFILE_DIR`。拿 `DSH_PROFILE` 当路径用会得到一个**相对路径**，
@@ -431,8 +431,8 @@ window.__ModuleLoader__.load({
 
 | 层 | 证据 |
 |---|---|
-| 进了 boot 清单 | 页面里 `{"id":"@ai-native-sdlc/dsh-sdlc-ui","url":"plugins/??…/client.js&rev=aeccbffea1ef","inject":["…dsh-client-ui-sidebar"]}` |
-| 被 preload | `<link rel="preload" as="script" href="plugins/??…,@ai-native-sdlc/dsh-sdlc-ui/client.js&rev=…">` |
+| 进了 boot 清单 | 页面里 `{"id":"@ai-native-sdlc-plugin/dsh-sdlc-ui","url":"plugins/??…/client.js&rev=aeccbffea1ef","inject":["…dsh-client-ui-sidebar"]}` |
+| 被 preload | `<link rel="preload" as="script" href="plugins/??…,@ai-native-sdlc-plugin/dsh-sdlc-ui/client.js&rev=…">` |
 | 服务端真的服务了它 | 合并 bundle 10.4 MB（`plugins/??<60 个插件>`），HTTP 200 |
 | **我的代码在合并 bundle 里** | `SdlcPanelButton` ×2、样式色值 `e879f9` ×2、渲染文字 `AI 原生 SDLC：探针项` ×1 |
 
@@ -444,13 +444,13 @@ window.__ModuleLoader__.load({
   **必须从页面里取完整 URL**（含 `&rev=`）；自己拼 `plugins/??<包名>/client.js` 会 **404**
 
 > 上表两个 id 都是**合并前**的客户端包名（当时 `sdlc-ui` 是独立包，行名就是包名）。
-> 现在 `packages/sdlc/src/ui/client.js` 的 loader id 是 `@ai-native-sdlc/dsh-sdlc`；
+> 现在 `packages/sdlc/src/ui/client.js` 的 loader id 是 `@ai-native-sdlc-plugin/dsh-sdlc`；
 > 保留旧读数只为对照。
 
 ### ⚠️ 合并后新坑（2026-10-19）：`dsh.client` 只按**精确包名**的 loader 行发现
 
 `sdlc-ui` 合并进 `packages/sdlc` 后，`cordis.patch.yml` 里这一行**仍然必须写包名本身**
-`@ai-native-sdlc/dsh-sdlc`，不能写 `@ai-native-sdlc/dsh-sdlc/ui` 子路径：
+`@ai-native-sdlc-plugin/dsh-sdlc`，不能写 `@ai-native-sdlc-plugin/dsh-sdlc/ui` 子路径：
 
 - `@deepseek-ai/dsh-client-modules` 用 `exactPackageSpecifier` 找"哪个已加载的
   loader 行属于声明了 `dsh.client` 的包"，子路径让它返回 `undefined`；

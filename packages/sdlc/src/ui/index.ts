@@ -1,5 +1,5 @@
 /**
- * @ai-native-sdlc/dsh-sdlc/ui —— **host 半**。
+ * @ai-native-sdlc-plugin/dsh-sdlc/ui —— **host 半**。
  *
  * 它做两件事：
  *   1. 注册**认证路由** tasks / artifact / execution，提供只读任务、制品和逐轮证据

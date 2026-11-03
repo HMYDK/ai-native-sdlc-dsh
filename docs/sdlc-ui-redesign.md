@@ -19,8 +19,8 @@
 
 ## 验证
 
-命令：`npm run verify -w @ai-native-sdlc/dsh-sdlc`。
-（本记录写于 0.1.1，合并前的包名是 `@ai-native-sdlc/dsh-sdlc-ui`；合并后组件在
+命令：`npm run verify -w @ai-native-sdlc-plugin/dsh-sdlc`。
+（本记录写于 0.1.1，合并前的包名是 `@ai-native-sdlc-plugin/dsh-sdlc-ui`；合并后组件在
 `packages/sdlc/src/ui/`。——**当前照做请用上面这条命令。**）
 
 | 检查 | 结果 | 能证明的范围 |

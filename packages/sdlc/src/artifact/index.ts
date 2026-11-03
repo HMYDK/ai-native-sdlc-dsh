@@ -1,5 +1,5 @@
 /**
- * @ai-native-sdlc/dsh-sdlc/artifact
+ * @ai-native-sdlc-plugin/dsh-sdlc/artifact
  *
  * AI 原生 SDLC 的**制品撰写与结构检查**。
  *

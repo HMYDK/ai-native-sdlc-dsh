@@ -101,7 +101,7 @@ export const VERIFIER_PRESET: PresetDefinition = {
     // 宿主的工具是全局注册的，preset 不会自动隔离它们。这一行在验证者
     // scope 里做最后的 allow 过滤，把 sdlc_* / working_directory 等宿主工具
     // 从工具面摘掉。没有它，验证者能解冻测试、推进任务状态。
-    { id: 'tool-filter', name: '@ai-native-sdlc/dsh-sdlc/verify/preset-filter' },
+    { id: 'tool-filter', name: '@ai-native-sdlc-plugin/dsh-sdlc/verify/preset-filter' },
   ],
 };
 

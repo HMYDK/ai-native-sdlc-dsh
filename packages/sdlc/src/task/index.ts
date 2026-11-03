@@ -1,5 +1,5 @@
 /**
- * @ai-native-sdlc/dsh-sdlc/task
+ * @ai-native-sdlc-plugin/dsh-sdlc/task
  *
  * AI 原生 SDLC 的**任务状态与制品链**。
  *
