@@ -85,9 +85,17 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     if (value.length > max) issue(`${label}超过展示上限 ${max}，仅保留部分记录`);
     return value.slice(0, max);
   };
-  const criteriaFor = (inputs: ObjectValue): CriteriaInput => inputs.schema_version === 3 ? verificationAcceptance(inputs).entries
-    : inputs.acceptance ? [...parseAcceptanceRegistration(inputs.acceptance).criteria,...additionalCriteria(inputs.additional_criteria as string[] | undefined)]
-    : Array.isArray(inputs.criteria) && inputs.criteria.every(c=>typeof c==='string') ? inputs.criteria as string[] : [];
+  const criteriaFor = (inputs: ObjectValue): CriteriaInput => {
+    try {
+      return inputs.schema_version === 3 ? verificationAcceptance(inputs).entries
+        : inputs.acceptance ? [...parseAcceptanceRegistration(inputs.acceptance).criteria,...additionalCriteria(inputs.additional_criteria as string[] | undefined)]
+        : Array.isArray(inputs.criteria) && inputs.criteria.every(c=>typeof c==='string') ? inputs.criteria as string[] : [];
+    } catch {
+      // 一条损坏或版本不支持的 acceptance 不能连带吞掉本轮其它可核对内容。
+      issue('验收标准来源受损或版本不支持，本轮标准文本按旧记录回退');
+      return Array.isArray(inputs.criteria) && inputs.criteria.every(c=>typeof c==='string') ? inputs.criteria as string[] : [];
+    }
+  };
   const normalizeVerdict = (id: string, verdict: ObjectValue, inputs: ObjectValue) => ({
     summary: text(verdict.summary, 800),
     criteria: array(verdict.criteria_results ?? [], 24, `${id} 验收标准`).map((raw, i) => {
