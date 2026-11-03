@@ -34,7 +34,7 @@
   },
   "plugins": [
     {
-      "name": "@ai-native-sdlc/dsh-sdlc",
+      "name": "@ai-native-sdlc-plugin/dsh-sdlc",
       "title": {
         "en": "AI-native SDLC",
         "zh": "AI 原生 SDLC"
@@ -66,13 +66,11 @@
       },
       "versions": [
         {
-          "version": "0.5.0",
-          "publishTimestamp": 1793542614,
+          "version": "0.6.0",
+          "publishTimestamp": 1793716051,
           "source": {
-            "type": "git",
-            "url": "https://github.com/HMYDK/ai-native-sdlc-dsh",
-            "commit": "7483e2c051b48dda4edc57faf0b1c58888ed3327",
-            "path": "packages/sdlc"
+            "type": "npm",
+            "registry": "https://registry.npmjs.org"
           },
           "engines": {
             "dsh": ">=0.2.1-rc.2 <0.3.0"

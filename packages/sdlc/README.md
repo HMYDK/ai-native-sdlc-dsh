@@ -86,7 +86,13 @@ UI 的 `tasksDir` / `rsiDir` 配置应与任务、RSI 组件保持一致。
 
 本地预览与验收方式见 [循环工作台验证记录](../../docs/design/sdlc-dashboard-2026-10-28/implementation.md)。
 
-包自带 `dsh.bundle.patch`，安装后自动挂载：
+包自带 `dsh.bundle.patch`，安装后自动挂载。推荐从 npm 安装：
+
+```sh
+dsh plugin --profile <你的-profile> add @ai-native-sdlc-plugin/dsh-sdlc@0.6.0
+```
+
+或从源码构建：
 
 ```sh
 npm run build --workspace packages/sdlc

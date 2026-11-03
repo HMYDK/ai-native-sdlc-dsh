@@ -4,12 +4,13 @@
 任务走到了哪一步、为什么退回、改了什么、复验是否通过，都有文件记录可以核对。
 
 [![CI](https://github.com/HMYDK/ai-native-sdlc-dsh/actions/workflows/ci.yml/badge.svg)](https://github.com/HMYDK/ai-native-sdlc-dsh/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@ai-native-sdlc-plugin/dsh-sdlc)](https://www.npmjs.com/package/@ai-native-sdlc-plugin/dsh-sdlc)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 方法来自 Anthropic《AI 原生 SDLC 实战手册》（[原文](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)，作者 Louis Claxton）。
 本仓库不收录全文翻译，只提供一篇原创[中文导读](docs/playbook-notes.md)。
 
-当前插件为 [`@ai-native-sdlc-plugin/dsh-sdlc@0.6.0`](packages/sdlc/package.json)，以一个 npm bundle 交付。
+当前插件为 [`@ai-native-sdlc-plugin/dsh-sdlc@0.6.0`](https://www.npmjs.com/package/@ai-native-sdlc-plugin/dsh-sdlc)，以一个 npm bundle 交付。
 本项目是社区实现，与 Anthropic、DeepSeek 均无隶属关系。
 
 ![SDLC 看板](docs/design/sdlc-dashboard-2026-10-28/loop-workbench.png)
@@ -35,7 +36,16 @@
 以下步骤在 **macOS + DeepSeek Harness App** 上验证过；其他平台的完整安装流程尚未验收。
 执行独立验证还需要 DSH 已配置可用的模型。
 
-### 方式一：使用 GitHub Release 的安装包（推荐）
+### 方式一：从 npm 安装（推荐）
+
+```sh
+ELECTRON_RUN_AS_NODE=1 "$DSH_BIN" --expose-internals "$DSH_CLI" \
+  plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.0
+```
+
+`$DSH_BIN` 与 `$DSH_CLI` 的定义见下方「安装到 DSH」；也可以在 App 的 Plugin Manager 里直接搜索安装。
+
+### 方式二：使用 GitHub Release 的安装包
 
 1. 打开 [Releases](https://github.com/HMYDK/ai-native-sdlc-dsh/releases)，下载最新的 `.tgz` 与 `SHA256SUMS.txt` 校验文件。
 2. 校验后按下面的 **「安装到 DSH」** 步骤安装。
@@ -44,7 +54,7 @@
 shasum -a 256 -c SHA256SUMS.txt
 ```
 
-### 方式二：从源码构建
+### 方式三：从源码构建
 
 ```sh
 git clone https://github.com/HMYDK/ai-native-sdlc-dsh.git
