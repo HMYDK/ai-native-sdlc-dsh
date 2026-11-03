@@ -524,6 +524,7 @@ window.__ModuleLoader__.load({
           h('summary', { key: 'heading' }, ['验证详情', h('span', { key: 'description' }, '逐轮裁决、测试证据与 Agent 操作')]),
           h(LoopWorkbench, { key: 'workbench', task: t, execution: executionState.data, loading: executionState.loading, error: executionState.error, theme }),
         ]),
+        h(AcceptanceNotice, {key:'acceptance',acceptance:t.acceptance}),
         h('section', { key: 'artifacts', className: 'sdlc-deliverables', 'aria-label': '任务交付物' }, [
           h('div', { key: 'heading', className: 'sdlc-deliverables-heading' }, [
             h('h3', { key: 'title', className: 'sdlc-deliverables-label' }, [h(Icon, { key: 'i', name: 'doc', size: 15 }), '任务交付物']),
@@ -1048,19 +1049,30 @@ window.__ModuleLoader__.load({
     function ReportSection({title, value, children}) {
       return h('section', {className:'sdlc-report-section'}, [h('h3', {key:'title'}, title), children || h(ReportValue, {key:'value', value})]);
     }
-    function ReportStatus({value, incomplete}) {
-      const tone = incomplete ? '' : ['approve','approved','accept','met','resolved'].includes(value) ? ' is-pass' : ['reject','rejected','not_met','unresolved','changes_requested'].includes(value) ? ' is-fail' : '';
-      return h('span', {className:'sdlc-report-status'+tone}, incomplete ? '未形成完整裁决' : reportValueLabel(value));
+    function ReportStatus({value, incomplete, unconfirmed}) {
+      const tone = incomplete || unconfirmed ? '' : ['approve','approved','accept','met','resolved'].includes(value) ? ' is-pass' : ['reject','rejected','not_met','unresolved','changes_requested'].includes(value) ? ' is-fail' : '';
+      return h('span', {className:'sdlc-report-status'+tone}, incomplete ? '未形成完整裁决' : (unconfirmed ? '原始裁决：' : '') + reportValueLabel(value));
     }
-    function VerificationReport({doc, criteria = []}) {
+    function AcceptanceNotice({acceptance}) {
+      const a = acceptance;
+      const labels = {unregistered:'未登记验收清单',invalid:'验收登记损坏',changed:'Spec 已改变，需重新登记',unverified:'尚未按登记清单验证',legacy:'历史裁决未核对完整验收范围',incomplete:'验收覆盖未通过核对',verified:'验收覆盖已核对'};
+      return h('section',{className:'sdlc-notice','aria-label':'验收范围'},[
+        h('strong',{key:'status'},a ? labels[a.status] || '验收范围未确认' : '历史裁决未核对完整验收范围'),
+        a ? h('p',{key:'counts'},'应验 '+a.expected+' 项 · 已答 '+a.answered+' 项 · 满足 '+a.met+' 项') : null,
+        a && a.missing.length ? h('p',{key:'missing'},'缺少结果：'+a.missing.join('、')) : null,
+        a && a.errors.length ? h('ul',{key:'errors'},a.errors.map((e,i)=>h('li',{key:i},e))) : null,
+      ]);
+    }
+    function VerificationReport({doc, criteria = [], acceptance}) {
       const verdict = reportObject(doc.verdict) ? doc.verdict : doc;
       const results = reportArray(verdict.criteria_results), findings = reportArray(verdict.findings);
       return h('article', {className:'sdlc-report', 'aria-label':'验证报告'}, [
-        h('div', {key:'heading', className:'sdlc-report-heading'}, [h('h2', {key:'title'}, '验证报告'), h(ReportStatus, {key:'status',value:verdict.status, incomplete:verdict.verification_complete === false})]),
+        h('div', {key:'heading', className:'sdlc-report-heading'}, [h('h2', {key:'title'}, '验证报告'), h(ReportStatus, {key:'status',value:verdict.status, incomplete:verdict.verification_complete === false,unconfirmed:!acceptance || acceptance.status !== 'verified'})]),
+        h(AcceptanceNotice,{key:'acceptance',acceptance}),
         h('div', {key:'meta',className:'sdlc-report-meta'}, [doc.at ? '记录于 '+String(doc.at) : '', verdict.verification_run_id ? ' · 轮次 '+verdict.verification_run_id : ''].join('')),
         h(ReportValue, {key:'summary', value:verdict.summary ?? '未记录结论说明'}),
         ...['criteria_errors','issue_errors','recording_errors','snapshot_error','diagnostic'].filter(key => verdict[key] && (!Array.isArray(verdict[key]) || verdict[key].length)).map(key => h('div', {key,className:'sdlc-report-warning'}, [h('strong', {key:'label'}, reportLabel(key)),h(ReportValue,{key:'value',value:verdict[key]})])),
-        h(ReportSection, {key:'criteria',title:'验收结果 · '+results.filter(r => r?.result === 'met').length+' / '+results.length+' 项记录通过'},
+        h(ReportSection, {key:'criteria',title:'本轮逐项结果 · '+results.length+' 条'},
           results.length ? h('ol', {className:'sdlc-report-cards'}, results.map((row,i) => h('li', {key:i,className:'sdlc-report-card'}, reportObject(row) ? [
             h('div', {key:'heading',className:'sdlc-report-row-head'}, [h('strong',{key:'title'}, criteria.find(c => c.id === row.criterion_id)?.text || row.criterion || row.criterion_id || '第 '+(i+1)+' 条标准'),h(ReportStatus,{key:'status',value:row.result})]),
             h(ReportValue, {key:'body',value:reportFields(row,['criterion','result'])}),
@@ -1086,14 +1098,14 @@ window.__ModuleLoader__.load({
         ...Object.entries(reportFields(doc,['decision','at',...(summaryKey ? [summaryKey] : [])])).map(([key,value]) => h(ReportSection,{key,title:reportLabel(key),value})),
       ]);
     }
-    function JsonArtifact({text, kind, criteria}) {
+    function JsonArtifact({text, kind, criteria, acceptance}) {
       const [raw, setRaw] = React.useState(false);
       let doc;
       try { doc = JSON.parse(text); } catch {
         return h('div',{},[h('p',{key:'error',role:'alert'},'文件不是完整有效的 JSON，暂时无法生成阅读视图。以下保留文件原文。'),h('pre',{key:'text',style:F.mono},text)]);
       }
       return h('div',{},[
-        kind === 'verification' && reportObject(doc) ? h(VerificationReport,{key:'report',doc,criteria}) : kind === 'review' && reportObject(doc) ? h(ReviewReport,{key:'report',doc}) : h(ReportValue,{key:'report',value:doc}),
+        kind === 'verification' && reportObject(doc) ? h(VerificationReport,{key:'report',doc,criteria,acceptance}) : kind === 'review' && reportObject(doc) ? h(ReviewReport,{key:'report',doc}) : h(ReportValue,{key:'report',value:doc}),
         h('div',{key:'source',className:'sdlc-report-source'},[
           h('button',{key:'toggle',type:'button','aria-expanded':raw,onClick:()=>setRaw(!raw)},raw ? '收起原始 JSON' : '查看原始 JSON'),
           raw ? h('pre',{key:'raw',style:F.mono},text) : null,
@@ -1110,7 +1122,7 @@ window.__ModuleLoader__.load({
         const qs = './api/sdlc-ui.artifact?task=' + encodeURIComponent(props.task) + '&file=' + encodeURIComponent(props.file) + (props.root ? '&root=' + encodeURIComponent(props.root) : '');
         fetch(qs, { credentials: 'same-origin', signal: controller.signal })
           .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status); return d; }))
-          .then(d => { if (alive) setState({ phase: 'ready', text: d.text, bytes: d.bytes, kind: d.kind, criteria: d.criteria }); })
+          .then(d => { if (alive) setState({ phase: 'ready', text: d.text, bytes: d.bytes, kind: d.kind, criteria: d.criteria, acceptance:d.acceptance }); })
           .catch(e => { if (alive) setState({ phase: 'error', error: String(e.message || e) }); });
         return () => { alive = false; controller.abort(); };
       }, [props.task, props.root, props.file]);
@@ -1125,7 +1137,7 @@ window.__ModuleLoader__.load({
       else if (state.phase === 'error') body = h('p', { role: 'alert' }, '读不出来：' + state.error);
       else if (/\.json$/i.test(props.file)) {
         const kind = state.kind || (/(^|\/)verification(?:s\/[^/]+)?\.json$/i.test(props.file) ? 'verification' : /(^|\/)review\.json$/i.test(props.file) ? 'review' : '');
-        body = h(JsonArtifact, {text:state.text || '',kind,criteria:state.criteria});
+        body = h(JsonArtifact, {text:state.text || '',kind,criteria:state.criteria,acceptance:state.acceptance});
       } else body = h('div', {}, renderMarkdown(state.text || ''));
       return h('dialog', { id: 'sdlc-artifact-dialog', className: 'sdlc-dialog', 'data-theme': props.theme || 'dark', 'aria-label': '交付物 ' + props.file, onCancel: e => { e.preventDefault(); props.onClose(); }, onClick: e => { if (e.target === e.currentTarget) props.onClose(); } },
         h('div', { className: 'sdlc-dialog-panel' }, [

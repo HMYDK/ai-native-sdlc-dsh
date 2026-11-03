@@ -9,6 +9,7 @@
  */
 
 import {createHash} from 'node:crypto';
+import {acceptanceCoverage, type AcceptanceCriterion} from '../shared/acceptance.js';
 import type { ObjectJsonSchema, ValueSchemaSpec } from '@deepseek-ai/dsh-tools';
 
 /** 裁决状态。`needs_human` 是刻意保留的第三条路——见 VERDICT_SCHEMA 的说明。 */
@@ -28,8 +29,11 @@ export const CRITERION_RESULTS = ['met', 'not_met', 'cannot_tell'] as const;
 export type CriterionResultStatus = (typeof CRITERION_RESULTS)[number];
 
 /** IDs depend on the criterion text, so reordering cannot change its identity. */
-export function criterionEntries(criteria: string[]): {id: string; text: string}[] {
-  return criteria.map(text => ({id: 'AC-' + createHash('sha256').update(text.trim()).digest('hex').slice(0, 16), text}));
+export type CriteriaInput = readonly string[] | readonly AcceptanceCriterion[];
+export function criterionEntries(criteria: CriteriaInput): AcceptanceCriterion[] {
+  return criteria.map(value => typeof value === 'string'
+    ? {id: 'AC-' + createHash('sha256').update(value.trim()).digest('hex').slice(0, 16), text:value}
+    : {id:value.id,text:value.text});
 }
 export interface CriterionResult {
   criterion_id?: string;
@@ -121,7 +125,7 @@ export interface Verdict {
  */
 export function enforceCriteriaPolicy(
   verdict: Verdict,
-  criteria: string[],
+  criteria: CriteriaInput,
   sessionId: string | undefined,
   mode: 'legacy' | 'ids' = 'legacy',
 ): Verdict & { verifier_session?: string } {
@@ -152,21 +156,13 @@ export function enforceCriteriaPolicy(
     }
   } else {
     const entries = criterionEntries(criteria);
-    const byId = new Map(entries.map(c => [c.id, c]));
-    const counts = new Map<string, number>();
     const useIds = mode === 'ids' || results.some(r => r.criterion_id !== undefined);
-    for (const [i, result] of results.entries()) {
-      const entry = useIds ? byId.get(result.criterion_id ?? '')
-        : result.criterion?.trim() ? entries.find(c => c.text.trim() === result.criterion!.trim()) : entries[i];
-      if (!entry) errors.push(`第 ${i + 1} 项结果无法匹配验收标准`);
-      else {
-        counts.set(entry.id, (counts.get(entry.id) ?? 0) + 1);
-        if ((counts.get(entry.id) ?? 0) > 1) errors.push(`验收标准 ${entry.id} 重复报告`);
-      }
-      if (!CRITERION_RESULTS.includes(result.result) || !result.evidence?.trim()) errors.push(`第 ${i + 1} 项缺少合法结论或证据`);
-    }
-    if (byId.size !== entries.length || criteria.some(c => !c.trim())) errors.push('输入验收标准为空或重复');
-    const missing = entries.filter(c => !counts.has(c.id)).map(c => c.text);
+    const aligned = useIds ? results : results.map((result,i) => ({...result,criterion_id:
+      (result.criterion?.trim() ? entries.find(c=>c.text.trim()===result.criterion!.trim()) : entries[i])?.id}));
+    const coverage = acceptanceCoverage(entries,aligned);
+    errors.push(...coverage.errors);
+    if (new Set(entries.map(c=>c.id)).size !== entries.length || entries.some(c => !c.text.trim() || !c.id.trim())) errors.push('输入验收标准为空或重复');
+    const missing = entries.filter(c => coverage.missing.includes(c.id)).map(c => c.text);
     if (missing.length > 0) {
       errors.push(`验证者漏报了 ${missing.length} 条验收标准的结果`);
       findings.push({severity: 'important', category: 'missing_evidence',
@@ -228,7 +224,7 @@ export interface VerificationPromptInput {
   scope?: string;
   intentOfChange?: string;
   /** 本次必须逐条裁决的验收标准。来源通常是 spec.md。 */
-  criteria?: string[];
+  criteria?: CriteriaInput;
 }
 
 /**

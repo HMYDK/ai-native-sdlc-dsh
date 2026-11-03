@@ -504,13 +504,14 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
           type: 'array',
           items: { type: 'string' },
           description:
-            'The acceptance criteria this change must satisfy (usually lifted verbatim from spec.md). When ' +
+            'Task mode: omit to use ALL registered Spec acceptance criteria. If provided, must repeat the full list without edits or omissions. Standalone mode: the acceptance criteria this check must satisfy. When ' +
             'given, the verifier must return a per-criterion result (met / not_met / cannot_tell). ' +
             'IMPORTANT: approving WITHOUT criteria is not allowed — if criteria are absent, a would-be approve ' +
             'is downgraded to needs_human by the plugin, because "verified" without a stated definition of ' +
             'correct is just an opinion.',
         },
         code_roots: {type:'array',items:{type:'string'},description:'Task mode: workspace-relative Git repository roots included in this verification. Default discovers repositories. Same scope is checked before/after verification and before completion.'},
+        additional_criteria: {type:'array',items:{type:'string'},description:'Task mode only: extra checks in addition to every registered Spec criterion. Extras never replace required criteria.'},
         experimental_guidance: {
           type: 'string',
           description: 'Additional verifier guidance for controlled experiments. Does not change criteria, schema, or tool permissions.',
@@ -556,9 +557,10 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             const artifacts = task === undefined ? explicit : { ...task.artifacts, ...explicit };
             if (task) {
               for (const key of ['intent','spec','plan']) if (explicit[key] && explicit[key] !== task.artifacts[key]) throw new Error('任务验证不能用其他文件覆盖已登记的需求/计划制品');
-              taskRun = await startTaskVerification(ctx,exec,task,recording.id,args.code_roots,args.criteria);
+              taskRun = await startTaskVerification(ctx,exec,task,recording.id,args.code_roots,args.criteria,args.additional_criteria);
             }
-            const criteria = coerceStringList(args.criteria);
+            if (!task && args.additional_criteria?.length) throw new Error('无 task_id 时请用 criteria 指定独立检查范围');
+            const criteria = taskRun?.criteria ?? coerceStringList(args.criteria);
             const basePrompt = buildVerificationPrompt({
               intentOfChange: args.intent_of_change,
               artifacts,
@@ -583,7 +585,8 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               }
             }
             await recording.record('prepared', {
-              prompt, persona: VERIFIER_PERSONA, outputSchema: VERDICT_SCHEMA, criteria, artifacts,
+              prompt, persona: VERIFIER_PERSONA, outputSchema: VERDICT_SCHEMA, criteria:taskRun ? taskRun.criteria.map(c=>`${c.id}: ${c.text}`) : criteria, artifacts,
+              ...(taskRun ? {acceptance:taskRun.acceptance} : {}),
               artifact_snapshots: artifactSnapshots, config: cfg, verifier_fingerprint: VERIFIER_FINGERPRINT,
             });
 
@@ -686,7 +689,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
                 verifier_attempts?: number;
                 diagnostic?: string;
               };
-              if (taskRun) return completeTaskVerification(ctx,exec,taskRun,unavailable,{...unavailable,verification_complete:false},{criteria,intent_of_change:args.intent_of_change});
+              if (taskRun) return await completeTaskVerification(ctx,exec,taskRun,unavailable,{...unavailable,verification_complete:false},{intent_of_change:args.intent_of_change});
               return unavailable;
             }
 
@@ -719,7 +722,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             };
 
             if (taskRun) return await completeTaskVerification(ctx,exec,taskRun,verdict,finalVerdict,
-              {criteria,intent_of_change:args.intent_of_change,...(args.test_evidence ? {test_evidence:args.test_evidence} : {})});
+              {intent_of_change:args.intent_of_change,...(args.test_evidence ? {test_evidence:args.test_evidence} : {})});
 
             return finalVerdict;
           }),

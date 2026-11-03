@@ -28,6 +28,7 @@ import type { SandboxPolicyService as _SandboxPolicyService } from '@deepseek-ai
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
+import {prepareStageAcceptance} from './acceptance.js';
 import {
   applyAdvance,
   checkAdvance,
@@ -395,7 +396,8 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
       name: 'sdlc_task_advance',
       description:
         'Move a task to a new status. Refuses unless the target status\'s required artifacts are registered in ' +
-        'state.yaml AND present on disk, and unless you supply a reason. Backward moves are allowed on purpose — ' +
+        'state.yaml. Entering PLANNED or any later stage from INTENT/SPEC registers the full Spec acceptance list and whole-file fingerprint, even when stages are skipped. Later transitions must match that baseline; changed Spec requires a recorded return to SPEC. ' +
+        'Required artifacts must also be present on disk, and you must supply a reason. Backward moves are allowed on purpose — ' +
         'discovering a better approach and being unable to revise the plan is the real failure mode.',
       parameters: {
         task_id: { type: 'string', required: true, description: 'Task identity, e.g. "PROJ-1024".' },
@@ -454,7 +456,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         // 没有这一步，调用方只能手改 state.yaml 才能满足下一状态的门槛，
         // 状态机也就守不住自己的规矩了。
         const toRegister = coerceArtifactMap(args.artifacts);
-        const state: TaskState =
+        let state: TaskState =
           Object.keys(toRegister).length === 0
             ? loaded
             : {
@@ -470,6 +472,8 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
                 },
               };
 
+        const prepared = await prepareStageAcceptance(ctx,exec,paths.taskDir,state,to);
+        state = prepared.state;
         const presence = await probeArtifacts(ctx, paths, state, exec);
         const verdict = checkAdvance(
           state.status,
@@ -477,6 +481,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           state,
           (rel) => presence.get(rel) === true,
           args.reason,
+          prepared.spec,
         );
         if (!verdict.ok) {
           throw new Error(

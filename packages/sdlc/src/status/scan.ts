@@ -18,6 +18,7 @@
  */
 
 import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
+import {summarizeAcceptance, type AcceptanceSummary} from '../shared/acceptance.js';
 /**
  * ## 与 sdlc-task 的关系：**共享常量，不共享读法**
  *
@@ -43,6 +44,7 @@ interface TaskState {
   status: TaskStatus;
   artifacts: Record<string, string>;
   updated?: string;
+  acceptance?: unknown;
 }
 
 /**
@@ -75,6 +77,7 @@ export function parseTaskStateLoose(taskId: string, raw: unknown): TaskState {
     title: typeof o['title'] === 'string' ? o['title'] : '',
     status,
     artifacts,
+    acceptance: o.acceptance,
     ...(typeof o['updated'] === 'string' ? { updated: o['updated'] } : {}),
   };
 }
@@ -154,6 +157,7 @@ export interface TaskEntry {
   /** 当前状态之后，前进到下一状态还缺什么（用来回答"下一步做什么"）。 */
   nextRequired: string[];
   verdict?: TaskVerdict;
+  acceptance?: AcceptanceSummary;
   /** state.yaml 里的 updated（ISO 字符串）；坏掉的条目为 undefined。 */
   updated?: string;
   staleness?: Staleness;
@@ -514,9 +518,11 @@ export function scanTasks(input: ScanInput): ScanResult {
         ? []
         : REQUIRED_ARTIFACTS[nextStatus].filter((k) => state.artifacts[k] === undefined);
 
-    const verdict = summarizeVerdict(
-      has('verification.json') ? input.readFile(task, 'verification.json') : undefined,
-    );
+    const verificationText = input.readFile(task,state.artifacts.verification ?? 'verification.json');
+    const verdict = summarizeVerdict(verificationText);
+    let verificationDoc: unknown;
+    try {if (verificationText !== undefined) verificationDoc = JSON.parse(verificationText);} catch {verificationDoc = {};}
+    const acceptance = summarizeAcceptance(state.acceptance,state.artifacts.spec,state.artifacts.spec ? input.readFile(task,state.artifacts.spec) : undefined,verificationDoc);
 
     const health: TaskHealth =
       report.missingForStatus.length === 0 && report.missingOnDisk.length === 0
@@ -533,6 +539,7 @@ export function scanTasks(input: ScanInput): ScanResult {
       missingOnDisk: report.missingOnDisk,
       nextRequired: nextRequired.map((k) => `${k}(${relOf(k)})`),
       ...(verdict !== undefined ? { verdict } : {}),
+      acceptance,
       ...(state.updated !== undefined ? { updated: state.updated } : {}),
       staleness: classifyStaleness({
         status: state.status,

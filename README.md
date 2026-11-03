@@ -9,7 +9,7 @@
 方法来自 Anthropic《AI 原生 SDLC 实战手册》（[原文](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)，作者 Louis Claxton）。
 本仓库不收录全文翻译，只提供一篇原创[中文导读](docs/playbook-notes.md)。
 
-当前插件为 [`@ai-native-sdlc/dsh-sdlc@0.5.0`](packages/sdlc/package.json)，以一个 npm bundle 交付。
+当前插件为 [`@ai-native-sdlc/dsh-sdlc@0.6.0`](packages/sdlc/package.json)，以一个 npm bundle 交付。
 本项目是社区实现，与 Anthropic、DeepSeek 均无隶属关系。
 
 ![SDLC 看板](docs/design/sdlc-dashboard-2026-10-28/loop-workbench.png)

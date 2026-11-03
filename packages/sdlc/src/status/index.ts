@@ -158,6 +158,15 @@ async function collectScanInput(
     if (stateText !== undefined) {
       try {
         const state = parseTaskStateLoose(task, parseYaml(stateText, { schema: JSON_SCHEMA }));
+        for (const kind of ['spec','verification']) {
+          const rel = state.artifacts[kind];
+          if (!rel || rel.startsWith('/') || rel.split(/[\\/]/).some(p=>!p||p==='..'||p==='.')) continue;
+          try {
+            const base = await ctx.fs.resolve(`${tasksRoot}/${task}`,resolveOptions(exec));
+            const target = await ctx.fs.resolve(`${tasksRoot}/${task}/${rel}`,resolveOptions(exec));
+            if (ctx.fs.contains(base,target)) cache.set(`${task}\u0000${rel}`,await ctx.fs.readText(target,exec.signal));
+          } catch {cache.set(`${task}\u0000${rel}`,undefined);}
+        }
         for (const rel of Object.values(state.artifacts)) {
           // 只处理子目录路径；顶层文件已在上面缓存。跳过 `..`，看板不往外看。
           if (!rel.includes('/') || rel.includes('..')) continue;
@@ -466,6 +475,12 @@ function formatEntry(t: TaskEntry): string {
   }
 
   if (t.missingForStatus.length > 0) bits.push(`缺: ${t.missingForStatus.join(', ')}`);
+  if (t.acceptance) {
+    const a = t.acceptance;
+    bits.push(`验收范围: 应验 ${a.expected} 项 / 已答 ${a.answered} 项 / 满足 ${a.met} 项`);
+    if (a.missing.length) bits.push(`缺项: ${a.missing.join(', ')}`);
+    if (a.errors.length) bits.push(a.errors.join('；'));
+  }
   if (t.missingOnDisk.length > 0) bits.push(`文件不在: ${t.missingOnDisk.join(', ')}`);
   if (t.nextRequired.length > 0) bits.push(`下一步需: ${t.nextRequired.join(', ')}`);
 

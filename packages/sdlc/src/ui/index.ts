@@ -28,6 +28,8 @@ import type { FsTarget as _FsTarget } from '@deepseek-ai/dsh-fs';
 import type {} from '@deepseek-ai/dsh-client-connection';
 import { readExecution } from './execution.js';
 import { criterionEntries } from '../verify/verdict.js';
+import {JSON_SCHEMA, load as parseYaml} from 'js-yaml';
+import {summarizeAcceptance, verificationAcceptance, type AcceptanceSummary} from '../shared/acceptance.js';
 
 export const name = 'sdlc-ui';
 
@@ -43,10 +45,8 @@ export const Config = z.object({
 /**
  * 解析一个 state.yaml 里我们真正需要的字段。
  *
- * ⚠️ 这里**刻意不引入 YAML 库**：面板只要 status / title / artifacts / updated，
- * 而 `state.yaml` 是本仓库自己写出来的**固定形状**。为一屏展示拖进一个解析器
- * 不划算，而手写解析的风险是"遇到没见过的形状会错"——
- * 所以它对不认识的行**直接跳过**，且**任何解析失败都不抛错**（见下）。
+ * 使用与写入侧一致的 YAML 解码，验收清单交给共享契约模块校验。
+ * 坏记录保留诊断，不影响其它任务。
  */
 interface HistoryEntry {
   at: string;
@@ -56,6 +56,7 @@ interface HistoryEntry {
 }
 
 interface ParsedState {
+  acceptance?: unknown;
   status?: string;
   title?: string;
   created?: string;
@@ -70,90 +71,23 @@ interface RootInfo {
   label: string;
 }
 
-/**
- * 解析 `state.yaml` 里面板需要的字段（**含 history**）。
- *
- * ⚠️ 这里刻意**不引入 YAML 库**：`state.yaml` 是本仓库自己写出来的固定形状，
- * 为一屏展示拖进一个解析器不划算。风险是"遇到没见过的形状会错"，
- * 所以：不认识的行**直接跳过**，任何解析失败都**不抛错**（读不出来就不画这个任务，
- * 绝不伪造）。`history` 的每个条目是 `- at/from/to/reason` 四行，理由可能很长。
- */
+/** YAML decoding is shared with the writer; malformed acceptance data stays visible to the contract checker. */
 function parseStateYaml(text: string): ParsedState {
-  const out: ParsedState = { artifacts: {}, history: [] };
-  let inArtifacts = false;
-  let inHistory = false;
-  let cur: Partial<HistoryEntry> | null = null;
-
-  const flush = (): void => {
-    if (cur && typeof cur.at === 'string') {
-      out.history.push({
-        at: cur.at,
-        from: typeof cur.from === 'string' ? cur.from : '',
-        to: typeof cur.to === 'string' ? cur.to : '',
-        reason: typeof cur.reason === 'string' ? cur.reason : '',
-      });
+  const out: ParsedState = {artifacts:{},history:[]};
+  try {
+    const raw = parseYaml(text,{schema:JSON_SCHEMA}) as Record<string,unknown>;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    for (const key of ['status','title','created','updated'] as const) if (typeof raw[key] === 'string') out[key] = raw[key];
+    if (raw.artifacts && typeof raw.artifacts === 'object' && !Array.isArray(raw.artifacts)) {
+      for (const [key,value] of Object.entries(raw.artifacts)) if (typeof value === 'string') out.artifacts[key] = value;
     }
-    cur = null;
-  };
-
-  for (const raw of text.split('\n')) {
-    const line = raw.trimEnd();
-    // 新的 history 条目
-    if (inHistory && /^\s{2}-\s/.test(line)) {
-      flush();
-      cur = {};
-      const rest = line.replace(/^\s{2}-\s*/, '');
-      const kv = /^(\w+):\s*(.*)$/.exec(rest);
-      if (kv) (cur as Record<string, string>)[kv[1] as string] = unquote(kv[2] as string);
-      continue;
-    }
-    if (/^history:\s*$/.test(line)) {
-      inHistory = true;
-      inArtifacts = false;
-      continue;
-    }
-    if (inHistory && cur && /^\s{4}(\w+):\s*(.*)$/.test(line)) {
-      const m = /^\s{4}(\w+):\s*(.*)$/.exec(line);
-      if (m) (cur as Record<string, string>)[m[1] as string] = unquote(m[2] as string);
-      continue;
-    }
-    if (/^[a-zA-Z_]/.test(line)) {
-      if (inHistory) flush();
-      inHistory = false;
-    }
-    if (/^artifacts:\s*\{\s*\}\s*$/.test(line)) {
-      inArtifacts = false;
-      continue;
-    }
-    if (/^artifacts:\s*$/.test(line)) {
-      inArtifacts = true;
-      inHistory = false;
-      continue;
-    }
-    if (/^[a-zA-Z_]/.test(line)) inArtifacts = false;
-    if (inArtifacts) {
-      const m = /^\s{2}([a-zA-Z_][\w-]*):\s*"?([^"]*)"?\s*$/.exec(line);
-      if (m) out.artifacts[m[1] as string] = m[2] as string;
-      continue;
-    }
-    if (inHistory) continue;
-    const kv = /^([a-zA-Z_][\w-]*):\s*(.*)$/.exec(line);
-    if (!kv) continue;
-    const key = kv[1];
-    const value = unquote(kv[2] as string);
-    if (key === 'status') out.status = value;
-    else if (key === 'title') out.title = value;
-    else if (key === 'created') out.created = value;
-    else if (key === 'updated') out.updated = value;
-  }
-  flush();
+    if (Array.isArray(raw.history)) out.history = raw.history.filter(v=>v && typeof v === 'object').map(v=>({
+      at:typeof v.at === 'string' ? v.at : '',from:typeof v.from === 'string' ? v.from : '',
+      to:typeof v.to === 'string' ? v.to : '',reason:typeof v.reason === 'string' ? v.reason : '',
+    }));
+    out.acceptance = raw.acceptance;
+  } catch {out.acceptance = {invalid:true};}
   return out;
-}
-
-/** 去掉 YAML 标量两侧的引号。`state.yaml` 里标题与理由都可能带引号。 */
-function unquote(v: string): string {
-  const t = v.trim();
-  return /^".*"$/.test(t) ? (t.slice(1, -1) as string) : t;
 }
 
 /** 抽出一个 markdown 的**章节骨架**（一到三级标题）。 */
@@ -389,13 +323,12 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
             continue;
           }
           const st = parseStateYaml(stateText);
+          let verificationDoc: unknown;
           let verdict:
             | { status: string; met: number; notMet: number; cannotTell: number; findings: number; unverified: number; summary: string }
             | undefined;
           try {
-            const raw = await ctx.fs.readText(
-                await ctx.fs.resolve(`${repoRoot}/${dir}/${id}/verification.json`, { cwd: repoRoot }),
-              );
+            const raw = await readArtifact(repoRoot,id,st.artifacts.verification ?? 'verification.json',request.signal);
             const doc = JSON.parse(raw) as {
               verdict?: {
                 status?: string;
@@ -406,6 +339,7 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
               };
             };
             const results = doc.verdict?.criteria_results ?? [];
+            verificationDoc = doc;
             const count = (r: string) => results.filter((x) => x.result === r).length;
             if (typeof doc.verdict?.status === 'string') {
               verdict = {
@@ -423,6 +357,9 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
           } catch {
             verdict = undefined; // 没验证过就是没验证过
           }
+          let specText: string | undefined;
+          try {if (st.artifacts.spec) specText = await readArtifact(repoRoot,id,st.artifacts.spec,request.signal);} catch { /* reported as unavailable */ }
+          const acceptance = summarizeAcceptance(st.acceptance,st.artifacts.spec,specText,verificationDoc);
           let review: { decision?: string; rounds?: number; notAccepted?: number; notes: string[] } | undefined;
           try {
             const raw = await ctx.fs.readText(
@@ -506,6 +443,7 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
             durations,
             blocked: blockedBy(st.status ?? '', st.artifacts),
             verdict: verdict ?? null,
+            acceptance,
             review: review ?? null,
             rsi,
           });
@@ -595,14 +533,19 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
       const kind = Object.entries(st.artifacts).find(([, file]) => file === want)?.[0];
       // 验证者可以省略标准正文，也可能重排结果。复用写入方的稳定 ID，不能按位置猜。
       let criteria: {id: string; text: string}[] | undefined;
+      let acceptance: AcceptanceSummary | undefined;
       if (kind === 'verification') {
         try {
           const doc = JSON.parse(text);
-          if (Array.isArray(doc?.criteria) && doc.criteria.every((value: unknown) => typeof value === 'string')) criteria = criterionEntries(doc.criteria);
+          let specText: string | undefined;
+          try {if (st.artifacts.spec) specText = await readArtifact(repoRoot,task,st.artifacts.spec,request.signal);} catch { /* reported as unavailable */ }
+          acceptance = summarizeAcceptance(st.acceptance,st.artifacts.spec,specText,doc);
+          if (doc.schema_version === 3) criteria = verificationAcceptance(doc).entries;
+          else if (Array.isArray(doc?.criteria) && doc.criteria.every((value: unknown) => typeof value === 'string')) criteria = criterionEntries(doc.criteria);
         } catch { /* 损坏 JSON 仍交给阅读器显示原文和明确错误。 */ }
       }
       return new Response(
-        JSON.stringify({ task, file: want, kind, criteria, bytes: new TextEncoder().encode(text).byteLength, text }),
+        JSON.stringify({ task, file: want, kind, criteria, acceptance, bytes: new TextEncoder().encode(text).byteLength, text }),
         { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } },
       );
     } catch (err) {

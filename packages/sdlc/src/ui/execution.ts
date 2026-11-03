@@ -5,7 +5,8 @@ import {JSON_SCHEMA, load as parseYaml} from 'js-yaml';
 import {STATUSES} from '../task/state.js';
 import {parseWorkflow, type TaskWorkflow, type FlowIssue} from '../task/flow.js';
 import {sessionView} from '../shared/session-view.js';
-import {enforceCriteriaPolicy, type Verdict} from '../verify/verdict.js';
+import {enforceCriteriaPolicy, criterionEntries, type Verdict, type CriteriaInput} from '../verify/verdict.js';
+import {additionalCriteria, parseAcceptanceRegistration, verificationAcceptance} from '../shared/acceptance.js';
 
 type FileSystem = Pick<Context['fs'], 'resolve' | 'contains' | 'stat' | 'readBytes' | 'listDir'>;
 type ObjectValue = Record<string, unknown>;
@@ -84,11 +85,16 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     if (value.length > max) issue(`${label}超过展示上限 ${max}，仅保留部分记录`);
     return value.slice(0, max);
   };
+  const criteriaFor = (inputs: ObjectValue): CriteriaInput => inputs.schema_version === 3 ? verificationAcceptance(inputs).entries
+    : inputs.acceptance ? [...parseAcceptanceRegistration(inputs.acceptance).criteria,...additionalCriteria(inputs.additional_criteria as string[] | undefined)]
+    : Array.isArray(inputs.criteria) && inputs.criteria.every(c=>typeof c==='string') ? inputs.criteria as string[] : [];
   const normalizeVerdict = (id: string, verdict: ObjectValue, inputs: ObjectValue) => ({
     summary: text(verdict.summary, 800),
     criteria: array(verdict.criteria_results ?? [], 24, `${id} 验收标准`).map((raw, i) => {
       const row = object(raw);
-      return {criterion: text(row.criterion || (Array.isArray(inputs.criteria) ? inputs.criteria[i] : '') || `第 ${i + 1} 条标准`),
+      const entries = criterionEntries(criteriaFor(inputs));
+      const entry = typeof row.criterion_id === 'string' ? entries.find(c=>c.id===row.criterion_id) : entries[i];
+      return {criterion: text(row.criterion || entry?.text || row.criterion_id || `第 ${i + 1} 条标准`),
         status: ['met', 'not_met', 'cannot_tell'].includes(String(row.result)) ? String(row.result) : 'unknown', evidence: text(row.evidence)};
     }),
     findings: array(verdict.findings ?? [], 24, `${id} 发现`).map((raw, i) => {
@@ -243,9 +249,10 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     const finishes = records.filter(r => r.kind === 'finished'), finish = finishes.length === 1 ? finishes[0] : undefined;
     if (finishes.length > 1) issue(`${id}: 结束记录重复，结果未确认`);
     if (!finish) issue(`${id}: 缺少结束记录，是否已结束无法确认`);
-    const inputs = object(start.data.inputs), verdict = object(finish?.data.result);
+    const prepared = records.find(r=>r.kind==='prepared');
+    const inputs = {...object(start.data.inputs),...(prepared ? {criteria:prepared.data.criteria,acceptance:prepared.data.acceptance} : {})}, verdict = object(finish?.data.result);
     if (verdict.status === 'approve' && Array.isArray(inputs.criteria) && Array.isArray(verdict.findings)) {
-      const checked = enforceCriteriaPolicy(verdict as unknown as Verdict,inputs.criteria as string[],undefined);
+      const checked = enforceCriteriaPolicy(verdict as unknown as Verdict,criteriaFor(inputs),undefined);
       if (checked.status !== 'approve') issue(`${id}: 历史原结论为通过，但验收结果校验不完整；保留原记录，不能据此确认有效通过`);
     }
     let outcome: Outcome = 'incomplete';

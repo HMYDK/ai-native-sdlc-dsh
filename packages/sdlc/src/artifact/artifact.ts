@@ -20,6 +20,8 @@
  *   · 验收标准是否可证伪
  */
 
+import {parseSpecAcceptance} from '../shared/acceptance.js';
+
 export const ARTIFACT_KINDS = ['intent', 'spec', 'plan'] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
@@ -83,6 +85,11 @@ export const REQUIRED_SECTIONS: Record<ArtifactKind, readonly SectionSpec[]> = {
   ],
   spec: [
     {
+      name: 'Acceptance Criteria',
+      aliases: ['acceptance criteria', '验收标准'],
+      why: '任务的完整验收清单；每项单独一行：- AC-001: 明确的验收要求。编号唯一，全部必验。',
+    },
+    {
       name: 'Requirements',
       aliases: ['requirements', 'requirement', '需求', '功能需求'],
       why: '规格的主体；没有它，工程团队无法据此规划',
@@ -138,7 +145,7 @@ const PLACEHOLDER_RE = /<[^<>\n]{2,80}>/;
 
 export interface SectionFinding {
   /** 缺失、空、或仍是占位符。 */
-  kind: 'missing' | 'empty' | 'placeholder';
+  kind: 'missing' | 'empty' | 'placeholder' | 'invalid';
   section: string;
   detail: string;
 }
@@ -231,6 +238,10 @@ export function checkArtifact(kind: ArtifactKind, markdown: string): ArtifactChe
     }
   }
 
+  if (kind === 'spec' && !findings.some(f=>f.section === 'Acceptance Criteria')) {
+    try {parseSpecAcceptance(markdown);}
+    catch (e) {findings.push({kind:'invalid',section:'Acceptance Criteria',detail:(e as Error).message});}
+  }
   return { kind, ok: findings.length === 0, found: heads, findings };
 }
 

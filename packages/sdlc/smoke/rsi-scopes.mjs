@@ -48,7 +48,7 @@ try {
   }});
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture verifier'})});
   ctx.provide('subagents',{startActivation:async({request})=>{
-    const criterion_id=(request.prompt??[]).map(p=>p.text??'').join(' ').match(/AC-[a-f0-9]{16}/)?.[0];
+    const criterion_id=(request.prompt??[]).map(p=>p.text??'').join(' ').match(/AC-[A-Za-z0-9-]+/)?.[0];
     const id=`child-${++childCounter}`,session={id,header:{cwd:root,parentSession:'author',origin:'subagent'}};
     const child={},scope=createScope(ctx,child,{parent:verifierKey}),events=[];
     sources.set(id,{header:session.header,events});
@@ -92,7 +92,10 @@ try {
     const setupFile=path.join(root,'.ai/tasks/SCOPE-1/state.yaml');
     const yaml=require('js-yaml');const setup=yaml.load(await fs.readFile(setupFile,'utf8'),{schema:yaml.JSON_SCHEMA});
     for(const kind of ['intent','spec','plan']) {setup.artifacts[kind]=`${kind}.md`;await fs.writeFile(path.join(root,'.ai/tasks/SCOPE-1',`${kind}.md`),'# fixture');}
-    setup.status='VERIFYING';await fs.writeFile(setupFile,yaml.dump(setup,{schema:yaml.JSON_SCHEMA}));
+    await fs.writeFile(path.join(root,'.ai/tasks/SCOPE-1/spec.md'),'## Acceptance Criteria\n- AC-001: fixture passes\n');
+    await fs.writeFile(setupFile,yaml.dump(setup,{schema:yaml.JSON_SCHEMA}));
+    const setupAdvance=await call('sdlc_task_advance',{task_id:'SCOPE-1',to:'VERIFYING',reason:'register fixture Spec'});
+    assert.ok(!setupAdvance.isError,JSON.stringify(setupAdvance));
     const verified=await call('sdlc_verify',{task_id:'SCOPE-1',intent_of_change:'fixture',criteria:['fixture passes']});
     check(!verified.isError,'verification attaches to the explicit task');
     const task=await call('sdlc_rsi_tasks',{task_id:'SCOPE-1'});

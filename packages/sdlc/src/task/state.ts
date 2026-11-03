@@ -10,6 +10,7 @@
  */
 
 import {parseWorkflow, type TaskWorkflow} from './flow.js';
+import {parseAcceptanceRegistration, requireAcceptance, type AcceptanceRegistration} from '../shared/acceptance.js';
 
 /** 任务目录相对仓库根的路径。 */
 export const TASKS_DIR = '.ai/tasks';
@@ -99,6 +100,7 @@ export interface TaskState {
   artifacts: Record<string, string>;
   history: HistoryEntry[];
   workflow?: TaskWorkflow;
+  acceptance?: AcceptanceRegistration;
 }
 
 /** 任务 ID 的形状：大写字母/数字/连字符，且必须以字母数字开头结尾。 */
@@ -228,6 +230,7 @@ export function parseTaskState(taskId: string, raw: unknown): TaskState {
     artifacts,
     history,
     ...(o.workflow === undefined ? {} : {workflow: parseWorkflow(o.workflow)}),
+    ...(o.acceptance === undefined ? {} : {acceptance: parseAcceptanceRegistration(o.acceptance)}),
   };
 }
 
@@ -289,6 +292,7 @@ export function serializeTaskState(state: TaskState): string {
     }
   }
   if (state.workflow) lines.push('workflow: ' + JSON.stringify(state.workflow));
+  if (state.acceptance) lines.push('acceptance: ' + JSON.stringify(state.acceptance));
   return lines.join('\n') + '\n';
 }
 
@@ -451,6 +455,7 @@ export function checkAdvance(
   state: TaskState,
   exists: (relativePath: string) => boolean,
   reason: string,
+  specText?: string,
 ): AdvanceCheck {
   const dir = direction(from, to);
   const problems: string[] = [];
@@ -461,6 +466,12 @@ export function checkAdvance(
 
   if (reason.trim() === '') {
     problems.push('必须给出 reason：状态迁移是审计记录，空原因等于没记录');
+  }
+
+  // Target-based, not a SPEC -> PLANNED special case: jumps cannot skip the contract.
+  if (statusOrder(to) >= statusOrder('PLANNED')) {
+    try {requireAcceptance(state.acceptance,state.artifacts.spec,specText);}
+    catch (e) {problems.push((e as Error).message);}
   }
 
   // 无论前进还是回退，**目标状态**的门槛都必须满足

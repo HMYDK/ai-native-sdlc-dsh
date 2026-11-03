@@ -11,6 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSON_SCHEMA, load as parseYaml } from 'js-yaml';
+import {registerAcceptance} from '../shared/acceptance.js';
 import {
   applyAdvance,
   checkAdvance,
@@ -263,7 +264,9 @@ test('回退：允许，但同样要求目标状态的制品齐备且给原因',
     status: 'IMPLEMENTING',
     artifacts: { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md' },
   });
-  const ok = checkAdvance('IMPLEMENTING', 'PLANNED', complete, () => true, '发现计划漏了一个边界条件');
+  const spec = '## Acceptance Criteria\n- AC-001: 保持原行为\n';
+  complete.acceptance = registerAcceptance('spec.md',spec,'test','2026-11-02T00:00:00Z','fixture');
+  const ok = checkAdvance('IMPLEMENTING', 'PLANNED', complete, () => true, '发现计划漏了一个边界条件',spec);
   assert.equal(ok.ok, true, `回退应放行：${ok.problems.join(' | ')}`);
   assert.equal(ok.direction, 'back');
 

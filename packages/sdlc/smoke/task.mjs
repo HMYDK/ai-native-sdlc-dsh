@@ -74,6 +74,7 @@ const files = new Map();
 const resolveCalls = [];
 const writeCalls = [];
 ctx.provide('fs', {
+  contains(base,target) {return target.displayPath === base.displayPath || target.displayPath.startsWith(base.displayPath + '/');},
   async resolve(p, opts) {
     resolveCalls.push({ path: p, cwd: opts?.cwd });
     return { targetKey: p, displayPath: p };
@@ -286,12 +287,14 @@ else bad('空 reason 的迁移被放行');
   const dir = '/repo/.ai/tasks/PROJ-7';
   const stateFile = `${dir}/state.yaml`;
   const doc = load(files.get(stateFile), { schema: JSON_SCHEMA });
-  doc.status = 'IMPLEMENTING';
+  doc.status = 'SPEC';
   doc.artifacts = { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md' };
   files.set(stateFile, dump(doc, { schema: JSON_SCHEMA, noRefs: true }));
   files.set(`${dir}/intent.md`, '# Intent\n');
-  files.set(`${dir}/spec.md`, '# Spec\n');
+  files.set(`${dir}/spec.md`, '## Acceptance Criteria\n- AC-001: fixture passes\n');
   files.set(`${dir}/plan.md`, '# Plan\n');
+  const registered = await dispatch('sdlc_task_advance',{task_id:'PROJ-7',to:'IMPLEMENTING',reason:'登记验收清单后开始实现'});
+  if (registered.isError) bad(`验收登记失败: ${JSON.stringify(registered.error)}`);
 
   // 造一份"上一轮被 reject"的裁决：8 条 met，只有 R3 not_met
   files.set(`${dir}/verification.json`, JSON.stringify({

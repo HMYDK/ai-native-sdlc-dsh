@@ -27,11 +27,11 @@ INTENT → SPEC → PLANNED → IMPLEMENTING → VERIFYING → REVIEWING → DON
 
 | 状态 | 进入前必须存在的制品 | 谁推进 |
 |---|---|---|
-| `INTENT` | `intent.md`（create 时必写） | 提出者 |
+| `INTENT` | 建任务时只写 state.yaml；前进前撰写 intent/spec | 提出者 |
 | `SPEC` | 加 `spec.md` | 产品负责人 |
-| `PLANNED` | 加 `plan.md` | 工程师（计划评审通过） |
-| `IMPLEMENTING` | intent/spec/plan 已登记且文件存在 | 工程师 |
-| `VERIFYING` | intent/spec/plan 存在；上一轮问题已提交处理证据或明确延期 | 工程师实现完成 |
+| `PLANNED` | 加 `plan.md`；登记 Spec 的完整验收清单及内容指纹 | 工程师（计划评审通过） |
+| `IMPLEMENTING` | intent/spec/plan 已登记且文件存在；Spec 与验收登记一致 | 工程师 |
+| `VERIFYING` | Spec 与验收登记一致；上一轮问题已提交处理证据或明确延期 | 工程师实现完成 |
 | `REVIEWING` | 最新独立裁决 approve、标准覆盖完整、代码/制品未变、无未解决阻断问题 | 独立验证通过 |
 | `DONE` | 同上；全部问题已复验解决或明确延期；review 制品存在 | 评审完成（不代替 Git 合并授权） |
 
@@ -65,10 +65,36 @@ history:
 
 | 工具 | 作用 |
 |---|---|
-| `sdlc_task_create` | 建任务目录 + state.yaml + intent.md 骨架 |
+| `sdlc_task_create` | 建任务目录 + state.yaml；制品另用 sdlc_artifact_write 撰写 |
 | `sdlc_task_status` | 报告状态、制品清单、缺失项、状态是否与实际文件一致 |
 | `sdlc_task_advance` | 状态迁移，**先校验准入门槛**，并把迁移追加进 history |
 | `sdlc_task_issue` | 登记审核问题、记录退回、提交处理证据、说明延期或取消中断的验证 |
+
+## 0.6.0：完整验收范围从 Spec 登记
+
+Spec 必须有且只有一个 `## Acceptance Criteria`（也接受 `## 验收标准`）章节。所有条目都是必选项，每项单独一行，使用明确的 ID 和正文：
+
+```markdown
+## Acceptance Criteria
+
+- AC-001: 优惠金额计算正确
+- AC-002: 并发请求不会重复使用优惠券
+- AC-003: 优惠失败不能生成错误订单
+```
+
+ID 使用 `AC-` 前缀、英文大写字母或数字，可用连字符分段。编号必须唯一，正文不能为空；不接受代码块、子标题或无法解析的续行，避免悄悄漏掉要求。Requirements、Design、Areas of concern 章节仍然必需。结构检查不判断需求是否写全、标准质量或证据真假。
+
+从 INTENT / SPEC 首次进入 **PLANNED 或任意更后续阶段**时，状态迁移会同时在 `state.yaml.acceptance` 登记清单、Spec 相对路径、整个文件的 SHA-256、登记 ID、时间和执行会话。跳阶段也执行这道检查。登记代表本次流程采用了这版规格，不代表独立人员审批。
+
+登记之后，所有进入 PLANNED 及后续阶段的迁移（含问题工具的退回）和每次 `sdlc_verify` 都核对这份登记。**第一次验证也不能把已改过的 Spec 当成新起点。** 全文件指纹意味着说明文字、空白调整也会使登记失效；需要记录退回 SPEC，修改并重新推进登记。新登记即使沿用 AC 编号，也有新版本，旧裁决不能继续使用。
+
+任务验证推荐省略 `criteria`：插件自动把全部登记项交给验证者。旧调用仍可提交完整正文或 `AC-001: 正文`，顺序可变，但缺项、改写、重复和未知项会在派发前拒绝并点名。额外检查用 `additional_criteria` 追加，采用 `EXTRA-...` 编号，不能代替必选 AC；额外检查也必须在本轮全部通过。无 task_id 的独立检查保持原有 criteria 和内容哈希编号，不能作为任务完成依据。
+
+新任务裁决使用 `schema_version: 3`，保存本轮完整验收登记副本、实际清单和代码/制品快照。推进 REVIEWING / DONE 时独立重读当前 Spec，核对登记、裁决版本和逐项结果；缺项、重复/未知 ID、无证据、not_met 或 cannot_tell 都不能通过。**登记的 Spec 指纹**约束需求起点，**本轮 Verification 指纹**约束验证期间和验证后的代码/制品，两者分别检查。
+
+旧任务只读浏览保留历史状态及原始结论，并显示“历史裁决未核对完整验收范围”。再次推进或验证时，必须回到 SPEC 补齐章节、登记并重新验证；不从旧 criteria 自动生成登记，不批量改写 DONE 状态。旧裁决和旧问题继续保留原有内容哈希编号；旧问题仍须显式提交并独立复验，新记录不重新解释旧编号。
+
+看板使用同一套契约解析和覆盖检查，显示应验、已答、满足数量及缺失 ID。覆盖已核对不等于发布授权，也不保证 Spec 最初包含了全部用户需求。
 
 ## 0.5.0：发现问题后如何流转
 
