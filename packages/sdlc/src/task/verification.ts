@@ -10,10 +10,13 @@ import {enforceCriteriaPolicy} from '../verify/verdict.js';
 import {createHash} from 'node:crypto';
 import type {TaskState} from './state.js';
 import type {TaskVerification} from './approval.js';
+import {requireTaskAcceptance} from './acceptance.js';
+import {additionalCriteria, checkSubmittedCriteria, criterionText, verificationAcceptance, type AcceptanceRegistration, type AcceptanceCriterion} from '../shared/acceptance.js';
 export interface TaskVerificationContext {
   id: string; dir: string; run: string; binding: VerificationBinding; pending: FlowIssue[];
+  acceptance: AcceptanceRegistration; criteria: AcceptanceCriterion[]; additional_criteria: string[];
 }
-export async function startTaskVerification(ctx: Context, exec: TaskExec, task: {id:string;dir:string}, run: string, roots?: string[], criteria?: string[]): Promise<TaskVerificationContext> {
+export async function startTaskVerification(ctx: Context, exec: TaskExec, task: {id:string;dir:string}, run: string, roots?: string[], criteria?: string[], additional: string[] = []): Promise<TaskVerificationContext> {
   // Adoption is a separate durable write: a refused retry must still show the old findings.
   await mutateTask(ctx,exec,task.dir,task.id,async state => {
     if (state.workflow?.latest_run || !state.artifacts.verification) return {state,value:undefined};
@@ -22,7 +25,7 @@ export async function startTaskVerification(ctx: Context, exec: TaskExec, task: 
     try { old = JSON.parse(body); } catch { throw new Error('旧验证文件损坏，请先恢复原记录，不能当作没有发现过问题'); }
     if (!old.verdict || !Array.isArray(old.verdict.findings) || !['approve','reject','needs_human'].includes(old.verdict.status)) throw new Error('旧裁决格式不完整，请先恢复原记录');
     const id = 'legacy-' + createHash('sha256').update(body).digest('hex').slice(0,20);
-    const criteria = Array.isArray(old.criteria) ? old.criteria : [];
+    const criteria = old.schema_version === 3 ? verificationAcceptance(old).entries : Array.isArray(old.criteria) ? old.criteria : [];
     const verdict = enforceCriteriaPolicy(old.verdict,criteria,old.verdict.verifier_session);
     const staged = structuredClone(state);
     staged.workflow ??= {version:1,runs:[],issues:[]};
@@ -39,19 +42,25 @@ export async function startTaskVerification(ctx: Context, exec: TaskExec, task: 
   });
   return mutateTask(ctx,exec,task.dir,task.id,async state => {
     const next = beginRun(state,run,new Date().toISOString());
+    const acceptance = await requireTaskAcceptance(ctx,exec,task.dir,state);
+    checkSubmittedCriteria(acceptance.criteria,criteria);
+    const entries = [...acceptance.criteria,...additionalCriteria(additional)];
     const artifacts = Object.fromEntries(Object.entries(state.artifacts).map(([k,v])=>[k,`${task.dir}/${v}`]));
     const binding = await captureBinding(ctx,exec,artifacts,roots);
-    await checkRecordedReturn(ctx,exec,task.dir,state,binding,criteria);
-    return {state:next,value:{...task,run,binding,pending:pendingIssues(state)}};
+    if (binding.artifacts.spec.sha256 !== acceptance.spec_sha256) throw new Error('取验证快照期间 Spec 已变化，请重新读取');
+    await checkRecordedReturn(ctx,exec,task.dir,state,binding,acceptance);
+    // Historical hash IDs stay in issue history. An old/removed criterion still needs an
+    // explicit issue_result, but is not silently reinterpreted as a different current AC.
+    const pending = pendingIssues(state).map(issue => entries.some(c=>c.id===issue.criterion_id) ? issue : {...issue,criterion_id:undefined});
+    return {state:next,value:{...task,run,binding,pending,acceptance,criteria:entries,additional_criteria:additional}};
   });
 }
-async function checkRecordedReturn(ctx: Context, exec: TaskExec, dir: string, state: TaskState, current: VerificationBinding, criteria?: string[]): Promise<void> {
+async function checkRecordedReturn(ctx: Context, exec: TaskExec, dir: string, state: TaskState, current: VerificationBinding, acceptance: AcceptanceRegistration): Promise<void> {
   // An interrupted retry must not erase the last completed version boundary.
   const previous = [...(state.workflow?.runs ?? [])].reverse().find(r=>r.file && !r.legacy);
   if (!previous?.file) return;
   const old = JSON.parse(await ctx.fs.readText(await taskFile(ctx,exec,dir,previous.file),exec.signal)) as TaskVerification;
-  const normalize = (values:string[])=>JSON.stringify(values.map(c=>c.trim()).sort());
-  const criteriaChanged = criteria !== undefined && normalize(criteria) !== normalize(old.criteria);
+  const criteriaChanged = old.schema_version !== 3 || old.acceptance?.id !== acceptance.id;
   if (old.binding?.fingerprint === current.fingerprint && !criteriaChanged) return;
   const stages = ['INTENT','SPEC','PLANNED','IMPLEMENTING','VERIFYING','REVIEWING','DONE'];
   let required = 3;
@@ -62,7 +71,7 @@ async function checkRecordedReturn(ctx: Context, exec: TaskExec, dir: string, st
   if (!recorded) throw new Error(`上轮验证后代码、需求/计划或验收标准已经改变，但没有相应退回记录。请用 sdlc_task_issue 登记原因并 start 退回 ${stages[required]}，提交修复证据后再验证；不能在验证阶段直接改完当作已处理。`);
 }
 export async function completeTaskVerification(ctx: Context, exec: TaskExec, task: TaskVerificationContext, raw: Verdict, result: Verdict,
-  inputs: {criteria:string[];intent_of_change:string;test_evidence?:string}): Promise<Verdict> {
+  inputs: {intent_of_change:string;test_evidence?:string}): Promise<Verdict> {
   let verdict = enforceIssuePolicy(result,task.pending);
   try {
     const paths = Object.fromEntries(Object.entries(task.binding.artifacts).map(([k,v])=>[k,v.path]));
@@ -74,11 +83,13 @@ export async function completeTaskVerification(ctx: Context, exec: TaskExec, tas
   }
   verdict = {...verdict,verification_run_id:task.run};
   const at = new Date().toISOString(), file = `verifications/${task.run}.json`;
-  const doc = {schema_version:2,task:task.id,at,...inputs,verdict,raw_verdict:raw,binding:task.binding};
+  const doc = {schema_version:3,task:task.id,at,...inputs,criteria:task.criteria.map(criterionText),acceptance:task.acceptance,additional_criteria:task.additional_criteria,verdict,raw_verdict:raw,binding:task.binding};
   const body = JSON.stringify(doc,null,2)+'\n', policy = await writePolicy(ctx,exec);
   const state = await mutateTask(ctx,exec,task.dir,task.id,async state => {
+    const current = await requireTaskAcceptance(ctx,exec,task.dir,state);
+    if (current.id !== task.acceptance.id) throw new Error('验证期间验收登记已改变，本轮结果不能完成任务');
     // Check ownership before ANY verdict write; a cancelled result cannot overwrite the latest cache.
-    const next = finishRun(state,task.run,verdict,inputs.criteria,verdict.verifier_session ?? 'independent-verifier',at,file);
+    const next = finishRun(state,task.run,verdict,task.criteria,verdict.verifier_session ?? 'independent-verifier',at,file);
     await ctx.fs.writeText(await taskFile(ctx,exec,task.dir,file),body,{kind:'createIfAbsent'},exec.signal,policy);
     await ctx.fs.writeText(await taskFile(ctx,exec,task.dir,'verification.json'),body,undefined,exec.signal,policy);
     return {state:next,value:next};

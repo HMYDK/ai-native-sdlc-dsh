@@ -254,8 +254,8 @@ console.log('\n== 6. 结构不合格时的行为 ==');
     if (r.value.structure_ok === false) ok('不合格制品被判结构不通过');
     else bad('不合格制品被判通过');
     const missingCount = r.value.findings.length;
-    if (missingCount === 2) ok('报出 2 项缺失（Design / Areas of concern）');
-    else bad(`应报 2 项，实际 ${missingCount}: ${JSON.stringify(r.value.findings)}`);
+    if (missingCount === 3) ok('报出 3 项缺失（Acceptance Criteria / Design / Areas of concern）');
+    else bad(`应报 3 项，实际 ${missingCount}: ${JSON.stringify(r.value.findings)}`);
     if (/未登记/.test(r.value.registration)) ok('结构不通过时不登记（状态机不会看到半成品）');
     else bad(`结构不通过却登记了: ${r.value.registration}`);
   }

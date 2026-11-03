@@ -2,7 +2,7 @@
 import {randomUUID} from 'node:crypto';
 import type {TaskState, TaskStatus} from './state.js';
 import type {Verdict, Severity} from '../verify/verdict.js';
-import {criterionEntries} from '../verify/verdict.js';
+import {criterionEntries, type CriteriaInput} from '../verify/verdict.js';
 
 export type IssueStatus = 'open' | 'working' | 'submitted' | 'resolved' | 'deferred';
 export interface IssueAction {
@@ -132,7 +132,7 @@ export function beginRun(state: TaskState, id: string, at: string): TaskState {
   w.runs.push({id, started_at: at, outcome: 'incomplete'}); w.active_run = id; w.latest_run = id; next.updated = at;
   return next;
 }
-export function finishRun(state: TaskState, id: string, verdict: Verdict, criteria: string[], actor: string, at: string, file: string): TaskState {
+export function finishRun(state: TaskState, id: string, verdict: Verdict, criteria: CriteriaInput, actor: string, at: string, file: string): TaskState {
   if (state.workflow?.active_run !== id) throw new Error('验证已取消或任务已切换，不能用迟到的结果覆盖当前任务');
   const next = structuredClone(state), w = next.workflow!, run = w.runs.find(r => r.id === id)!;
   delete w.active_run; run.finished_at = at; run.outcome = verdict.status; run.summary = verdict.summary.slice(0, 2000); run.file = file;

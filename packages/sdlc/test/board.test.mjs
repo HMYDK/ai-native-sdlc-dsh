@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {createHash} from 'node:crypto';
 
 const LIB = path.resolve(process.argv[2] ?? path.join(import.meta.dirname, '..', 'lib', 'ui', 'index.js'));
 
@@ -275,6 +276,30 @@ check((await get(executionRoute, 'task=../AAA-1')).status === 400, '执行记录
 makeWorkspace(WS_B, 'AAA-1', 'B 的同名任务', '2026-10-28T10:00:00Z');
 const second = await (await get(executionRoute, new URLSearchParams({task: 'AAA-1', root: WS_B}))).json();
 check(second.repoRoot === WS_B && second.rounds.length === 0, '同名任务缺少裁决时不会借用 A 的记录');
+console.log('\n== Issue 2: 同一清单支撑列表与裁决详情，旧记录不冒充完整验收 ==');
+{
+  const acDir=path.join(WS_A,'.ai/tasks/AC-CASE');fs.mkdirSync(acDir,{recursive:true});
+  const criteria=[{id:'AC-001',text:'金额正确'},{id:'AC-002',text:'并发不重复'},{id:'AC-003',text:'失败回滚'}];
+  const spec='## Acceptance Criteria\n'+criteria.map(c=>`- ${c.id}: ${c.text}`).join('\n')+'\n';
+  const acceptance={version:1,id:'registered-v1',spec_path:'spec.md',spec_sha256:createHash('sha256').update(spec).digest('hex'),criteria,registered_at:'2026-11-02T00:00:00Z',registered_by:'fixture'};
+  const doc={schema_version:3,task:'AC-CASE',acceptance,criteria:criteria.map(c=>`${c.id}: ${c.text}`),additional_criteria:[],verdict:{status:'approve',findings:[],criteria_results:[{criterion_id:'AC-001',result:'met',evidence:'fixture'}]}};
+  fs.writeFileSync(path.join(acDir,'state.yaml'),JSON.stringify({task:'AC-CASE',title:'验收覆盖夹具',status:'VERIFYING',created:'2026-11-02T00:00:00Z',updated:'2026-11-02T00:00:00Z',artifacts:{spec:'spec.md',verification:'verification.json'},history:[],acceptance}));
+  fs.writeFileSync(path.join(acDir,'spec.md'),spec);fs.writeFileSync(path.join(acDir,'verification.json'),JSON.stringify(doc));
+  const listing=(await (await get(tasksRoute,'')).json()).tasks.find(t=>t.id==='AC-CASE');
+  const detail=await (await get(artifactRoute,new URLSearchParams({task:'AC-CASE',root:WS_A,file:'verification.json'}))).json();
+  check(listing.acceptance.expected===3&&listing.acceptance.answered===1&&listing.acceptance.status==='incomplete','任务列表显示应验 3 项、已答 1 项，不能把 approve 当完整通过');
+  check(JSON.stringify(listing.acceptance)===JSON.stringify(detail.acceptance),'列表与裁决详情使用同一套完整性计算');
+  check(detail.acceptance.missing.join(',')==='AC-002,AC-003','详情明确点名缺少的两项');
+  check(detail.criteria.map(c=>c.id).join(',')==='AC-001,AC-002,AC-003','新裁决读取显式 ID，不重新生成内容哈希');
+  doc.verdict.criteria_results=criteria.map(c=>({criterion_id:c.id,result:'met',evidence:'fixture'})).reverse();
+  fs.writeFileSync(path.join(acDir,'verification.json'),JSON.stringify(doc));
+  const valid=await (await get(artifactRoute,new URLSearchParams({task:'AC-CASE',root:WS_A,file:'verification.json'}))).json();
+  check(valid.acceptance.status==='verified'&&valid.acceptance.met===3,'完整结果重排仍按编号核对通过');
+  fs.appendFileSync(path.join(acDir,'spec.md'),'\n说明变更\n');
+  const changed=(await (await get(tasksRoute,'')).json()).tasks.find(t=>t.id==='AC-CASE');
+  check(changed.acceptance.status==='changed','说明文字改变也显示登记版本已失效');
+  check(nestedBody.acceptance.status==='unregistered'&&nestedBody.acceptance.errors.some(x=>x.includes('历史裁决')),'旧任务保留原始裁决，同时明确完整验收范围未确认');
+}
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log(`\n${fail === 0 ? '全部通过' : '有失败'}：${pass} 通过 / ${fail} 失败\n`);
 process.exit(fail === 0 ? 0 : 1);

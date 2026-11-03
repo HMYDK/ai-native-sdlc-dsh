@@ -4,7 +4,7 @@
 
 本文件面向任何 clone 仓库的 agent 与贡献者，只保留仍然约束当前实现的结论；详细历史、事故与读数见 [`docs/history/lessons.md`](docs/history/lessons.md)。
 
-当前插件：`@ai-native-sdlc/dsh-sdlc@0.5.0`，源码在 `packages/sdlc/`。
+当前插件：`@ai-native-sdlc/dsh-sdlc@0.6.0`，源码在 `packages/sdlc/`。
 
 ## 项目目标与边界
 
@@ -91,6 +91,8 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 ## 验证纪律
 
+**0.6.0：任务验收范围来自已登记 Spec。** `spec.md` 必须包含一个 `## Acceptance Criteria`（或 `## 验收标准`）章节，每项为 `- AC-001: 要求`。首次进入 PLANNED 或任何后续阶段时登记清单与整个 Spec 指纹，跳阶段也检查；第一次验证前修改 Spec 同样需要记录退回 SPEC 后重新登记。任务验证省略 `criteria` 自动使用完整清单，额外项用 `additional_criteria`；推进检查独立核对同一登记。`src/shared/acceptance.ts` 是解析、版本和覆盖规则的唯一实现；不要在验证入口、状态机或看板各写一份。v3 裁决采用显式 ID；旧裁决仍按原内容哈希 ID 读取，不能重新解释或补造完整验收。
+
 **跑 `npm run verify`（= build + test + smoke），不要只看其中一项。**
 
 **核对单测数字时用 `grep -E "^[#ℹ] (pass|fail)"`，不要写 `^#`。** 这个 Node 版本的 `node --test` 用 `ℹ` 前缀；写 `^#` 会零匹配、退出码 1——看起来像「测试失败」，其实只是 grep 没匹配到。
@@ -121,17 +123,17 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 ## 当前验证读数
 
-最近一次全量记录（**2026-11-01，插件 0.5.0**）：
+最近一次全量记录（**2026-11-02，插件 0.6.0**；11 月 3 日补做 tarball 安装与界面检查）：
 
 | 范围 | 读数 |
 |---|---|
-| 库 + 客户端单测 | 242 + 35 = **277** |
-| 看板宿主接口 | **51** |
-| 运行时冒烟 | 10 组，**459** 条 |
-| 隔离测试场 | **21** 条 |
+| 库 + 客户端单测 | 253 + 37 = **290** |
+| 看板宿主接口（单独执行） | **58** |
+| 运行时冒烟 | 11 组，**522** 条 |
+| Issue #2 双侧回归 | 旧版 13 条确认缺陷；当前版 63 条通过，打包安装副本复跑通过 |
 | `npm run compat` / `npm run preset-sync` | 通过 |
 
-这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。
+这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。隔离测试场 21 条仍是 2026-11-01、0.5.0 的读数，本次未重跑。Issue #2 的范围与限制见 [验证记录](.ai/tasks/ACCEPTANCE-2/proof.md)。
 
 ## 已知边界
 

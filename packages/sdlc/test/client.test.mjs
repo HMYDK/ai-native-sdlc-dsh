@@ -61,12 +61,24 @@ function mount(data = payload, componentProps = {}, componentState = {}) {
 }
 const text = n => n == null ? '' : typeof n !== 'object' ? String(n) : Array.isArray(n) ? n.map(text).join('') : text(n.child);
 
-function openDocument(doc, kind, file = kind + '.json', criteria) {
+function openDocument(doc, kind, file = kind + '.json', criteria, acceptance) {
   const raw = typeof doc === 'string' ? doc : JSON.stringify(doc);
-  const ui = mount(payload, {}, {ArtifactViewer:[{phase:'ready',text:raw,kind,criteria}]});
+  const ui = mount(payload, {}, {ArtifactViewer:[{phase:'ready',text:raw,kind,criteria,acceptance}]});
   ui.detail().props.onOpen(file); ui.render();
   return {ui,raw,viewer:()=>ui.find(n=>n.component === 'ArtifactViewer')[0]};
 }
+test('验收报告显示任务完整范围和缺项，原始 approve 不冒充完整验收',()=>{
+  const acceptance={status:'incomplete',expected:3,answered:1,met:1,missing:['AC-002','AC-003'],errors:['缺少验收结果：AC-002, AC-003']};
+  const {ui,viewer}=openDocument({schema_version:3,verdict:{status:'approve',criteria_results:[{criterion_id:'AC-001',result:'met',evidence:'probe'}]}},'verification','verification.json',[],acceptance);
+  for(const label of ['应验 3 项','已答 1 项','AC-002','AC-003','验收覆盖未通过核对','原始裁决：通过'])assert.ok(text(viewer()).includes(label),label);
+  const heading=ui.find(n=>n.props.className==='sdlc-report-heading',viewer())[0];
+  assert.equal(ui.find(n=>n.props.className?.includes('is-pass'),heading).length,0);
+});
+test('旧裁决按原文展示并明确提示未核对完整范围',()=>{
+  const {viewer}=openDocument({schema_version:2,verdict:{status:'approve',criteria_results:[{criterion:'历史标准',result:'met',evidence:'历史证据'}]}},'verification');
+  assert.ok(text(viewer()).includes('历史裁决未核对完整验收范围'));
+  assert.ok(text(viewer()).includes('历史标准'));
+});
 test('嵌套验证文件默认展示结论、逐条证据、发现和复验，原始 JSON 按需展开', () => {
   const doc = {criteria:['先提交的第一条','先提交的第二条'],verdict:{status:'reject',summary:'重复请求仍扣款',verification_run_id:'run-b',
     criteria_results:[{criterion_id:'AC-second',criterion:'重排后的第二条',result:'not_met',evidence:'重复请求扣款两次'}],

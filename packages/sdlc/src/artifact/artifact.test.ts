@@ -26,7 +26,7 @@ import {
 function wellFormed(kind: ArtifactKind): string {
   const lines = [`# ${kind}: 示例`, ''];
   for (const s of REQUIRED_SECTIONS[kind]) {
-    lines.push(`## ${s.name}`, '', `这里是 ${s.name} 的正文内容，足够长以避免被判为空。`, '');
+    lines.push(`## ${s.name}`, '', s.name === 'Acceptance Criteria' ? '- AC-001: 示例行为可验证' : `这里是 ${s.name} 的正文内容，足够长以避免被判为空。`, '');
   }
   return lines.join('\n');
 }
@@ -46,7 +46,7 @@ test('三种制品的必需章节与手册一致', () => {
   // 手册阶段 03 的 plan 模板
   assert.deepEqual(names('plan'), ['Files that change', 'Order of work', 'Risks', 'Proof']);
   // spec：手册说需求与设计合并，且必须标注关注领域
-  assert.deepEqual(names('spec'), ['Requirements', 'Design', 'Areas of concern']);
+  assert.deepEqual(names('spec'), ['Acceptance Criteria', 'Requirements', 'Design', 'Areas of concern']);
 
   assert.deepEqual(ARTIFACT_FILENAMES, {
     intent: 'intent.md',

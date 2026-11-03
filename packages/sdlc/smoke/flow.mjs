@@ -15,7 +15,7 @@ const {parseTaskState,serializeTaskState}=await import(pathToFileURL(path.join(l
 const {load,JSON_SCHEMA}=require('js-yaml');
 const root=await fs.mkdtemp(path.join(os.tmpdir(),'sdlc-flow-')),ctx=new Context();
 const dir=path.join(root,'.ai/tasks/FLOW-TEST'),stateFile=path.join(dir,'state.yaml');
-const criteria=['非目标场景保持原行为'],criteria_results=criterionEntries(criteria).map(c=>({criterion_id:c.id,result:'met',evidence:'independent probe'}));
+const criteria=['非目标场景保持原行为'],criteria_results=[{criterion_id:'AC-001',result:'met',evidence:'independent probe'}];
 let answer={status:'approve',summary:'verified',findings:[],criteria_results},seq=0,checks=0,mutateDuring=false,noVerdict=false,cancelDuring=false;
 const agent={id:'author',session:{id:'author',header:{cwd:root}}};
 const check=(value,label)=>{assert.ok(value,label);checks++;console.log('  ✓ '+label);};
@@ -40,7 +40,9 @@ try {
   task.apply(ctx,task.Config['~standard'].validate({}).value);verify.apply(ctx,verify.Config['~standard'].validate({}).value);
   await success('sdlc_task_create',{task_id:'FLOW-TEST',title:'historical workflow regression'});
   for(const file of ['intent.md','spec.md','plan.md','review.json'])await fs.writeFile(path.join(dir,file),file.endsWith('.json')?'{}':'# fixture');
-  let s=await state();s.artifacts={intent:'intent.md',spec:'spec.md',plan:'plan.md',review:'review.json'};s.status='VERIFYING';await save(s);
+  await fs.writeFile(path.join(dir,'spec.md'),'# Spec\n\n## Acceptance Criteria\n- AC-001: 非目标场景保持原行为\n');
+  let s=await state();s.artifacts={intent:'intent.md',spec:'spec.md',plan:'plan.md',review:'review.json'};await save(s);
+  await success('sdlc_task_advance',{task_id:'FLOW-TEST',to:'VERIFYING',reason:'register fixture acceptance and enter verification'});
   for(const content of ['{bad',JSON.stringify({task:'FLOW-TEST',verdict:{status:'reject',findings:[]}}),JSON.stringify({task:'FLOW-TEST',verdict:{status:'approve',findings:[]}})]) {
     await fs.writeFile(path.join(dir,'verification.json'),content);s=await state();s.artifacts.verification='verification.json';await save(s);
     check((await advance('REVIEWING')).isError,'invalid/failed/unbound verdict cannot enter review');

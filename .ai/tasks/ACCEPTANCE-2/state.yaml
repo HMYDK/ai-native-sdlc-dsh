@@ -1,0 +1,20 @@
+task: ACCEPTANCE-2
+title: "让任务验证覆盖 Spec 登记的全部验收项"
+status: VERIFYING
+created: 2026-11-03T02:53:13.796Z
+updated: 2026-11-03T02:53:13.796Z
+artifacts:
+  intent: "intent.md"
+  plan: "plan.md"
+  proof: "proof.md"
+  spec: "spec.md"
+history:
+  - at: "2026-11-03T02:53:13.796Z"
+    from: ""
+    to: "SPEC"
+    reason: "用户批准 Issue #2 方案；实现后补录任务制品，明确不作为实现前登记证据。"
+  - at: "2026-11-03T02:53:13.796Z"
+    from: "SPEC"
+    to: "VERIFYING"
+    reason: "实现及自动检查已完成；补录登记后按当前准入推进 VERIFYING。未取得本任务独立模型裁决，不写 approve。"
+acceptance: {"version":1,"id":"5366ac0b-a2aa-499a-84d4-6ea096dd5e93","spec_path":"spec.md","spec_sha256":"045476f2828486bcac64baaf39d23a317d20a56dad57338c3a8ce411efbfe44a","criteria":[{"id":"AC-001","text":"Spec 必须显式声明唯一且非空的验收项，解析歧义必须报错，不能静默丢项。"},{"id":"AC-002","text":"首次从 INTENT 或 SPEC 进入 PLANNED 及后续任意阶段时登记完整清单和整个 Spec 的指纹，跳阶段不能绕过。"},{"id":"AC-003","text":"第一次和后续任务验证都核对登记的 Spec 指纹；说明文字修改也须退回 SPEC 重新登记。"},{"id":"AC-004","text":"任务验证自动使用全部登记项，调用方缺项、改写、重复或替换时在派发前拒绝；额外检查只可追加。"},{"id":"AC-005","text":"状态机及完成准入独立核对登记版本和完整结果，遗漏、重复、未知 ID、无证据及未满足项都不能完成任务。"},{"id":"AC-006","text":"验证期间和验证后修改内容会使裁决失效；沿用 AC ID 重新登记也不能复用旧裁决。"},{"id":"AC-007","text":"历史裁决和问题保留原始哈希编号，再次验证须补登记，历史问题仍须明确处理与复验。"},{"id":"AC-008","text":"验证入口、完成准入和看板共用验收契约模块，看板准确显示应验数量和缺失项。"},{"id":"AC-009","text":"双侧回归能复现旧版缺陷，修复版拦住坏结果且允许完整结果完成；真实打包副本可加载和执行工具。"}],"registered_at":"2026-11-03T02:53:13.796Z","registered_by":"codex"}
