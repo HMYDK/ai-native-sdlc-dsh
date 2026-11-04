@@ -5,13 +5,14 @@
   const pause = () => new Promise(resolve => setTimeout(resolve, 30));
   const until = async predicate => { for (let i = 0; i < 200; i++) { if (predicate()) return; await pause(); } throw new Error('等待页面状态超时'); };
   const all = selector => [...document.querySelectorAll(selector)];
-  const one = selector => document.querySelector(selector);
+  const one = selector => all(selector).find(element => element.getClientRects().length);
   const click = async element => {
     if (!element) throw new Error('找不到操作按钮');
     if (!element.getClientRects().length) throw new Error('操作按钮不可见：' + (element.getAttribute('aria-label') || element.textContent));
     element.scrollIntoView({block: 'nearest', inline: 'nearest'}); element.focus(); element.click(); await pause();
   };
-  const textButton = text => all('button').find(b => b.textContent.trim() === text);
+  const textButton = text => all('button').find(b => b.getClientRects().length && b.textContent.trim() === text);
+  const view = id => click(one('#sdlc-tab-' + id));
   const selectTask = async id => {
     if (innerWidth <= 720 && one('.sdlc-shell.is-detail')) await click(one('[aria-label="返回任务列表"]'));
     await click(all('.sdlc-task').find(b => b.querySelector('.sdlc-task-meta')?.textContent.includes(id)));
@@ -22,17 +23,25 @@
   try {
     await until(() => all('.sdlc-round').length === 4);
     await selectTask('FLOW-DEMO');
-    if (mode === 'light') await click(one('[aria-label="切换浅色主题"]'));
+    if (mode === 'light') {
+      if (innerWidth <= 720) await click(one('[aria-label="返回任务列表"]'));
+      await click(one('[aria-label="切换浅色主题"]'));
+      if (innerWidth <= 720) await selectTask('FLOW-DEMO');
+    }
     if (mode === 'history' || mode === 'evidence') {
       await selectTask('LOOP-DEMO');
-      await click(one('.sdlc-verification-detail > summary'));
+      await view('verification');
       if (mode === 'history') await click(one('[data-run-id="loop-round-2"]'));
       if (mode === 'evidence') { await click(one('[data-run-id="loop-round-1"]')); await click(textButton('查看本轮证据')); }
     }
     if (mode === 'checks') {
+      assert(one('#sdlc-view-overview') && !one('#sdlc-view-history'), '默认展示当前结论，历史不占据概览');
+      assert(one('.sdlc-overview').textContent.includes('1 项待处理或复验') && one('.sdlc-overview').textContent.includes('19 项延期'), '概览统计完整问题集，包括第二页');
+      await view('issues');
       const issueDetail = () => one('[aria-label="所选问题处理过程"]').textContent;
+      await click(all('.sdlc-issue-choice')[0]);
       assert(all('.sdlc-issue-choice').length === 20 && issueDetail().includes('评审 → 规格') && issueDetail().includes('独立复验通过'), '问题详情显示审核退回、作者处理和独立关闭');
-      await click(all('.sdlc-issue-detail button')[0]);
+      await click(textButton('查看第 4 轮的独立裁决'));
       await until(() => one('#sdlc-round-evidence')?.open);
       assert(one('#sdlc-round-evidence').textContent.includes('24 passed'), '问题关闭可追到实际第四轮独立裁决');
       await click(one('#sdlc-round-evidence .sdlc-dialog-close'));
@@ -44,9 +53,24 @@
       await click(textButton('上一页问题'));
       await until(() => all('.sdlc-issue-choice').length === 20);
       assert(one('.sdlc-issue-pages').textContent.includes('1–20 / 21'), '问题分页返回后数量与范围正确');
+      await click(textButton('延期 19'));
+      await until(() => all('.sdlc-issue-choice').length === 19);
+      assert(all('.sdlc-issue-choice').some(b=>b.textContent.includes('示例建议 21')), '按完整问题集筛选，第二页的延期问题不会漏掉');
+      await click(textButton('待处理 0'));
+      await until(() => one('.sdlc-empty-message'));
+      assert(!one('.sdlc-issue-choice') && one('.sdlc-issue-filters').textContent.includes('全部 21'), '零结果筛选保留全量计数并显示空状态');
+      await view('history');
       const flowDetail = () => one('.sdlc-flow-inspector').textContent;
       assert(all('.sdlc-return-route').length === 3 && all('.sdlc-return-route').some(b => b.textContent.includes('验证 → 计划')) && all('.sdlc-return-route').some(b => b.textContent.includes('评审 → 规格')), '实际退回路线覆盖验证退计划、评审退规格');
-      assert(flowDetail().includes('审核发现多币种的舍入规则没有写进规格') && flowDetail().includes('规格 → 计划 → 实现 → 验证 → 评审'), '默认展开最近退回的原因和完整后续路线');
+      assert(flowDetail().includes('多币种与原优惠测试均通过，再次提交审核') && !one('.sdlc-return-route[aria-pressed=true]'), '历史默认停在最近流转，旧退回不冒充当前状态');
+      await click(one('[aria-label="查看退回路线：评审 → 规格，第 3 次"]'));
+      assert(flowDetail().includes('补全币种精度与舍入规则') && flowDetail().includes('规格 → 计划 → 实现 → 验证 → 评审'), '主动选择退回后显示原因和完整后续路线');
+      assert(one('.sdlc-linked-issue').textContent.includes('复验通过'), '退回读取显式关联的问题当前状态');
+      await click(one('.sdlc-linked-issue'));
+      await until(() => one('.sdlc-issue-choice[aria-pressed=true]')?.textContent.includes('多币种'));
+      assert(one('#sdlc-view-issues') && issueDetail().includes('独立复验通过'), '从历史跳到指定问题，清除不相容的筛选');
+      await view('history');
+      await click(one('.sdlc-flow-block > summary'));
       assert(flowDetail().includes('已按币种处理精度，新增多币种回归用例') && flowDetail().includes('按时间展示') && flowDetail().includes('已重新提交'), '修改说明有真实记录来源，重新提交不冒充审核通过');
       await click(all('.sdlc-flow-repair button')[0]);
       await until(() => one('#sdlc-round-evidence')?.open);
@@ -67,11 +91,11 @@
       assert(one('.sdlc-stage[data-flow-target=true]').textContent.includes('规格') && one('.sdlc-stage[data-flow-source=true]').textContent.includes('评审'), '阶段条同步标出退回的来源和目标');
       assert(one('.sdlc-app').scrollWidth <= one('.sdlc-app').clientWidth + 1, '阶段流转主视图没有横向溢出');
       await selectTask('LOOP-DEMO');
-      await click(one('.sdlc-verification-detail > summary'));
+      await view('verification');
       assert(all('.sdlc-round').length === 3 && one('[data-run-id="loop-round-3"]').getAttribute('aria-selected') === 'true', '三轮保留，默认选中最新轮次');
-      assert(one('.sdlc-loop-center').textContent.includes('2 次阶段回退记录'), '回退次数来自明确记录');
+      assert(one('.sdlc-execution').textContent.includes('3 次运行') && one('.sdlc-execution').textContent.includes('3 次形成裁决'), '运行数与裁决数分别显示');
       await click(one('[data-run-id="loop-round-1"]'));
-      assert(one('.sdlc-inspector').textContent.includes('发现 3 项问题') && one('.sdlc-history-badge').textContent.includes('历史第 1 轮'), '历史选择同步切换问题与历史标识');
+      assert(all('.sdlc-finding').length === 3 && one('.sdlc-history-badge').textContent.includes('历史第 1 轮'), '历史选择同步切换问题与历史标识');
       await click(all('.sdlc-finding')[1]);
       assert(one('.sdlc-evidence-chain').textContent.includes('第 1 轮边界测试'), '问题选择同步切换发现依据');
       const evidenceButton = textButton('查看本轮证据');
@@ -83,9 +107,10 @@
       const tab = one('[data-run-id="loop-round-1"]'); tab.focus(); tab.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true})); await pause();
       assert(one('[data-run-id="loop-round-2"]').getAttribute('aria-selected') === 'true' && document.activeElement === one('[data-run-id="loop-round-2"]'), '方向键切换轮次并移动焦点');
       await click(textButton('返回最新轮次'));
-      assert(one('.sdlc-round-number').textContent === '03', '返回最新轮次');
+      assert(one('[data-run-id="loop-round-3"]').getAttribute('aria-selected') === 'true', '返回最新轮次');
       await click(one('[aria-label="查看修复实现"]'));
       assert(one('.sdlc-inspector').textContent.includes('开始修复') && one('.sdlc-inspector').textContent.includes('阶段回退'), '修复入口展示实际修复和回退记录');
+      await view('overview');
       const directFile = one('[aria-label="打开规格阶段的 spec.md"]');
       assert(directFile?.textContent === 'spec.md' && one('.sdlc-stage-files').textContent.includes('intent.md'), '阶段条直接显示真实文件名');
       await click(directFile);
@@ -117,7 +142,7 @@
       await click(one('[aria-label="查看规格阶段"]'));
       assert(one('#sdlc-task-panel')?.open && one('#sdlc-task-panel').textContent.includes('spec.md'), '阶段入口打开对应记录与交付物');
       await click(one('#sdlc-task-panel .sdlc-dialog-close'));
-      await click(all('.sdlc-artifact').find(e => e.textContent.includes('规格')));
+      await click(all('.sdlc-artifact').find(e => e.getClientRects().length && e.textContent.includes('规格')));
       await until(() => one('#sdlc-artifact-dialog')?.textContent.includes('满减门槛'));
       assert(one('#sdlc-artifact-dialog').textContent.includes('验收标准'), '交付物读取并渲染正文');
       await click(one('#sdlc-artifact-dialog .sdlc-dialog-close'));
@@ -130,6 +155,7 @@
       assert(one('.sdlc-app').dataset.theme !== theme, '主题切换生效');
       await click(one('.sdlc-sidebar-bottom button'));
       if (innerWidth <= 720) await selectTask('LOOP-DEMO');
+      await view('verification');
       const ex = window.__LOOP_FIXTURE__.executions['LOOP-DEMO'];
       await click(one('[data-run-id="loop-round-1"]'));
       ex.rounds.push({...ex.rounds[2], id: 'preview-round-4', number: 4});
@@ -141,11 +167,11 @@
       window.fetch = async url => { if (String(url).includes('.execution')) return new Response('{"error":"测试断线"}', {status: 503}); return originalFetch(url); };
       await click(one('[aria-label="刷新看板"]'));
       await until(() => one('.sdlc-execution [role=alert]'));
-      assert(one('.sdlc-execution [role=alert]').textContent.includes('保留上次结果') && one('.sdlc-round-number').textContent === '01', '断线保留已读记录并显示错误');
+      assert(one('.sdlc-execution [role=alert]').textContent.includes('保留上次结果') && one('[data-run-id="loop-round-1"]').getAttribute('aria-selected') === 'true', '断线保留已读记录并显示错误');
       window.fetch = originalFetch;
       assert(all('.sdlc-deliverables').length === 1, '轮询刷新后交付物区仍只有一份');
       assert(one('.sdlc-app').scrollWidth <= one('.sdlc-app').clientWidth + 1, '视口没有横向溢出');
-      assert(all('.sdlc-node').every(node => node.getBoundingClientRect().top >= one('.sdlc-stage-scroll').getBoundingClientRect().bottom), '循环节点不与阶段条重叠');
+      assert(one('.sdlc-inspector').getBoundingClientRect().top >= one('.sdlc-detail-tabs').getBoundingClientRect().bottom, '验证详情与固定页签不重叠');
       assert(window.__LOOP_ERRORS__.length === 0, '浏览器未捕获脚本异常');
     }
   } catch (error) { reports.push('FAIL ' + error.message); }

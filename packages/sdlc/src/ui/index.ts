@@ -570,6 +570,7 @@ export function apply(ctx: Context, config: { tasksDir: string; rsiDir?: string 
         return respond(await readExecution(ctx.fs, {
           taskId: task, repoRoot: hit.root, tasksDir: dir, rsiDir: config.rsiDir, signal: request.signal,
           findingOffset: Number(new URL(request.url).searchParams.get('findingOffset') ?? 0),
+          findingFilter: new URL(request.url).searchParams.get('findingFilter') ?? 'all',
         }));
       } catch {
         // 不将原始记录或解析器错误中的内容带到浏览器。

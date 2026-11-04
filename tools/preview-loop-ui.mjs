@@ -33,9 +33,13 @@ const data = {tasks: await request('tasks'), executions: {}, pages: {}, artifact
 data.tasks.tasks = data.tasks.tasks.filter(t => t.repoRoot === workspace);
 for (const task of data.tasks.tasks) {
   data.executions[task.id] = await request('execution', {task: task.id, root: workspace});
-  for (let offset = data.executions[task.id].findingNext; offset !== null;) {
-    const page = await request('execution', {task:task.id,root:workspace,findingOffset:String(offset)});
-    data.pages[task.id+'/'+offset] = page; offset = page.findingNext;
+  for (const filter of ['all','active','submitted','deferred','resolved']) {
+    let page = filter === 'all' ? data.executions[task.id] : await request('execution', {task:task.id,root:workspace,findingFilter:filter});
+    if (filter !== 'all') data.pages[task.id+'/'+filter+'/0'] = page;
+    while (page.findingNext !== null) {
+      page = await request('execution', {task:task.id,root:workspace,findingFilter:filter,findingOffset:String(page.findingNext)});
+      data.pages[task.id+'/'+filter+'/'+page.findingOffset] = page;
+    }
   }
   for (const artifact of task.artifacts) data.artifacts[task.id + '/' + artifact.file] = await request('artifact', {task: task.id, root: workspace, file: artifact.file});
 }
@@ -52,7 +56,9 @@ window.__LOOP_ERRORS__ = [];
 window.addEventListener('error', e => window.__LOOP_ERRORS__.push(e.message));
 window.fetch = async url => {
   const parsed = new URL(String(url), 'http://fixture.local/'), q = parsed.searchParams;
-  const body = parsed.pathname.endsWith('.tasks') ? data.tasks : parsed.pathname.endsWith('.execution') ? (data.pages[q.get('task')+'/'+q.get('findingOffset')] || data.executions[q.get('task')]) : data.artifacts[q.get('task') + '/' + q.get('file')];
+  const filter = q.get('findingFilter') || 'all', offset = q.get('findingOffset') || '0';
+  const execution = filter === 'all' && offset === '0' ? data.executions[q.get('task')] : data.pages[q.get('task')+'/'+filter+'/'+offset];
+  const body = parsed.pathname.endsWith('.tasks') ? data.tasks : parsed.pathname.endsWith('.execution') ? execution : data.artifacts[q.get('task') + '/' + q.get('file')];
   return new Response(JSON.stringify(body || {error: 'fixture not found'}), {status: body ? 200 : 404, headers: {'content-type': 'application/json'}});
 };
 window.__ModuleLoader__ = {load({factory}) {

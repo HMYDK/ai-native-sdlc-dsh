@@ -218,6 +218,39 @@ test('任务内的问题和精简裁决不依赖 RSI 会话，按页返回明确
   assert.equal(page1.findings.length,20);assert.equal(page1.findingNext,20);assert.equal(page2.findings[0].id,'issue-20');assert.equal(page2.findingNext,null);
   assert.equal(page1.rounds[0].source,'task_record');assert.equal(page1.findings[0].actions[0].to,'IMPLEMENTING');assert.doesNotMatch(JSON.stringify(page1),/PRIVATE_RAW/);
 });
+test('问题筛选先检查完整清单再分页，首页统计不会漏掉后页的待办', async t => {
+  const f = await fixture(t);
+  const issues = Array.from({length: 43}, (_, i) => ({id:`issue-${i}`,source:'review',severity:'minor',blocking:false,
+    description:`问题 ${i}`,evidence:'probe',status:i===42?'open':i===41?'deferred':i===40?'submitted':'resolved',actions:[]}));
+  await f.writes('.ai/tasks/TASK-1/state.yaml',{task:'TASK-1',history:[],workflow:{version:1,runs:[],issues}});
+  const all = await f.read(), active = await f.read({findingFilter:'active'}), resolved = await f.read({findingFilter:'resolved',findingOffset:20});
+  assert.equal(all.findings.length,20);
+  assert.deepEqual(all.findingCounts,{open:1,working:0,submitted:1,deferred:1,resolved:40});
+  assert.equal(active.findingTotal,43); assert.equal(active.findingFilteredTotal,1);
+  assert.deepEqual(active.findings.map((i:any)=>i.id),['issue-42']); assert.equal(active.findingNext,null);
+  assert.equal(resolved.findingFilteredTotal,40); assert.equal(resolved.findings[0].id,'issue-20'); assert.equal(resolved.findingNext,null);
+  const empty = await f.read({findingFilter:'submitted',findingOffset:100});
+  assert.equal(empty.findingOffset,0); assert.equal(empty.findings[0].id,'issue-40');
+});
+test('没有逐项登记不能报零待办，过滤参数也不能隐藏未知记录', async t => {
+  const f = await fixture(t), value = await f.read({findingFilter:'not-a-status'});
+  assert.equal(value.findingCounts,null); assert.equal(value.findingFilter,'all');
+});
+test('退回精确关联同次登记的问题，时间相近或其他问题的说明不能冒认', async t => {
+  const f = await fixture(t);
+  const action = {id:'started',at:at(3),kind:'started',from:'VERIFYING',to:'IMPLEMENTING',reason:'修正目标分支',evidence:'',actor:'author'};
+  const issue = {id:'issue-linked',source:'verification',severity:'blocking',blocking:true,description:'原始问题',evidence:'probe',status:'resolved',actions:[action]};
+  const fillers = Array.from({length:20},(_,i)=>({...issue,id:`other-${i}`,actions:[]}));
+  const history = [
+    {at:at(2),from:'VERIFYING',to:'IMPLEMENTING',reason:'[issue-linked] 修正目标分支'},
+    {at:at(3),from:'VERIFYING',to:'IMPLEMENTING',reason:'[other-0] 修正目标分支'},
+    {at:at(3),from:'VERIFYING',to:'IMPLEMENTING',reason:'[issue-linked] 修正目标分支'},
+  ];
+  await f.writes('.ai/tasks/TASK-1/state.yaml',{task:'TASK-1',history,workflow:{version:1,runs:[],issues:[...fillers,issue]}});
+  const value = await f.read({findingFilter:'deferred'});
+  assert.deepEqual(value.findings,[]);
+  assert.deepEqual(value.flowLinks,[{historyIndex:2,issueId:'issue-linked',description:'原始问题',status:'resolved',findingOffset:20}]);
+});
 test('损坏或不支持版本的 acceptance 只回退本轮标准文本，不吞掉整轮执行记录', async t => {
   const f = await fixture(t); await f.manifest(['bad-reject', 'bad-approve']);
   const write = async (id: string, finish: unknown) => {
