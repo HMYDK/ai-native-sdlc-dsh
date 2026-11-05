@@ -10,6 +10,7 @@
  *     packages/sdlc-artifact/smoke.mjs
  */
 
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -93,6 +94,7 @@ ctx.provide('sandboxPolicy', {
 });
 
 const rt = new ToolRuntime(ctx, 'tools');
+installNativeExecutor(ctx, require);
 if (ctx.tools === undefined) bad('ToolRuntime 未挂到 ctx.tools');
 else ok('真实 ToolRuntime 已挂载');
 
@@ -116,7 +118,7 @@ else bad(`提示词段数量=${sections.length}，期望 1`);
 
 let seq = 0;
 const dispatch = (name, args) =>
-  ctx.tools.execute({
+  executeTool(ctx, {
     callId: `smoke-${name}-${(seq += 1)}`,
     name,
     arguments: args,
@@ -370,7 +372,7 @@ console.log('\n== 8. 输入校验 ==');
     if (r.isError) ok(`${label} 被拒`);
     else bad(`${label} 未报错`);
   }
-  const noCwd = await ctx.tools.execute({
+  const noCwd = await executeTool(ctx, {
     callId: 'smoke-nocwd',
     name: 'sdlc_artifact_check',
     arguments: { kind: 'intent', task_id: TASK },

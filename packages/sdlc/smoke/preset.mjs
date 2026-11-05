@@ -31,6 +31,7 @@
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
@@ -80,7 +81,9 @@ function resolveSpec(spec) {
 }
 
 console.log('== 1. patch 形状：两条宿主行 ==');
-const patch = yaml.load(fs.readFileSync(path.join(PKG_DIR, 'cordis.patch.yml'), 'utf8'), { schema: YAML_SCHEMA });
+// 可传旧版 patch 做两侧回归：升级前的组合应当被当前 App 拒绝。
+const patchFile = process.env.SDLC_PRESET_PATCH ?? path.join(PKG_DIR, 'cordis.patch.yml');
+const patch = yaml.load(fs.readFileSync(patchFile, 'utf8'), { schema: YAML_SCHEMA });
 if (Array.isArray(patch) && patch.length === 1 && Array.isArray(patch[0]?.insert)) {
   ok('cordis.patch.yml 是「一条 insert」');
 } else {
@@ -171,6 +174,26 @@ if (pkg.dsh?.client?.platform === 'web' && typeof pkg.dsh?.bundle?.patch === 'st
 } else {
   bad('package.json 的 dsh.bundle / dsh.client 声明不完整');
 }
+
+console.log('\n== 5. standard 副本引用的组件仍由当前 App 导出 ==');
+const runtimeRequire = createRequire(path.join(
+  process.env.DSH_APP ?? '/Applications/DeepSeek Harness.app',
+  'Contents/Resources/app.asar/dsh/node_modules/noop.js',
+));
+function checkRuntimeRows(rows) {
+  for (const row of rows) {
+    if (row.disabled === true) continue;
+    if (row.group && Array.isArray(row.config)) checkRuntimeRows(row.config);
+    if (!row.name?.startsWith('@deepseek-ai/')) continue;
+    try {
+      runtimeRequire.resolve(row.name);
+      ok(`${row.id}: 当前 App 可解析 ${row.name}`);
+    } catch (error) {
+      bad(`${row.id}: 当前 App 无法解析 ${row.name}（${error.code ?? error.message}）`);
+    }
+  }
+}
+checkRuntimeRows(presetRows);
 
 console.log(`\n断言总数：${pass + fail}（通过 ${pass}，失败 ${fail}）`);
 if (fail > 0) process.exit(1);

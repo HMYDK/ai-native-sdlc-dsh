@@ -6,6 +6,7 @@ import {object} from './analysis.js';
 import {hash} from './snapshot.js';
 import {Collector,type CaptureInfo} from './collector.js';
 import type {ExperimentCase,ExperimentObservation} from './experiment.js';
+import {invokeTool} from '../shared/invoke-tool.js';
 
 /** Omit reference labels from the prompt. Shared-filesystem access is a separate limitation. */
 export async function replayInput(store:Store,sourceId:string):Promise<Record<string,unknown>> {
@@ -49,8 +50,7 @@ export async function replayCase(ctx:Context,exec:ToolRunContext,store:Store,col
   });
   let result;
   try {
-    result=await ctx.tools.execute({callId:callId as never,rootCallId:exec.rootCallId,parent:exec.token,
-      name:'sdlc_verify',arguments:args,agent:exec.agent,signal:exec.signal});
+    result=await invokeTool(ctx,exec,{callId:callId as never,name:'sdlc_verify',arguments:args});
   } finally {dispose();}
   for(const context of result.additionalContexts??[])exec.deferContext(context);
   if(!result.isError&&result.concludesTurn)exec.concludeTurn();

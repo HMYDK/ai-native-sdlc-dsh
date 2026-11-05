@@ -95,8 +95,8 @@ function resolveProfile() {
   return path.isAbsolute(name) ? name : path.join(home, 'profiles', name);
 }
 const PROFILE = resolveProfile();
-/** profile 里**装插件的那一层**（`<profile>/node_modules/@ai-native-sdlc`）。 */
-const PROFILE_NM = path.join(PROFILE, 'node_modules/@ai-native-sdlc');
+/** 从 manifest 的完整包名定位安装目录，避免 scope 改名后仍然查旧目录。 */
+const PROFILE_NM = path.join(PROFILE, 'node_modules');
 
 /**
  * 宿主提供的服务集合。
@@ -334,7 +334,7 @@ if (!uiRow) {
 }
 
 // ── 3. 漂移：profile 装的那份 vs 仓库刚构建的这份 ──────────────────
-const PROFILE_PKG = path.join(PROFILE_NM, pkgJson.name.split('/').pop() ?? pkgJson.name);
+const PROFILE_PKG = path.join(PROFILE_NM, pkgJson.name);
 const drift = { installed: false, missing: [], differ: [], extra: [], version: null };
 if (!existsSync(PROFILE_PKG)) {
   addIssue(

@@ -1,3 +1,4 @@
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
@@ -66,7 +67,7 @@ try {
     }
     if(behavior==='throw-with-noise'&&!text.includes('UNRELATED_CALL')) {
       // A later unrelated run makes "pick the latest run" an invalid substitute for call-id correlation.
-      await ctx.tools.execute({callId:randomUUID(),name:'sdlc_verify',arguments:{intent_of_change:'UNRELATED_CALL',criteria:['check behavior']},agent:request.parent,signal});
+      await executeTool(ctx, {callId:randomUUID(),name:'sdlc_verify',arguments:{intent_of_change:'UNRELATED_CALL',criteria:['check behavior']},agent:request.parent,signal});
     }
     if(behavior==='throw'||behavior==='throw-with-noise'&&!text.includes('UNRELATED_CALL')) throw new Error('provider unavailable');
     const status=text.includes('CASE_HELP')?'needs_human':text.includes('CASE_BAD')&&!text.includes('candidate-guidance')?'approve':text.includes('CASE_BAD')?'reject':'approve';
@@ -80,12 +81,13 @@ try {
     return {childId:id,result:Promise.resolve(result),dispose:async()=>{}};
   }});
   new ToolRuntime(ctx,'tools');
+  installNativeExecutor(ctx, require);
   rsi.apply(ctx,rsi.Config['~standard'].validate({}).value);
   verify.apply(ctx,verify.Config['~standard'].validate({}).value);
   ctx.on('sdlc-verify/record',record=>{if(record.kind==='started')starts.push(structuredClone(record));});
   check(!!ctx.tools.get('sdlc_rsi_runs'),'真实 ToolRuntime 注册查询工具');
   const agent={id:'parent',session:{id:'parent',header:{cwd:root}}};
-  const call=(name,args={},signal=new AbortController().signal)=>ctx.tools.execute({callId:randomUUID(),name,arguments:args,agent,signal});
+  const call=(name,args={},signal=new AbortController().signal)=>executeTool(ctx, {callId:randomUUID(),name,arguments:args,agent,signal});
   await fs.mkdir(path.dirname(path.join(root,taskArtifact)),{recursive:true});
   await fs.writeFile(path.join(root,taskArtifact),originalArtifact);
   const source=[];

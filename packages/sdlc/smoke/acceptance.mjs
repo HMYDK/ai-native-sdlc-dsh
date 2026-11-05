@@ -1,4 +1,5 @@
 /** Issue #2, both sides: SDLC_TEST_LIB=<old lib> SDLC_ACCEPTANCE_EXPECT=vulnerable also exercises the defective version. */
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
@@ -20,7 +21,7 @@ const intent='# Intent\n\n## Problem\n优惠券消费可能出错。\n\n## Propo
 const plan='# Plan\n\n## Files that change\napp.js\n\n## Order of work\n计算、消费、回滚。\n\n## Risks\n重复消费。\n\n## Proof\n按 Spec 逐项验证。\n';
 let seq=0,checks=0,starts=0,mode='all',during,seenIds=[],issueResults=[];
 const check=(value,label)=>{assert.ok(value,label);checks++;console.log('  ✓ '+label);};
-const call=(name,args)=>ctx.tools.execute({callId:`acceptance-${++seq}`,name,arguments:Object.fromEntries(Object.entries(args).filter(([,v])=>v!==undefined)),agent,signal:new AbortController().signal});
+const call=(name,args)=>executeTool(ctx, {callId:`acceptance-${++seq}`,name,arguments:Object.fromEntries(Object.entries(args).filter(([,v])=>v!==undefined)),agent,signal:new AbortController().signal});
 const success=async(name,args)=>{const r=await call(name,args);assert.ok(!r.isError,JSON.stringify(r));return r.value;};
 const dir=id=>path.join(root,'.ai/tasks',id);
 const state=async id=>load(await fs.readFile(path.join(dir(id),'state.yaml'),'utf8'),{schema:JSON_SCHEMA});
@@ -50,6 +51,7 @@ try {
   ctx.provide('sandboxPolicy',{resolve:()=>({mode:'workspace-write',workspaceRoot:root,writableRoots:[root]})});
   ctx.provide('systemPrompt',{section:()=>()=>{},tools:()=>()=>{},variable:()=>()=>{},context:()=>()=>{},getSectionOrder:()=>0,getContextOrder:()=>0});
   new ToolRuntime(ctx,'tools');
+  installNativeExecutor(ctx, require);
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture'})});
   ctx.provide('subagents',{startActivation:async({request})=>{
     starts++;

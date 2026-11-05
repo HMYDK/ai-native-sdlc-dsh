@@ -84,6 +84,7 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 - **peer 范围不要钉死精确版本。** App 会自动升级，仓库不会。DSH 的判定是 `semver.satisfies(runtime, range, { includePrerelease: true })`；精确旧版本不接受新版本。历史上七个包各自钉精确 peer，一次 App 升级让它们被判定 `incompatible-version` 后整体 skip：**App 照常启动，工具和侧栏一起消失，日志只有一行 warning**。现在只有一份 peer 范围；改 peer 或升级 App 后跑 `npm run compat`，它读本机真实 App 的 `dsh/package.json`。
 - **0.2.1 子代理 API 已变。** `ctx.subagents.start()` 已删除，改用 `startActivation(spec)`；`SubagentRun` / `run.id` → `SubagentActivation` / `run.childId`；`label` / `signal` 移到 spec 外层，并新增 `delivery: 'caller'`。`persona` / `toolFilter` 已从 `SubagentStartRequest` 删除，迁移为 Agent Preset：`ctx.agentPresets.register({ id, plugins })` + request 带 `agentPreset`。见 `packages/sdlc/src/verify/preset.ts`。
+- **0.2.2 的组件入口和工具执行 API 已变。** `dsh-tool-subagent-control/list-agents` 被删除，旧 preset 会整体加载失败并从选择器消失；`ctx.tools.execute()` 改收模型 batch，内部嵌套调用统一走 `src/shared/invoke-tool.ts`，用共享 pipeline 保留父调用、权限、后置策略和取消。`npm run compat` 只证明版本声明接受；`preset` 冒烟还要解析当前 App 的所有 DSH 组件入口，tarball 安装后用 `tools/profile-runtime-check.mjs` 检查真实运行时。详见 lessons §10。
 - **preset 不会自动隔离宿主全局工具。** 只挂 preset 时，真实验证者的工具面里仍有 `sdlc_task_create` / `sdlc_fix_end` / `sdlc_verify`——它能解冻测试、推进任务。必须在 preset 里放一行 `ctx.tools.restrict({ deny: <运行时枚举的全部 global> })`。`allow` 清单不行：preset 自己的 `read` / `grep` / `bash` 是 scope 注册，不在 global 层，会被判 `unknown global tool`。
 - **`agentPresets` 是可选服务**（web/desktop 有，headless 没有）。不要写进 `inject`（会停 pending），用 `ctx.get('agentPresets')`；缺失时 `sdlc_verify` **fail closed**，不降级成继承全部工具的子代理。
 - **验证者 preset 按需注册。** `agentPresets/list` 会把每条声明都列进新会话/设置页的模式选择器，所以 `sdlc-verify` 不在 apply 时注册 `sdlc-verifier`，而是只在 `sdlc_verify` 运行期间临时注册、跑完归还（`withVerifierPreset` 租约；并发调用按 depth 共享一次注册）。空闲时选择器里只有「AI 原生 SDLC」。
@@ -123,22 +124,23 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 ## 当前验证读数
 
-最近一次全量记录（**2026-11-02，插件 0.6.0**；11 月 3 日补做 tarball 安装与界面检查）：
+最近一次全量记录（**2026-11-05，插件 0.6.0 本地兼容修复，DSH 0.2.2-rc.1**；尚未发布）：
 
 | 范围 | 读数 |
 |---|---|
-| 库 + 客户端单测 | 253 + 37 = **290** |
+| 库 + 客户端单测 | 257 + 44 = **301** |
 | 看板宿主接口（单独执行） | **58** |
-| 运行时冒烟 | 11 组，**522** 条 |
-| Issue #2 双侧回归 | 旧版 13 条确认缺陷；当前版 63 条通过，打包安装副本复跑通过 |
+| 运行时冒烟 | 12 组，**561** 条 |
+| 升级双侧回归 | 旧 patch 被已删除的入口检查拒绝；修复后 preset 46 条通过；嵌套调用在 0.2.1 / 0.2.2 各 12 条通过 |
+| tarball 与界面 | 隔离安装启动、实际工具调用、模式隔离、验证者工具范围及看板接口通过；本机重启后可选 SDLC 模式并打开看板 |
 | `npm run compat` / `npm run preset-sync` | 通过 |
 
-这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。隔离测试场 21 条仍是 2026-11-01、0.5.0 的读数，本次未重跑。Issue #2 的范围与限制见 [验证记录](.ai/tasks/ACCEPTANCE-2/proof.md)。
+这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。本轮没有调用真实模型跑完整任务，也没有重跑隔离测试场或模型基准。隔离测试场 21 条仍是 2026-11-01、0.5.0 的读数。Issue #2 的旧版 13 / 当前版 63 条双侧记录属于 11 月 2–3 日，范围见 [验证记录](.ai/tasks/ACCEPTANCE-2/proof.md)。本次升级证据见 [lessons §10](docs/history/lessons.md#10-dsh-022-升级后-sdlc-模式消失2026-11-05)。
 
 ## 已知边界
 
-- **standard preset 副本会漂移。** App 升级后 `preset-sdlc` 里的基础工具列表可能过期，SDLC 模式会「少新工具」却不报错。必须跑 `npm run preset-sync`；漂移时 `npm run preset-sync:write` 后复跑冒烟。门禁比较整行字段（`id` / `name` / `config` / `disabled` / `group` / `isolate` 及未来新增字段），不能只比 id/name。
-- **协议层证据已有，GUI 层未人工验收。** 会话日志 `request/header` 显示 SDLC 会话 44 个工具 = standard 31 个 + 13 个 `sdlc_*`，standard 会话 31 个、0 个 `sdlc_*`；`toolsTokens` 10072 vs 6902 是旁证。仍缺在新建会话选择器里真的点选「AI 原生 SDLC」并看到工具列表/面板渲染；不要把「协议层已证实」写成「GUI 已验收」。
+- **standard preset 副本会漂移。** App 升级后可能少新工具，也可能因旧入口被删导致整个模式消失。必须跑 `npm run preset-sync`；漂移时 `npm run preset-sync:write` 后复跑冒烟。门禁比较整行字段（`id` / `name` / `config` / `disabled` / `group` / `isolate` 及未来新增字段），不能只比 id/name。
+- **界面恢复不等于模型全流程通过。** 2026-11-05 已用自动界面操作在真实 App 点选「AI 原生 SDLC」并打开看板；隔离 profile 中工具数为 50（含 17 个 `sdlc_*`），standard 无 `sdlc_*`。本轮没有在 GUI 发起真实模型任务，不把模式可选、面板可用扩大成完整任务已验收。
 - **已有会话不会切换组合。** 选择只影响之后创建的会话，这是官方语义，不是缺陷。
 - **冻结不是防篡改边界。** Actor 自己调一次 `sdlc_fix_end` 即可解冻。它是流程摩擦 + 留痕，不是硬约束。
 - **测试资产识别是名字模式表。** 未覆盖的命名不会被冻结。

@@ -1,3 +1,4 @@
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import {createHash as criterionHash} from 'node:crypto';
 /**
  * 插件运行时冒烟测试。
@@ -180,6 +181,7 @@ if (typeof ToolRuntime !== 'function') {
   process.exit(1);
 }
 const tools = new ToolRuntime(ctx, 'tools');
+installNativeExecutor(ctx, require);
 // 注意：Service 的构造函数返回的是它自己提供的实例，`new` 表达式的值不一定
 // 与 ctx.tools 是同一个引用。判据是 ctx.tools 上有没有我们注册的东西，
 // 而不是引用相等——所以这里只确认服务已就位。
@@ -251,7 +253,7 @@ console.log('\n== 5. 真正调用工具（之前从没做到这一步）==');
 
 /** 用真实 registry 派发一次调用 */
 const dispatch = (name, args, agent, signal = new AbortController().signal) =>
-  ctx.tools.execute({
+  executeTool(ctx, {
     callId: `smoke-${name}-${Math.random().toString(36).slice(2, 7)}`,
     name,
     arguments: args,
