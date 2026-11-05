@@ -3,7 +3,7 @@
 本仓库把《AI 原生 SDLC 实战手册》的方法论落成一个 DeepSeek Harness（DSH）插件，
 只有一个包：`packages/sdlc`（`@ai-native-sdlc-plugin/dsh-sdlc`）。开始之前请先读：
 
-- [README.md](README.md)：插件能做什么、怎样安装到 DSH、怎样验证；
+- [README.md](README.md)：插件能做什么、怎样开始使用；[安装指南](docs/installation.md)包含详细安装与验证步骤；
 - [packages/sdlc/README.md](packages/sdlc/README.md)：一个包与七个组件的关系、宿主行与 Agent Preset 的划分；
 - [AGENTS.md](AGENTS.md) 和 [docs/dsh-plugin-contracts.md](docs/dsh-plugin-contracts.md)：改代码前必读的工程约定与 DSH 契约。
 
@@ -131,7 +131,7 @@ git ls-files
 2. 按上面的顺序在本地验证。冒烟、`compat`、`preset-sync` 跑了就贴读数，没跑就写“未跑”和原因。
 3. 用 [PR 模板](.github/PULL_REQUEST_TEMPLATE.md) 说明：为什么改、改了什么、怎么验证、有什么影响。
 4. 等待 CI 通过（`build` / `typecheck` / `test`，ubuntu-latest + Node 24）。
-5. 涉及插件加载、安装或界面接线的改动，还要按 README 的「开发与验证」把真实 tarball
+5. 涉及插件加载、安装或界面接线的改动，还要按[安装指南的「开发与验证」](docs/installation.md#开发与验证)把真实 tarball
    装进**隔离 profile** 核对，不能只靠单测。
 6. 维护者 review 后合并，合并后可以删除分支。
 
