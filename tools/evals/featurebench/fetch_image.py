@@ -49,9 +49,7 @@ def main():
             raise RuntimeError('token failed')
 
     def get(url, extra=None, timeout=180):
-        h = {'Authorization': 'Bearer ' + token(), 'User-Agent': UA,
-             # 实测镜像站偶发把坏块写进缓存；no-cache 让 CDN 回源，避免复用坏数据
-             'Cache-Control': 'no-cache', 'Pragma': 'no-cache'}
+        h = {'Authorization': 'Bearer ' + token(), 'User-Agent': UA}
         if extra: h.update(extra)
         return opener.open(urllib.request.Request(url, headers=h), timeout=timeout)
 
@@ -78,7 +76,7 @@ def main():
     def cache_path(hexd):
         return os.path.join(args.blob_cache, hexd) if args.blob_cache else None
 
-    def download(digest, size, chunk_mb=None):
+    def download(digest, size, chunk_mb=None, bypass_cache=False):
         hexd = digest.split(':', 1)[1]
         path = f'{args.out}/blobs/sha256/{hexd}'
         cp = cache_path(hexd)
@@ -111,7 +109,12 @@ def main():
                 s, end = ranges[i]; want = end - s + 1
                 for attempt in range(8):
                     try:
-                        resp = get(url, {'Range': f'bytes={s}-{end}'})
+                        extra = {'Range': f'bytes={s}-{end}'}
+                        if bypass_cache:
+                            # 只在重试时强制回源：首轮走 CDN 缓存速度快，坏块才回源
+                            extra['Cache-Control'] = 'no-cache'
+                            extra['Pragma'] = 'no-cache'
+                        resp = get(url, extra)
                         data = resp.read()
                         if getattr(resp, 'status', None) not in (206, 200) or len(data) != want:
                             raise RuntimeError(f'range {s}-{end} bad')
@@ -159,7 +162,7 @@ def main():
         log(f"blob {n+1}/{len(blobs)} {layer['digest'][:20]} {layer['size']/1024/1024:.0f}MB")
         for attempt, chunk_mb in enumerate((args.chunk_mb, max(2, args.chunk_mb // 2), args.chunk_mb * 2)):
             try:
-                download(layer['digest'], layer['size'], chunk_mb)
+                download(layer['digest'], layer['size'], chunk_mb, bypass_cache=(attempt > 0))
                 break
             except Exception as e:
                 log(f"blob retry {attempt+1}/3 after error: {e}")
