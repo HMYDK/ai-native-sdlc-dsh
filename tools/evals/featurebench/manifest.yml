@@ -54,6 +54,8 @@ arms:
 
 # 任务选择规则（运行前固定，禁止按结果挑）：
 #   repos 固定为下列 5 个；每个 repo 内只取 lv1 任务，按 instance_id 字典序取第一个。
+#   注：2026-11-06 首次执行时 sympy 镜像 blob 连续 3 次 digest mismatch，按「候选 repo
+#   顺序替换」规则换成 astropy；这是镜像可用性替换，不是按结果挑样本，已在报告中记录。
 # 5 个不同 repo 是为了避免同 repo 任务高度相关；代价是每个 repo 一个 ~10-11GB 镜像。
 selection_rule: "repos 固定为 tasks[].repo 的 5 个 repo；每个 repo 内取 lv1 任务，按 instance_id 字典序的第一个"
 
@@ -63,11 +65,13 @@ tasks:
     level: 1
     image: "libercoders/featurebench-specs_packaging-instance_c393a6a8"
     image_digest: "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916"
-  - id: "sympy__sympy.c1097516.test_inverse.c240ffe7.lv1"
-    repo: "sympy/sympy"
+  # sympy 镜像在镜像站重复 3 次 blob digest mismatch（镜像缓存损坏，非本地 bug），
+  # 按预注册规则替换为 repo 清单里的下一个：astropy（同样按 instance_id 字典序取 lv1）。
+  - id: "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1"
+    repo: "astropy/astropy"
     level: 1
-    image: "libercoders/featurebench-specs_sympy-instance_3d889fef"
-    image_digest: "sha256:207ff124011e74d2b6abbdce2f8d3244546949cd0abfb7949d7dd414368f8935"
+    image: "libercoders/featurebench-specs_astropy-instance_493bb78b"
+    image_digest: "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2"
   - id: "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
     repo: "pydantic/pydantic"
     level: 1
