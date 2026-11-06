@@ -38,6 +38,16 @@ await sleep(300);
 const sel = await evalJS(`(async (want)=>{const labels=['标准模式','AI 原生 SDLC','PTC 模式','极简模式','创造模式'];const all=()=>[...document.querySelectorAll('button')];const open=()=>all().find(b=>labels.includes((b.innerText||'').trim()));const items=()=>[...document.querySelectorAll('[role=menuitem]')];if(!open()) return 'no preset button';open().click();await new Promise(r=>setTimeout(r,800));let it=items();if(!it.length){open()?.click();await new Promise(r=>setTimeout(r,800));it=items();}const hit=it.find(e=>(e.innerText||'').includes(want));if(!hit) return 'no item '+want;hit.click();await new Promise(r=>setTimeout(r,600));return all().some(b=>(b.innerText||'').trim()===want)?('selected '+want):('select-failed');})(${JSON.stringify(presetLabel)})`);
 console.log('PRESET', sel);
 if (!String(sel).startsWith('selected')) { console.error('PRESET SELECT FAILED'); process.exit(3); }
+// 4.5 等待页面水合：composer 元素出现 ≠ React 已挂载；pytest 镜像首跑时
+// insertText 在挂载前执行，文本被清空（INSERT_LEN 0），两臂同时失败。
+let hydrated = false;
+for (let i = 0; i < 60; i++) {
+  hydrated = await evalJS(`(()=>{const ed=document.querySelector('[data-composer-input]');return !!(ed && ed.isContentEditable && (document.body.innerText.includes('发消息或创建任务')||document.body.innerText.includes('发送')))})()`);
+  if (hydrated) break;
+  await sleep(1000);
+}
+console.log('HYDRATED', hydrated);
+await sleep(1500);
 // 5. 点击 composer 取得焦点
 const rect = JSON.parse(await evalJS(`(()=>{const ed=document.querySelector('[data-composer-input]');const r=ed.getBoundingClientRect();ed.focus();return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2,f:document.activeElement===ed})})()`));
 for (let i = 0; i < 3; i++) {
@@ -48,17 +58,22 @@ for (let i = 0; i < 3; i++) {
 }
 // 6. 插入 prompt 并校验
 let insertedLen = 0;
-for (let i = 0; i < 2; i++) {
+for (let i = 0; i < 5; i++) {
   await evalJS(`document.querySelector('[data-composer-input]').focus()`);
+  await sleep(300);
   await call('Input.insertText', {text});
-  await sleep(1200);
+  await sleep(1500);
   insertedLen = await evalJS(`(document.querySelector('[data-composer-input]')||{}).innerText.length||0`);
   if (insertedLen >= Math.min(10, text.length)) break;
-  await evalJS(`(()=>{const ed=document.querySelector('[data-composer-input]');ed.innerHTML='';return true})()`);
-  await sleep(300);
+  await evalJS(`(()=>{const ed=document.querySelector('[data-composer-input]');ed.focus();ed.innerHTML='';return true})()`);
+  await sleep(600);
 }
 console.log('INSERT_LEN', insertedLen, 'WANT', text.length);
-if (insertedLen < Math.min(10, text.length)) { console.error('INSERT FAILED'); process.exit(2); }
+if (insertedLen < Math.min(10, text.length)) {
+  const body = await evalJS(`document.body.innerText.slice(0,1200)`);
+  console.error('INSERT FAILED body:', JSON.stringify(body));
+  process.exit(2);
+}
 // 7. 发送
 await call('Input.dispatchKeyEvent', {type:'rawKeyDown', key:'Enter', code:'Enter', windowsVirtualKeyCode:13, nativeVirtualKeyCode:13});
 await call('Input.dispatchKeyEvent', {type:'keyUp', key:'Enter', code:'Enter', windowsVirtualKeyCode:13, nativeVirtualKeyCode:13});
