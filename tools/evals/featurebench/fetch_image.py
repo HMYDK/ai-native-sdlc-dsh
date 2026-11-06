@@ -49,7 +49,9 @@ def main():
             raise RuntimeError('token failed')
 
     def get(url, extra=None, timeout=180):
-        h = {'Authorization': 'Bearer ' + token(), 'User-Agent': UA}
+        h = {'Authorization': 'Bearer ' + token(), 'User-Agent': UA,
+             # 实测镜像站偶发把坏块写进缓存；no-cache 让 CDN 回源，避免复用坏数据
+             'Cache-Control': 'no-cache', 'Pragma': 'no-cache'}
         if extra: h.update(extra)
         return opener.open(urllib.request.Request(url, headers=h), timeout=timeout)
 
@@ -76,7 +78,7 @@ def main():
     def cache_path(hexd):
         return os.path.join(args.blob_cache, hexd) if args.blob_cache else None
 
-    def download(digest, size):
+    def download(digest, size, chunk_mb=None):
         hexd = digest.split(':', 1)[1]
         path = f'{args.out}/blobs/sha256/{hexd}'
         cp = cache_path(hexd)
@@ -97,7 +99,7 @@ def main():
         url = f'{args.mirror}/v2/{repo}/blobs/{digest}'
         fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o644)
         os.ftruncate(fd, size)
-        chunk = args.chunk_mb * 1024 * 1024
+        chunk = (chunk_mb or args.chunk_mb) * 1024 * 1024
         ranges = [(s, min(s + chunk, size) - 1) for s in range(0, size, chunk)]
         idx = [0]; done_b = [0]; done = [0]; rr = threading.Lock(); errs = []
         t0 = time.time()
@@ -155,9 +157,9 @@ def main():
     blobs = [manifest['config']] + sorted(manifest['layers'], key=lambda x: -x['size'])
     for n, layer in enumerate(blobs):
         log(f"blob {n+1}/{len(blobs)} {layer['digest'][:20]} {layer['size']/1024/1024:.0f}MB")
-        for attempt in range(3):
+        for attempt, chunk_mb in enumerate((args.chunk_mb, max(2, args.chunk_mb // 2), args.chunk_mb * 2)):
             try:
-                download(layer['digest'], layer['size'])
+                download(layer['digest'], layer['size'], chunk_mb)
                 break
             except Exception as e:
                 log(f"blob retry {attempt+1}/3 after error: {e}")
