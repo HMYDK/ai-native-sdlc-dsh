@@ -15,21 +15,25 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import uuid
 
 
-PROXY_VARS = {"http_proxy", "https_proxy", "all_proxy", "no_proxy", "ftp_proxy",
-              "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "FTP_PROXY"}
+# Docker CLI 会把 ~/.docker/config.json 的 proxies.default 注入每个容器：
+# 容器里 npm 连 127.0.0.1:1087 必然 ECONNREFUSED。烤镜像走 npmmirror 不需要代理，
+# 这里用一个空的临时 DOCKER_CONFIG，让 CLI 不注入任何 proxy 变量。
+_EMPTY_DOCKER_CONFIG = tempfile.mkdtemp(prefix="dsh-noproxy-docker-")
+with open(os.path.join(_EMPTY_DOCKER_CONFIG, "config.json"), "w") as _f:
+    json.dump({}, _f)
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess:
-    # Docker CLI 会把宿主代理环境注入容器：容器里 npm 连 127.0.0.1:1087 会 ECONNREFUSED。
-    # 烤镜像不需要代理（registry 走国内镜像源），启动 docker 子进程前剔除代理变量。
-    env = {k: v for k, v in os.environ.items() if k not in PROXY_VARS}
+    env = dict(os.environ, DOCKER_CONFIG=_EMPTY_DOCKER_CONFIG)
     return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
 
