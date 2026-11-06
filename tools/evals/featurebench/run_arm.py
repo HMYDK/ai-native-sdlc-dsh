@@ -69,6 +69,29 @@ def load_instance(task_id: str):
     raise SystemExit(f"task not found in dataset: {task_id}")
 
 
+
+def strip_patch_paths(patch: str, prefixes: tuple[str, ...]) -> str:
+    """从官方提取的补丁里去掉流程制品目录（.ai/ 等），只保留代码交付物。
+
+    为什么：B 组的 SDLC 流程会在 /testbed/.ai 下写任务/裁决/RSI 制品；官方
+    complete_runtime 用 `git add -A` 会把这些一起抽进 model_patch，单次可达 19MB。
+    官方评分只需要代码，流程制品作为证据单独保留（patch.full.diff + sessions）。
+    """
+    sections: list[str] = []
+    current: list[str] = []
+    keep = True
+    for line in patch.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            if current and keep:
+                sections.append("".join(current))
+            current = [line]
+            keep = not any(f"b/{p}" in line for p in prefixes)
+        else:
+            current.append(line)
+    if current and keep:
+        sections.append("".join(current))
+    return "".join(sections)
+
 def leak_signature(row: dict) -> str:
     """从 gold restore patch 里取一个实现函数签名，用于容器泄漏扫描。"""
     gold = preprocess_hf_patch(row.get("patch", ""), row.get("FAIL_TO_PASS", []))
@@ -329,6 +352,10 @@ def main() -> int:
         patch = rh.complete_runtime(container, inst, out / "runtime.log")
         if patch is None:
             raise RuntimeError("complete_runtime failed")
+        full_patch = patch
+        patch = strip_patch_paths(full_patch, (".ai/", ".dsh/"))
+        if len(patch) != len(full_patch):
+            (out / "patch.full.diff").write_text(full_patch, encoding="utf-8")
         (out / "patch.diff").write_text(patch, encoding="utf-8")
         patch_sha = hashlib.sha256(patch.encode("utf-8")).hexdigest()
         run_meta = {}
@@ -352,6 +379,8 @@ def main() -> int:
             "agent_completed": bool(run_meta.get("done")),
             "agent_failure": agent_failed,
             "patch_chars": len(patch),
+            "full_patch_chars": len(full_patch),
+            "artifact_patch_chars": len(full_patch) - len(patch),
             "patch_sha256": patch_sha,
             "sdlc_tool_calls": (json.loads((out / "adoption.json").read_text())
                                 .get("sdlc_tool_calls", {}) if (out / "adoption.json").exists() else {}),
