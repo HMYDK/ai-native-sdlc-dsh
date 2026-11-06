@@ -88,6 +88,11 @@ python3 tools/evals/featurebench/run_matrix.py --manifest tools/evals/featureben
 python3 tools/evals/featurebench/evaluate_matrix.py --manifest tools/evals/featurebench/manifest.yml \
   --runs-root /tmp/fb-runs --config /tmp/fb/config.toml --execute
 
+# 6. 汇总报告数据（官方成绩 + 成本 + B 组流程采纳 + 验证者/官方错配 + 泄漏扫描）
+python3 tools/evals/featurebench/summarize_runs.py \
+  --manifest tools/evals/featurebench/manifest.yml --runs-root /tmp/fb-runs \
+  --out /tmp/fb-runs/report-data.json --markdown /tmp/fb-runs/report.md
+
 # 手工逐臂评分（对每个 arm 的 patch 生成 predictions.jsonl）
 python3 tools/evals/featurebench/make_predictions.py --task-id <id> \
   --out-prefix /tmp/fb-runs/<id>/predictions \
