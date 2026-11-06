@@ -75,12 +75,16 @@ while (Date.now() - t0 < 3 * 60 * 60 * 1000) {
   await sleep(5000);
   // 自动批准一次危险操作（官方镜像里 workspace-write 沙箱无可用后端）
   await evalJS(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>['允许一次','允许本次操作','允许'].includes((x.innerText||'').trim()));if(b){b.click();return 'approved'}return ''})()`);
-  const state = await evalJS(`JSON.stringify({body:document.body.innerText.slice(-6000)})`);
+  const state = await evalJS(`JSON.stringify({body:document.body.innerText.slice(-8000)})`);
   const st = JSON.parse(state);
   const used = parseUsage(st.body);
   if (used !== null) usageSeen = String(used);
   if (maxTokens > 0 && used !== null && used > maxTokens) { aborted = 'over_budget'; break; }
-  if (st.body.includes('已完成')) { done = true; break; }
+  // 不能只看「已完成」：todo 控件里的 "0/5 已完成" 会误判（实测 B 组被提前截断，
+  // 产出 1.5MB 垃圾 patch）。真实完成标记是 turn 尾部的「已完成，用时 N 秒」，
+  // 而生成中页面会出现「深度求索中」。
+  const finished = st.body.includes('已完成，用时') && !st.body.includes('深度求索中');
+  if (finished) { done = true; break; }
   if (st.body === lastBody) idleSince += 5000; else { idleSince = 0; lastBody = st.body; }
 }
 const finalState = JSON.parse(await evalJS(`JSON.stringify({body:document.body.innerText, editor:((document.querySelector('[data-composer-input]')||{}).innerText||'')})`));
