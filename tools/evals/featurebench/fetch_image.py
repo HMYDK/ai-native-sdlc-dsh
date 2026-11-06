@@ -17,6 +17,7 @@ def main():
     ap.add_argument('--mirror', default='https://docker.jiaxin.site')
     ap.add_argument('--workers', type=int, default=16)
     ap.add_argument('--chunk-mb', type=int, default=8)
+    ap.add_argument('--blob-cache', help='已验证 blob 的共享缓存目录（多镜像复用时只下一次）')
     args = ap.parse_args()
 
     repo = args.image
@@ -72,9 +73,23 @@ def main():
         raise RuntimeError('manifest fetch failed')
     log(f'manifest ok layers={len(manifest["layers"])} config={manifest["config"]["digest"][:20]}')
 
+    def cache_path(hexd):
+        return os.path.join(args.blob_cache, hexd) if args.blob_cache else None
+
     def download(digest, size):
         hexd = digest.split(':', 1)[1]
         path = f'{args.out}/blobs/sha256/{hexd}'
+        cp = cache_path(hexd)
+        if cp and os.path.exists(cp) and os.path.getsize(cp) == size:
+            with open(cp, 'rb') as f:
+                if hashlib.sha256(f.read()).hexdigest() == hexd:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    if not os.path.exists(path):
+                        try:
+                            os.link(cp, path)
+                        except OSError:
+                            import shutil; shutil.copyfile(cp, path)
+                    log(f'blob {hexd[:12]} from cache'); return
         if os.path.exists(path) and os.path.getsize(path) == size:
             with open(path, 'rb') as f:
                 if hashlib.sha256(f.read()).hexdigest() == hexd:
@@ -128,12 +143,31 @@ def main():
         with open(path, 'rb') as f:
             if hashlib.sha256(f.read()).hexdigest() != hexd:
                 raise RuntimeError('blob digest mismatch')
+        if args.blob_cache:
+            os.makedirs(args.blob_cache, exist_ok=True)
+            try:
+                if not os.path.exists(cp):
+                    os.link(path, cp)
+            except OSError:
+                import shutil; shutil.copyfile(path, cp)
         log(f'blob {hexd[:12]} OK ({size/1024/1024:.0f}MB) in {time.time()-t0:.0f}s')
 
-    download(manifest['config']['digest'], manifest['config']['size'])
-    for n, layer in enumerate(sorted(manifest['layers'], key=lambda x: -x['size'])):
-        log(f'layer {n+1}/{len(manifest["layers"])} {layer["digest"][:20]} {layer["size"]/1024/1024:.0f}MB')
-        download(layer['digest'], layer['size'])
+    blobs = [manifest['config']] + sorted(manifest['layers'], key=lambda x: -x['size'])
+    for n, layer in enumerate(blobs):
+        log(f"blob {n+1}/{len(blobs)} {layer['digest'][:20]} {layer['size']/1024/1024:.0f}MB")
+        for attempt in range(3):
+            try:
+                download(layer['digest'], layer['size'])
+                break
+            except Exception as e:
+                log(f"blob retry {attempt+1}/3 after error: {e}")
+                hexd = layer['digest'].split(':', 1)[1]
+                try:
+                    os.unlink(f'{args.out}/blobs/sha256/{hexd}')
+                except FileNotFoundError:
+                    pass
+                if attempt == 2:
+                    raise
     idx = {'schemaVersion': 2, 'manifests': [{
         'mediaType': manifest.get('mediaType', 'application/vnd.docker.distribution.manifest.v2+json'),
         'digest': args.digest,
