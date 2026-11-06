@@ -45,6 +45,8 @@ def main() -> int:
     ap.add_argument("--config", help="fb eval 的 config.toml（可选）")
     ap.add_argument("--fb-bin", default="fb")
     ap.add_argument("--out", help="summary.json 路径（默认 <runs-root>/summary.json）")
+    ap.add_argument("--only-task", action="append", default=[],
+                    help="只评分指定 task id（可重复，用于分批补评）")
     ap.add_argument("--execute", action="store_true", help="真正调用 fb eval（默认 dry-run）")
     args = ap.parse_args()
 
@@ -53,8 +55,11 @@ def main() -> int:
     out_path = Path(args.out) if args.out else runs_root / "summary.json"
     summary = {"manifest": str(Path(args.manifest).resolve()), "tasks": []}
 
+    only = set(args.only_task)
     jobs = []
     for task in manifest["tasks"]:
+        if only and task["id"] not in only:
+            continue
         task_dir = runs_root / task["id"].split(".")[0]
         for arm in ("standard", "sdlc"):
             d = task_dir / arm
