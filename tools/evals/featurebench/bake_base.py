@@ -15,14 +15,22 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
 import uuid
 
 
+PROXY_VARS = {"http_proxy", "https_proxy", "all_proxy", "no_proxy", "ftp_proxy",
+              "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "FTP_PROXY"}
+
+
 def run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+    # Docker CLI 会把宿主代理环境注入容器：容器里 npm 连 127.0.0.1:1087 会 ECONNREFUSED。
+    # 烤镜像不需要代理（registry 走国内镜像源），启动 docker 子进程前剔除代理变量。
+    env = {k: v for k, v in os.environ.items() if k not in PROXY_VARS}
+    return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
 
 def main() -> int:
