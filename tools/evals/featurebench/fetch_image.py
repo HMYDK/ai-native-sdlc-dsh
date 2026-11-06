@@ -108,24 +108,24 @@ def main():
                 with rr:
                     if idx[0] >= len(ranges): return
                     i = idx[0]; idx[0] += 1
-                s, e = ranges[i]; want = e - s + 1
+                s, end = ranges[i]; want = end - s + 1
                 for attempt in range(8):
                     try:
-                        resp = get(url, {'Range': f'bytes={s}-{e}'})
+                        resp = get(url, {'Range': f'bytes={s}-{end}'})
                         data = resp.read()
                         if getattr(resp, 'status', None) not in (206, 200) or len(data) != want:
-                            raise RuntimeError(f'range {s}-{e} bad')
+                            raise RuntimeError(f'range {s}-{end} bad')
                         os.pwrite(fd, data, s)
                         with rr:
                             done[0] += 1; done_b[0] += want
                         break
-                    except urllib.error.HTTPError as e:
-                        if e.code == 401: token(force=True)
+                    except urllib.error.HTTPError as err:
+                        if err.code == 401: token(force=True)
                         time.sleep(1 + attempt)
                     except Exception:
                         time.sleep(1 + attempt)
                 else:
-                    errs.append((s, e))
+                    errs.append((s, end))
         threads = [threading.Thread(target=worker, daemon=True) for _ in range(args.workers)]
         for t in threads: t.start()
         last = [0, t0, 0]
