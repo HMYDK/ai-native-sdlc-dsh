@@ -1,0 +1,9 @@
+# FeatureBench `fb eval` 的最小配置（只用于官方评分；推理由本目录的 run_arm.py 负责）。
+# 复制为 config.toml 后按需填写；HF_TOKEN 仅在需要更高限流时使用。
+[env_vars]
+HF_ENDPOINT=""
+HF_TOKEN=""
+GITHUB_TOKEN=""
+
+[dataset]
+revision="v1.1"

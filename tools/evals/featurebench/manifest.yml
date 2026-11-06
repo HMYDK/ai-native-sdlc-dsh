@@ -1,0 +1,115 @@
+# FeatureBench A/B 评测的预注册清单。
+#
+# 为什么要有这个文件：issue #8 的 AC-005/AC-006 要求「任务与规则在运行前固定、
+# 可审查、可复跑」。本文件在第一次真实 A/B 运行之前提交；之后修改任务清单或
+# 规则必须单独提交并在报告里说明，否则无法排除「按结果挑样本」。
+#
+# 版本全部钉死：换 DSH、换插件、换数据版本都必须新开实验，不能混在一起统计。
+
+version: 1
+date: "2026-11-06"
+
+benchmark:
+  name: FeatureBench
+  package: "featurebench==0.3.0"        # PyPI；官方 fb infer/fb eval
+  dataset: LiberCoders/FeatureBench
+  # v1.1 的 HF revision。fast split 100 条，官方评分器。
+  revision: "76b4a4566e04f4bcc13c35125d4f301791efa736"
+  split: fast
+  # 官方评分器命令（见 README）：fb eval -p <predictions> --split fast --data-version v1.1
+
+runtime:
+  # 评测容器内安装的 DSH CLI（npm 包），与 App 0.2.1 系列同源。
+  dsh_cli: "0.2.1-rc.5"
+  # 被测插件。tarball 由本仓库 npm pack --workspace packages/sdlc 生成。
+  plugin_package: "@ai-native-sdlc-plugin/dsh-sdlc"
+  plugin_version: "0.6.0"
+  plugin_tarball_sha256: "bac39b42037ea09747fbf5924d7d2cda1381ca31d7b039843fc4f46d8ee6dc88"
+  # 官方镜像的操作系统与预装环境（实测 packaging 镜像）。
+  base_os: "Ubuntu 22.04.5 / Python 3.11 / conda testbed env"
+  node_in_container: "v24.21.0 (linux-x64 tarball, baked into fb-eval-base)"
+  # 两臂共用的模型路由（隔离 DSH_HOME，不读宿主 ~/.dsh）。
+  provider: "deepseek-account"
+  model: "deepseek-flash"
+  reasoning_effort: "max"
+
+# 两臂的 preset。A 组是 DSH 内置标准 preset；B 组是本插件的「AI 原生 SDLC」preset。
+# B 组追加固定引导文本：单任务实测中 B 组加载了 preset 却一次 sdlc_* 都没调用，
+# 为了让 Harness 真正被使用，B 的 prompt 追加 workflow 引导。这是 treatment 差异，
+# 必须在报告里与「纯 preset 对比」区分开，A 组不追加。
+arms:
+  standard:
+    preset: "标准模式"
+    prompt_suffix: ""
+  sdlc:
+    preset: "AI 原生 SDLC"
+    prompt_suffix: |
+
+      ## Evaluation requirement
+
+      Use the AI-native SDLC workflow for this task before you finish:
+      1. create a task with `sdlc_task_create`;
+      2. write intent/spec/plan via `sdlc_artifact_write` and advance stages with `sdlc_task_advance`;
+      3. run `sdlc_verify` before claiming completion and address its findings.
+
+# 任务选择规则（运行前固定，禁止按结果挑）：
+#   repos 固定为下列 5 个；每个 repo 内只取 lv1 任务，按 instance_id 字典序取第一个。
+# 5 个不同 repo 是为了避免同 repo 任务高度相关；代价是每个 repo 一个 ~10-11GB 镜像。
+selection_rule: "repos 固定为 tasks[].repo 的 5 个 repo；每个 repo 内取 lv1 任务，按 instance_id 字典序的第一个"
+
+tasks:
+  - id: "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    repo: "pypa/packaging"
+    level: 1
+    image: "libercoders/featurebench-specs_packaging-instance_c393a6a8"
+    image_digest: "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916"
+  - id: "sympy__sympy.c1097516.test_inverse.c240ffe7.lv1"
+    repo: "sympy/sympy"
+    level: 1
+    image: "libercoders/featurebench-specs_sympy-instance_3d889fef"
+    image_digest: "sha256:207ff124011e74d2b6abbdce2f8d3244546949cd0abfb7949d7dd414368f8935"
+  - id: "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    repo: "pydantic/pydantic"
+    level: 1
+    image: "libercoders/featurebench-specs_pydantic-instance_78693714"
+    image_digest: "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b"
+  - id: "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    repo: "mwaskom/seaborn"
+    level: 1
+    image: "libercoders/featurebench-specs_seaborn-instance_52738fbb"
+    image_digest: "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1"
+  - id: "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    repo: "sphinx-doc/sphinx"
+    level: 1
+    image: "libercoders/featurebench-specs_sphinx-instance_6191afb1"
+    image_digest: "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268"
+
+# 运行纪律（用户确认的「宽松上限」档）。
+run_policy:
+  timeout_seconds: 2700          # 单 run 墙钟上限 45 分钟
+  max_tokens_per_run: 40000000   # 单 run 上限 40M tok（UI 口径），超限中止并记录
+  total_token_budget: 200000000  # 全部运行 200M tok 上限
+  infra_retries: 1               # 仅基础设施错误重试 1 次
+  agent_retries: 0               # agent 失败/超时/unresolved 不重试
+  order: alternating             # 奇数任务先 A，偶数任务先 B，记录顺序
+  # 允许出现在结果目录里的失败分类（全部计入分母，不静默剔除）
+  failure_classes: [timeout, over_budget, infra_error, empty_patch, agent_error, unresolved]
+
+# 观测与泄漏：每个镜像在开跑前用 gold 实现签名扫描容器（结果写 runs/<task>/leak_scan.txt）。
+# 已知：packaging 镜像里有 pip vendored packaging 25.0 / 26.0 sdist 等参考副本，
+# 两个 arm 都能读到；不改官方镜像，只在报告中记录（见 README「已知限制」）。
+leak_scan:
+  enabled: true
+  method: "grep gold restore patch 中的函数签名，排除 /testbed 与 /proc /sys"
+
+# 证据与版本记录（每次 run 必须记录，见 run_arm.py 产出的 meta.json）。
+record_per_run:
+  - task_id, arm, preset
+  - model_provider, model, reasoning_effort
+  - dsh_cli_version, plugin_version
+  - image, image_digest
+  - started_at, elapsed_seconds, token_usage
+  - agent_completed, finish_reason
+  - patch_chars, patch_sha256
+  - sdlc_tool_calls（B 组：调用过哪些 sdlc_*、是否 sdlc_verify）
+  - leak_scan_hits

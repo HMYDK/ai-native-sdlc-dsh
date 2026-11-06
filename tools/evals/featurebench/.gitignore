@@ -1,0 +1,7 @@
+# 本目录只保存可复跑脚本与预注册清单；以下为本地运行产物，不提交。
+runs/
+*.jsonl
+*.log
+*.diff
+prompt.txt
+sessions/

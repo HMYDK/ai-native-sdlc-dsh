@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""FeatureBench A/B 单臂执行器：官方 mask/restore + 无宿主挂载 + Web GUI 驱动。
+
+模式：
+  agent  —— 初始化官方任务环境，启动容器内 DSH Web，宿主无头 Chrome 驱动
+            「标准模式」或「AI 原生 SDLC」preset，跑完用官方 complete_runtime 抽 patch；
+  empty  —— 只初始化、不产生改动（负对照：官方评分器应当 unresolved）。
+
+安全门：默认 dry-run；必须 `--execute` 才启动容器/模型调用（AC-007：默认不触发昂贵调用）。
+
+退出码：0 成功；2 基础设施错误（可重试一次）；3 agent 未完成（不重试，结果保留）。
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+import logging
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import uuid
+from pathlib import Path
+
+import docker
+import yaml
+from datasets import load_dataset
+from featurebench.harness.utils import preprocess_hf_patch
+from featurebench.infer.container import ContainerManager
+from featurebench.infer.models import TaskInstance
+from featurebench.infer.runtime import RuntimeHandler
+
+HERE = Path(__file__).resolve().parent
+DEFAULT_MANIFEST = HERE / "manifest.yml"
+CHROME_CANDIDATES = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+]
+PRESET_LABEL = {"standard": "标准模式", "sdlc": "AI 原生 SDLC"}
+INFRA_EXIT, AGENT_EXIT = 2, 3
+
+
+def find_chrome() -> str:
+    for p in CHROME_CANDIDATES:
+        if Path(p).exists():
+            return p
+    return shutil.which("google-chrome") or shutil.which("chromium") or ""
+
+
+def load_manifest(path: Path) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def load_instance(task_id: str):
+    ds = load_dataset("LiberCoders/FeatureBench", "default", split="fast", revision="v1.1")
+    for row in ds:
+        if row["instance_id"] == task_id:
+            d = dict(row)
+            d["level"] = 1 if task_id.endswith(".lv1") else 2
+            return d, TaskInstance.from_dict(d)
+    raise SystemExit(f"task not found in dataset: {task_id}")
+
+
+def leak_signature(row: dict) -> str:
+    """从 gold restore patch 里取一个实现函数签名，用于容器泄漏扫描。"""
+    gold = preprocess_hf_patch(row.get("patch", ""), row.get("FAIL_TO_PASS", []))
+    lines = [ln[1:] for ln in gold.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
+    for ln in lines:
+        t = ln.strip()
+        if t.startswith("def ") and len(t) > 25:
+            return t
+    for ln in lines:
+        if len(ln.strip()) > 40:
+            return ln.strip()
+    return ""
+
+
+def make_inject_tar(credentials: Path, plugin_dir: Path, setup_script: Path) -> io.BytesIO:
+    """容器只需要这几样东西；不挂任何宿主目录（事故记录见 README）。"""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        tar.add(str(credentials), arcname="inject/credentials.yaml")
+        tar.add(str(plugin_dir), arcname="inject/plugin")
+        tar.add(str(setup_script), arcname="inject/setup-web.sh")
+    buf.seek(0)
+    return buf
+
+
+def parse_adoption(sessions_dir: Path) -> dict:
+    """从 DSH session 日志统计 B 组是否真的用了 SDLC 工具（zstandard 可选依赖）。"""
+    try:
+        import zstandard  # type: ignore
+    except Exception:
+        return {"available": False, "reason": "zstandard not installed (uv pip install zstandard)"}
+    names: dict[str, int] = {}
+    files = list(sessions_dir.rglob("*.zstd")) if sessions_dir.exists() else []
+    for f in files:
+        try:
+            raw = zstandard.ZstdDecompressor().stream_reader(open(f, "rb")).read()
+        except Exception:
+            continue
+        for line in raw.splitlines():
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+
+            def walk(o):
+                if isinstance(o, dict):
+                    if o.get("type") == "tool-call" and isinstance(o.get("name"), str):
+                        names[o["name"]] = names.get(o["name"], 0) + 1
+                    for v in o.values():
+                        walk(v)
+                elif isinstance(o, list):
+                    for v in o:
+                        walk(v)
+
+            walk(d)
+    sdlc = {k: v for k, v in names.items() if k.startswith("sdlc_")}
+    return {
+        "available": True,
+        "session_files": len(files),
+        "tool_calls": names,
+        "sdlc_tool_calls": sdlc,
+        "used_sdlc": bool(sdlc),
+        "called_sdlc_verify": "sdlc_verify" in sdlc,
+    }
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
+    ap.add_argument("--task-id", required=True)
+    ap.add_argument("--arm", required=True, choices=["standard", "sdlc"])
+    ap.add_argument("--mode", default="agent", choices=["agent", "empty"])
+    ap.add_argument("--image", required=True, help="派生镜像，例如 fb-eval-base:sympy")
+    ap.add_argument("--out", required=True, help="结果目录（不提交）")
+    ap.add_argument("--plugin-dir", help="解包后的插件目录（含 dsh-sdlc/ 与 js-yaml/）")
+    ap.add_argument("--credentials", help="隔离的 .credentials.yaml")
+    ap.add_argument("--web-port", type=int, default=3115)
+    ap.add_argument("--cdp-port", type=int, default=9400)
+    ap.add_argument("--timeout", type=int, help="覆盖 manifest 的单 run 墙钟上限（秒）")
+    ap.add_argument("--max-tokens", type=int, help="覆盖 manifest 的单 run token 上限")
+    ap.add_argument("--keep-container", action="store_true", help="失败时保留容器便于排查")
+    ap.add_argument("--execute", action="store_true", help="真正执行（默认 dry-run）")
+    args = ap.parse_args()
+
+    manifest = load_manifest(Path(args.manifest))
+    tasks = {t["id"]: t for t in manifest["tasks"]}
+    if args.task_id not in tasks:
+        print(f"task {args.task_id} not in manifest (预注册清单之外)", file=sys.stderr)
+        return 2
+    task = tasks[args.task_id]
+    arm_cfg = manifest["arms"][args.arm]
+    policy = manifest.get("run_policy", {})
+    timeout = args.timeout or int(policy.get("timeout_seconds", 2700))
+    max_tokens = args.max_tokens or int(policy.get("max_tokens_per_run", 0))
+    out = Path(args.out).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[logging.FileHandler(out / "runtime.log"), logging.StreamHandler()],
+    )
+    log = logging.getLogger("run_arm")
+
+    chrome = find_chrome()
+    node = shutil.which("node")
+    driver = HERE / "driver.mjs"
+    if args.mode == "agent":
+        missing = [n for n, v in [("chrome", chrome), ("node", node),
+                                  ("--plugin-dir", args.plugin_dir),
+                                  ("--credentials", args.credentials)] if not v]
+        if missing:
+            print("missing prerequisites:", missing, file=sys.stderr)
+            return 2
+
+    if not args.execute:
+        print("[dry-run] task:", args.task_id, "arm:", args.arm, "mode:", args.mode)
+        print("[dry-run] image:", args.image, "preset:", arm_cfg["preset"])
+        print("[dry-run] policy: timeout=%ss max_tokens=%s" % (timeout, max_tokens))
+        print("[dry-run] prompt suffix chars:", len(arm_cfg.get("prompt_suffix") or ""))
+        print("[dry-run] add --execute to actually run")
+        return 0
+
+    row, inst = load_instance(args.task_id)
+    prompt = row["problem_statement"] + (arm_cfg.get("prompt_suffix") or "")
+    (out / "prompt.txt").write_text(prompt, encoding="utf-8")
+
+    client = docker.from_env()
+    name = f"fb-{args.mode}-{args.arm}-{uuid.uuid4().hex[:6]}"
+    container = None
+    chrome_proc = None
+    infra_error = None
+    agent_failed = None
+    try:
+        container = client.containers.run(
+            args.image, "sleep infinity", detach=True, platform="linux/amd64", name=name,
+            ports={f"{args.web_port}/tcp": ("127.0.0.1", args.web_port)},
+        )
+        # 官方镜像里由 volume 留下的空目录也清掉（不挂载，但目录可能随 commit 保留）。
+        container.exec_run(["bash", "-lc", "rm -rf /eval /run-eval; true"])
+        log.info("container %s up", container.name)
+
+        cm = ContainerManager(log)
+        orig_exec = cm.exec_command
+
+        def patched_exec(container_, command, timeout=None, workdir=None, log_file=None):
+            # 官方初始化会 apt 装 tmux/asciinema；CN 网络不可靠且与评测无关，跳过。
+            if "apt-get update" in command and "tmux" in command:
+                return (0, "")
+            return orig_exec(container_, command, timeout=timeout, workdir=workdir, log_file=log_file)
+
+        cm.exec_command = patched_exec
+        rh = RuntimeHandler(cm, log)
+        init_log = out / "init.log"
+        init_log.touch()
+        if not rh.initialize_runtime(container, inst, init_log):
+            raise RuntimeError("initialize_runtime failed")
+        rh.clear_package_caches(container, init_log)
+        log.info("official masking + git re-init + cache clear done")
+
+        # 泄漏面自检 + gold 签名扫描（不修改官方镜像，只记录）。
+        sig = leak_signature(row)
+        check = container.exec_run(["bash", "-lc",
+            'for p in /root/my_repo /eval /run-eval /tmp/mask.patch; do [ -e "$p" ] && echo "LEAK:$p"; done; echo CHECK_DONE'])
+        leak_hits = ""
+        if sig:
+            scan = container.exec_run(["bash", "-lc",
+                f"grep -rl --binary-files=without-match {json.dumps(sig)} / "
+                "--exclude-dir=proc --exclude-dir=sys --exclude-dir=dev --exclude-dir=testbed 2>/dev/null | head -50 || true"])
+            leak_hits = scan.output.decode("utf-8", "replace")
+        (out / "leak_scan.txt").write_text(
+            "isolation check:\n" + check.output.decode("utf-8", "replace") +
+            "\nsignature:\n" + sig + "\nhits:\n" + leak_hits, encoding="utf-8")
+        if "LEAK:" in check.output.decode():
+            raise RuntimeError("isolation check failed: " + check.output.decode())
+
+        if args.mode == "agent":
+            credentials = Path(args.credentials).resolve()
+            plugin_dir = Path(args.plugin_dir).resolve()
+            container.put_archive("/opt", make_inject_tar(credentials, plugin_dir, HERE / "setup-web.sh"))
+            req = container.exec_run(
+                ["bash", "-lc", "bash /opt/inject/setup-web.sh"],
+                environment={"WEB_PORT": str(args.web_port),
+                             "DSH_EVAL_PROVIDER": manifest["runtime"].get("provider", "deepseek-account"),
+                             "DSH_EVAL_MODEL": manifest["runtime"].get("model", "deepseek-flash")},
+            )
+            (out / "setup.log").write_text(req.output.decode("utf-8", "replace"))
+            if req.exit_code != 0:
+                raise RuntimeError("setup-web failed: " + (out / "setup.log").read_text()[-1500:])
+
+            token = ""
+            for _ in range(60):
+                time.sleep(1)
+                r = container.exec_run(["bash", "-lc", "cat /opt/dsh-eval/token.txt 2>/dev/null"])
+                token = r.output.decode().strip().removeprefix("token=").strip()
+                if token:
+                    break
+            if not token:
+                raise RuntimeError("no web token")
+
+            url = f"http://127.0.0.1:{args.web_port}/?token={token}"
+            profile_dir = f"/tmp/chromeprof-fb-{uuid.uuid4().hex[:8]}"
+            shutil.rmtree(profile_dir, ignore_errors=True)
+            chrome_log = open(out / "chrome.log", "w")
+            chrome_proc = subprocess.Popen(
+                [chrome, "--headless=new", "--disable-gpu", "--no-first-run",
+                 "--no-default-browser-check", f"--remote-debugging-port={args.cdp_port}",
+                 f"--user-data-dir={profile_dir}", url],
+                stdout=chrome_log, stderr=chrome_log)
+            for _ in range(60):
+                time.sleep(1)
+                q = subprocess.run(["curl", "-s", "-m", "2", f"http://127.0.0.1:{args.cdp_port}/json/list"],
+                                   capture_output=True, text=True)
+                if str(args.web_port) in q.stdout and "page" in q.stdout:
+                    break
+            else:
+                raise RuntimeError("chrome CDP not ready")
+
+            prompt_file = out / "prompt.txt"
+            run_json = out / "run.json"
+            try:
+                r = subprocess.run(
+                    [node, str(driver), str(args.cdp_port), PRESET_LABEL[args.arm],
+                     str(prompt_file), str(run_json)],
+                    capture_output=True, text=True, timeout=timeout,
+                    env=dict(os.environ, WEB_PORT=str(args.web_port), MAX_TOKENS=str(max_tokens)),
+                )
+            except subprocess.TimeoutExpired as e:
+                (out / "agent_run.log").write_text(f"TIMEOUT after {timeout}s\n{e.stdout or ''}\n{e.stderr or ''}")
+                agent_failed = "timeout"
+                r = None
+            if r is not None:
+                (out / "agent_run.log").write_text(r.stdout + "\n" + r.stderr)
+                if r.returncode != 0:
+                    agent_failed = f"driver_error(exit={r.returncode})"
+                else:
+                    payload = json.loads(run_json.read_text())
+                    if payload.get("aborted") == "over_budget":
+                        agent_failed = "over_budget"
+                    elif not payload.get("done"):
+                        agent_failed = "agent_incomplete"
+
+            # 会话日志取出并统计流程采纳（容器删除前）。
+            try:
+                arch, _ = container.get_archive("/opt/dsh-eval/sessions")
+                data = b"".join(arch)
+                sess_dir = out / "sessions"
+                shutil.rmtree(sess_dir, ignore_errors=True)
+                with tarfile.open(fileobj=io.BytesIO(data)) as t:
+                    t.extractall(sess_dir)
+                adoption = parse_adoption(sess_dir)
+            except Exception as e:  # 证据缺失不能吞掉，写下来
+                adoption = {"available": False, "reason": f"session export failed: {e}"}
+            (out / "adoption.json").write_text(json.dumps(adoption, ensure_ascii=False, indent=2))
+
+        patch = rh.complete_runtime(container, inst, out / "runtime.log")
+        if patch is None:
+            raise RuntimeError("complete_runtime failed")
+        (out / "patch.diff").write_text(patch, encoding="utf-8")
+        patch_sha = hashlib.sha256(patch.encode("utf-8")).hexdigest()
+        run_meta = {}
+        if (out / "run.json").exists():
+            try:
+                run_meta = json.loads((out / "run.json").read_text())
+            except Exception:
+                run_meta = {}
+        meta = {
+            "task_id": inst.instance_id,
+            "arm": args.arm,
+            "mode": args.mode,
+            "preset": arm_cfg["preset"],
+            "image": args.image,
+            "image_digest": task.get("image_digest"),
+            "dsh_cli": manifest["runtime"].get("dsh_cli"),
+            "plugin_version": manifest["runtime"].get("plugin_version"),
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "elapsed_seconds": run_meta.get("elapsed_s"),
+            "token_usage": run_meta.get("usage_tokens"),
+            "agent_completed": bool(run_meta.get("done")),
+            "agent_failure": agent_failed,
+            "patch_chars": len(patch),
+            "patch_sha256": patch_sha,
+            "sdlc_tool_calls": (json.loads((out / "adoption.json").read_text())
+                                .get("sdlc_tool_calls", {}) if (out / "adoption.json").exists() else {}),
+            "leak_scan_hits": [ln for ln in leak_hits.splitlines() if ln.strip()],
+            "policy": {"timeout_seconds": timeout, "max_tokens_per_run": max_tokens},
+        }
+        (out / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+        print(json.dumps(meta, ensure_ascii=False, indent=2))
+        if agent_failed:
+            return AGENT_EXIT
+        return 0
+    except Exception as e:
+        infra_error = e
+        log.error("INFRA ERROR: %s", e)
+        return INFRA_EXIT
+    finally:
+        if chrome_proc:
+            chrome_proc.terminate()
+        if container:
+            if infra_error and args.keep_container:
+                print("container kept for debugging:", container.name, file=sys.stderr)
+            else:
+                try:
+                    container.remove(force=True)
+                except Exception:
+                    pass
+
+
+if __name__ == "__main__":
+    sys.exit(main())
