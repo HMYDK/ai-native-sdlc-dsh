@@ -64,7 +64,7 @@ await call('Input.dispatchKeyEvent', {type:'rawKeyDown', key:'Enter', code:'Ente
 await call('Input.dispatchKeyEvent', {type:'keyUp', key:'Enter', code:'Enter', windowsVirtualKeyCode:13, nativeVirtualKeyCode:13});
 const t0 = Date.now();
 const maxTokens = Number(process.env.MAX_TOKENS || '0');
-let lastBody = ''; let idleSince = 0; let done = false; let aborted = null; let usageSeen = '';
+let lastBody = ''; let idleSince = 0; let done = false; let aborted = null; let usageSeen = ''; let turnError = false;
 const parseUsage = (body) => {
   const m = body.match(/用量\s*([\d.]+)\s*([KMG]?) tok/);
   if (!m) return null;
@@ -81,14 +81,20 @@ while (Date.now() - t0 < 3 * 60 * 60 * 1000) {
   if (used !== null) usageSeen = String(used);
   if (maxTokens > 0 && used !== null && used > maxTokens) { aborted = 'over_budget'; break; }
   // 不能只看「已完成」：todo 控件里的 "0/5 已完成" 会误判（实测 B 组被提前截断，
-  // 产出 1.5MB 垃圾 patch）。真实完成标记是 turn 尾部的「已完成，用时 N 秒」，
-  // 而生成中页面会出现「深度求索中」。
-  const finished = st.body.includes('已完成，用时') && !st.body.includes('深度求索中');
-  if (finished) { done = true; break; }
+  // 产出 1.5MB 垃圾 patch）。真实完成标记是 turn 尾部的「已完成，用时 N 秒」。
+  // 另外 turn 可能以错误结束（实测 DeepSeek stream 在 message_stop 前断开），页面
+  // 不会再出现完成标记，只能靠「无『深度求索中』且页面静止 30s」判定回合结束，
+  // 并标记 turn_error 交给上层按基础设施失败处理（允许重试一次）。
+  const generating = st.body.includes('深度求索中');
+  const completed = st.body.includes('已完成，用时');
+  if (completed && !generating) { done = true; break; }
   if (st.body === lastBody) idleSince += 5000; else { idleSince = 0; lastBody = st.body; }
+  if (!generating && idleSince >= 30000 && st.body.length > 0) {
+    done = true; turnError = !completed; break;
+  }
 }
 const finalState = JSON.parse(await evalJS(`JSON.stringify({body:document.body.innerText, editor:((document.querySelector('[data-composer-input]')||{}).innerText||'')})`));
-const payload = {preset: presetLabel, done, aborted, usage_tokens: usageSeen ? Number(usageSeen) : null,
+const payload = {preset: presetLabel, done, turn_error: turnError, aborted, usage_tokens: usageSeen ? Number(usageSeen) : null,
                  elapsed_s: Math.round((Date.now()-t0)/1000), body: finalState.body};
 writeFileSync(outFile, JSON.stringify(payload, null, 2));
 console.log('DONE', done, 'elapsed', payload.elapsed_s, 'bodyTail:', finalState.body.slice(-500).replace(/\n/g,' | '));

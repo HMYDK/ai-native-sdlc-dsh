@@ -306,7 +306,9 @@ def main() -> int:
                     agent_failed = f"driver_error(exit={r.returncode})"
                 else:
                     payload = json.loads(run_json.read_text())
-                    if payload.get("aborted") == "over_budget":
+                    if payload.get("turn_error"):
+                        agent_failed = "turn_error"
+                    elif payload.get("aborted") == "over_budget":
                         agent_failed = "over_budget"
                     elif not payload.get("done"):
                         agent_failed = "agent_incomplete"
@@ -360,6 +362,10 @@ def main() -> int:
         print(json.dumps(meta, ensure_ascii=False, indent=2))
         if agent_failed:
             return AGENT_EXIT
+        if run_meta.get("turn_error"):
+            # 模型流在 message_stop 前断开（实测）属于外部/基础设施失败，按策略允许重试一次。
+            log.warning("turn ended with error (stream close?); classified as infra for retry")
+            return INFRA_EXIT
         return 0
     except Exception as e:
         infra_error = e

@@ -5,3 +5,4 @@ runs/
 *.diff
 prompt.txt
 sessions/
+__pycache__/
