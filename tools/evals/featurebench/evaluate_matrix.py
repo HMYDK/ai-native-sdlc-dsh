@@ -89,10 +89,20 @@ def main() -> int:
         print(f"[eval] {j['task']} {j['arm']} ...")
         r = subprocess.run(j["cmd"], cwd=j["eval_dir"], env=env, capture_output=True, text=True)
         (j["eval_dir"] / "eval.log").write_text(r.stdout + "\n" + r.stderr)
+        # fb eval 把 report.json 写在 predictions.jsonl 所在目录（arm 目录），
+        # 不是我们指定的 eval_dir；两处都找，并复制一份到 eval_dir 便于归档。
+        report_path = None
+        for cand in (j["dir"] / "report.json", j["eval_dir"] / "report.json"):
+            if cand.exists():
+                report_path = cand
+                break
         report = {}
-        if (j["eval_dir"] / "report.json").exists():
+        if report_path is not None:
             try:
-                report = json.loads((j["eval_dir"] / "report.json").read_text()).get("attempt_1", {})
+                report = json.loads(report_path.read_text()).get("attempt_1", {})
+                if report_path != (j["eval_dir"] / "report.json"):
+                    (j["eval_dir"] / "report.json").write_text(
+                        json.dumps({"attempt_1": report}, ensure_ascii=False, indent=2))
             except Exception:
                 report = {}
         meta = load_meta(j["dir"].parent, j["arm"])
