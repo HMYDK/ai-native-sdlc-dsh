@@ -153,5 +153,5 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval \
 
 - 每次运行：`<out-dir>/meta.json`、`patch.diff`、`sessions/`（本地保留，不提交）；
 - 官方评分：`fb eval` 输出 `report.json`（resolved / pass_rate / 各类不可评分）；
-- 报告：`docs/` 下新增实验报告（日期 + 版本 + 任务清单 + 失败分母口径 +
-  参考副本泄漏 caveat + B 组流程采纳率）。
+- 报告：首批 5 任务 × 2 臂见 [`docs/evals/featurebench-2026-11-06.md`](../../../docs/evals/featurebench-2026-11-06.md)，
+  机读快照见 [`featurebench-2026-11-06-data.json`](../../../docs/evals/featurebench-2026-11-06-data.json)。

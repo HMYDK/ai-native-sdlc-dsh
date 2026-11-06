@@ -50,6 +50,35 @@ def official_metrics(task_dir: Path, arm: str) -> dict:
     return {}
 
 
+def session_tokens(task_dir: Path) -> int | None:
+    """从 session 日志汇总每条 assistant 消息的 usage.totalTokens（UI 读数丢失时的兜底）。
+
+    实测与 DSH Web 的「用量」读数一致（seaborn standard 2.23M vs UI 2.2M）；
+    B 组会多算验证者子会话的消耗，所以报告里与 UI 值并列而不是替换。
+    """
+    try:
+        import zstandard
+    except Exception:
+        return None
+    total = 0
+    for f in glob.glob(str(task_dir / "**" / "*.zstd"), recursive=True):
+        try:
+            raw = zstandard.ZstdDecompressor().stream_reader(open(f, "rb")).read()
+        except Exception:
+            continue
+        for line in raw.splitlines():
+            try:
+                x = json.loads(line)
+            except Exception:
+                continue
+            d = x.get("data") or {}
+            msg = d.get("message") if isinstance(d.get("message"), dict) else {}
+            u = msg.get("usage") or d.get("usage")
+            if isinstance(u, dict) and isinstance(u.get("totalTokens"), int):
+                total += u["totalTokens"]
+    return total or None
+
+
 def sdlc_stats(task_dir: Path) -> dict:
     """从 session 日志统计实际工具调用与 verify 裁决（zstandard 可选）。"""
     try:
@@ -126,14 +155,22 @@ def main() -> None:
                 "leak_scan_hits": meta.get("leak_scan_hits", []),
             }
             row.update(official_metrics(task_dir, arm))
+            if row["tokens"] is None:
+                row["tokens"] = session_tokens(d)
+                row["tokens_source"] = "session" if row["tokens"] else None
+            else:
+                row["tokens_source"] = "ui"
             if arm == "sdlc":
                 row.update(sdlc_stats(task_dir))
-                row["verifier_vs_official"] = (
-                    "not_applicable" if "resolved" not in row else
-                    ("agree" if (
-                        (row.get("verify_verdicts") and row["verify_verdicts"][-1] == "approve") == row["resolved"])
-                     else "mismatch")
-                )
+                verdicts = row.get("verify_verdicts") or []
+                if "resolved" not in row:
+                    row["verifier_vs_official"] = "not_applicable"
+                elif not verdicts:
+                    # 超时截断可能没来得及产出裁决；不能算成不一致
+                    row["verifier_vs_official"] = "no_verdict"
+                else:
+                    approves = verdicts[-1] == "approve"
+                    row["verifier_vs_official"] = "agree" if approves == row["resolved"] else "mismatch"
             tasks.append(row)
 
     data = {"manifest": str(Path(args.manifest).resolve()),
