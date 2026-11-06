@@ -77,7 +77,18 @@ python3 tools/evals/featurebench/run_arm.py --manifest tools/evals/featurebench/
   --task-id sympy__sympy.c1097516.test_inverse.c240ffe7.lv1 --arm standard \
   --image fb-eval-base:sympy --mode agent --out /tmp/fb-runs/sympy-standard
 
-# 4. 官方评分（对每个 arm 的 patch 生成 predictions.jsonl）
+# 4. 整批：跑完 5 任务 × 2 臂（默认 dry-run；--execute 才真跑）
+python3 tools/evals/featurebench/run_matrix.py --manifest tools/evals/featurebench/manifest.yml \
+  --runs-root /tmp/fb-runs --plugin-dir /tmp/fb-plugin --credentials /tmp/fb-creds.yaml \
+  --image-map "pypa/packaging=fb-eval-base:packaging" --image-map "sympy/sympy=fb-eval-base:sympy" \
+  --image-map "pydantic/pydantic=fb-eval-base:pydantic" --image-map "mwaskom/seaborn=fb-eval-base:seaborn" \
+  --image-map "sphinx-doc/sphinx=fb-eval-base:sphinx" --execute
+
+# 5. 官方评分 + 汇总（默认 dry-run；--execute 才调 fb eval）
+python3 tools/evals/featurebench/evaluate_matrix.py --manifest tools/evals/featurebench/manifest.yml \
+  --runs-root /tmp/fb-runs --config /tmp/fb/config.toml --execute
+
+# 手工逐臂评分（对每个 arm 的 patch 生成 predictions.jsonl）
 python3 tools/evals/featurebench/make_predictions.py --task-id <id> \
   --out-prefix /tmp/fb-runs/<id>/predictions \
   --arm-dir standard=/tmp/fb-runs/.../standard --arm-dir sdlc=/tmp/fb-runs/.../sdlc
