@@ -61,6 +61,8 @@ def main() -> int:
                     help="repo=派生镜像，可重复，例如 'sympy/sympy=fb-eval-base:sympy'")
     ap.add_argument("--web-port-base", type=int, default=3115)
     ap.add_argument("--cdp-port-base", type=int, default=9400)
+    ap.add_argument("--only-task", action="append", default=[],
+                    help="只跑指定 task id（可重复）；顺序仍按 manifest 中的奇偶规则")
     ap.add_argument("--execute", action="store_true", help="真正执行（默认 dry-run）")
     args = ap.parse_args()
 
@@ -75,8 +77,11 @@ def main() -> int:
     policy = manifest.get("run_policy", {})
     budget = int(policy.get("total_token_budget", 0))
     infra_retries = int(policy.get("infra_retries", 1))
+    only = set(args.only_task)
     plan = []
     for i, task in enumerate(manifest["tasks"]):
+        if only and task["id"] not in only:
+            continue
         arms = ["standard", "sdlc"] if i % 2 == 0 else ["sdlc", "standard"]
         plan.append({"task": task["id"], "repo": task["repo"], "arms": arms,
                      "image": images.get(task["repo"]), "web_port": args.web_port_base + i * 2,
