@@ -110,7 +110,9 @@ def main() -> int:
 
     def run_task(item: dict) -> str:
         """跑一个任务的所有 arm（并发）。返回 stop / ok / infra。"""
-        task_dir = runs_root / item["task"].split(".")[0]
+        # 用完整 instance_id 做目录：同 repo 的多个任务不能共用一个 arm 目录，
+        # 否则后跑的会覆盖先跑的 meta/patch（实验②踩过，数据作废重跑）。
+        task_dir = runs_root / item["task"]
         procs = []
         for slot, arm in enumerate(item["arms"]):
             out = task_dir / arm

@@ -60,7 +60,9 @@ def main() -> int:
     for task in manifest["tasks"]:
         if only and task["id"] not in only:
             continue
-        task_dir = runs_root / task["id"].split(".")[0]
+        task_dir = runs_root / task["id"]
+        if not (task_dir / "sdlc").exists() and not (task_dir / "standard").exists():
+            task_dir = runs_root / task["id"].split(".")[0]  # 兼容首批（每 repo 1 任务）目录
         for arm in manifest["arms"]:
             d = task_dir / arm
             if not (d / "patch.diff").exists():

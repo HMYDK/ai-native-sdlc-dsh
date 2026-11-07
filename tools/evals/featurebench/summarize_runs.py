@@ -133,7 +133,9 @@ def main() -> None:
     sdlc_arms = [a for a in arms if "SDLC" in (manifest["arms"][a].get("preset") or "")]
     tasks = []
     for task in manifest["tasks"]:
-        task_dir = runs_root / task["id"].split(".")[0]
+        task_dir = runs_root / task["id"]
+        if not task_dir.exists():
+            task_dir = runs_root / task["id"].split(".")[0]  # 兼容首批目录
         for arm in arms:
             d = task_dir / arm
             if not (d / "meta.json").exists():
