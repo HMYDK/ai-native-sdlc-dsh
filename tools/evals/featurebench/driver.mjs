@@ -47,6 +47,16 @@ if (!String(sel).startsWith('selected')) {
   console.error('PRESET SELECT FAILED body:', JSON.stringify(body));
   process.exit(3);
 }
+// 4.2 工作区选择页：偶发会停在「选择一个工作区开始」，不点进去就没有 composer。
+// 这是 App 启动竞态（不是 workspace 配置错），点「默认工作区」后继续。
+for (let i = 0; i < 20; i++) {
+  const clicked = await evalJS(`(()=>{const el=[...document.querySelectorAll('button,[role=button],li,div')].find(x=>((x.innerText||'').trim()==='默认工作区'));if(el){el.click();return true}return false})()`);
+  if (clicked) { console.log('WORKSPACE selected'); await sleep(1200); break; }
+  const needs = await evalJS(`document.body.innerText.includes('选择一个工作区开始')`);
+  if (!needs) break;
+  await sleep(500);
+}
+
 // 4.5 等页面真正就绪：composer 元素出现 ≠ React 已挂载，引导弹层也可能晚到。
 // pytest 镜像首跑两次都 INSERT_LEN 0，body 里能看到「预览版说明 … 继续」弹层。
 // 这里循环关弹层 + 等 composer 可编辑，两者同时满足才继续。

@@ -418,6 +418,10 @@ def main() -> int:
         (out / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
         print(json.dumps(meta, ensure_ascii=False, indent=2))
         if agent_failed:
+            # driver 自身失败（CDP/页面状态/插入 prompt）属于评测基础设施问题，
+            # 按策略允许 infra 重试一次；agent 真的跑完但超时/超预算才不重试。
+            if str(agent_failed).startswith("driver_error"):
+                return INFRA_EXIT
             return AGENT_EXIT
         if run_meta.get("turn_error"):
             # 模型流在 message_stop 前断开（实测）属于外部/基础设施失败，按策略允许重试一次。
