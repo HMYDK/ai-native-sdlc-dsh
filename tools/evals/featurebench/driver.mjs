@@ -34,10 +34,19 @@ console.log('NEWSESSION', news);
 await sleep(1200);
 await evalJS(`(()=>{document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true})()`);
 await sleep(300);
-// 4. 选 preset（菜单开/关重试一次）
-const sel = await evalJS(`(async (want)=>{const labels=['标准模式','AI 原生 SDLC','PTC 模式','极简模式','创造模式'];const all=()=>[...document.querySelectorAll('button')];const open=()=>all().find(b=>labels.includes((b.innerText||'').trim()));const items=()=>[...document.querySelectorAll('[role=menuitem]')];if(!open()) return 'no preset button';open().click();await new Promise(r=>setTimeout(r,800));let it=items();if(!it.length){open()?.click();await new Promise(r=>setTimeout(r,800));it=items();}const hit=it.find(e=>(e.innerText||'').includes(want));if(!hit) return 'no item '+want;hit.click();await new Promise(r=>setTimeout(r,600));return all().some(b=>(b.innerText||'').trim()===want)?('selected '+want):('select-failed');})(${JSON.stringify(presetLabel)})`);
-console.log('PRESET', sel);
-if (!String(sel).startsWith('selected')) { console.error('PRESET SELECT FAILED'); process.exit(3); }
+// 4. 选 preset（菜单开/关重试；并发跑多个实例时页面可能没有完全就绪）
+let sel = '';
+for (let attempt = 0; attempt < 3; attempt++) {
+  sel = await evalJS(`(async (want)=>{const labels=['标准模式','AI 原生 SDLC','PTC 模式','极简模式','创造模式'];const all=()=>[...document.querySelectorAll('button')];const open=()=>all().find(b=>labels.includes((b.innerText||'').trim()));const items=()=>[...document.querySelectorAll('[role=menuitem]')];if(!open()) return 'no preset button';open().click();await new Promise(r=>setTimeout(r,900));let it=items();if(!it.length){open()?.click();await new Promise(r=>setTimeout(r,900));it=items();}const hit=it.find(e=>(e.innerText||'').includes(want));if(!hit) return 'no item '+want;hit.click();await new Promise(r=>setTimeout(r,700));return all().some(b=>(b.innerText||'').trim()===want)?('selected '+want):('select-failed');})(${JSON.stringify(presetLabel)})`);
+  console.log('PRESET', sel, 'attempt', attempt + 1);
+  if (String(sel).startsWith('selected')) break;
+  await sleep(1500);
+}
+if (!String(sel).startsWith('selected')) {
+  const body = await evalJS(`document.body.innerText.slice(0,1500)`);
+  console.error('PRESET SELECT FAILED body:', JSON.stringify(body));
+  process.exit(3);
+}
 // 4.5 等页面真正就绪：composer 元素出现 ≠ React 已挂载，引导弹层也可能晚到。
 // pytest 镜像首跑两次都 INSERT_LEN 0，body 里能看到「预览版说明 … 继续」弹层。
 // 这里循环关弹层 + 等 composer 可编辑，两者同时满足才继续。

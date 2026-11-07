@@ -237,7 +237,9 @@ def main() -> int:
         log.info("container %s up", container.name)
 
         # 版本探测：manifest 钉死的 DSH/插件版本必须与容器内实际一致，否则实验不可比。
-        ver_run = container.exec_run(["bash", "-lc", "dsh --version 2>/dev/null | tail -1"])
+        # setup-web 会把 node/dsh 加到 PATH；`docker exec` 默认 PATH 里没有，需显式加
+        ver_run = container.exec_run(
+            ["bash", "-lc", "export PATH=/opt/node24/bin:$PATH; dsh --version 2>/dev/null | tail -1"])
         dsh_actual = (ver_run.output or b"").decode("utf-8", "replace").strip().splitlines()
         dsh_actual = dsh_actual[-1].strip() if dsh_actual else ""
         plugin_actual = ""
