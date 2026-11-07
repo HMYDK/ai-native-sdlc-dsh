@@ -131,9 +131,10 @@ def main() -> int:
                 if args.retry_failed and (out / "meta.json").exists():
                     try:
                         prev = json.loads((out / "meta.json").read_text(encoding="utf-8"))
+                        # patch=0 也是合法结果（agent 没改代码），不能当 infra 失败重跑，
+                        # 否则会变成按结果挑样本；只有 agent_failure 或未完成才补跑。
                         ok = (prev.get("agent_completed") is True
-                              and not prev.get("agent_failure")
-                              and (prev.get("patch_chars") or 0) > 0)
+                              and not prev.get("agent_failure"))
                         if ok:
                             print(f"[skip] task={item['task']} arm={arm} already succeeded")
                             continue
