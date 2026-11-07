@@ -39,7 +39,7 @@ arms:
 run_policy:
   timeout_seconds: 2700
   max_tokens_per_run: 40000000
-  total_token_budget: 60000000
+  total_token_budget: 150000000
   infra_retries: 1
   agent_retries: 0
   order: alternating
