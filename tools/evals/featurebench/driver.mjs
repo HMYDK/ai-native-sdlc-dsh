@@ -104,7 +104,10 @@ const t0 = Date.now();
 const maxTokens = Number(process.env.MAX_TOKENS || '0');
 let lastBody = ''; let idleSince = 0; let done = false; let aborted = null; let usageSeen = ''; let turnError = false;
 const parseUsage = (body) => {
-  const m = body.match(/用量\s*([\d.]+)\s*([KMG]?) tok/);
+  // 实测 UI 有时显示「用量 12.3M tok」，有时底部只显示「12.3M tok·缓存命中…」；
+  // 兼容两种格式（第二个模式要求带 K/M/G 单位，避免误匹配 195 tok/s 这类速率）。
+  const m = body.match(/用量\s*([\d.]+)\s*([KMG]?) tok/) ||
+            body.match(/([\d.]+)\s*([KMG])\s*tok/);
   if (!m) return null;
   const mult = m[2] === 'K' ? 1e3 : m[2] === 'M' ? 1e6 : m[2] === 'G' ? 1e9 : 1;
   return Math.round(parseFloat(m[1]) * mult);
