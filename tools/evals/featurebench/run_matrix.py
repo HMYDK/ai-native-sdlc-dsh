@@ -65,6 +65,13 @@ def main() -> int:
     ap.add_argument("--cdp-port-base", type=int, default=9400)
     ap.add_argument("--parallel-tasks", type=int, default=1,
                     help="同时跑几个任务（每任务内部的 arm 仍并发；注意容器内存）")
+    ap.add_argument("--arm-parallel", type=int, default=0,
+                    help="每个任务内同时跑几个 arm（0=全部并发；1=串行）。模型流在高并发下会断，"
+                         "重跑失败用例时建议 1-2")
+    ap.add_argument("--only-arm", action="append", default=[],
+                    help="只跑指定 arm（可重复，用于补跑）")
+    ap.add_argument("--retry-failed", action="store_true",
+                    help="跳过已成功（agent_completed、无 agent_failure、patch 非空）的 arm，只补跑失败/缺失的")
     ap.add_argument("--only-task", action="append", default=[],
                     help="只跑指定 task id（可重复）；顺序仍按 manifest 中的奇偶规则")
     ap.add_argument("--execute", action="store_true", help="真正执行（默认 dry-run）")
@@ -82,7 +89,8 @@ def main() -> int:
     budget = int(policy.get("total_token_budget", 0))
     infra_retries = int(policy.get("infra_retries", 1))
     only = set(args.only_task)
-    all_arms = list(manifest["arms"].keys())
+    only_arms = set(args.only_arm)
+    all_arms = [a for a in manifest["arms"].keys() if not only_arms or a in only_arms]
     plan = []
     for i, task in enumerate(manifest["tasks"]):
         if only and task["id"] not in only:
@@ -113,37 +121,51 @@ def main() -> int:
         # 用完整 instance_id 做目录：同 repo 的多个任务不能共用一个 arm 目录，
         # 否则后跑的会覆盖先跑的 meta/patch（实验②踩过，数据作废重跑）。
         task_dir = runs_root / item["task"]
-        procs = []
-        for slot, arm in enumerate(item["arms"]):
-            out = task_dir / arm
-            cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
-            cmd += ["--web-port", str(item["web_port"] + slot),
-                    "--cdp-port", str(item["cdp_port"] + slot)]
-            print(f"[run] task={item['task']} arm={arm} start={time.strftime('%H:%M:%S')}")
-            procs.append((slot, arm, out, subprocess.Popen(cmd)))
-            time.sleep(5)  # 错开启动，避免同时抢镜像/Chrome
         over_budget = False
-        for slot, arm, out, proc in procs:
-            code = proc.wait()
-            record = {"task": item["task"], "arm": arm, "image": item["image"],
-                      "exit": code, "attempts": 1}
-            for attempt in range(infra_retries):
-                if code != 2:
-                    break
-                print(f"[retry] task={item['task']} arm={arm} infra error, attempt {attempt + 2}")
+        arm_parallel = args.arm_parallel or len(item["arms"])
+        for batch_start in range(0, len(item["arms"]), arm_parallel):
+            batch = list(enumerate(item["arms"]))[batch_start:batch_start + arm_parallel]
+            procs = []
+            for slot, arm in batch:
+                out = task_dir / arm
+                if args.retry_failed and (out / "meta.json").exists():
+                    try:
+                        prev = json.loads((out / "meta.json").read_text(encoding="utf-8"))
+                        ok = (prev.get("agent_completed") is True
+                              and not prev.get("agent_failure")
+                              and (prev.get("patch_chars") or 0) > 0)
+                        if ok:
+                            print(f"[skip] task={item['task']} arm={arm} already succeeded")
+                            continue
+                    except Exception:
+                        pass
                 cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
                 cmd += ["--web-port", str(item["web_port"] + slot),
                         "--cdp-port", str(item["cdp_port"] + slot)]
-                code = subprocess.run(cmd).returncode
-                record["attempts"] += 1
-                record["exit"] = code
-            collect(out, record)
-            with lock:
-                summary["runs"].append(record)
-                summary["total_tokens"] += int(record.get("tokens") or 0)
-                (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
-                if budget and summary["total_tokens"] > budget:
-                    over_budget = True
+                print(f"[run] task={item['task']} arm={arm} start={time.strftime('%H:%M:%S')}")
+                procs.append((slot, arm, out, subprocess.Popen(cmd)))
+                time.sleep(5)  # 错开启动，避免同时抢镜像/Chrome
+            for slot, arm, out, proc in procs:
+                code = proc.wait()
+                record = {"task": item["task"], "arm": arm, "image": item["image"],
+                          "exit": code, "attempts": 1}
+                for attempt in range(infra_retries):
+                    if code != 2:
+                        break
+                    print(f"[retry] task={item['task']} arm={arm} infra error, attempt {attempt + 2}")
+                    cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
+                    cmd += ["--web-port", str(item["web_port"] + slot),
+                            "--cdp-port", str(item["cdp_port"] + slot)]
+                    code = subprocess.run(cmd).returncode
+                    record["attempts"] += 1
+                    record["exit"] = code
+                collect(out, record)
+                with lock:
+                    summary["runs"].append(record)
+                    summary["total_tokens"] += int(record.get("tokens") or 0)
+                    (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
+                    if budget and summary["total_tokens"] > budget:
+                        over_budget = True
         return "stop" if over_budget else "ok"
 
     if args.parallel_tasks <= 1:
