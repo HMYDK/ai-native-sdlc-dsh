@@ -165,3 +165,8 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval \
 
 实验②③④的预注册清单在 `manifests/`；设计说明见
 [`docs/evals/featurebench-2026-11-07-experiments.md`](../../../docs/evals/featurebench-2026-11-07-experiments.md)。
+
+## 2×2 分析
+
+`analyze_2x2.py --data <report-data.json>`：按 `manifests/2x2.yml` 的四个 arm 计算
+preset / 引导的主效应、交互项与 token 倍数；每任务每条件 1 次时只作方向性证据。
