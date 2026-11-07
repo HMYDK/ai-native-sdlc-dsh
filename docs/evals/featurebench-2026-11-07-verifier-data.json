@@ -1,0 +1,473 @@
+{
+ "experiment": "verify-calibration",
+ "date": "2026-11-07",
+ "report": {
+  "manifest": "/Users/zk/mine/code/github/mine_repo/ai-native-sdlc-dsh/ai-native-sdlc-dsh/tools/evals/featurebench/manifests/verify-calibration.yml",
+  "runs_root": "/private/tmp/fb-runs-verify",
+  "runs": [
+   {
+    "task_id": "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1",
+    "repo": "pytest-dev/pytest",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:pytest",
+    "image_digest": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+    "tokens": 10000000,
+    "elapsed_seconds": 1659,
+    "patch_chars": 33880,
+    "full_patch_chars": 25888786,
+    "agent_completed": true,
+    "agent_failure": null,
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_status": 8,
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 8,
+     "sdlc_task_advance": 20,
+     "sdlc_artifact_check": 2,
+     "sdlc_verify": 2,
+     "sdlc_task_status": 2
+    },
+    "verify_verdicts": [
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   },
+   {
+    "task_id": "pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1",
+    "repo": "pydantic/pydantic",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:pydantic",
+    "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+    "tokens": 10700000,
+    "elapsed_seconds": 1749,
+    "patch_chars": 22102,
+    "full_patch_chars": 20721242,
+    "agent_completed": true,
+    "agent_failure": null,
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_status": 2,
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 6,
+     "sdlc_task_status": 4,
+     "sdlc_task_advance": 14,
+     "sdlc_verify": 2
+    },
+    "verify_verdicts": [
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   },
+   {
+    "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+    "repo": "mwaskom/seaborn",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:seaborn",
+    "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+    "tokens": 40300000,
+    "elapsed_seconds": 2536,
+    "patch_chars": 5552,
+    "full_patch_chars": 10385654,
+    "agent_completed": false,
+    "agent_failure": "over_budget",
+    "leak_scan_hits": [],
+    "resolved": false,
+    "pass_rate": 0.9375,
+    "resolved_rate": 0.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 8,
+     "sdlc_task_advance": 8
+    },
+    "verify_verdicts": [],
+    "used_sdlc": true,
+    "verifier_vs_official": "no_verdict"
+   },
+   {
+    "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+    "repo": "sphinx-doc/sphinx",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:sphinx",
+    "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+    "tokens": 40100000,
+    "elapsed_seconds": 1292,
+    "patch_chars": 37322,
+    "full_patch_chars": 37322,
+    "agent_completed": false,
+    "agent_failure": "over_budget",
+    "leak_scan_hits": [],
+    "resolved": false,
+    "pass_rate": 0.4375,
+    "resolved_rate": 0.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {},
+    "verify_verdicts": [],
+    "used_sdlc": false,
+    "verifier_vs_official": "no_verdict"
+   },
+   {
+    "task_id": "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1",
+    "repo": "pydantic/pydantic",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:pydantic",
+    "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+    "tokens": 39949263,
+    "elapsed_seconds": null,
+    "patch_chars": 50273,
+    "full_patch_chars": 52068535,
+    "agent_completed": false,
+    "agent_failure": "timeout",
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "session",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_status": 2,
+     "sdlc_task_create": 2,
+     "sdlc_artifact_check": 8,
+     "sdlc_artifact_write": 10,
+     "sdlc_task_advance": 18,
+     "sdlc_verify": 4,
+     "sdlc_task_status": 2,
+     "sdlc_task_issue": 36
+    },
+    "verify_verdicts": [
+     "reject",
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   },
+   {
+    "task_id": "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1",
+    "repo": "mwaskom/seaborn",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:seaborn",
+    "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+    "tokens": 17831099,
+    "elapsed_seconds": null,
+    "patch_chars": 69544,
+    "full_patch_chars": 19489445,
+    "agent_completed": false,
+    "agent_failure": "timeout",
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "session",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 8,
+     "sdlc_task_advance": 16,
+     "sdlc_task_status": 4,
+     "sdlc_verify": 2
+    },
+    "verify_verdicts": [
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   },
+   {
+    "task_id": "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1",
+    "repo": "sphinx-doc/sphinx",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:sphinx",
+    "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+    "tokens": 21000000,
+    "elapsed_seconds": 2608,
+    "patch_chars": 40092,
+    "full_patch_chars": 37810905,
+    "agent_completed": true,
+    "agent_failure": null,
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 8,
+     "sdlc_task_advance": 18,
+     "sdlc_task_status": 6,
+     "sdlc_verify": 8,
+     "sdlc_task_issue": 32
+    },
+    "verify_verdicts": [
+     "approve",
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   },
+   {
+    "task_id": "pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1",
+    "repo": "pydantic/pydantic",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:pydantic",
+    "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+    "tokens": 9400000,
+    "elapsed_seconds": 1051,
+    "patch_chars": 21041,
+    "full_patch_chars": 18256852,
+    "agent_completed": true,
+    "agent_failure": null,
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 6,
+     "sdlc_task_advance": 16,
+     "sdlc_task_status": 4,
+     "sdlc_verify": 2,
+     "sdlc_task_issue": 2
+    },
+    "verify_verdicts": [
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   },
+   {
+    "task_id": "mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1",
+    "repo": "mwaskom/seaborn",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:seaborn",
+    "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+    "tokens": 11400000,
+    "elapsed_seconds": 1647,
+    "patch_chars": 14122,
+    "full_patch_chars": 17181069,
+    "agent_completed": true,
+    "agent_failure": null,
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_status": 2,
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 6,
+     "sdlc_task_advance": 16,
+     "sdlc_task_status": 4,
+     "sdlc_verify": 2,
+     "sdlc_task_issue": 4,
+     "sdlc_rsi_analyze": 2
+    },
+    "verify_verdicts": [
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   },
+   {
+    "task_id": "sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1",
+    "repo": "sphinx-doc/sphinx",
+    "arm": "sdlc",
+    "preset": "AI 原生 SDLC",
+    "image": "fb-eval-base:sphinx",
+    "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+    "tokens": 5200000,
+    "elapsed_seconds": 911,
+    "patch_chars": 9197,
+    "full_patch_chars": 12796997,
+    "agent_completed": true,
+    "agent_failure": null,
+    "leak_scan_hits": [],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "resolved_rate": 1.0,
+    "errors": 0,
+    "not_applied_empty": 0,
+    "tokens_source": "ui",
+    "available": true,
+    "sdlc_tool_calls": {
+     "sdlc_task_create": 2,
+     "sdlc_artifact_write": 12,
+     "sdlc_task_status": 6,
+     "sdlc_task_advance": 18,
+     "sdlc_verify": 2
+    },
+    "verify_verdicts": [
+     "approve"
+    ],
+    "used_sdlc": true,
+    "verifier_vs_official": "agree"
+   }
+  ]
+ },
+ "confusion": {
+  "data": "/private/tmp/fb-runs-verify/report-data.json",
+  "sdlc_runs": 10,
+  "official_resolved": 8,
+  "confusion": {
+   "approve_resolved": 8,
+   "approve_unresolved_false_positive": 0,
+   "reject_unresolved": 0,
+   "reject_resolved_false_negative": 0,
+   "needs_human": 0,
+   "no_verdict": 2
+  },
+  "false_positive_rate": 0.0,
+  "false_negative_rate": null,
+  "verdict_accuracy_on_decided": 1.0,
+  "verdict_sequences": {
+   "approve": 6,
+   "(none)": 2,
+   "reject → approve": 1,
+   "approve → approve": 1
+  },
+  "details": [
+   {
+    "task_id": "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1",
+    "repo": "pytest-dev/pytest",
+    "verdicts": [
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   },
+   {
+    "task_id": "pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1",
+    "repo": "pydantic/pydantic",
+    "verdicts": [
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   },
+   {
+    "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+    "repo": "mwaskom/seaborn",
+    "verdicts": [],
+    "resolved": false,
+    "pass_rate": 0.9375,
+    "bucket": "no_verdict"
+   },
+   {
+    "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+    "repo": "sphinx-doc/sphinx",
+    "verdicts": [],
+    "resolved": false,
+    "pass_rate": 0.4375,
+    "bucket": "no_verdict"
+   },
+   {
+    "task_id": "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1",
+    "repo": "pydantic/pydantic",
+    "verdicts": [
+     "reject",
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   },
+   {
+    "task_id": "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1",
+    "repo": "mwaskom/seaborn",
+    "verdicts": [
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   },
+   {
+    "task_id": "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1",
+    "repo": "sphinx-doc/sphinx",
+    "verdicts": [
+     "approve",
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   },
+   {
+    "task_id": "pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1",
+    "repo": "pydantic/pydantic",
+    "verdicts": [
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   },
+   {
+    "task_id": "mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1",
+    "repo": "mwaskom/seaborn",
+    "verdicts": [
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   },
+   {
+    "task_id": "sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1",
+    "repo": "sphinx-doc/sphinx",
+    "verdicts": [
+     "approve"
+    ],
+    "resolved": true,
+    "pass_rate": 1.0,
+    "bucket": "agree_approve"
+   }
+  ]
+ }
+}
