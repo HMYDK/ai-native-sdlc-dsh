@@ -309,7 +309,7 @@ def main() -> int:
                 raise RuntimeError("setup-web failed: " + (out / "setup.log").read_text()[-1500:])
 
             token = ""
-            for _ in range(60):
+            for _ in range(180):  # dsh web 在负载高时启动可能 >60s，token 轮询放宽到 3min
                 time.sleep(1)
                 r = container.exec_run(["bash", "-lc", "cat /opt/dsh-eval/token.txt 2>/dev/null"])
                 token = r.output.decode().strip().removeprefix("token=").strip()
