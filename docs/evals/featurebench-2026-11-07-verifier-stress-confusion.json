@@ -1,0 +1,62 @@
+{
+  "data": "/private/tmp/fb-runs-stress/report-data.json",
+  "sdlc_runs": 3,
+  "official_resolved": 1,
+  "confusion": {
+    "approve_resolved": 1,
+    "approve_unresolved_false_positive": 1,
+    "reject_unresolved": 1,
+    "reject_resolved_false_negative": 0,
+    "needs_human": 0,
+    "no_verdict": 0
+  },
+  "false_positive_rate": 0.5,
+  "false_negative_rate": 0.0,
+  "verdict_accuracy_on_decided": 0.6666666666666666,
+  "verdict_sequences": {
+    "approve → approve → approve → approve": 1,
+    "reject → approve → approve": 1,
+    "approve → approve → approve → reject → reject": 1
+  },
+  "details": [
+    {
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "verdicts": [
+        "approve",
+        "approve",
+        "approve",
+        "approve"
+      ],
+      "resolved": false,
+      "pass_rate": 0.0769,
+      "bucket": "false_positive"
+    },
+    {
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "verdicts": [
+        "reject",
+        "approve",
+        "approve"
+      ],
+      "resolved": true,
+      "pass_rate": 1.0,
+      "bucket": "agree_approve"
+    },
+    {
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "verdicts": [
+        "approve",
+        "approve",
+        "approve",
+        "reject",
+        "reject"
+      ],
+      "resolved": false,
+      "pass_rate": 0.0769,
+      "bucket": "agree_reject"
+    }
+  ]
+}

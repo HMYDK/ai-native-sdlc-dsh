@@ -51,10 +51,11 @@
   pydantic test_pipeline，最终仍是 approve）
 - 10 次里 9 次真实调用过 `sdlc_*`（sphinx build_html 在 over_budget 前还没建任务）
 
-**与首批 MVP 合并看**（n=15 次 B 运行，13 次有最终裁决）：
+**与首批 MVP + 压力子集合并看**（18 次 B 运行，15 次有最终裁决）：
 
-- approve 共 12 次，其中 1 次官方 unresolved（MVP 的 sphinx test_build_gettext）→
-  合并假阳性率 **1/12 ≈ 8.3%**；
+- approve 共 13 次，其中 2 次官方 unresolved（MVP 与 stress rep1 的 sphinx build_gettext，
+  同一个任务）→ 合并假阳性率 **2/13 ≈ 15.4%**；
+- reject 最终 1 次（stress rep3），官方 unresolved，正确；
 - 无裁决 3 次（1 次 MVP 超时 + 2 次本轮 over_budget），都对应 agent 失败/截断；
 - 未观测到「最终 reject 但官方 resolved」的假阴性。
 
@@ -69,14 +70,24 @@
 3. **校准存在删失**：2 次 over_budget 都发生在官方 unresolved 的难任务上，且来不及产出裁决。
    如果把「无裁决」当作失败，验证者的失败检测率会被低估；如果剔除，则样本偏向容易任务。
    报告采用「无裁决单列」口径。
-4. **n 仍小**：13 次有裁决的运行里只有 1 个负例，假阳性率 8.3% 的 95% 置信区间很宽
-   （Wilson 区间约 1.5%–35%），不能据此给插件下结论；需要专门挑「已知会失败」的任务
-   做定向校准（下一步）。
+4. **n 仍小且负例集中**：15 次有裁决里只有 2 个负例，且都来自同一个 sphinx 任务；
+   合并假阳性率 15.4% 的区间很宽，不能据此给插件下结论。但压力子集已经显示**单次
+   approve 不可信、同一任务裁决会翻转**，这比一个点估计更重要。
 
 ## 压力子集（sphinx test_build_gettext，3 次重复）
 
-MVP 中该任务两臂都 unresolved，且 B 的验证者给了 approve（唯一假阳性）。本实验原计划
-重复 3 次看是否稳定复现。**运行状态：待补**（3 个并发 run 已启动，结果见下节更新）。
+MVP 中该任务两臂都 unresolved，且 B 的验证者给了 approve（唯一假阳性）。本实验重复 3 次：
+
+| 重复 | 官方 resolved | 验证者裁决序列 | 结论 |
+|---|---|---|---|
+| rep1 | ❌（F2P 7.69%） | approve ×4 | **假阳性复现** |
+| rep2 | ✅（F2P 100%） | reject → approve → approve | 一致（且是迭代后通过；运行超时但补丁有效） |
+| rep3 | ❌（F2P 7.69%） | approve ×3 → **reject ×2** | 一致（验证者最终自己改判 reject） |
+
+- 同一任务 3 次：官方 1/3 resolved；验证者最终 2 approve + 1 reject；
+- **假阳性率 1/2（approve 中官方 unresolved）**，且同一任务在不同运行里裁决会翻转
+  （rep1 全程 approve，rep3 后两次 reject）——验证者行为方差很大，单次 approve 不可信；
+- rep2 说明超时截断前产出的补丁仍可能 resolved，超时率与正确率要分开统计。
 
 ## 成本
 
@@ -96,6 +107,7 @@ MVP 中该任务两臂都 unresolved，且 B 的验证者给了 approve（唯一
 
 - 验证者在「能跑完」的任务上倾向于 approve；**要评估假阳性必须拿难任务**，而且难任务更容易
   撞 token/时间上限导致无裁决——下一轮校准应放宽单 run 预算或专门挑选官方 known-fail 任务。
+  压力子集证实：known-fail 任务上 approve 一半是错的（1/2）。
 - 若要把验证者作为质量门禁，需要报告「裁决覆盖率」（有裁决的运行占比）：本实验 10/10 有裁决，
   但其中 2 次是 over_budget 无裁决，实际覆盖 8/10。
 - 与首批合并的 8.3% 假阳性（1/12）在统计上不可靠，但方向性提示：**验证者 pass ≠ 官方通过**，
