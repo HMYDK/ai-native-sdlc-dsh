@@ -177,3 +177,9 @@ preset / 引导的主效应、交互项与 token 倍数；每任务每条件 1 �
 - ③ 2×2 拆分：[`docs/evals/featurebench-2026-11-07-2x2.md`](../../../docs/evals/featurebench-2026-11-07-2x2.md)
 - ④ 扩样本：[`docs/evals/featurebench-2026-11-07-expanded.md`](../../../docs/evals/featurebench-2026-11-07-expanded.md)
 - 总结：[`docs/evals/featurebench-2026-11-07-summary.md`](../../../docs/evals/featurebench-2026-11-07-summary.md)
+
+## 第三轮（2026-11-08）：重复采样
+
+- 报告：[`docs/evals/featurebench-2026-11-08-repeat-sampling.md`](../../../docs/evals/featurebench-2026-11-08-repeat-sampling.md)
+- 脚本：`run_repeats.py`（多 rep 编排 + 跨 rep 预算）、`analyze_repeat.py`（per-cell 方差、
+  paired diff、bootstrap 区间）

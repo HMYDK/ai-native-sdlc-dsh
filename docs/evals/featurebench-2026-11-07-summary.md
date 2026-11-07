@@ -94,7 +94,26 @@ B 的成本显著更高（中位数 2.3×、p90 2.5×，另有 3 次 timeout/1 �
   analyze_expanded/analyze_verifier/sanity_check/archive_runs；CI `evals-check` job）
 - 原始 runs：`/tmp/fb-runs*`（本地，不入库）
 
-## 建议的第三轮（未做）
+## 第三轮补充（2026-11-08）：重复采样
+
+用户选择先做重复采样估计方差：[`featurebench-2026-11-08-repeat-sampling.md`](featurebench-2026-11-08-repeat-sampling.md)。
+
+- 3 个任务（packaging / seaborn test_algorithms / sphinx build_gettext）× 2 臂 × 3 次重复；
+- **结果完全确定**：packaging A/B 3/3 通过、seaborn A/B 3/3 通过、sphinx A/B 0/3 失败；
+  9 个 paired 差全为 0，bootstrap 95% CI = [0.0, 0.0]；
+- 因此 **③(−0.1) 与 ④(+0.18) 的矛盾不是同一 cell 的运行方差**，而是**任务样本不同 +
+  跨时间窗漂移**（sphinx build_gettext 在 ③ 的 standard 运行中通过，在 MVP 与本实验 3 次
+  都失败）；
+- 结果方差小，但 **token 方差大**（同一 cell 可差 2–5 倍），B 的成本优势/劣势不能只看
+  resolved；B 在本面板 token 仍为 A 的 1.2×/11.6×/2.6×。
+
+### 修正后的最强结论
+
+**当前证据不支持「SDLC + 固定引导提升最终正确率」；成本确定更高；验证者 approve 不可靠。**
+要检验小效应，下一轮必须**增加不同任务数量并覆盖难度梯度（lv2/更多 repo）**；重复同一批
+任务对 binary resolved 的检验力很低。
+
+## 建议的第四轮（未做）
 
 1. **重复采样**：同任务每臂 ≥3 次，先估计运行方差，再判断 ③/④ 的方向矛盾是否被噪声解释。
 2. **难度分层任务集**：需要 lv2/更大 repo（要额外镜像），避免天花板效应。
