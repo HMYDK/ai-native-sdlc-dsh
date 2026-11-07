@@ -173,6 +173,8 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, help="覆盖 manifest 的单 run 墙钟上限（秒）")
     ap.add_argument("--max-tokens", type=int, help="覆盖 manifest 的单 run token 上限")
     ap.add_argument("--keep-container", action="store_true", help="失败时保留容器便于排查")
+    ap.add_argument("--allow-version-mismatch", action="store_true",
+                    help="容器内 DSH/插件版本与 manifest 不一致时仍然继续（不推荐）")
     ap.add_argument("--execute", action="store_true", help="真正执行（默认 dry-run）")
     args = ap.parse_args()
 
@@ -233,6 +235,28 @@ def main() -> int:
         # 官方镜像里由 volume 留下的空目录也清掉（不挂载，但目录可能随 commit 保留）。
         container.exec_run(["bash", "-lc", "rm -rf /eval /run-eval; true"])
         log.info("container %s up", container.name)
+
+        # 版本探测：manifest 钉死的 DSH/插件版本必须与容器内实际一致，否则实验不可比。
+        ver_run = container.exec_run(["bash", "-lc", "dsh --version 2>/dev/null | tail -1"])
+        dsh_actual = (ver_run.output or b"").decode("utf-8", "replace").strip().splitlines()
+        dsh_actual = dsh_actual[-1].strip() if dsh_actual else ""
+        plugin_actual = ""
+        if args.plugin_dir:
+            pkg = Path(args.plugin_dir) / "dsh-sdlc" / "package.json"
+            if pkg.exists():
+                try:
+                    plugin_actual = json.loads(pkg.read_text(encoding="utf-8")).get("version", "")
+                except Exception:
+                    plugin_actual = ""
+        want_dsh = manifest["runtime"].get("dsh_cli", "")
+        want_plugin = manifest["runtime"].get("plugin_version", "")
+        if dsh_actual != want_dsh or (plugin_actual and plugin_actual != want_plugin):
+            msg = (f"version mismatch: dsh={dsh_actual!r} want={want_dsh!r}; "
+                   f"plugin={plugin_actual!r} want={want_plugin!r}")
+            if args.allow_version_mismatch:
+                log.warning(msg + " (allowed)")
+            else:
+                raise RuntimeError(msg)
 
         cm = ContainerManager(log)
         orig_exec = cm.exec_command
@@ -372,7 +396,9 @@ def main() -> int:
             "image": args.image,
             "image_digest": task.get("image_digest"),
             "dsh_cli": manifest["runtime"].get("dsh_cli"),
+            "dsh_cli_actual": dsh_actual,
             "plugin_version": manifest["runtime"].get("plugin_version"),
+            "plugin_version_actual": plugin_actual,
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "elapsed_seconds": run_meta.get("elapsed_s"),
             "token_usage": run_meta.get("usage_tokens"),

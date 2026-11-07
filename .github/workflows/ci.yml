@@ -38,3 +38,39 @@ jobs:
 
       - name: Test
         run: npm test
+
+  evals-check:
+    name: featurebench manifests / dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install checker deps
+        run: pip install pyyaml
+
+      # 只做结构校验与 dry-run：不调模型、不起容器、不拉镜像。
+      - name: Manifest structural check
+        run: python3 tools/evals/featurebench/sanity_check.py --structural
+
+      - name: Dry-run single arm
+        run: |
+          python3 tools/evals/featurebench/run_arm.py \
+            --task-id "$(python3 - <<'PY'
+          import yaml
+          m = yaml.safe_load(open('tools/evals/featurebench/manifest.yml'))
+          print(m['tasks'][0]['id'])
+          PY
+          )" \
+            --arm standard --mode empty --image fb-eval-base:packaging --out /tmp/dry-run-arm
+
+      - name: Dry-run matrix
+        run: |
+          python3 tools/evals/featurebench/run_matrix.py \
+            --manifest tools/evals/featurebench/manifests/verify-calibration.yml \
+            --runs-root /tmp/dry-run-matrix --plugin-dir /tmp/no-plugin --credentials /tmp/no-creds
