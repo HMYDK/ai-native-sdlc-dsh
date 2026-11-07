@@ -155,3 +155,13 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval \
 - 官方评分：`fb eval` 输出 `report.json`（resolved / pass_rate / 各类不可评分）；
 - 报告：首批 5 任务 × 2 臂见 [`docs/evals/featurebench-2026-11-06.md`](../../../docs/evals/featurebench-2026-11-06.md)，
   机读快照见 [`featurebench-2026-11-06-data.json`](../../../docs/evals/featurebench-2026-11-06-data.json)。
+
+## 自检 / 归档 / 验证者分析
+
+- `sanity_check.py --structural`：CI 用的清单结构校验（不连 Docker/网络）；
+  `--control --task-id <id> --image fb-eval-base:<repo> --execute`：gold/empty 官方评分正负对照。
+- `archive_runs.py --runs-root <dir> --out <tar.gz>`：把 runs 归档（默认不含 session，带 sha256）。
+- `analyze_verifier.py --data <report-data.json>`：B 组验证者裁决 vs 官方评分的混淆矩阵。
+
+实验②③④的预注册清单在 `manifests/`；设计说明见
+[`docs/evals/featurebench-2026-11-07-experiments.md`](../../../docs/evals/featurebench-2026-11-07-experiments.md)。
