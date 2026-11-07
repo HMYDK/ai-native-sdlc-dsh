@@ -61,7 +61,7 @@ def main() -> int:
         if only and task["id"] not in only:
             continue
         task_dir = runs_root / task["id"].split(".")[0]
-        for arm in ("standard", "sdlc"):
+        for arm in manifest["arms"]:
             d = task_dir / arm
             if not (d / "patch.diff").exists():
                 continue

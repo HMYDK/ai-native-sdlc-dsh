@@ -1,0 +1,101 @@
+# 实验③2×2 拆分：preset(标准/SDLC) × 引导话术(无/有)，2026-11-07 预注册。
+# 5 个任务沿用 MVP；4 个 arm 各跑 1 次，用来区分收益来自 SDLC 机制还是 prompt 引导。
+version: 1
+date: '2026-11-07'
+benchmark:
+  name: FeatureBench
+  package: featurebench==0.3.0
+  dataset: LiberCoders/FeatureBench
+  revision: 76b4a4566e04f4bcc13c35125d4f301791efa736
+  split: fast
+runtime:
+  dsh_cli: 0.2.1-rc.5
+  plugin_package: '@ai-native-sdlc-plugin/dsh-sdlc'
+  plugin_version: 0.6.0
+  plugin_tarball_sha256: bac39b42037ea09747fbf5924d7d2cda1381ca31d7b039843fc4f46d8ee6dc88
+  base_os: Ubuntu 22.04.5 / Python 3.11 / conda testbed env
+  node_in_container: v24.21.0 (linux-x64 tarball, baked into fb-eval-base)
+  provider: deepseek-account
+  model: deepseek-flash
+  reasoning_effort: max
+arms:
+  standard:
+    preset: 标准模式
+    prompt_suffix: ''
+  standard_guidance:
+    preset: 标准模式
+    prompt_suffix: '
+
+      ## Evaluation requirement
+
+
+      Use the AI-native SDLC workflow for this task before you finish:
+
+      1. create a task with `sdlc_task_create`;
+
+      2. write intent/spec/plan via `sdlc_artifact_write` and advance stages with
+      `sdlc_task_advance`;
+
+      3. run `sdlc_verify` before claiming completion and address its findings.
+
+      '
+  sdlc:
+    preset: AI 原生 SDLC
+    prompt_suffix: ''
+  sdlc_guidance:
+    preset: AI 原生 SDLC
+    prompt_suffix: '
+
+      ## Evaluation requirement
+
+
+      Use the AI-native SDLC workflow for this task before you finish:
+
+      1. create a task with `sdlc_task_create`;
+
+      2. write intent/spec/plan via `sdlc_artifact_write` and advance stages with
+      `sdlc_task_advance`;
+
+      3. run `sdlc_verify` before claiming completion and address its findings.
+
+      '
+run_policy:
+  timeout_seconds: 2700
+  max_tokens_per_run: 40000000
+  total_token_budget: 250000000
+  infra_retries: 1
+  agent_retries: 0
+  order: alternating
+  failure_classes:
+  - timeout
+  - over_budget
+  - infra_error
+  - empty_patch
+  - agent_error
+  - unresolved
+tasks:
+- id: pypa__packaging.013f3b03.test_metadata.e00b5801.lv1
+  repo: pypa/packaging
+  level: 1
+  image: libercoders/featurebench-specs_packaging-instance_c393a6a8
+  image_digest: sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916
+- id: pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1
+  repo: pytest-dev/pytest
+  level: 1
+  image: libercoders/featurebench-specs_pytest-instance_2b74d6c4
+  image_digest: sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291
+- id: pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1
+  repo: pydantic/pydantic
+  level: 1
+  image: libercoders/featurebench-specs_pydantic-instance_78693714
+  image_digest: sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b
+- id: mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1
+  repo: mwaskom/seaborn
+  level: 1
+  image: libercoders/featurebench-specs_seaborn-instance_52738fbb
+  image_digest: sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1
+- id: sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1
+  repo: sphinx-doc/sphinx
+  level: 1
+  image: libercoders/featurebench-specs_sphinx-instance_6191afb1
+  image_digest: sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268

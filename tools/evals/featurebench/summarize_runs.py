@@ -24,8 +24,6 @@ from pathlib import Path
 
 import yaml
 
-ARMS = ("standard", "sdlc")
-
 
 def load_json(p: Path):
     try:
@@ -131,10 +129,12 @@ def main() -> None:
 
     manifest = yaml.safe_load(open(args.manifest, encoding="utf-8"))
     runs_root = Path(args.runs_root)
+    arms = list(manifest["arms"].keys())
+    sdlc_arms = [a for a in arms if "SDLC" in (manifest["arms"][a].get("preset") or "")]
     tasks = []
     for task in manifest["tasks"]:
         task_dir = runs_root / task["id"].split(".")[0]
-        for arm in ARMS:
+        for arm in arms:
             d = task_dir / arm
             if not (d / "meta.json").exists():
                 continue
@@ -160,7 +160,7 @@ def main() -> None:
                 row["tokens_source"] = "session" if row["tokens"] else None
             else:
                 row["tokens_source"] = "ui"
-            if arm == "sdlc":
+            if arm in sdlc_arms:
                 row.update(sdlc_stats(task_dir))
                 verdicts = row.get("verify_verdicts") or []
                 if "resolved" not in row:
@@ -185,18 +185,21 @@ def main() -> None:
                      f"{r.get('tokens')} | {r.get('elapsed_seconds')} | {r.get('patch_chars')} | "
                      f"{r.get('agent_failure') or ''} |")
     lines.append("")
-    for arm in ARMS:
+    for arm in arms:
         rows = [r for r in tasks if r["arm"] == arm]
         if rows:
             resolved = sum(1 for r in rows if r.get("resolved"))
             avg = sum(float(r.get("pass_rate") or 0) for r in rows) / len(rows)
             lines.append(f"- **{arm}**: n={len(rows)}, resolved={resolved}, avg_pass_rate={avg:.4f}")
-    b = [r for r in tasks if r["arm"] == "sdlc" and "resolved" in r]
-    if b:
-        used = sum(1 for r in b if r.get("used_sdlc"))
-        agree = sum(1 for r in b if r.get("verifier_vs_official") == "agree")
-        lines.append(f"- **B 组流程采纳**: {used}/{len(b)} 次真的调用过 sdlc_*；"
-                     f"验证者裁决与官方评分一致 {agree}/{len(b)}")
+    for arm in sdlc_arms:
+        b = [r for r in tasks if r["arm"] == arm and "resolved" in r]
+        if b:
+            used = sum(1 for r in b if r.get("used_sdlc"))
+            agree = sum(1 for r in b if r.get("verifier_vs_official") == "agree")
+            noverdict = sum(1 for r in b if r.get("verifier_vs_official") == "no_verdict")
+            mismatch = sum(1 for r in b if r.get("verifier_vs_official") == "mismatch")
+            lines.append(f"- **{arm} 流程采纳**: {used}/{len(b)} 次真的调用过 sdlc_*；"
+                         f"验证者 vs 官方: agree={agree}, mismatch={mismatch}, no_verdict={noverdict}")
     leaks = sum(1 for r in tasks if r.get("leak_scan_hits"))
     lines.append(f"- **参考副本泄漏**: {leaks}/{len(tasks)} 次运行扫描命中（镜像内 vendored 实现，未修改环境；见 README 已知限制）")
     Path(args.markdown).write_text("\n".join(lines) + "\n", encoding="utf-8")

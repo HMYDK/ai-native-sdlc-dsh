@@ -1,0 +1,58 @@
+# 实验②压力子集：预注册（2026-11-07）。对 MVP 中两臂都失败的 sphinx build_gettext 任务
+# 重复 3 次（B + 引导），检查验证者是否稳定给出假阳性；与 10 任务校准集分开统计。
+version: 1
+date: '2026-11-07'
+benchmark:
+  name: FeatureBench
+  package: featurebench==0.3.0
+  dataset: LiberCoders/FeatureBench
+  revision: 76b4a4566e04f4bcc13c35125d4f301791efa736
+  split: fast
+runtime:
+  dsh_cli: 0.2.1-rc.5
+  plugin_package: '@ai-native-sdlc-plugin/dsh-sdlc'
+  plugin_version: 0.6.0
+  plugin_tarball_sha256: bac39b42037ea09747fbf5924d7d2cda1381ca31d7b039843fc4f46d8ee6dc88
+  base_os: Ubuntu 22.04.5 / Python 3.11 / conda testbed env
+  node_in_container: v24.21.0 (linux-x64 tarball, baked into fb-eval-base)
+  provider: deepseek-account
+  model: deepseek-flash
+  reasoning_effort: max
+arms:
+  sdlc:
+    preset: AI 原生 SDLC
+    prompt_suffix: '
+
+      ## Evaluation requirement
+
+
+      Use the AI-native SDLC workflow for this task before you finish:
+
+      1. create a task with `sdlc_task_create`;
+
+      2. write intent/spec/plan via `sdlc_artifact_write` and advance stages with
+      `sdlc_task_advance`;
+
+      3. run `sdlc_verify` before claiming completion and address its findings.
+
+      '
+run_policy:
+  timeout_seconds: 2700
+  max_tokens_per_run: 40000000
+  total_token_budget: 60000000
+  infra_retries: 1
+  agent_retries: 0
+  order: alternating
+  failure_classes:
+  - timeout
+  - over_budget
+  - infra_error
+  - empty_patch
+  - agent_error
+  - unresolved
+tasks:
+- id: sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1
+  repo: sphinx-doc/sphinx
+  level: 1
+  image: libercoders/featurebench-specs_sphinx-instance_6191afb1
+  image_digest: sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268

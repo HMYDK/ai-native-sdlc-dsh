@@ -21,7 +21,9 @@ import argparse
 import json
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -61,6 +63,8 @@ def main() -> int:
                     help="repo=派生镜像，可重复，例如 'sympy/sympy=fb-eval-base:sympy'")
     ap.add_argument("--web-port-base", type=int, default=3115)
     ap.add_argument("--cdp-port-base", type=int, default=9400)
+    ap.add_argument("--parallel-tasks", type=int, default=1,
+                    help="同时跑几个任务（每任务内部的 arm 仍并发；注意容器内存）")
     ap.add_argument("--only-task", action="append", default=[],
                     help="只跑指定 task id（可重复）；顺序仍按 manifest 中的奇偶规则")
     ap.add_argument("--execute", action="store_true", help="真正执行（默认 dry-run）")
@@ -78,14 +82,17 @@ def main() -> int:
     budget = int(policy.get("total_token_budget", 0))
     infra_retries = int(policy.get("infra_retries", 1))
     only = set(args.only_task)
+    all_arms = list(manifest["arms"].keys())
     plan = []
     for i, task in enumerate(manifest["tasks"]):
         if only and task["id"] not in only:
             continue
-        arms = ["standard", "sdlc"] if i % 2 == 0 else ["sdlc", "standard"]
+        # 每次任务轮转启动顺序，避免总是同一 arm 先启动（时间漂移）
+        arms = all_arms[i % len(all_arms):] + all_arms[:i % len(all_arms)]
         plan.append({"task": task["id"], "repo": task["repo"], "arms": arms,
-                     "image": images.get(task["repo"]), "web_port": args.web_port_base + i * 2,
-                     "cdp_port": args.cdp_port_base + i * 2})
+                     "image": images.get(task["repo"]),
+                     "web_port": args.web_port_base + i * 8,
+                     "cdp_port": args.cdp_port_base + i * 8})
         print(f"[plan] {task['id']} order={arms} image={plan[-1]['image'] or 'MISSING'} "
               f"ports={plan[-1]['web_port']}/{plan[-1]['cdp_port']}")
     if not args.execute:
@@ -99,19 +106,22 @@ def main() -> int:
     summary = {"started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                "manifest": str(manifest_path.resolve()), "runs": [],
                "total_tokens": 0, "stopped_for_budget": False}
-    for item in plan:
+    lock = threading.Lock()
+
+    def run_task(item: dict) -> str:
+        """跑一个任务的所有 arm（并发）。返回 stop / ok / infra。"""
         task_dir = runs_root / item["task"].split(".")[0]
         procs = []
         for slot, arm in enumerate(item["arms"]):
             out = task_dir / arm
-            port_offset = slot
             cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
-            cmd += ["--web-port", str(item["web_port"] + port_offset),
-                    "--cdp-port", str(item["cdp_port"] + port_offset)]
+            cmd += ["--web-port", str(item["web_port"] + slot),
+                    "--cdp-port", str(item["cdp_port"] + slot)]
             print(f"[run] task={item['task']} arm={arm} start={time.strftime('%H:%M:%S')}")
-            procs.append((arm, out, subprocess.Popen(cmd)))
+            procs.append((slot, arm, out, subprocess.Popen(cmd)))
             time.sleep(5)  # 错开启动，避免同时抢镜像/Chrome
-        for arm, out, proc in procs:
+        over_budget = False
+        for slot, arm, out, proc in procs:
             code = proc.wait()
             record = {"task": item["task"], "arm": arm, "image": item["image"],
                       "exit": code, "attempts": 1}
@@ -120,20 +130,32 @@ def main() -> int:
                     break
                 print(f"[retry] task={item['task']} arm={arm} infra error, attempt {attempt + 2}")
                 cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
-                cmd += ["--web-port", str(item["web_port"] + (0 if arm == item["arms"][0] else 1)),
-                        "--cdp-port", str(item["cdp_port"] + (0 if arm == item["arms"][0] else 1))]
+                cmd += ["--web-port", str(item["web_port"] + slot),
+                        "--cdp-port", str(item["cdp_port"] + slot)]
                 code = subprocess.run(cmd).returncode
                 record["attempts"] += 1
                 record["exit"] = code
             collect(out, record)
-            summary["runs"].append(record)
-            summary["total_tokens"] += int(record.get("tokens") or 0)
-            (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
-        if budget and summary["total_tokens"] > budget:
-            summary["stopped_for_budget"] = True
-            print(f"[stop] total tokens {summary['total_tokens']} > budget {budget}", file=sys.stderr)
-            (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
-            return 4
+            with lock:
+                summary["runs"].append(record)
+                summary["total_tokens"] += int(record.get("tokens") or 0)
+                (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
+                if budget and summary["total_tokens"] > budget:
+                    over_budget = True
+        return "stop" if over_budget else "ok"
+
+    if args.parallel_tasks <= 1:
+        for item in plan:
+            if run_task(item) == "stop":
+                summary["stopped_for_budget"] = True
+                return 4
+    else:
+        with ThreadPoolExecutor(max_workers=args.parallel_tasks) as ex:
+            for status in ex.map(run_task, plan):
+                if status == "stop":
+                    summary["stopped_for_budget"] = True
+                    (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
+                    return 4
     summary["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
     print("[done]", json.dumps(summary, ensure_ascii=False)[:800])
