@@ -162,7 +162,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
     ap.add_argument("--task-id", required=True)
-    ap.add_argument("--arm", required=True, choices=["standard", "sdlc"])
+    ap.add_argument("--arm", required=True, help="manifest arms 里的 arm 名（如 standard/sdlc/sdlc_guidance）")
     ap.add_argument("--mode", default="agent", choices=["agent", "empty"])
     ap.add_argument("--image", required=True, help="派生镜像，例如 fb-eval-base:sympy")
     ap.add_argument("--out", required=True, help="结果目录（不提交）")
@@ -184,6 +184,9 @@ def main() -> int:
         print(f"task {args.task_id} not in manifest (预注册清单之外)", file=sys.stderr)
         return 2
     task = tasks[args.task_id]
+    if args.arm not in manifest["arms"]:
+        print(f"arm {args.arm!r} 不在 manifest arms {list(manifest['arms'])} 里", file=sys.stderr)
+        return 2
     arm_cfg = manifest["arms"][args.arm]
     policy = manifest.get("run_policy", {})
     timeout = args.timeout or int(policy.get("timeout_seconds", 2700))
