@@ -131,10 +131,13 @@ def main() -> int:
                 if args.retry_failed and (out / "meta.json").exists():
                     try:
                         prev = json.loads((out / "meta.json").read_text(encoding="utf-8"))
-                        # patch=0 也是合法结果（agent 没改代码），不能当 infra 失败重跑，
-                        # 否则会变成按结果挑样本；只有 agent_failure 或未完成才补跑。
-                        ok = (prev.get("agent_completed") is True
-                              and not prev.get("agent_failure"))
+                        # 只补跑基础设施失败（turn_error/driver_error/未完成）；
+                        # timeout/over_budget 是预注册策略下的合法结果，不重试，
+                        # 否则等于按结果挑样本。
+                        failure = prev.get("agent_failure")
+                        policy_outcome = failure in ("timeout", "over_budget")
+                        ok = (policy_outcome
+                              or (prev.get("agent_completed") is True and not failure))
                         if ok:
                             print(f"[skip] task={item['task']} arm={arm} already succeeded")
                             continue
