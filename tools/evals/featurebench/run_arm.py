@@ -43,7 +43,6 @@ CHROME_CANDIDATES = [
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",
 ]
-PRESET_LABEL = {"standard": "标准模式", "sdlc": "AI 原生 SDLC"}
 INFRA_EXIT, AGENT_EXIT = 2, 3
 
 
@@ -343,7 +342,7 @@ def main() -> int:
             run_json = out / "run.json"
             try:
                 r = subprocess.run(
-                    [node, str(driver), str(args.cdp_port), PRESET_LABEL[args.arm],
+                    [node, str(driver), str(args.cdp_port), arm_cfg["preset"],
                      str(prompt_file), str(run_json)],
                     capture_output=True, text=True, timeout=timeout,
                     env=dict(os.environ, WEB_PORT=str(args.web_port), MAX_TOKENS=str(max_tokens)),
