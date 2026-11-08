@@ -17,7 +17,7 @@
 #    覆盖会替换完整子插件列表），所以 SDLC 模式必须自带一份完整的 standard
 #    列表，否则选了这个模式的会话连 read/bash 都没有。App 升级后 standard 可能
 #    变化，用 `node tools/preset-sync-check.mjs` 对账；`--write` 可重新同步。
-#    **不要手改下面这段复制区域**，它由该工具生成（首次同步自 DSH 0.2.1-rc.2）。
+#    **不要手改下面这段复制区域**，它由该工具生成（首次同步自 DSH 0.2.2-rc.1）。
 #
 # preset 内仍保持每组件一个 Cordis 行（各有 inject / Config / fiber），行 id
 # 与之前一致，便于诊断；不要把这些行压成一行「子插件套子插件」。
@@ -54,6 +54,9 @@
             disabled: !!js process.platform !== 'win32'
           - id: tool-fs
             name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              # Set false to drop the apply_patch tool beside edit.
+              applyPatch: false
           - id: tool-fs-search
             name: '@deepseek-ai/dsh-tool-fs-search'
             config:
@@ -116,14 +119,13 @@
             config:
               - id: tool-subagent-control
                 name: '@deepseek-ai/dsh-tool-subagent-control'
-              - id: tool-subagent-list-agents
-                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: spawn
                   toolName: subagent
-                  modelSelectionSettings: true
+                  modelSelection: true
+                  modelDiscovery: true
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
@@ -150,7 +152,7 @@
             name: '@deepseek-ai/dsh-tool-present'
           - id: tool-plugin-manager
             name: '@deepseek-ai/dsh-plugin-manager/tools'
-            disabled: true
+            disabled: !!js "!ctx.get('profileContext')"
           - id: tool-plugin-market
             name: '@deepseek-ai/dsh-plugin-market/tools'
             disabled: true

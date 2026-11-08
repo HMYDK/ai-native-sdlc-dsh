@@ -780,3 +780,33 @@ CI 能跑的检查有上限：
 - **“`dsh plugin add` 一定不写 bundles”**：见 §2.8。装完读 profile 的 `package.json`，不要用绝对句。
 - **“冻结能防篡改”**：冻结只是流程摩擦 + 留痕；作者自己调一次 `sdlc_fix_end` 即可解冻。测试资产识别是名字模式表，shell 通道是文本启发式，等价写法可以绕过。
 - **“单测通过 = 功能可用”**：不成立。加载成功 ≠ 可用；符号链接安装通过 ≠ 真实分发可用；旧模块测试通过 ≠ 新模块可用。涉及接线的改动必须真实操作验证。
+
+## 10. DSH 0.2.2 升级后 SDLC 模式消失（2026-11-05）
+
+本机升级到 DSH `0.2.2-rc.1` 后，新会话选择器没有「AI 原生 SDLC」。插件包仍安装着，侧栏 UI 和宿主 preset 声明行都处于 active；失败的是 preset 内部组合。设置页明确显示 `tool-subagent-list-agents (@deepseek-ai/dsh-tool-subagent-control/list-agents): never started`。新版删除了这个子路径，旧 standard 副本还在引用它，导致整个 preset 被标为 broken 并从选择器隐藏。
+
+这次不是过去的精确 peer 范围导致整个 bundle 被跳过。`npm run compat` 接受版本范围，但不能证明包的 exports 或工具 API 没变。`preset-sync` 找到三处整行漂移：文件工具配置、含已删除入口的 delegation 组、插件管理工具启用条件。同步当前 App standard 副本才解决模式加载；Cordis peer 也补上实测过的 `~4.1.0`。
+
+继续实际调用发现第二个问题：0.2.2 把工具执行器独立出来，`ctx.tools.execute()` 改为接收模型 batch。RSI 回放及创建改进任务仍按旧版单次调用，模式恢复后也会失败。新增唯一的 `shared/invoke-tool.ts`：新版走宿主公开的 `ToolExecutionPipeline`，保留父调用、rootCallId、工具集合、权限、后置策略及取消；旧版继续原接口。不能只把内部调用包装成一个新 batch 而丢掉原来的调用关系。
+
+测试和诊断也暴露了盲区：
+
+- 裸 `ToolRuntime` 的冒烟需要装新版 native executor；动态导入必须与运行时使用同一份 DSH 依赖，不能混入仓库旧版模块。
+- 原 preset 检查只核对本插件的六个入口，漏了 standard 组里的 DSH 子路径。现在递归解析当前 App 的全部 DSH 组件入口；旧 patch 46 项中恰好失败一项，修复后 46 项全过。
+- 激活检查还硬编码了旧 npm scope，曾误报未安装；现在直接使用 manifest 的完整包名。
+- 新增 `tools/profile-runtime-check.mjs`，将 tarball 安装后的真实启动、模式装配、工具执行和面板认证接口变成可重复检查，拒绝在用户默认 HOME 运行。
+
+本轮读数（插件 `0.6.0` 本地兼容修复，DSH `0.2.2-rc.1`，macOS）：
+
+| 检查 | 结果 |
+|---|---|
+| build + 库/客户端单测 | 257 + 44 = 301 项通过 |
+| 看板宿主接口 | 58 项通过 |
+| 运行时冒烟 | 12 组、561 项通过 |
+| 内部调用旧/新运行时 | 0.2.1、0.2.2 各 12 项通过，包含父子关系、guard、后置策略和取消 |
+| compat / preset-sync | 通过 |
+| 最终 tarball | 71 个文件；安装副本 43 个发布代码文件与构建产物 hash 一致 |
+| 隔离 profile 实际运行 | 宿主两行 active；SDLC 50 个工具含 17 个 `sdlc_*`；真实 `sdlc_status` 调用成功；standard 无 `sdlc_*`；看板 HTTP 200；验证者工具范围和注册归还通过 |
+| 本机桌面 | 备份后安装并重启；自动界面操作成功点选「AI 原生 SDLC」，打开侧栏看板并看到任务列表和详情 |
+
+本轮未调用真实模型跑完整任务，也未重跑模型基准、隔离测试场或 Windows。修复包只安装在本机，没有发布 npm；保留原安装备份，仓库不收录 profile、备份、认证地址或原始本机日志。

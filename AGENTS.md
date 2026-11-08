@@ -4,7 +4,7 @@
 
 本文件面向任何 clone 仓库的 agent 与贡献者，只保留仍然约束当前实现的结论；详细历史、事故与读数见 [`docs/history/lessons.md`](docs/history/lessons.md)。
 
-当前插件：`@ai-native-sdlc-plugin/dsh-sdlc@0.6.0`，源码在 `packages/sdlc/`。
+当前插件：`@ai-native-sdlc-plugin/dsh-sdlc@0.6.1`，源码在 `packages/sdlc/`。
 
 ## 项目目标与边界
 
@@ -83,7 +83,9 @@ tools/                      # bench / mutation / activation / time-travel / comp
 ## 兼容性与接入要点
 
 - **peer 范围不要钉死精确版本。** App 会自动升级，仓库不会。DSH 的判定是 `semver.satisfies(runtime, range, { includePrerelease: true })`；精确旧版本不接受新版本。历史上七个包各自钉精确 peer，一次 App 升级让它们被判定 `incompatible-version` 后整体 skip：**App 照常启动，工具和侧栏一起消失，日志只有一行 warning**。现在只有一份 peer 范围；改 peer 或升级 App 后跑 `npm run compat`，它读本机真实 App 的 `dsh/package.json`。
-- **0.2.1 子代理 API 已变。** `ctx.subagents.start()` 已删除，改用 `startActivation(spec)`；`SubagentRun` / `run.id` → `SubagentActivation` / `run.childId`；`label` / `signal` 移到 spec 外层，并新增 `delivery: 'caller'`。`persona` / `toolFilter` 已从 `SubagentStartRequest` 删除，迁移为 Agent Preset：`ctx.agentPresets.register({ id, plugins })` + request 带 `agentPreset`。见 `packages/sdlc/src/verify/preset.ts`。
+- **0.6.1 起最低支持 DSH 0.2.2。** peer/devDeps 收紧到 `^0.2.2-rc.1`：preset 内嵌的 standard 副本、被删除的 `list-agents` 入口和 `invoke-tool` 的 pipeline 分支都以 0.2.2 为准；0.2.1 上会缺 `list-agents` 工具、丢模型选择设置，因此不再声明支持。App 升级后仍要跑 `npm run compat` / `npm run preset-sync` / `npm run verify`。
+- **0.2.1 子代理 API 已变（历史）。** `ctx.subagents.start()` 已删除，改用 `startActivation(spec)`；`SubagentRun` / `run.id` → `SubagentActivation` / `run.childId`；`label` / `signal` 移到 spec 外层，并新增 `delivery: 'caller'`。`persona` / `toolFilter` 已从 `SubagentStartRequest` 删除，迁移为 Agent Preset：`ctx.agentPresets.register({ id, plugins })` + request 带 `agentPreset`。见 `packages/sdlc/src/verify/preset.ts`。
+- **0.2.2 的组件入口和工具执行 API 已变。** `dsh-tool-subagent-control/list-agents` 被删除，旧 preset 会整体加载失败并从选择器消失；`ctx.tools.execute()` 改收模型 batch，内部嵌套调用统一走 `src/shared/invoke-tool.ts`，用共享 pipeline 保留父调用、权限、后置策略和取消。`npm run compat` 只证明版本声明接受；`preset` 冒烟还要解析当前 App 的所有 DSH 组件入口，tarball 安装后用 `tools/profile-runtime-check.mjs` 检查真实运行时。详见 lessons §10。
 - **preset 不会自动隔离宿主全局工具。** 只挂 preset 时，真实验证者的工具面里仍有 `sdlc_task_create` / `sdlc_fix_end` / `sdlc_verify`——它能解冻测试、推进任务。必须在 preset 里放一行 `ctx.tools.restrict({ deny: <运行时枚举的全部 global> })`。`allow` 清单不行：preset 自己的 `read` / `grep` / `bash` 是 scope 注册，不在 global 层，会被判 `unknown global tool`。
 - **`agentPresets` 是可选服务**（web/desktop 有，headless 没有）。不要写进 `inject`（会停 pending），用 `ctx.get('agentPresets')`；缺失时 `sdlc_verify` **fail closed**，不降级成继承全部工具的子代理。
 - **验证者 preset 按需注册。** `agentPresets/list` 会把每条声明都列进新会话/设置页的模式选择器，所以 `sdlc-verify` 不在 apply 时注册 `sdlc-verifier`，而是只在 `sdlc_verify` 运行期间临时注册、跑完归还（`withVerifierPreset` 租约；并发调用按 depth 共享一次注册）。空闲时选择器里只有「AI 原生 SDLC」。
@@ -123,22 +125,24 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 ## 当前验证读数
 
-最近一次全量记录（**2026-11-02，插件 0.6.0**；11 月 3 日补做 tarball 安装与界面检查）：
+最近一次全量记录（**2026-11-08，插件 0.6.1，DSH 0.2.2-rc.1 / cordis 4.1.0**；0.6.1 已于 2026-11-08 发布）：
 
 | 范围 | 读数 |
 |---|---|
-| 库 + 客户端单测 | 253 + 37 = **290** |
+| 库 + 客户端单测 | 258 + 45 = **303** |
 | 看板宿主接口（单独执行） | **58** |
-| 运行时冒烟 | 11 组，**522** 条 |
-| Issue #2 双侧回归 | 旧版 13 条确认缺陷；当前版 63 条通过，打包安装副本复跑通过 |
-| `npm run compat` / `npm run preset-sync` | 通过 |
+| 运行时冒烟 | 12 组，**561** 条 |
+| tarball | `npm pack` **71** 文件；隔离 profile 启动日志 0 条 `entry did not activate` / `incompatible-version`，`skippedBundles` 空 |
+| 真实模型 7 阶段 + GUI | 隔离 web profile 装 0.6.1 tarball，用 deepseek-v4-pro 在示例项目跑完 CART-1：INTENT→SPEC→PLANNED→IMPLEMENTING→VERIFYING→REVIEWING→DONE，独立裁决 **approve**，AC-001~AC-006 全 met，2 条非阻塞发现 deferred；GUI 用 headless Chrome + CDP 自动点选「AI 原生 SDLC」并截图（证据在本地 `.verify-home/`，不入库） |
+| 模式与工具面 | SDLC 模式工具 50 个含 17 个 `sdlc_*`；standard 无 `sdlc_*`；`sdlc_status` 真实调用成功；看板接口 200；验证者 preset 注册/归还通过 |
+| `npm run compat` / `npm run preset-sync` | 通过（9 个 peer 接受 0.2.2-rc.1；22+6 行副本逐字段一致） |
 
-这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。隔离测试场 21 条仍是 2026-11-01、0.5.0 的读数，本次未重跑。Issue #2 的范围与限制见 [验证记录](.ai/tasks/ACCEPTANCE-2/proof.md)。
+这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。0.6.0 已于 2026-11-03 发布（`v0.6.0` = 47b4c3c），但它在 DSH 0.2.2 上会丢 SDLC 模式；0.6.1 已于 2026-11-08 通过 OIDC trusted publishing 发布（npm `latest`=0.6.1、tag `v0.6.1`=90260f3、GitHub Release 含 tarball/SHA256SUMS、provenance attestations 已生成），0.6.0 的读数不能冒充 0.6.1。0.2.1 自 0.6.1 起不再声明支持。本轮真实模型跑在隔离环境：宿主机沙箱内嵌套 seatbelt 不可用，作者侧用 `DSH_PERMISSION_MODE=danger-full-access`，验证者子代理仍受限、无法执行 shell，裁决依据是作者会话原始证据 + 代码推演（任务内 F1 已 defer 留证）。未覆盖：Windows、真实业务项目、并发任务、隔离测试场与 mutation 基线重测（21 条仍是 2026-11-01、0.5.0 读数）。Issue #2 的旧版 13 / 当前版 63 条双侧记录属于 11 月 2–3 日，范围见 [验证记录](.ai/tasks/ACCEPTANCE-2/proof.md)。升级历史证据见 [lessons §10](docs/history/lessons.md#10-dsh-022-升级后-sdlc-模式消失2026-11-05)。
 
 ## 已知边界
 
-- **standard preset 副本会漂移。** App 升级后 `preset-sdlc` 里的基础工具列表可能过期，SDLC 模式会「少新工具」却不报错。必须跑 `npm run preset-sync`；漂移时 `npm run preset-sync:write` 后复跑冒烟。门禁比较整行字段（`id` / `name` / `config` / `disabled` / `group` / `isolate` 及未来新增字段），不能只比 id/name。
-- **协议层证据已有，GUI 层未人工验收。** 会话日志 `request/header` 显示 SDLC 会话 44 个工具 = standard 31 个 + 13 个 `sdlc_*`，standard 会话 31 个、0 个 `sdlc_*`；`toolsTokens` 10072 vs 6902 是旁证。仍缺在新建会话选择器里真的点选「AI 原生 SDLC」并看到工具列表/面板渲染；不要把「协议层已证实」写成「GUI 已验收」。
+- **standard preset 副本会漂移。** App 升级后可能少新工具，也可能因旧入口被删导致整个模式消失。必须跑 `npm run preset-sync`；漂移时 `npm run preset-sync:write` 后复跑冒烟。门禁比较整行字段（`id` / `name` / `config` / `disabled` / `group` / `isolate` 及未来新增字段），不能只比 id/name。
+- **真实模型全流程只验证过一次，不等于日常环境全场景通过。** 2026-11-08 用隔离 `DSH_HOME` + 0.6.1 tarball + 真实模型（deepseek-v4-pro）在示例项目跑完 CART-1 的 7 阶段到 DONE（裁决 approve、6 条验收全 met），GUI 用 headless Chrome + CDP 自动点选模式并截图。限制：宿主机 DSH 沙箱内嵌套 seatbelt 不可用，作者侧以 `DSH_PERMISSION_MODE=danger-full-access` 运行；验证者子代理无法执行 shell，靠作者会话记录 + 代码推演裁决（任务内 defer 留证）。Windows、真实业务项目、并发任务仍未覆盖。
 - **已有会话不会切换组合。** 选择只影响之后创建的会话，这是官方语义，不是缺陷。
 - **冻结不是防篡改边界。** Actor 自己调一次 `sdlc_fix_end` 即可解冻。它是流程摩擦 + 留痕，不是硬约束。
 - **测试资产识别是名字模式表。** 未覆盖的命名不会被冻结。
@@ -155,6 +159,7 @@ tools/                      # bench / mutation / activation / time-travel / comp
 - **原始 `.ai/rsi/` 默认忽略**：它含完整输入、代码与工具输出，没有通用脱敏。只提交经过检查的任务材料与摘要。
 - **不要提交本机 profile、备份目录、安装日志或含个人/环境信息的记录。**
 - 改 peer、preset 或 App 版本后跑 `npm run compat` 与 `npm run preset-sync`；提交前跑 `npm run verify`，并在提交/PR 说明里写清验证范围与未覆盖项。
+- **发布走 tag，版本号先 bump。** `packages/sdlc/package.json` 版本必须等于 tag（`v0.6.1` ↔ `0.6.1`；[Release workflow](.github/workflows/release.yml) 会校验并失败）。推 `v*` tag 后依次 build → pack → npm publish → GitHub Release。npm publish 走 **OIDC trusted publishing**：job 需要 `id-token: write`，并在 npmjs.com 该包 Settings → Trusted Publisher 配置 `HMYDK/ai-native-sdlc-dsh` + `release.yml`，不需要长期 token。**不要用普通 Publish/Granular token 塞 `NPM_TOKEN` 给这个 workflow**：CI 里 npm 会要求一次性验证码并以 `EOTP` 失败（实测）。npm 同版本不可覆盖，发布前先确认版本号与市场索引。
 - 引用验证读数时带日期和版本，不要拿旧数字当现状；不要用「单测通过」代替「端到端可用」。
 
 ## 历史与踩坑

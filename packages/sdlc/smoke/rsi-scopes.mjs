@@ -1,3 +1,4 @@
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
@@ -32,7 +33,7 @@ const emit=(session,key,events,type,data)=>{
   ctx.emit(scopeTarget(session,key),'session/event',session,event);return event;
 };
 let callCounter=0;
-const call=(name,args={})=>ctx.tools.execute({callId:`test-${++callCounter}`,name,arguments:args,agent:author,signal:new AbortController().signal});
+const call=(name,args={})=>executeTool(ctx, {callId:`test-${++callCounter}`,name,arguments:args,agent:author,signal:new AbortController().signal});
 try {
   execFileSync('git',['-C',root,'init'],{stdio:'pipe'});
   await fs.writeFile(path.join(root,'code.txt'),'fixture\n');execFileSync('git',['-C',root,'add','code.txt']);
@@ -40,7 +41,9 @@ try {
   new LocalFileSystem(ctx,LocalFileSystem.Config['~standard'].validate({}).value);
   ctx.provide('sandboxPolicy',{resolve:()=>({mode:'workspace-write',workspaceRoot:root,writableRoots:[root]})});
   ctx.provide('systemPrompt',{section:()=>()=>{},tools:()=>()=>{},variable:()=>()=>{},context:()=>()=>{},getSectionOrder:()=>0,getContextOrder:()=>0});
-  new ToolRuntime(ctx,'tools');new SkillRegistry(ctx);
+  new ToolRuntime(ctx,'tools');
+  installNativeExecutor(ctx, require);
+  new SkillRegistry(ctx);
   ctx.provide('sessionQuery',{observeSession:async id=>{
     if(!queryAvailable)throw new Error('fixture query unavailable');
     const source=sources.get(id);if(!source)throw new Error('fixture missing source');
@@ -124,7 +127,7 @@ try {
     await fs.mkdir(path.join(root,'packages/sdlc'),{recursive:true});
     await fs.writeFile(path.join(root,'packages/sdlc/package.json'),JSON.stringify({name:'@ai-native-sdlc-plugin/dsh-sdlc'}));
     const imported=await call('sdlc_rsi_improve',{task_id:'IMPROVE-1',packet:proposed.value.packet});
-    check(!imported.isError&&!imported.value.incomplete&&imported.value.intent.structure_ok,'proposal creates an ordinary task and structurally valid intent');
+    check(!imported.isError&&!imported.value.incomplete&&imported.value.intent.structure_ok,'proposal creates an ordinary task and structurally valid intent: '+JSON.stringify(imported));
     const state=await fs.readFile(path.join(root,'.ai/tasks/IMPROVE-1/state.yaml'),'utf8');
     check(state.includes('INTENT')&&state.includes('intent.md'),'proposal never bypasses ordinary task stages');
     const switchEvent=emit(authorSession,author,authorEvents,'tool/call',{name:'sdlc_task_create',arguments:'{"task_id":"SWITCH-1"}',callId:`test-${callCounter+1}`});
@@ -174,7 +177,7 @@ try {
     emit(author2Session,author2,author2Events,'user/message',{content:[{type:'text',text:'continue SCOPE-1'}]});
     emit(author2Session,author2,author2Events,'turn/start',{});
     emit(author2Session,author2,author2Events,'request/header',{header:{config:{model:'author-2'}}});
-    const call2=(name,args={})=>ctx.tools.execute({callId:`author2-${++callCounter}`,name,arguments:args,agent:author2,signal:new AbortController().signal});
+    const call2=(name,args={})=>executeTool(ctx, {callId:`author2-${++callCounter}`,name,arguments:args,agent:author2,signal:new AbortController().signal});
     const written=await call2('sdlc_artifact_write',{task_id:'SCOPE-1',kind:'intent',overwrite:true,content:'# Intent\n\n## Problem\nA problem\n\n## Proposed outcome\nAn outcome\n\n## Affected users and systems\nUsers\n\n## Constraints\nNo constraints\n\n## Open questions\nNone\n'});
     emit(author2Session,author2,author2Events,'tool/result',{message:{content:[{type:'text',text:'AUTHOR2_WORK_MARKER'}]}});
     emit(author2Session,author2,author2Events,'turn/end',{stopReason:'completed'});

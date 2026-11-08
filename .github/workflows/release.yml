@@ -7,10 +7,11 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
-    name: pack and publish tarball
+    name: verify / publish / pack
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,6 +25,14 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify tag matches package version
+        run: |
+          VERSION="$(node -p "require('./packages/sdlc/package.json').version")"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME 与 packages/sdlc/package.json 的 v$VERSION 不一致"
+            exit 1
+          fi
 
       - name: Build
         run: npm run build --workspace packages/sdlc
@@ -40,6 +49,16 @@ jobs:
           TGZ="${{ steps.pack.outputs.tgz }}"
           sha256sum "$TGZ" > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      # npm Trusted Publisher（OIDC）：不需要 NPM_TOKEN。依赖本 job 的
+      # id-token: write，以及 npmjs.com 上该包 Settings → Trusted Publisher
+      # 配置的 HMYDK/ai-native-sdlc-dsh + workflow release.yml。
+      # 不设置 registry-url / NODE_AUTH_TOKEN：避免 setup-node 生成带空 token
+      # 的 .npmrc 而让 npm 走 token 鉴权（CI 里会因 EOTP 失败）。
+      - name: Publish to npm
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+        run: npm publish --workspace packages/sdlc --access public --provenance
 
       - name: Create release
         env:

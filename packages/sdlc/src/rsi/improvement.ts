@@ -7,6 +7,7 @@ import {object} from './analysis.js';
 import {hash} from './snapshot.js';
 import {normalizeTaskId} from '../task/state.js';
 import type {TaskCollector} from './tasks.js';
+import {invokeTool} from '../shared/invoke-tool.js';
 
 const text=(value:unknown,name:string,max=8000):string=>{
   if(typeof value!=='string'||!value.trim()||value.length>max)throw new Error(`${name} 必须非空且不超过 ${max} 字符`);
@@ -46,7 +47,7 @@ export function intentFor(p:Proposal):string {
   return `# Intent: ${p.title}\n\n## Problem\n${p.problem}\n\n来源任务：${p.source_task}。提案：${p.id}。原始引用与内容指纹见 rsi-proposal.json。\n\n## Proposed outcome\n${p.change}\n\n验收：${p.acceptance}\n\n对照方法：${p.comparison}\n\n## Affected users and systems\n当前 SDLC 插件；类别：${p.focus}。来源任务仅提供执行证据。\n\n## Constraints\n按正常 SDLC 流程实现和验证；不能从一次样本声称普遍改善。来源记录完整：${p.source_evidence_complete}。导入指纹仅检查传输内容一致，不是独立复核。\n\n## Open questions\n待验证的原因：${p.hypothesis}\n\n尚未排除的解释：${p.alternatives}\n`;
 }
 async function invoke(ctx:Context,exec:ToolRunContext,name:string,args:Record<string,unknown>) {
-  const result=await ctx.tools.execute({name,arguments:args,callId:randomUUID() as never,rootCallId:exec.rootCallId,parent:exec.token,agent:exec.agent,signal:exec.signal});
+  const result=await invokeTool(ctx,exec,{name,arguments:args,callId:randomUUID() as never});
   for(const context of result.additionalContexts??[])exec.deferContext(context);
   if(result.isError)throw new Error(result.error.message);
   if(result.concludesTurn)exec.concludeTurn();

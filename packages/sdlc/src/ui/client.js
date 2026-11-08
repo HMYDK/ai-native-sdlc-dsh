@@ -886,7 +886,11 @@ window.__ModuleLoader__.load({
                   h('code',{key:'name',className:'sdlc-tool-name'},event.name),h('span',{key:'summary',className:'sdlc-tool-summary'},event.summary),
                 ]))) : h('p',{key:'none',className:'sdlc-caption'},'尚无可核对的工具调用记录。'),
               ]),
-            ] : h('p',{key:'none',className:'sdlc-summary'},loading?'正在读取这个任务的执行记录。':'还没有可核对的验证轮次。'),
+            ] : h('div',{key:'none'},[
+              h('p',{key:'summary',className:'sdlc-summary'},loading?'正在读取这个任务的执行记录。':'还没有可核对的验证轮次。'),
+              // 还没有验证轮次时也要保留已记录的修复操作（会话里的 sdlc_fix_start/fix_end）。
+              repairs.length ? h(RepairList,{key:'legacy',repairs,partial:execution && execution.status==='partial'}) : null,
+            ]),
           ]),
         ]),
         execution && execution.issues && execution.issues.length ? h('details',{key:'notes',className:'sdlc-record-detail'},[

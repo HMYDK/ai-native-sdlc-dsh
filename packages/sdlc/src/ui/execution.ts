@@ -347,6 +347,7 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
   output.rounds.sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? '') || a.id.localeCompare(b.id));
   output.rounds.forEach((round, i) => { round.number = Math.max(0, registeredRuns.length - MAX_ROUNDS) + i + 1; });
   output.repairs.sort((a, b) => (a.at ?? '').localeCompare(b.at ?? '') || a.id.localeCompare(b.id));
-  output.status = output.rounds.length || output.repairs.length || output.findings.length || output.activities.length ? output.issues.length ? 'partial' : 'recorded' : 'unavailable';
+  // 用登记的完整问题数（findingTotal），不用当前筛选页的 findings：筛选零命中不能把有记录的任务降为 unavailable。
+  output.status = output.rounds.length || output.repairs.length || output.findingTotal || output.activities.length ? output.issues.length ? 'partial' : 'recorded' : 'unavailable';
   return output;
 }

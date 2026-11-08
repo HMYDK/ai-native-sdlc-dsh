@@ -251,6 +251,17 @@ test('退回精确关联同次登记的问题，时间相近或其他问题的�
   assert.deepEqual(value.findings,[]);
   assert.deepEqual(value.flowLinks,[{historyIndex:2,issueId:'issue-linked',description:'原始问题',status:'resolved',findingOffset:20}]);
 });
+test('筛选零命中不能把有登记问题的任务降为 unavailable', async t => {
+  const f = await fixture(t);
+  await f.writes('.ai/tasks/TASK-1/state.yaml',{task:'TASK-1',history:[],workflow:{version:1,runs:[],issues:[
+    {id:'issue-1',source:'review',severity:'minor',blocking:false,description:'已解决的问题',evidence:'probe',status:'resolved',actions:[]},
+  ]}});
+  const value = await f.read({findingFilter:'submitted'});
+  assert.deepEqual(value.findings,[]);
+  assert.equal(value.findingFilter,'submitted');
+  assert.equal(value.findingTotal,1);
+  assert.notEqual(value.status,'unavailable');
+});
 test('损坏或不支持版本的 acceptance 只回退本轮标准文本，不吞掉整轮执行记录', async t => {
   const f = await fixture(t); await f.manifest(['bad-reject', 'bad-approve']);
   const write = async (id: string, finish: unknown) => {
