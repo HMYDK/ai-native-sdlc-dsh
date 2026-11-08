@@ -34,9 +34,23 @@ console.log('NEWSESSION', news);
 await sleep(1200);
 await evalJS(`(()=>{document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true})()`);
 await sleep(300);
+// 3.5 DSH 0.2.2：引导弹层可能在「新建会话」之后才出现，挡住 preset 菜单。
+// 先在 preset 选择前把弹层关掉（最多 20 次），否则点击 preset 触发按钮不会弹出菜单，
+// 会得到 'no item 标准模式'（本仓库 0.2.2 升级后实测）。
+for (let i = 0; i < 20; i++) {
+  const clicked = await evalJS(`(()=>{const labels=['继续','开始使用','我知道了','知道了'];const b=[...document.querySelectorAll('button')].find(x=>labels.includes((x.innerText||'').trim()));if(b){b.click();return true}return false})()`);
+  if (clicked) { await sleep(700); continue; }
+  const gone = await evalJS(`!document.body.innerText.includes('预览版说明')`);
+  if (gone) break;
+  await sleep(500);
+}
+console.log('PRESET_PRE_MODAL_GONE', await evalJS(`!document.body.innerText.includes('预览版说明')`));
+
 // 4. 选 preset（菜单开/关重试；并发跑多个实例时页面可能没有完全就绪）
 let sel = '';
 for (let attempt = 0; attempt < 3; attempt++) {
+  await evalJS(`(()=>{const labels=['继续','开始使用','我知道了','知道了'];const b=[...document.querySelectorAll('button')].find(x=>labels.includes((x.innerText||'').trim()));if(b){b.click();return true}return false})()`);
+  await sleep(400);
   sel = await evalJS(`(async (want)=>{const labels=['标准模式','AI 原生 SDLC','PTC 模式','极简模式','创造模式'];const all=()=>[...document.querySelectorAll('button')];const open=()=>all().find(b=>labels.includes((b.innerText||'').trim()));const items=()=>[...document.querySelectorAll('[role=menuitem]')];if(!open()) return 'no preset button';open().click();await new Promise(r=>setTimeout(r,900));let it=items();if(!it.length){open()?.click();await new Promise(r=>setTimeout(r,900));it=items();}const hit=it.find(e=>(e.innerText||'').includes(want));if(!hit) return 'no item '+want;hit.click();await new Promise(r=>setTimeout(r,700));return all().some(b=>(b.innerText||'').trim()===want)?('selected '+want):('select-failed');})(${JSON.stringify(presetLabel)})`);
   console.log('PRESET', sel, 'attempt', attempt + 1);
   if (String(sel).startsWith('selected')) break;
