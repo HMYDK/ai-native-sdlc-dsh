@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { invokeTool } from '../lib/shared/invoke-tool.js';
 
-// 同一组行为可对 App 的 0.2.2 和仓库的 0.2.1 依赖分别执行。
+// 0.6.1 起最低支持 DSH 0.2.2；DSH_SMOKE_MODULES 可指向另一份同代依赖复核同一组行为。
 const require = createRequire(path.join(runtimeModules, 'noop.js'));
 const { Context } = require('@deepseek-ai/cordis');
 const { ToolRuntime, defineTool } = require('@deepseek-ai/dsh-tools');

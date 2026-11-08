@@ -17,7 +17,7 @@
 #    覆盖会替换完整子插件列表），所以 SDLC 模式必须自带一份完整的 standard
 #    列表，否则选了这个模式的会话连 read/bash 都没有。App 升级后 standard 可能
 #    变化，用 `node tools/preset-sync-check.mjs` 对账；`--write` 可重新同步。
-#    **不要手改下面这段复制区域**，它由该工具生成（首次同步自 DSH 0.2.1-rc.2）。
+#    **不要手改下面这段复制区域**，它由该工具生成（首次同步自 DSH 0.2.2-rc.1）。
 #
 # preset 内仍保持每组件一个 Cordis 行（各有 inject / Config / fiber），行 id
 # 与之前一致，便于诊断；不要把这些行压成一行「子插件套子插件」。

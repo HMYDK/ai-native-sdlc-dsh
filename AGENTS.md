@@ -4,7 +4,7 @@
 
 本文件面向任何 clone 仓库的 agent 与贡献者，只保留仍然约束当前实现的结论；详细历史、事故与读数见 [`docs/history/lessons.md`](docs/history/lessons.md)。
 
-当前插件：`@ai-native-sdlc-plugin/dsh-sdlc@0.6.0`，源码在 `packages/sdlc/`。
+当前插件：`@ai-native-sdlc-plugin/dsh-sdlc@0.6.1`，源码在 `packages/sdlc/`。
 
 ## 项目目标与边界
 
@@ -83,7 +83,8 @@ tools/                      # bench / mutation / activation / time-travel / comp
 ## 兼容性与接入要点
 
 - **peer 范围不要钉死精确版本。** App 会自动升级，仓库不会。DSH 的判定是 `semver.satisfies(runtime, range, { includePrerelease: true })`；精确旧版本不接受新版本。历史上七个包各自钉精确 peer，一次 App 升级让它们被判定 `incompatible-version` 后整体 skip：**App 照常启动，工具和侧栏一起消失，日志只有一行 warning**。现在只有一份 peer 范围；改 peer 或升级 App 后跑 `npm run compat`，它读本机真实 App 的 `dsh/package.json`。
-- **0.2.1 子代理 API 已变。** `ctx.subagents.start()` 已删除，改用 `startActivation(spec)`；`SubagentRun` / `run.id` → `SubagentActivation` / `run.childId`；`label` / `signal` 移到 spec 外层，并新增 `delivery: 'caller'`。`persona` / `toolFilter` 已从 `SubagentStartRequest` 删除，迁移为 Agent Preset：`ctx.agentPresets.register({ id, plugins })` + request 带 `agentPreset`。见 `packages/sdlc/src/verify/preset.ts`。
+- **0.6.1 起最低支持 DSH 0.2.2。** peer/devDeps 收紧到 `^0.2.2-rc.1`：preset 内嵌的 standard 副本、被删除的 `list-agents` 入口和 `invoke-tool` 的 pipeline 分支都以 0.2.2 为准；0.2.1 上会缺 `list-agents` 工具、丢模型选择设置，因此不再声明支持。App 升级后仍要跑 `npm run compat` / `npm run preset-sync` / `npm run verify`。
+- **0.2.1 子代理 API 已变（历史）。** `ctx.subagents.start()` 已删除，改用 `startActivation(spec)`；`SubagentRun` / `run.id` → `SubagentActivation` / `run.childId`；`label` / `signal` 移到 spec 外层，并新增 `delivery: 'caller'`。`persona` / `toolFilter` 已从 `SubagentStartRequest` 删除，迁移为 Agent Preset：`ctx.agentPresets.register({ id, plugins })` + request 带 `agentPreset`。见 `packages/sdlc/src/verify/preset.ts`。
 - **0.2.2 的组件入口和工具执行 API 已变。** `dsh-tool-subagent-control/list-agents` 被删除，旧 preset 会整体加载失败并从选择器消失；`ctx.tools.execute()` 改收模型 batch，内部嵌套调用统一走 `src/shared/invoke-tool.ts`，用共享 pipeline 保留父调用、权限、后置策略和取消。`npm run compat` 只证明版本声明接受；`preset` 冒烟还要解析当前 App 的所有 DSH 组件入口，tarball 安装后用 `tools/profile-runtime-check.mjs` 检查真实运行时。详见 lessons §10。
 - **preset 不会自动隔离宿主全局工具。** 只挂 preset 时，真实验证者的工具面里仍有 `sdlc_task_create` / `sdlc_fix_end` / `sdlc_verify`——它能解冻测试、推进任务。必须在 preset 里放一行 `ctx.tools.restrict({ deny: <运行时枚举的全部 global> })`。`allow` 清单不行：preset 自己的 `read` / `grep` / `bash` 是 scope 注册，不在 global 层，会被判 `unknown global tool`。
 - **`agentPresets` 是可选服务**（web/desktop 有，headless 没有）。不要写进 `inject`（会停 pending），用 `ctx.get('agentPresets')`；缺失时 `sdlc_verify` **fail closed**，不降级成继承全部工具的子代理。
@@ -124,14 +125,14 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 ## 当前验证读数
 
-最近一次全量记录（**2026-11-05，插件 0.6.0 本地兼容修复，DSH 0.2.2-rc.1**；尚未发布）：
+最近一次全量记录（**2026-11-05，插件 0.6.0 本地兼容修复，DSH 0.2.2-rc.1**；0.6.0 已于 2026-11-03 发布，修复待 0.6.1 发布）：
 
 | 范围 | 读数 |
 |---|---|
 | 库 + 客户端单测 | 257 + 44 = **301** |
 | 看板宿主接口（单独执行） | **58** |
 | 运行时冒烟 | 12 组，**561** 条 |
-| 升级双侧回归 | 旧 patch 被已删除的入口检查拒绝；修复后 preset 46 条通过；嵌套调用在 0.2.1 / 0.2.2 各 12 条通过 |
+| 升级双侧回归 | 旧 patch 被已删除的入口检查拒绝；修复后 preset 46 条通过；嵌套调用（0.2.2）12 条通过 |
 | tarball 与界面 | 隔离安装启动、实际工具调用、模式隔离、验证者工具范围及看板接口通过；本机重启后可选 SDLC 模式并打开看板 |
 | `npm run compat` / `npm run preset-sync` | 通过 |
 
@@ -157,6 +158,7 @@ tools/                      # bench / mutation / activation / time-travel / comp
 - **原始 `.ai/rsi/` 默认忽略**：它含完整输入、代码与工具输出，没有通用脱敏。只提交经过检查的任务材料与摘要。
 - **不要提交本机 profile、备份目录、安装日志或含个人/环境信息的记录。**
 - 改 peer、preset 或 App 版本后跑 `npm run compat` 与 `npm run preset-sync`；提交前跑 `npm run verify`，并在提交/PR 说明里写清验证范围与未覆盖项。
+- **发布走 tag，版本号先 bump。** `packages/sdlc/package.json` 版本必须等于 tag（`v0.6.1` ↔ `0.6.1`；[Release workflow](.github/workflows/release.yml) 会校验并失败）。推 `v*` tag 后依次 build → pack → npm publish → GitHub Release；npm publish 需要仓库 secret `NPM_TOKEN`（Automation token）。npm 同版本不可覆盖，发布前先确认版本号与市场索引。
 - 引用验证读数时带日期和版本，不要拿旧数字当现状；不要用「单测通过」代替「端到端可用」。
 
 ## 历史与踩坑

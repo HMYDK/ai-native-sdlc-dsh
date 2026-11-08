@@ -524,3 +524,15 @@ test('看板回归：证据按状态和关键词筛选后保留原始验收序�
   const query=ui.find(n=>n.props['aria-label']==='搜索验收项')[0];query.props.onChange({target:{value:'不匹配'}});ui.render();
   assert.match(text(modal()),/没有匹配的验收项/);
 });
+test('看板回归：还没有验证轮次时仍展示已记录的修复操作，不丢失修复历史', () => {
+  const ex = {taskId:'SAME-1',repoRoot:'/alpha',status:'recorded',issues:[],rounds:[],repairs:[
+    {id:'fix-1',kind:'fix_start',at:'2026-10-28T10:00:00Z',summary:'用失败测试复现后冻结测试资产',source:'sessions/s1.json#1'},
+    {id:'fix-2',kind:'fix_end',at:'2026-10-28T10:10:00Z',summary:'修复后复验通过，解除测试冻结',source:'sessions/s1.json#2'},
+  ],findings:[],findingTotal:0,findingOffset:0,findingNext:null,activities:[]};
+  const ui = loopMount(ex);
+  const panel = ui.find(n=>n.props.id==='sdlc-view-verification')[0];
+  assert.ok(text(panel).includes('还没有可核对的验证轮次'));
+  assert.ok(text(panel).includes('用失败测试复现后冻结测试资产'));
+  assert.ok(text(panel).includes('修复后复验通过，解除测试冻结'));
+  assert.ok(text(panel).includes('开始修复') && text(panel).includes('结束修复'));
+});

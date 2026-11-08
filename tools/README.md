@@ -21,7 +21,7 @@
 
 接着用 App 自带 CLI 将 `npm pack` 的 tarball 装进隔离 `DSH_HOME` 下的 `web` profile，再按表中命令跑 `profile-runtime-check.mjs`。该脚本不会替你安装包；必须显式传隔离目录，不能用日常 desktop profile。它会启动本地服务并实际调用 `sdlc_status`，检查 standard/SDLC 模式隔离、验证者工具范围与注册归还，以及带认证的看板接口；不会调用模型。当前只在 macOS 的 DSH 0.2.2-rc.1 上实测。
 
-裸 `ToolRuntime` 冒烟通过 `smoke/helpers/executor.mjs` 安装 App 的真实执行器，所有 DSH 导入也统一指向 App，避免混入开发依赖旧版本。`smoke/invoke-tool.mjs` 可用 `DSH_SMOKE_MODULES` 指向旧版依赖，复核内部调用的父子关系、策略和取消在升级前后都成立。
+裸 `ToolRuntime` 冒烟通过 `smoke/helpers/executor.mjs` 安装 App 的真实执行器，所有 DSH 导入也统一指向 App，避免混入开发依赖旧版本。`smoke/invoke-tool.mjs` 可用 `DSH_SMOKE_MODULES` 指向 App 外的一份同代依赖，复核内部调用的父子关系、策略和取消。
 
 ## 2026-10-19 单包合并后的适配
 

@@ -79,6 +79,30 @@ GitHub Actions。CI 只跑 `build` / `typecheck` / `test`（见
 
 其它仓库级检查（基准对照、变异得分、安装核对等）见 [tools/README.md](tools/README.md)。
 
+## 发布
+
+发布由 tag 触发，不手工建 Release：
+
+1. 确认 `packages/sdlc/package.json` 的 `version` 已 bump，并与要打的 tag 一致
+   （`0.6.1` ↔ `v0.6.1`；workflow 会校验，不一致直接失败）。
+2. 在 `master` 的发布提交上打 tag 并推送：
+
+   ```sh
+   git tag v0.6.1
+   git push origin v0.6.1
+   ```
+
+3. [Release workflow](.github/workflows/release.yml) 依次做：校验 tag 与版本一致 → build → pack →
+   **npm publish** → 创建 GitHub Release（含 tarball 与 `SHA256SUMS.txt`）。
+4. 仓库需要 secret `NPM_TOKEN`：npm 的 **Automation token**，能够发布 `@ai-native-sdlc-plugin` scope。
+   缺失或失效时 publish 步骤失败，不会创建 Release，npm 也不会留下半成品。
+5. 发布后补 `market/index.json`：为新区本增加 `versions` 条目（`version`、`publishTimestamp`、
+   `source`、`engines.dsh`），其中 `publishTimestamp` 用 npm registry 记录的实际发布时间。
+6. 核对：`npm view @ai-native-sdlc-plugin/dsh-sdlc version`、dshfind 插件页，以及 README / 安装文档里的
+   安装版本号是否指向新版本。
+
+npm 上同一个版本不可覆盖。发布失败要修版本号重新发布，不要复用已发布的版本。
+
 ## 提交信息
 
 提交信息写**为什么**，不写“更新了 X”。这个仓库的提交历史保存了大量踩坑结论，

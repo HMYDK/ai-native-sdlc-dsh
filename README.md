@@ -19,7 +19,7 @@
 
 ![SDLC 看板：任务阶段、修复循环与逐轮验证结果](docs/design/sdlc-dashboard-2026-10-28/loop-workbench-desktop.png)
 
-*看板本地组件预览，使用示例数据。可查看各轮问题、交付物和验证证据。*
+*看板本地组件预览，使用示例数据。图为早期循环画布界面；当前版本默认「概览 / 问题处理 / 验证记录 / 阶段历史」四个标签页，具体以实际界面为准。*
 
 ## 开始使用
 
@@ -28,7 +28,7 @@
 在 App 的 **Plugin Manager** 中搜索并安装 `@ai-native-sdlc-plugin/dsh-sdlc`。已配置 `dsh` 命令时，也可以运行：
 
 ```sh
-dsh plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.0
+dsh plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.1
 ```
 
 App 自带 CLI、Release 安装包、源码构建与排查步骤见[安装指南](docs/installation.md)。
