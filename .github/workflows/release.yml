@@ -22,7 +22,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: npm ci
@@ -51,9 +50,14 @@ jobs:
           sha256sum "$TGZ" > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      # npm Trusted Publisher（OIDC）：不需要 NPM_TOKEN。依赖本 job 的
+      # id-token: write，以及 npmjs.com 上该包 Settings → Trusted Publisher
+      # 配置的 HMYDK/ai-native-sdlc-dsh + workflow release.yml。
+      # 不设置 registry-url / NODE_AUTH_TOKEN：避免 setup-node 生成带空 token
+      # 的 .npmrc 而让 npm 走 token 鉴权（CI 里会因 EOTP 失败）。
       - name: Publish to npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
         run: npm publish --workspace packages/sdlc --access public --provenance
 
       - name: Create release

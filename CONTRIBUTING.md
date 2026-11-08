@@ -94,8 +94,11 @@ GitHub Actions。CI 只跑 `build` / `typecheck` / `test`（见
 
 3. [Release workflow](.github/workflows/release.yml) 依次做：校验 tag 与版本一致 → build → pack →
    **npm publish** → 创建 GitHub Release（含 tarball 与 `SHA256SUMS.txt`）。
-4. 仓库需要 secret `NPM_TOKEN`：npm 的 **Automation token**，能够发布 `@ai-native-sdlc-plugin` scope。
-   缺失或失效时 publish 步骤失败，不会创建 Release，npm 也不会留下半成品。
+4. npm publish 走 **GitHub OIDC trusted publishing**，不需要长期 token：workflow 的 release job
+   已声明 `id-token: write`；还需要在 npmjs.com 该包的 **Settings → Trusted Publisher** 配置
+   GitHub 仓库 `HMYDK/ai-native-sdlc-dsh` 与 workflow `release.yml`（环境留空）。
+   **不要给这个 workflow 配普通 Publish / Granular token**：CI 中 npm 会要求一次性验证码并报
+   `EOTP` 失败（v0.6.1 实测）。Trusted Publisher 缺失或配错时 publish 步骤失败，不会创建 Release。
 5. 发布后补 `market/index.json`：为新区本增加 `versions` 条目（`version`、`publishTimestamp`、
    `source`、`engines.dsh`），其中 `publishTimestamp` 用 npm registry 记录的实际发布时间。
 6. 核对：`npm view @ai-native-sdlc-plugin/dsh-sdlc version`、dshfind 插件页，以及 README / 安装文档里的
