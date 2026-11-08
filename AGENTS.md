@@ -159,7 +159,7 @@ tools/                      # bench / mutation / activation / time-travel / comp
 - **原始 `.ai/rsi/` 默认忽略**：它含完整输入、代码与工具输出，没有通用脱敏。只提交经过检查的任务材料与摘要。
 - **不要提交本机 profile、备份目录、安装日志或含个人/环境信息的记录。**
 - 改 peer、preset 或 App 版本后跑 `npm run compat` 与 `npm run preset-sync`；提交前跑 `npm run verify`，并在提交/PR 说明里写清验证范围与未覆盖项。
-- **发布走 tag，版本号先 bump。** `packages/sdlc/package.json` 版本必须等于 tag（`v0.6.1` ↔ `0.6.1`；[Release workflow](.github/workflows/release.yml) 会校验并失败）。推 `v*` tag 后依次 build → pack → npm publish → GitHub Release；npm publish 需要仓库 secret `NPM_TOKEN`（Automation token）。npm 同版本不可覆盖，发布前先确认版本号与市场索引。
+- **发布走 tag，版本号先 bump。** `packages/sdlc/package.json` 版本必须等于 tag（`v0.6.1` ↔ `0.6.1`；[Release workflow](.github/workflows/release.yml) 会校验并失败）。推 `v*` tag 后依次 build → pack → npm publish → GitHub Release。npm publish 走 **OIDC trusted publishing**：job 需要 `id-token: write`，并在 npmjs.com 该包 Settings → Trusted Publisher 配置 `HMYDK/ai-native-sdlc-dsh` + `release.yml`，不需要长期 token。**不要用普通 Publish/Granular token 塞 `NPM_TOKEN` 给这个 workflow**：CI 里 npm 会要求一次性验证码并以 `EOTP` 失败（实测）。npm 同版本不可覆盖，发布前先确认版本号与市场索引。
 - 引用验证读数时带日期和版本，不要拿旧数字当现状；不要用「单测通过」代替「端到端可用」。
 
 ## 历史与踩坑
