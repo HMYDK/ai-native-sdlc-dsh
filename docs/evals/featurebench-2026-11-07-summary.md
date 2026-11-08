@@ -35,8 +35,8 @@
 
 - 主效应：preset **−0.10**、引导 **−0.10**、交互 **−0.20**（n=5，方向性证据，不显著）；
 - token：sdlc/standard **+9.8%**，引导/无引导 −1.3%；
-- packaging/pytest/pydantic 四臂全过（天花板）；差异来自 seaborn（sdlc_guidance 一次
-  patch=0）与 sphinx（这次只有 standard 通过）的运行方差。
+- pytest/pydantic 四臂全过（天花板）；packaging 只有 standard 失败（F2P 98.98%）；
+  差异主要来自 seaborn（sdlc_guidance 一次 patch=0）与 sphinx（这次只有 standard 通过）。
 
 **结论**：没有观测到 SDLC preset 或引导话术的正向主效应；n=5 不能证明「无用」，但能排除
 「存在大效应」。

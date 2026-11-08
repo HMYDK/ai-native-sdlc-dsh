@@ -31,13 +31,15 @@
 
 | repo | standard | standard_guidance | sdlc | sdlc_guidance |
 |---|---|---|---|---|
-| pypa/packaging | ✅ 100% | ✅ 100% | ✅ 100% | ✅ 100% |
+| pypa/packaging | ❌ 98.98% | ✅ 100% | ✅ 100% | ✅ 100% |
 | pytest-dev/pytest | ✅ 100%* | ✅ 100% | ✅ 100% | ✅ 100% |
 | pydantic/pydantic | ✅ 100% | ✅ 100% | ✅ 100%* | ✅ 100% |
 | mwaskom/seaborn | ✅ 100% | ✅ 100% | ✅ 100% | ❌ **0%**（patch=0） |
 | sphinx-doc/sphinx | ✅ **100%** | ❌ 7.69% | ❌ 7.69% | ❌ 7.69% |
 
 `*` 该 run 有 agent_failure 标记（turn_error / over_budget），但补丁仍被官方判 resolved。
+packaging 的 standard 这次 F2P 98.98%（1 个测试没通过）——与 MVP/重复采样里 packaging standard
+通过的结果不同，说明即使在同一任务上，单次运行仍可能出现少量翻转（0.99 vs 1.0）。
 
 ## 结果（按 arm 汇总）
 
@@ -60,8 +62,9 @@
 
 1. **没有观测到 SDLC preset 或引导话术的正向主效应**；在这 5 个任务上，两组主效应
    都是 −0.10，交互 −0.20，方向甚至偏负。
-2. **天花板效应明显**：packaging/pytest/pydantic 三个任务四个 arm 全过；
-   差异全部来自 seaborn 与 sphinx 两个任务的方差。
+2. **天花板效应明显**：pytest/pydantic 两个任务四个 arm 全过；packaging 四臂里只有
+   standard 失败（F2P 98.98%）；差异主要来自 seaborn 与 sphinx 两个任务的方差，
+   以及 packaging 这一次的 edge case。
 3. **差异更像运行方差，而不是 treatment**：
    - sphinx 这次只有 `standard` 通过（首批与②都是两臂失败/偶发通过），同一任务在
      不同运行间结果翻转；
