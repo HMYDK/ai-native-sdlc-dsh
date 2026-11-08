@@ -125,7 +125,7 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 ## 当前验证读数
 
-最近一次全量记录（**2026-11-08，插件 0.6.1，DSH 0.2.2-rc.1 / cordis 4.1.0**；0.6.1 待发布）：
+最近一次全量记录（**2026-11-08，插件 0.6.1，DSH 0.2.2-rc.1 / cordis 4.1.0**；0.6.1 已于 2026-11-08 发布）：
 
 | 范围 | 读数 |
 |---|---|
@@ -137,7 +137,7 @@ tools/                      # bench / mutation / activation / time-travel / comp
 | 模式与工具面 | SDLC 模式工具 50 个含 17 个 `sdlc_*`；standard 无 `sdlc_*`；`sdlc_status` 真实调用成功；看板接口 200；验证者 preset 注册/归还通过 |
 | `npm run compat` / `npm run preset-sync` | 通过（9 个 peer 接受 0.2.2-rc.1；22+6 行副本逐字段一致） |
 
-这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。0.6.0 已于 2026-11-03 发布（`v0.6.0` = 47b4c3c），但它在 DSH 0.2.2 上会丢 SDLC 模式；0.6.1 发布前不得用 0.6.0 的读数冒充。0.2.1 自 0.6.1 起不再声明支持。本轮真实模型跑在隔离环境：宿主机沙箱内嵌套 seatbelt 不可用，作者侧用 `DSH_PERMISSION_MODE=danger-full-access`，验证者子代理仍受限、无法执行 shell，裁决依据是作者会话原始证据 + 代码推演（任务内 F1 已 defer 留证）。未覆盖：Windows、真实业务项目、并发任务、隔离测试场与 mutation 基线重测（21 条仍是 2026-11-01、0.5.0 读数）。Issue #2 的旧版 13 / 当前版 63 条双侧记录属于 11 月 2–3 日，范围见 [验证记录](.ai/tasks/ACCEPTANCE-2/proof.md)。升级历史证据见 [lessons §10](docs/history/lessons.md#10-dsh-022-升级后-sdlc-模式消失2026-11-05)。
+这些是历史读数，不是永久承诺；代码、依赖或 App 版本变化后重跑，引用时带日期和版本。0.6.0 已于 2026-11-03 发布（`v0.6.0` = 47b4c3c），但它在 DSH 0.2.2 上会丢 SDLC 模式；0.6.1 已于 2026-11-08 通过 OIDC trusted publishing 发布（npm `latest`=0.6.1、tag `v0.6.1`=90260f3、GitHub Release 含 tarball/SHA256SUMS、provenance attestations 已生成），0.6.0 的读数不能冒充 0.6.1。0.2.1 自 0.6.1 起不再声明支持。本轮真实模型跑在隔离环境：宿主机沙箱内嵌套 seatbelt 不可用，作者侧用 `DSH_PERMISSION_MODE=danger-full-access`，验证者子代理仍受限、无法执行 shell，裁决依据是作者会话原始证据 + 代码推演（任务内 F1 已 defer 留证）。未覆盖：Windows、真实业务项目、并发任务、隔离测试场与 mutation 基线重测（21 条仍是 2026-11-01、0.5.0 读数）。Issue #2 的旧版 13 / 当前版 63 条双侧记录属于 11 月 2–3 日，范围见 [验证记录](.ai/tasks/ACCEPTANCE-2/proof.md)。升级历史证据见 [lessons §10](docs/history/lessons.md#10-dsh-022-升级后-sdlc-模式消失2026-11-05)。
 
 ## 已知边界
 
