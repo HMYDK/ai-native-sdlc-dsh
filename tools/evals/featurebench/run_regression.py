@@ -62,12 +62,12 @@ def main() -> int:
     only = set(args.only_group)
 
     py = sys.executable
-    def matrix(manifest, out, parallel_tasks, arm_parallel, port_base):
+    def matrix(manifest, out, parallel_tasks, arm_parallel, port_base, cdp_base):
         cmd = [py, str(HERE / "run_matrix.py"), "--manifest", str(mdir / manifest),
                "--runs-root", str(out), "--plugin-dir", str(Path(args.plugin_dir).resolve()),
                "--credentials", str(Path(args.credentials).resolve()),
                "--parallel-tasks", str(parallel_tasks), "--arm-parallel", str(arm_parallel),
-               "--web-port-base", str(port_base), "--cdp-port-base", str(port_base - 5000 + 4000)]
+               "--web-port-base", str(port_base), "--cdp-port-base", str(cdp_base)]
         for m in args.image_map:
             cmd += ["--image-map", m]
         if args.execute:
@@ -79,9 +79,9 @@ def main() -> int:
                 "--runs-root", str(out), "--execute"]
 
     groups = [
-        ("2x2", "2x2.yml", lambda out, i: [matrix("2x2.yml", out, 2, 2, args.web_port_base + i * 20), evaluate("2x2.yml", out)]),
-        ("expanded", "expanded.yml", lambda out, i: [matrix("expanded.yml", out, 2, 2, args.web_port_base + i * 20), evaluate("expanded.yml", out)]),
-        ("verify", "verify-calibration.yml", lambda out, i: [matrix("verify-calibration.yml", out, 3, 1, args.web_port_base + i * 20), evaluate("verify-calibration.yml", out)]),
+        ("2x2", "2x2.yml", lambda out, i: [matrix("2x2.yml", out, 2, 2, args.web_port_base + i * 20, args.cdp_port_base + i * 20), evaluate("2x2.yml", out)]),
+        ("expanded", "expanded.yml", lambda out, i: [matrix("expanded.yml", out, 2, 2, args.web_port_base + i * 20, args.cdp_port_base + i * 20), evaluate("expanded.yml", out)]),
+        ("verify", "verify-calibration.yml", lambda out, i: [matrix("verify-calibration.yml", out, 3, 1, args.web_port_base + i * 20, args.cdp_port_base + i * 20), evaluate("verify-calibration.yml", out)]),
         ("stress", "verify-stress.yml", None),
         ("repeat", "repeat-sampling.yml", None),
     ]
@@ -97,7 +97,7 @@ def main() -> int:
         if name == "stress":
             for rep in (1, 2, 3):
                 out = root / "stress" / f"rep{rep}"
-                cmd = matrix("verify-stress.yml", out, 1, 1, args.web_port_base + idx * 20 + rep)
+                cmd = matrix("verify-stress.yml", out, 1, 1, args.web_port_base + idx * 20 + rep, args.cdp_port_base + idx * 20 + rep)
                 subprocess.run(cmd, stdout=open(root / f"{name}-rep{rep}.log", "w"),
                                stderr=subprocess.STDOUT)
                 subprocess.run(evaluate("verify-stress.yml", out),
