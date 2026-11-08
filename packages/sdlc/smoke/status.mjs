@@ -18,6 +18,7 @@
  *     packages/sdlc-status/smoke.mjs
  */
 
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -233,6 +234,7 @@ ctx.provide('sandboxPolicy', {
 });
 
 new ToolRuntime(ctx, 'tools');
+installNativeExecutor(ctx, require);
 if (ctx.tools === undefined) bad('ToolRuntime 未挂到 ctx.tools');
 else ok('真实 ToolRuntime 已挂载');
 
@@ -250,7 +252,7 @@ else ok('sdlc_status 已注册');
 
 const agent = { id: 'smoke', session: { header: { cwd: root } } };
 const call = (args) =>
-  ctx.tools.execute({
+  executeTool(ctx, {
     callId: `smoke-${Math.random().toString(36).slice(2)}`,
     name: 'sdlc_status',
     arguments: args,
@@ -338,7 +340,7 @@ console.log('\n== 6. 只读性（绝不写任何东西）==');
 
 console.log('\n== 7. 边界情况 ==');
 {
-  const noCwd = await ctx.tools.execute({
+  const noCwd = await executeTool(ctx, {
     callId: 'smoke-nocwd',
     name: 'sdlc_status',
     arguments: {},
@@ -352,7 +354,7 @@ console.log('\n== 7. 边界情况 ==');
   // 任务目录不存在 → 空看板，而不是报错
   const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-status-empty-'));
   const emptyAgent = { id: 'e', session: { header: { cwd: emptyRoot } } };
-  const empty = await ctx.tools.execute({
+  const empty = await executeTool(ctx, {
     callId: 'smoke-empty',
     name: 'sdlc_status',
     arguments: {},
@@ -377,7 +379,7 @@ console.log('\n== 7. 边界情况 ==');
   const pageTasks = path.join(pageRoot, '.ai/tasks');
   const pageAgent = { id: 'smoke-page', session: { header: { cwd: pageRoot } } };
   const pageCall = (args) =>
-    ctx.tools.execute({
+    executeTool(ctx, {
       callId: `smoke-page-${Math.random().toString(36).slice(2)}`,
       name: 'sdlc_status',
       arguments: args,
@@ -515,7 +517,7 @@ console.log('\n== 7. 边界情况 ==');
   }
   const bigAgent = { id: 'smoke-big', session: { header: { cwd: bigRoot } } };
   const bigCall = (args) =>
-    ctx.tools.execute({
+    executeTool(ctx, {
       callId: `smoke-big-${Math.random().toString(36).slice(2)}`,
       name: 'sdlc_status',
       arguments: args,
@@ -614,7 +616,7 @@ console.log('\n== 7b. 空看板的渲染必须与旧行为逐字一致 ==');
   // —— 没有任务却报"已越过总数"。这条断言把它钉住。
   const emptyRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-status-empty2-'));
   const emptyAgent = { id: 'smoke-empty2', session: { header: { cwd: emptyRoot2 } } };
-  const er = await ctx.tools.execute({
+  const er = await executeTool(ctx, {
     callId: `smoke-empty2-${Math.random().toString(36).slice(2)}`,
     name: 'sdlc_status',
     arguments: {},
@@ -639,7 +641,7 @@ console.log('\n== 7b. 空看板的渲染必须与旧行为逐字一致 ==');
   else bad(`空看板不该有 note，实际：${er.value.note}`);
 
   // 反向：显式分页时 note 必须真的被**渲染出来**（字段存在但人看不到等于没有）
-  const shown = await ctx.tools.execute({
+  const shown = await executeTool(ctx, {
     callId: `smoke-render-${Math.random().toString(36).slice(2)}`,
     name: 'sdlc_status',
     arguments: { offset: 0, limit: 1 },
@@ -672,7 +674,7 @@ console.log('\n== 7c. note 必须真的被渲染出来（字段存在但人看�
     fs.writeFileSync(path.join(rTasks, id, 'i.md'), '# I\n', 'utf8');
     fs.writeFileSync(path.join(rTasks, id, 's.md'), '# S\n', 'utf8');
   }
-  const rr = await ctx.tools.execute({
+  const rr = await executeTool(ctx, {
     callId: `smoke-render2-${Math.random().toString(36).slice(2)}`,
     name: 'sdlc_status',
     arguments: { offset: 0, limit: 10 },
@@ -738,7 +740,7 @@ console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小�
     fs.writeFileSync(path.join(mTasks, id, 's.md'), '# S\n', 'utf8');
   }
 
-  const mRes = await ctx.tools.execute({
+  const mRes = await executeTool(ctx, {
     callId: `smoke-mixed-${Math.random().toString(36).slice(2)}`,
     name: 'sdlc_status',
     arguments: {},
@@ -759,7 +761,7 @@ console.log('\n== 7d. 默认页必须显示"最该看的"，而不是 id 最小�
   else bad(`默认页应含全部 5 个坏任务，实际 ${badCount} 个`);
 
   // 反过来：显式分页用 id 序（可反复翻页不重不漏）
-  const mPage = await ctx.tools.execute({
+  const mPage = await executeTool(ctx, {
     callId: `smoke-mixed2-${Math.random().toString(36).slice(2)}`,
     name: 'sdlc_status',
     arguments: { offset: 0, limit: 3 },

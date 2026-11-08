@@ -8,11 +8,20 @@
 | `bench/run.mjs` | 两侧对照基准：同一条判据在**坏版本**上必须违反、在**修复版**上必须满足 | `node tools/bench/run.mjs` |
 | `mutation-score.mjs` | 变异测试：往 `lib/` 注入明确的缺陷，看测试会不会红 | `node tools/mutation-score.mjs` / `--list` / `--gate sdlc` |
 | `plugin-activation-check.mjs` | App 会加载的到底是不是我这一版：宿主行 + preset 内本套件六行 → 模块、inject 可解析、profile 副本逐文件 sha256 | `node tools/plugin-activation-check.mjs` |
+| `profile-runtime-check.mjs` | 对已装 tarball 的隔离 profile 启动真实 App 运行时，检查模式、实际工具调用、验证者范围和看板接口 | `DSH_HOME=/tmp/sdlc-check node tools/profile-runtime-check.mjs /tmp/sdlc-check/profiles/web` |
 | `time-travel-check.mjs` | 用假时钟把单测推到未来若干时点，抓"写下的当天对、之后必坏"的断言 | `node tools/time-travel-check.mjs` |
 | `compat-check.mjs` | peer 范围是否接受本机**真实 App** 的 DSH 运行时（普通 Node 读不了 app.asar，会自己重入） | `npm run compat` |
 | `preset-sync-check.mjs` | `preset-sdlc` 内嵌的 DSH **standard preset 副本**是否与当前 App 一致；`--write` 重新同步 | `npm run preset-sync` / `npm run preset-sync:write` |
 
 每个工具文件头都有"为什么需要它"的来历，改之前先读——里面记的坑都是实测踩出来的。
+
+## DSH 升级后的检查顺序
+
+先跑 `npm run compat` 和 `npm run preset-sync`。前者只检查版本范围，不保证组件入口或 API 没变；副本漂移时用 `npm run preset-sync:write` 同步，再跑 `npm run verify`。`smoke/preset.mjs` 会递归解析当前 App 导出的 DSH 组件，避免漏掉组内已删除的入口。
+
+接着用 App 自带 CLI 将 `npm pack` 的 tarball 装进隔离 `DSH_HOME` 下的 `web` profile，再按表中命令跑 `profile-runtime-check.mjs`。该脚本不会替你安装包；必须显式传隔离目录，不能用日常 desktop profile。它会启动本地服务并实际调用 `sdlc_status`，检查 standard/SDLC 模式隔离、验证者工具范围与注册归还，以及带认证的看板接口；不会调用模型。当前只在 macOS 的 DSH 0.2.2-rc.1 上实测。
+
+裸 `ToolRuntime` 冒烟通过 `smoke/helpers/executor.mjs` 安装 App 的真实执行器，所有 DSH 导入也统一指向 App，避免混入开发依赖旧版本。`smoke/invoke-tool.mjs` 可用 `DSH_SMOKE_MODULES` 指向 App 外的一份同代依赖，复核内部调用的父子关系、策略和取消。
 
 ## 2026-10-19 单包合并后的适配
 

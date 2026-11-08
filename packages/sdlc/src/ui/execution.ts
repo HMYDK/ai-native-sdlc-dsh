@@ -3,7 +3,7 @@ import type {Context} from '@deepseek-ai/cordis';
 import type {FsTarget} from '@deepseek-ai/dsh-fs';
 import {JSON_SCHEMA, load as parseYaml} from 'js-yaml';
 import {STATUSES} from '../task/state.js';
-import {parseWorkflow, type TaskWorkflow, type FlowIssue} from '../task/flow.js';
+import {parseWorkflow, type TaskWorkflow, type FlowIssue, type IssueStatus} from '../task/flow.js';
 import {sessionView} from '../shared/session-view.js';
 import {enforceCriteriaPolicy, criterionEntries, type Verdict, type CriteriaInput} from '../verify/verdict.js';
 import {additionalCriteria, parseAcceptanceRegistration, verificationAcceptance} from '../shared/acceptance.js';
@@ -27,9 +27,11 @@ export interface TaskExecution {
   taskId: string; repoRoot: string; status: 'recorded' | 'partial' | 'unavailable';
   issues: string[]; rounds: ExecutionRound[]; repairs: ExecutionRepair[];
   findings: FlowIssue[]; findingTotal: number; findingOffset: number; findingNext: number | null;
+  findingCounts: Record<IssueStatus, number> | null; findingFilteredTotal: number; findingFilter: string;
+  flowLinks: {historyIndex: number; issueId: string; description: string; status: IssueStatus; findingOffset: number}[];
   activities: {id:string;at:string|null;summary:string}[];
 }
-interface ReadOptions {repoRoot: string; taskId: string; tasksDir?: string; rsiDir?: string; signal?: AbortSignal; findingOffset?: number}
+interface ReadOptions {repoRoot: string; taskId: string; tasksDir?: string; rsiDir?: string; signal?: AbortSignal; findingOffset?: number; findingFilter?: string}
 interface RecordEvent {seq: number; kind: string; at: string | null; data: ObjectValue}
 interface SessionEntry {id: string; role: string; parent?: string; windows: {from: number | null; to: number | null}[]}
 const STAGES: readonly string[] = STATUSES;
@@ -49,7 +51,9 @@ const verdictStatus = (value: unknown): value is 'approve' | 'reject' | 'needs_h
 /** Uses DSH's identity/containment and byte-limited reads; never invokes the RSI collector. */
 export async function readExecution(fs: FileSystem, options: ReadOptions): Promise<TaskExecution> {
   const {repoRoot, taskId, signal} = options;
-  const output: TaskExecution = {taskId, repoRoot, status: 'unavailable', issues: [], rounds: [], repairs: [], findings: [], findingTotal: 0, findingOffset: 0, findingNext: null, activities: []};
+  const findingFilter = ['all', 'active', 'submitted', 'deferred', 'resolved'].includes(options.findingFilter ?? '') ? options.findingFilter! : 'all';
+  const output: TaskExecution = {taskId, repoRoot, status: 'unavailable', issues: [], rounds: [], repairs: [], findings: [], findingTotal: 0, findingOffset: 0, findingNext: null,
+    findingCounts: null, findingFilteredTotal: 0, findingFilter, flowLinks: [], activities: []};
   const issue = (message: string) => { if (output.issues.length < 30 && !output.issues.includes(message)) output.issues.push(message); };
   if (!/^[A-Za-z0-9_-]{1,96}$/.test(taskId)) { issue('任务标识不合法'); return output; }
   let remaining = MAX_TOTAL;
@@ -122,15 +126,31 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     if (state.task !== taskId) throw new Error('任务状态归属不符');
     if (state.workflow) workflow = parseWorkflow(state.workflow);
     if (workflow) {
-      const offset = Math.min(Math.max(0,Math.floor((workflow.issues.length-1)/20)*20),Math.max(0, Number.isSafeInteger(options.findingOffset) ? options.findingOffset! : 0));
+      output.findingCounts = {open: 0, working: 0, submitted: 0, deferred: 0, resolved: 0};
+      for (const item of workflow.issues) output.findingCounts[item.status]++;
+      // Filter the complete registered issue set before paging. Page-local counts can hide outstanding work.
+      const filtered = workflow.issues.filter(i => findingFilter === 'all' || (findingFilter === 'active' ? i.status === 'open' || i.status === 'working' : i.status === findingFilter));
+      const offset = Math.min(Math.max(0,Math.floor((filtered.length-1)/20)*20),Math.max(0, Number.isSafeInteger(options.findingOffset) ? options.findingOffset! : 0));
       output.findingTotal = workflow.issues.length; output.findingOffset = offset;
-      output.findings = workflow.issues.slice(offset,offset+20).map(i => ({...i,actions:i.actions.slice(-100)}));
-      output.findingNext = offset+20 < workflow.issues.length ? offset+20 : null;
+      output.findingFilteredTotal = filtered.length;
+      output.findings = filtered.slice(offset,offset+20).map(i => ({...i,actions:i.actions.slice(-100)}));
+      output.findingNext = offset+20 < filtered.length ? offset+20 : null;
       if (output.findings.some(i=>i.actions.length===100)) issue('单个问题仅展示最近 100 个处理动作');
     }
+    // actOnIssue writes the action and history together. Require their exact identity, route and reason;
+    // proximity in time or similar prose alone never establishes a problem/transition relationship.
+    const transitions = new Map<string, NonNullable<TaskExecution['flowLinks']>[number]>();
+    workflow?.issues.forEach((i, index) => {
+      for (const a of i.actions) if (a.kind === 'started' && a.from !== a.to) {
+        const signature = JSON.stringify([a.at, a.from, a.to, `[${i.id}] ${a.reason}`]);
+        transitions.set(signature, {historyIndex: -1, issueId: i.id, description: text(i.description), status: i.status, findingOffset: Math.floor(index / 20) * 20});
+      }
+    });
     for (const [i, entry] of array(state.history ?? [], 256, '任务历史').entries()) {
       const h = object(entry), from = STAGES.indexOf(String(h.from)), to = STAGES.indexOf(String(h.to));
       if (from >= 0 && to >= 0 && to < from) output.repairs.push({id: `history:${i}`, at: timestamp(h.at), kind: 'backtrack', summary: `${String(h.from)} → ${String(h.to)}${text(h.reason) ? `：${text(h.reason)}` : ''}`, source: `${taskDir}/state.yaml#history[${i}]`});
+      const link = transitions.get(JSON.stringify([h.at, h.from, h.to, h.reason]));
+      if (link) output.flowLinks.push({...link, historyIndex: i});
     }
   } catch (error) { failed(`${taskDir}/state.yaml`, error); return output; }
 
@@ -327,6 +347,7 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
   output.rounds.sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? '') || a.id.localeCompare(b.id));
   output.rounds.forEach((round, i) => { round.number = Math.max(0, registeredRuns.length - MAX_ROUNDS) + i + 1; });
   output.repairs.sort((a, b) => (a.at ?? '').localeCompare(b.at ?? '') || a.id.localeCompare(b.id));
-  output.status = output.rounds.length || output.repairs.length || output.findings.length || output.activities.length ? output.issues.length ? 'partial' : 'recorded' : 'unavailable';
+  // 用登记的完整问题数（findingTotal），不用当前筛选页的 findings：筛选零命中不能把有记录的任务降为 unavailable。
+  output.status = output.rounds.length || output.repairs.length || output.findingTotal || output.activities.length ? output.issues.length ? 'partial' : 'recorded' : 'unavailable';
   return output;
 }

@@ -91,4 +91,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`\n✓ 全部 ${rows.length} 个包与 DSH ${runtime} 兼容`);
+console.log(`\n✓ 全部 ${rows.length} 个包的 DSH 版本声明接受 ${runtime}`);
+console.log('  这不证明组件入口或运行时 API 兼容；升级后还须运行 preset-sync 与 verify。');

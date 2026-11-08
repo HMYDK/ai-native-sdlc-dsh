@@ -226,6 +226,7 @@ test('评审退回规格时，主视图串起原因、修改经过和重新提�
     {id: 'fix-a', kind: 'fix_end', at: flowAt(9), summary: '按 request_id 去重，保留已有失败测试', source: 'author'},
   ]}}});
   assert.ok(ui.find(n => n.type === 'button' && n.props['aria-label'] === '查看退回路线：评审 → 规格，第 1 次').length);
+  ui.click(ui.find(n=>n.props['aria-label']?.startsWith('查看退回路线'))[0]);
   const detail = text(flowDetail(ui));
   for (const expected of ['审核发现重复请求的处理规则不清楚', '补齐重复请求验收规则', '按请求号去重并补并发回归', '按 request_id 去重', '已再次进入评审']) assert.ok(detail.includes(expected), expected);
   assert.ok(detail.includes('规格 → 计划 → 实现 → 验证 → 评审'));
@@ -243,6 +244,7 @@ test('验收退回哪里由真实迁移决定，不能固定画成退回实现',
   ]);
   const ui = mount(data, {FlowWorkbench: {loading: false, execution: {rounds: [], repairs: []}}});
   assert.ok(ui.find(n => n.props['aria-label'] === '查看退回路线：验证 → 计划，第 1 次').length);
+  ui.click(ui.find(n=>n.props['aria-label']?.startsWith('查看退回路线'))[0]);
   assert.ok(text(flowDetail(ui)).includes('计划 → 实现 → 验证'));
   assert.ok(text(flowDetail(ui)).includes('已再次进入验证'));
   assert.ok(text(flowDetail(ui)).includes('尚无可归入这段时间的修复操作记录'));
@@ -252,6 +254,7 @@ test('历史中断不能自动接上后续阶段，也不能混入中断后的�
   const ui = mount(data, {FlowWorkbench: {execution: {rounds: [], repairs: [
     {id: 'wrong', kind: 'fix_end', at: flowAt(9), summary: '不应挂到这条中断路线的说明'},
   ]}}});
+  ui.click(ui.find(n=>n.props['aria-label']?.startsWith('查看退回路线'))[0]);
   const detail = text(flowDetail(ui));
   assert.ok(detail.includes('流转记录不连续'));
   assert.ok(!detail.includes('已再次进入评审'));
@@ -271,6 +274,7 @@ test('时间缺失或倒序时保留阶段路线，但不关联修复或验证�
     const ui = mount(data, {FlowWorkbench: {execution: {rounds: [
       {id: 'wrong-run', source: 'rsi', startedAt: flowAt(9), changesSummary: '不能按异常时间关联的验证提交'},
     ], repairs: [{id: 'wrong-fix', kind: 'fix_end', at: flowAt(9), summary: '不能按异常时间关联的修改'}]}}});
+  ui.click(ui.find(n=>n.props['aria-label']?.startsWith('查看退回路线'))[0]);
     const detail = text(flowDetail(ui));
     assert.ok(detail.includes('规格 → 计划 → 实现 → 验证 → 评审'));
     assert.ok(detail.includes('时间缺失、顺序异常'));
@@ -385,6 +389,7 @@ test('未结束记录标为未知，不声称 Agent 正在复验', () => {
 });
 test('两次 reject 不会在没有修复记录时显示两次返工', () => {
   const ui = loopMount();
+  ui.click(ui.find(n=>n.props['aria-label']==='查看修复实现')[0]);
   assert.ok(text(ui.detail()).includes('尚无修复记录'));
   assert.ok(!text(ui.detail()).includes('已返工 2 次'));
 });
@@ -445,4 +450,89 @@ test('问题分页请求实际偏移，待复验与延期不会显示成已经�
   const ui=mount(payload,{IssueFlow:{execution,loading:false,onPage:n=>{offset=n;}}});ui.click(ui.rows()[0]);
   const panel=ui.find(n=>n.component==='IssueFlow')[0];assert.match(text(panel),/待独立复验/);assert.match(text(panel),/延期处理/);
   ui.click(ui.find(n=>n.type==='button'&&text(n)==='下一页问题',panel)[0]);assert.equal(offset,20);
+});
+
+test('看板回归：完成任务默认展示概览和最新流转，历史退回只在主动选择后突出', () => {
+  const data=flowData(); data.tasks[0].status='DONE'; data.tasks[0].timeline.push(flowEntry(12,'REVIEWING','DONE','交付已完成'));
+  const ui=mount(data);
+  assert.equal(ui.find(n=>n.props.id==='sdlc-view-overview')[0]?.props.hidden,false);
+  assert.equal(ui.find(n=>n.props.id==='sdlc-view-history')[0]?.props.hidden,true);
+  assert.match(text(flowDetail(ui)),/交付已完成/);
+  assert.ok(ui.find(n=>n.props['aria-label']?.startsWith('查看退回路线')).every(n=>n.props['aria-pressed']===false));
+  ui.click(ui.find(n=>n.props['aria-label']?.startsWith('查看退回路线'))[0]);
+  assert.match(text(flowDetail(ui)),/审核发现重复请求/);
+});
+test('看板回归：操作默认任务后保留详情选择，缩窄窗口不会把已打开的弹窗一起隐藏', () => {
+  const ui=mount();
+  const shell=()=>ui.find(n=>n.props.className?.startsWith('sdlc-shell'))[0];
+  assert.doesNotMatch(shell().props.className,/is-detail/);
+  ui.find(n=>n.props['aria-label']==='任务详情')[0].props.onFocusCapture();ui.render();
+  assert.match(shell().props.className,/is-detail/);
+  ui.detail().props.onBack();ui.render();
+  assert.doesNotMatch(shell().props.className,/is-detail/);
+});
+test('看板回归：执行出错不显示为零项失败的正式裁决', () => {
+  const ex=execution();ex.rounds[2]={...ex.rounds[2],outcome:'error',summary:'执行出错',criteria:[],findings:[],unverified:[]};
+  const ui=loopMount(ex);
+  const inspector=()=>ui.find(n=>n.props['aria-label']==='所选轮次详情')[0];
+  assert.match(text(inspector()),/本次运行未形成可用裁决/);
+  assert.doesNotMatch(text(inspector()),/0 条通过 · 0 条未通过/);
+  ui.click(ui.find(n=>n.type==='button'&&text(n)==='查看本轮证据')[0]);
+  assert.match(text(ui.find(n=>n.component==='RoundEvidence')[0]),/尚无可用裁决/);
+});
+test('看板回归：概览同时显示完整验收范围、全量待办和未复核事项，未知不能显示全部解决', () => {
+  const data=structuredClone(payload);data.tasks[0].acceptance={status:'verified',expected:20,answered:20,met:20,missing:[],errors:[]};
+  const ex={...execution(),findingCounts:{open:1,working:2,submitted:1,resolved:30,deferred:4},findingTotal:38};
+  ex.rounds[2].unverified=['尚未复核线上环境'];
+  const ui=mount(data,{TaskOverview:{execution:ex,loading:false}});
+  const overview=()=>ui.find(n=>n.component==='TaskOverview')[0];
+  for(const word of ['验证通过','20 / 20 项满足','4 项待处理或复验','30 项复验通过 · 4 项延期','1 项未复核','尚未复核线上环境'])assert.ok(text(overview()).includes(word),word);
+  ui.click(ui.find(n=>n.type==='button'&&text(n)==='查看问题处理',overview())[0]);
+  assert.equal(ui.find(n=>n.component==='IssueFlow')[0].props.filter,'active');
+  data.tasks[0].acceptance.status='changed';ex.findingCounts=null;ui.render();
+  assert.match(text(overview()),/裁决通过 · 覆盖待核对/);
+  assert.match(text(overview()),/处理情况未确认/);
+  assert.doesNotMatch(text(overview()),/无待处理或待复验项/);
+});
+test('看板回归：已登记的问题可从历史退回跳到对应页，不再一概声称没有逐项关系', () => {
+  const data=flowData(); const link={historyIndex:6,issueId:'issue-on-page-2',description:'重复请求规则遗漏',status:'resolved',findingOffset:20};
+  const ui=mount(data,{FlowWorkbench:{execution:{rounds:[],repairs:[],flowLinks:[link]}}});
+  ui.click(ui.find(n=>n.props['aria-label']?.startsWith('查看退回路线'))[0]);
+  assert.match(text(flowDetail(ui)),/复验通过/);
+  assert.doesNotMatch(text(flowDetail(ui)),/尚无逐条问题与修改的对应记录/);
+  ui.click(ui.find(n=>n.props.className==='sdlc-linked-issue')[0]);
+  assert.equal(ui.find(n=>n.props.id==='sdlc-view-issues')[0].props.hidden,false);
+  assert.equal(ui.find(n=>n.component==='IssueFlow')[0].props.selectedId,'issue-on-page-2');
+  assert.equal(ui.find(n=>n.component==='IssueFlow')[0].props.filter,'all');
+});
+test('看板回归：问题列表只显示短标题，完整说明和证据仍可展开，首次登记不重复原文', () => {
+  const description='折叠态定位错误：'+('非常长的技术细节。'.repeat(40));
+  const ex={...execution(),findingTotal:1,findings:[{id:'long',description,evidence:'原始失败证据',status:'resolved',actions:[{id:'a',kind:'reported',from:'VERIFYING',to:'VERIFYING',reason:description,evidence:'原始失败证据'}]}]};
+  const ui=mount(payload,{IssueFlow:{execution:ex,loading:false}});
+  const choice=ui.find(n=>n.props.className?.includes('sdlc-issue-choice'))[0];assert.ok(text(choice).length<120);
+  const detail=ui.find(n=>n.props['aria-label']==='所选问题处理过程')[0];
+  assert.equal(text(detail).split(description).length-1,1);
+  assert.equal(text(detail).split('原始失败证据').length-1,1);
+});
+test('看板回归：证据按状态和关键词筛选后保留原始验收序号', () => {
+  const ex=execution();ex.rounds[2].criteria=[{criterion:'第一项正常',status:'met',evidence:'A'},{criterion:'第二项待确认',status:'cannot_tell',evidence:'缺少真实环境'}];
+  const ui=loopMount(ex);ui.click(ui.find(n=>n.type==='button'&&text(n)==='查看本轮证据')[0]);
+  const select=ui.find(n=>n.props['aria-label']==='验收项状态')[0];assert.ok(select);
+  select.props.onChange({target:{value:'cannot_tell'}});ui.render();
+  const modal=()=>ui.find(n=>n.component==='RoundEvidence')[0];
+  assert.match(text(modal()),/2\. 第二项待确认/);assert.doesNotMatch(text(modal()),/1\. 第一项正常/);
+  const query=ui.find(n=>n.props['aria-label']==='搜索验收项')[0];query.props.onChange({target:{value:'不匹配'}});ui.render();
+  assert.match(text(modal()),/没有匹配的验收项/);
+});
+test('看板回归：还没有验证轮次时仍展示已记录的修复操作，不丢失修复历史', () => {
+  const ex = {taskId:'SAME-1',repoRoot:'/alpha',status:'recorded',issues:[],rounds:[],repairs:[
+    {id:'fix-1',kind:'fix_start',at:'2026-10-28T10:00:00Z',summary:'用失败测试复现后冻结测试资产',source:'sessions/s1.json#1'},
+    {id:'fix-2',kind:'fix_end',at:'2026-10-28T10:10:00Z',summary:'修复后复验通过，解除测试冻结',source:'sessions/s1.json#2'},
+  ],findings:[],findingTotal:0,findingOffset:0,findingNext:null,activities:[]};
+  const ui = loopMount(ex);
+  const panel = ui.find(n=>n.props.id==='sdlc-view-verification')[0];
+  assert.ok(text(panel).includes('还没有可核对的验证轮次'));
+  assert.ok(text(panel).includes('用失败测试复现后冻结测试资产'));
+  assert.ok(text(panel).includes('修复后复验通过，解除测试冻结'));
+  assert.ok(text(panel).includes('开始修复') && text(panel).includes('结束修复'));
 });

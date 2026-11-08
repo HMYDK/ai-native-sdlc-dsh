@@ -15,6 +15,7 @@
  *     packages/sdlc-task/smoke.mjs
  */
 
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -106,6 +107,7 @@ ctx.provide('sandboxPolicy', {
 });
 
 const rt = new ToolRuntime(ctx, 'tools');
+installNativeExecutor(ctx, require);
 if (ctx.tools === undefined) bad('ToolRuntime 未挂到 ctx.tools');
 else ok('真实 ToolRuntime 已挂载');
 
@@ -161,7 +163,7 @@ console.log('\n== 3b. 提示词段：不许把一项工作拆成两个任务');
 console.log('\n== 4. 真正调用工具（create → status → advance）==');
 let seq = 0;
 const dispatch = (name, args) =>
-  ctx.tools.execute({
+  executeTool(ctx, {
     callId: `smoke-${name}-${(seq += 1)}`,
     name,
     arguments: args,
@@ -392,7 +394,7 @@ else bad('不存在的任务未报错');
 
 // 4j. 没有 cwd 的会话
 {
-  const noCwd = await ctx.tools.execute({
+  const noCwd = await executeTool(ctx, {
     callId: 'smoke-nocwd',
     name: 'sdlc_task_status',
     arguments: { task_id: 'PROJ-7' },

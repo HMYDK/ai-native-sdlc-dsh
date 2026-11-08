@@ -7,10 +7,11 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
-    name: pack and publish tarball
+    name: verify / publish / pack
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,9 +22,18 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify tag matches package version
+        run: |
+          VERSION="$(node -p "require('./packages/sdlc/package.json').version")"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME 与 packages/sdlc/package.json 的 v$VERSION 不一致"
+            exit 1
+          fi
 
       - name: Build
         run: npm run build --workspace packages/sdlc
@@ -40,6 +50,11 @@ jobs:
           TGZ="${{ steps.pack.outputs.tgz }}"
           sha256sum "$TGZ" > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --workspace packages/sdlc --access public --provenance
 
       - name: Create release
         env:

@@ -1,4 +1,5 @@
 /** Real tools + real local filesystem + disposable Git repo, with deterministic verifier answers. */
+import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
@@ -19,7 +20,7 @@ const criteria=['非目标场景保持原行为'],criteria_results=[{criterion_i
 let answer={status:'approve',summary:'verified',findings:[],criteria_results},seq=0,checks=0,mutateDuring=false,noVerdict=false,cancelDuring=false;
 const agent={id:'author',session:{id:'author',header:{cwd:root}}};
 const check=(value,label)=>{assert.ok(value,label);checks++;console.log('  ✓ '+label);};
-const call=(name,args)=>ctx.tools.execute({callId:`flow-${++seq}`,name,arguments:args,agent,signal:new AbortController().signal});
+const call=(name,args)=>executeTool(ctx, {callId:`flow-${++seq}`,name,arguments:args,agent,signal:new AbortController().signal});
 const state=async()=>parseTaskState('FLOW-TEST',load(await fs.readFile(stateFile,'utf8'),{schema:JSON_SCHEMA}));
 const save=async s=>fs.writeFile(stateFile,serializeTaskState(s));
 const success=async(name,args)=>{const r=await call(name,args);assert.ok(!r.isError,JSON.stringify(r));return r.value;};
@@ -31,6 +32,7 @@ try {
   ctx.provide('sandboxPolicy',{resolve:()=>({mode:'workspace-write',workspaceRoot:root,writableRoots:[root]})});
   ctx.provide('systemPrompt',{section:()=>()=>{},tools:()=>()=>{},variable:()=>()=>{},context:()=>()=>{},getSectionOrder:()=>0,getContextOrder:()=>0});
   new ToolRuntime(ctx,'tools');
+  installNativeExecutor(ctx, require);
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture'})});
   ctx.provide('subagents',{startActivation:async()=>{
     if(cancelDuring)await success('sdlc_task_issue',{task_id:'FLOW-TEST',action:'cancel_verification',reason:'abandon interrupted run'});
