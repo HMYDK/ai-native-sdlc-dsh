@@ -28,13 +28,12 @@ import time
 import uuid
 from pathlib import Path
 
-import docker
 import yaml
-from datasets import load_dataset
-from featurebench.harness.utils import preprocess_hf_patch
-from featurebench.infer.container import ContainerManager
-from featurebench.infer.models import TaskInstance
-from featurebench.infer.runtime import RuntimeHandler
+
+# 注意：docker / datasets / featurebench 只在真实执行（--execute）时按需导入。
+# CI 的 evals-check 用 `--mode empty` 做 dry-run（不碰 Docker、不调模型），runner 上
+# 只装 pyyaml；顶层导入会让这次「不烧 token 的预演」直接 ImportError。
+# 这与「dry-run 默认不触发昂贵调用」的承诺保持一致。
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_MANIFEST = HERE / "manifest.yml"
@@ -59,6 +58,10 @@ def load_manifest(path: Path) -> dict:
 
 
 def load_instance(task_id: str):
+    # 运行时依赖按需导入：见文件顶部说明（CI dry-run 不装 datasets/featurebench）。
+    from datasets import load_dataset
+    from featurebench.infer.models import TaskInstance
+
     ds = load_dataset("LiberCoders/FeatureBench", "default", split="fast", revision="v1.1")
     for row in ds:
         if row["instance_id"] == task_id:
@@ -93,6 +96,8 @@ def strip_patch_paths(patch: str, prefixes: tuple[str, ...]) -> str:
 
 def leak_signature(row: dict) -> str:
     """从 gold restore patch 里取一个实现函数签名，用于容器泄漏扫描。"""
+    from featurebench.harness.utils import preprocess_hf_patch
+
     gold = preprocess_hf_patch(row.get("patch", ""), row.get("FAIL_TO_PASS", []))
     lines = [ln[1:] for ln in gold.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
     for ln in lines:
@@ -218,6 +223,11 @@ def main() -> int:
         print("[dry-run] prompt suffix chars:", len(arm_cfg.get("prompt_suffix") or ""))
         print("[dry-run] add --execute to actually run")
         return 0
+
+    # 真正执行才需要的运行时依赖（dry-run 已在上面返回）。
+    import docker
+    from featurebench.infer.container import ContainerManager
+    from featurebench.infer.runtime import RuntimeHandler
 
     row, inst = load_instance(args.task_id)
     prompt = row["problem_statement"] + (arm_cfg.get("prompt_suffix") or "")
