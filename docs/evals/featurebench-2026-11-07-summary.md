@@ -63,6 +63,9 @@
 - 分母说明：A 组 12 次尝试中 1 次（seaborn `test_regression`）官方评分因 HF revision
   解析失败缺失；ITT 按未解决计入 → 7/12，可评分口径 7/11（63.6%）。详见
   [`featurebench-2026-11-07-expanded.md`](featurebench-2026-11-07-expanded.md) 结果表注。
+- 补评：该条已于 2026-11-10 用官方 Grader 复评 **resolved=1.0**（见
+  [`featurebench-2026-11-10-grader-rerun.md`](featurebench-2026-11-10-grader-rerun.md)）；
+  仅作敏感性参考，不回填本表历史聚合。
 
 **结论**：B 在更难任务集上方向性更好，但**与③方向矛盾**，最可能被单次运行方差解释；
 B 的成本显著更高（中位数 2.3×、p90 2.5×，另有 3 次 timeout/1 次 over_budget）。

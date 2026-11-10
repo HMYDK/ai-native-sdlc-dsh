@@ -35,7 +35,10 @@
 > agent 失败，见原始 `eval-standard/eval.log`），因此没有官方评分。按预注册的「全部
 > 尝试计入分母、不静默剔除」，ITT 口径把它按未解决计入（7/12）；可评分口径为
 > 7/11（63.6%）。paired 只在两臂都可评分时计算，共 11 对。该条已列为 EVAL-01 的补评
-> 对象（issue #12 AC-007）；补评结果单独标注，不回填进本表的历史聚合。
+> 对象（issue #12 AC-007）。**2026-11-10 官方 Grader 复评完成：resolved=1.0**
+> （[`featurebench-2026-11-10-grader-rerun.md`](featurebench-2026-11-10-grader-rerun.md)）。
+> 本表保留历史 ITT / 可评分口径，不回填；补评后若计入，ITT 为 8/12——该敏感性只在
+> [`featurebench-baseline.md`](featurebench-baseline.md) 里单独列出。
 
 ### paired 比较（两臂都有评分的 11 个任务）
 
