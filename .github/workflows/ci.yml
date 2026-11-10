@@ -40,7 +40,7 @@ jobs:
         run: npm test
 
   evals-check:
-    name: featurebench manifests / dry-run
+    name: featurebench data checks / dry-run
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -54,9 +54,21 @@ jobs:
       - name: Install checker deps
         run: pip install pyyaml
 
-      # 只做结构校验与 dry-run：不调模型、不起容器、不拉镜像。
+      # 只做数据一致性校验与 dry-run：不调模型、不起容器、不拉镜像、不联网。
       - name: Manifest structural check
         run: python3 tools/evals/featurebench/sanity_check.py --structural
+
+      - name: Baseline index check
+        run: python3 tools/evals/featurebench/sanity_check.py --index
+
+      - name: Run inventory audit (canonical runs.jsonl)
+        run: python3 tools/evals/featurebench/audit_runs.py --check
+
+      - name: Reaggregate cross-check (offline recompute)
+        run: python3 tools/evals/featurebench/reaggregate.py --check
+
+      - name: Redaction check (host paths / credentials)
+        run: python3 tools/evals/featurebench/check_redaction.py
 
       - name: Dry-run single arm
         run: |

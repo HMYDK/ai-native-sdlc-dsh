@@ -11,6 +11,10 @@
 - 引导效应   = E[guidance arms] - E[no-guidance arms]
 - 交互项     = (sdlc_guidance - sdlc) - (standard_guidance - standard)
 单位：resolved 为比例差；token 为相对变化（B 相对 A 的倍数-1）。
+
+离线复算（issue #12 / AC-003）：`compute(report[, data_path])` 是纯函数（不读写
+文件、不联网、不调模型），`reaggregate.py --check` 用已提交数据快照重算后与已提交
+`analysis` 逐项对账；CLI 行为保持不变（`--data` / `--out` / `--markdown`）。
 """
 from __future__ import annotations
 
@@ -28,15 +32,12 @@ def mean(xs):
     return sum(xs) / len(xs) if xs else None
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--markdown", required=True)
-    args = ap.parse_args()
+def compute(report: dict, data_path=None) -> dict:
+    """从 report-data.json 的内容算 2×2 分析结果（纯函数，不碰文件系统）。
 
-    data = json.loads(Path(args.data).read_text(encoding="utf-8"))
-    rows = [r for r in data["runs"] if r.get("arm") in ARMS and "resolved" in r]
+    `data_path` 只影响输出里的 `data` 字段（路径溯源），不参与任何统计。
+    """
+    rows = [r for r in report["runs"] if r.get("arm") in ARMS and "resolved" in r]
     by_arm = defaultdict(list)
     for r in rows:
         by_arm[r["arm"]].append(r)
@@ -68,8 +69,8 @@ def main() -> None:
     def ratio(a, b):
         return (tokens[a] / tokens[b] - 1) if tokens.get(a) and tokens.get(b) else None
 
-    out = {
-        "data": str(Path(args.data).resolve()),
+    return {
+        "data": str(Path(data_path).resolve()) if data_path is not None else None,
         "arms": stats,
         "main_effects": {
             "preset_effect_resolved": preset_effect,
@@ -83,8 +84,11 @@ def main() -> None:
         },
         "per_task": rows,
     }
-    Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
 
+
+def render_markdown(result: dict) -> str:
+    """把 compute() 的结果渲染成 markdown（纯函数）。"""
+    stats = result["arms"]
     lines = ["# 2×2 拆分结果（preset × 引导）", "",
              "| arm | n | resolved | resolved_rate | avg F2P | avg tokens | avg elapsed | failures |",
              "|---|---|---|---|---|---|---|---|"]
@@ -94,7 +98,7 @@ def main() -> None:
                      f"{s['pass_rate']} | {round(s['tokens']) if s['tokens'] else None} | "
                      f"{round(s['elapsed']) if s['elapsed'] else None} | "
                      f"{len(s['failures'])} |")
-    me = out["main_effects"]
+    me = result["main_effects"]
     lines += ["", "## 主效应（resolved 比例）", "",
               f"- preset（SDLC - 标准）：{me['preset_effect_resolved']:+.3f}",
               f"- 引导（有 - 无）：{me['guidance_effect_resolved']:+.3f}",
@@ -104,8 +108,22 @@ def main() -> None:
               f"- token 倍数（引导/无引导）：{me['token_ratio_guidance_vs_none']:+.2%}"
               if me.get('token_ratio_guidance_vs_none') is not None else ""]
     lines += ["", "> n=5 每任务 1 次，效应量只能作为方向性证据；超时/over_budget 计入分母。"]
-    Path(args.markdown).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print("\n".join(lines))
+    return "\n".join(lines)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--markdown", required=True)
+    args = ap.parse_args()
+
+    data = json.loads(Path(args.data).read_text(encoding="utf-8"))
+    result = compute(data, args.data)
+    Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    markdown = render_markdown(result)
+    Path(args.markdown).write_text(markdown + "\n", encoding="utf-8")
+    print(markdown)
 
 
 if __name__ == "__main__":
