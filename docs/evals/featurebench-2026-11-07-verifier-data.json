@@ -2,8 +2,8 @@
  "experiment": "verify-calibration",
  "date": "2026-11-07",
  "report": {
-  "manifest": "/Users/zk/mine/code/github/mine_repo/ai-native-sdlc-dsh/ai-native-sdlc-dsh/tools/evals/featurebench/manifests/verify-calibration.yml",
-  "runs_root": "/private/tmp/fb-runs-verify",
+  "manifest": "tools/evals/featurebench/manifests/verify-calibration.yml",
+  "runs_root": "/tmp/fb-runs-verify",
   "runs": [
    {
     "task_id": "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1",
@@ -349,7 +349,7 @@
   ]
  },
  "confusion": {
-  "data": "/private/tmp/fb-runs-verify/report-data.json",
+  "data": "/tmp/fb-runs-verify/report-data.json",
   "sdlc_runs": 10,
   "official_resolved": 8,
   "confusion": {

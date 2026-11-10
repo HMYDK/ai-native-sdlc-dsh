@@ -4,8 +4,8 @@
  "new_version": "plugin 0.6.1 + DSH 0.2.2-rc.1",
  "old_version": "plugin 0.6.0 + DSH 0.2.1-rc.5",
  "new": {
-  "manifest": "/Users/zk/mine/code/github/mine_repo/ai-native-sdlc-dsh/ai-native-sdlc-dsh/tools/evals/featurebench/manifests/regression-0.6.1/mvp.yml",
-  "runs_root": "/private/tmp/fb-runs-regression-mvp",
+  "manifest": "tools/evals/featurebench/manifests/regression-0.6.1/mvp.yml",
+  "runs_root": "/tmp/fb-runs-regression-mvp",
   "runs": [
    {
     "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
@@ -323,8 +323,8 @@
   ]
  },
  "old": {
-  "manifest": "/Users/zk/mine/code/github/mine_repo/ai-native-sdlc-dsh/ai-native-sdlc-dsh/tools/evals/featurebench/manifest.yml",
-  "runs_root": "/private/tmp/fb-runs",
+  "manifest": "tools/evals/featurebench/manifest.yml",
+  "runs_root": "/tmp/fb-runs",
   "runs": [
    {
     "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
