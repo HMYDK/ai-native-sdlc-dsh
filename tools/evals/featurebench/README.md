@@ -212,8 +212,9 @@ CI 的 `evals-check` job 会跑上面五项（外加两个 dry-run），只依�
 ```bash
 # 1) canonical run 表 / 证据索引 / 环境身份 / 泄漏 / 验证者混淆（需要 pyarrow+zstandard，
 #    用 featurebench 的 uv python；缺依赖默认拒跑，--allow-degraded 只用于排查）
-/Users/zk/.local/share/uv/tools/featurebench/bin/python \
-  tools/evals/featurebench/collect_runs.py --check
+#    （路径用 `uv tool dir featurebench` 查；不要写死本机主目录）
+UV_PY="$(uv tool dir featurebench)/bin/python"
+"$UV_PY" tools/evals/featurebench/collect_runs.py --check
 
 # 2) 离线统计与索引（只读已提交数据，stdlib+pyyaml）
 python3 tools/evals/featurebench/reaggregate.py \
