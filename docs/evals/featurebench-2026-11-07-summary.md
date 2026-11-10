@@ -4,7 +4,11 @@
 - 本轮总预算：用户确认追加到 **1B token**；实际 UI 口径累计约 **672M**（含重试；见预算一节）
 - 环境恒定：FeatureBench 0.3.0 / dataset v1.1 / DSH CLI 0.2.1-rc.5 / plugin 0.6.0 /
   deepseek-flash(reasoningEffort=max) / 同批 5 个 `fb-eval-base:*` 镜像
-- 所有清单在首次运行前提交到 `tools/evals/featurebench/manifests/`；未 push（等用户 review）
+- 所有清单在首次运行前提交到 `tools/evals/featurebench/manifests/`；2026-11-10 已推送
+  到 `dev` 并开 PR #13（此前本地未 push）
+- **2026-11-10 EVAL-01 修订**：④ 表格改为 ITT / 可评分双口径（A 组 1 次缺官方评分）；
+  更完整的审计数字（分母规则、泄漏、验证者混淆）以
+  [`featurebench-baseline.md`](featurebench-baseline.md) 为准，本文件保留当时口径。
 
 ## 三项实验与结论
 
@@ -47,7 +51,8 @@
 
 | 指标 | A 标准 | B SDLC+引导 |
 |---|---|---|
-| resolved | **7/12（58.3%）** | **10/12（83.3%）** |
+| resolved（ITT，n=12；A 组 1 次缺官方评分按未解决计入） | **7/12（58.3%）** | **10/12（83.3%）** |
+| resolved（可评分口径） | 7/11（63.6%） | 10/12（83.3%） |
 | 平均 F2P | 0.685 | 0.856 |
 | token 中位数 | 4.6M | 10.4M |
 | token p90 | 16.3M | 40.1M |
@@ -55,6 +60,9 @@
 
 - paired（11 对）：**B 独有通过 2、A 独有通过 0**，9 个都通过，2 个都失败；
 - 方向与③相反（③ 是 −0.1，④ 是 +0.18），且 ④ 的 2 个 B 独有里有一个是 timeout 后的补丁。
+- 分母说明：A 组 12 次尝试中 1 次（seaborn `test_regression`）官方评分因 HF revision
+  解析失败缺失；ITT 按未解决计入 → 7/12，可评分口径 7/11（63.6%）。详见
+  [`featurebench-2026-11-07-expanded.md`](featurebench-2026-11-07-expanded.md) 结果表注。
 
 **结论**：B 在更难任务集上方向性更好，但**与③方向矛盾**，最可能被单次运行方差解释；
 B 的成本显著更高（中位数 2.3×、p90 2.5×，另有 3 次 timeout/1 次 over_budget）。
