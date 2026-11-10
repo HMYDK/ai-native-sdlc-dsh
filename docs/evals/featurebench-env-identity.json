@@ -1,0 +1,1037 @@
+{
+  "attempts_reconciliation": {
+    "attempts_sum_known": 63,
+    "canonical_runs": 96,
+    "definition": "attempts = matrix.json 中该 (task, arm) 记录的尝试次数（1 = 无 infra 重试；2 = 发生 1 次 infra 重试）。matrix.json 不存在/未覆盖该 run 时为 null，不猜。",
+    "log_evidence": {
+      "note": "日志里可见 [run]/[retry] 事件（每个 [run] = 一次 run_arm 启动，[retry] = 同一 run_matrix 进程内的 infra 重试），但这些日志本身不完整（分批/重定向/被覆盖），无法把历史启动逐条归属到 canonical run。",
+      "retry_lines_in_surviving_logs": 3,
+      "run_launch_lines_in_surviving_logs": 86
+    },
+    "per_experiment": {
+      "2x2": {
+        "attempts_known_rows": 13,
+        "attempts_known_sum": 14,
+        "runs": 20,
+        "runs_without_matrix_entry": 7
+      },
+      "expanded": {
+        "attempts_known_rows": 8,
+        "attempts_known_sum": 8,
+        "runs": 24,
+        "runs_without_matrix_entry": 16
+      },
+      "mvp": {
+        "attempts_known_rows": 2,
+        "attempts_known_sum": 2,
+        "runs": 10,
+        "runs_without_matrix_entry": 8
+      },
+      "pilot": {
+        "attempts_known_rows": 0,
+        "attempts_known_sum": 0,
+        "runs": 1,
+        "runs_without_matrix_entry": 1
+      },
+      "repeat-sampling": {
+        "attempts_known_rows": 18,
+        "attempts_known_sum": 18,
+        "runs": 18,
+        "runs_without_matrix_entry": 0
+      },
+      "verify-calibration": {
+        "attempts_known_rows": 10,
+        "attempts_known_sum": 12,
+        "runs": 10,
+        "runs_without_matrix_entry": 0
+      },
+      "verify-stress": {
+        "attempts_known_rows": 0,
+        "attempts_known_sum": 0,
+        "runs": 3,
+        "runs_without_matrix_entry": 3
+      },
+      "version-regression-mvp": {
+        "attempts_known_rows": 9,
+        "attempts_known_sum": 9,
+        "runs": 10,
+        "runs_without_matrix_entry": 1
+      }
+    },
+    "runs_with_matrix_attempts": 60,
+    "runs_without_matrix_attempts": 36,
+    "why_not_164": "issue #8 评论称『含重跑约 164 次尝试』。用现存制品只能逐 run 追溯 63 次（60/96 行有 matrix 记录）；其余尝试发生在被 --retry-failed 覆盖的批次汇总、driver 层重试与已删除的临时 runs 中，没有逐 run 账本，无法复算 164。本表只报告可审计数字，不把估计值当记录。"
+  },
+  "dataset": {
+    "grader": "featurebench==0.3.0",
+    "instances_in_split": 100,
+    "name": "LiberCoders/FeatureBench",
+    "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+    "split": "fast"
+  },
+  "excluded_artifacts": [
+    {
+      "path": "/tmp/fb-runs-2x2-probe",
+      "reason": "2026-11-07 17:47 的 2x2 前置探针 run（pydantic standard），不属预注册实验批次、无官方评分，未计入 canonical"
+    }
+  ],
+  "generated_by": "tools/evals/featurebench/collect_runs.py（本地离线，无生成时间戳）",
+  "issue_8_reconciliation": {
+    "claims": {
+      "27 个不同 FeatureBench 任务": {
+        "canonical_recomputed": 27,
+        "match": true,
+        "note": "canonical 96 行去重后 task_id 数；V1/V2/pilot 的任务集合相同（5 repo lv1）"
+      },
+      "85 次有效官方评分运行": {
+        "difference": -1,
+        "explanation": "V1 共 85 个 run；84 个有官方 report。expanded 的 seaborn test_regression / standard 因 fb eval 的 HF revision 解析失败没有 report.json（环境失败），所以『85 次官方评分』多算了 1 次；ITT 分母仍保留 85（该条按未解决计入）。",
+        "v1_runs": 85,
+        "v1_with_official_report": 84
+      },
+      "含重跑约 164 次尝试": {
+        "explanation": "issue #8 评论称『含重跑约 164 次尝试』。用现存制品只能逐 run 追溯 63 次（60/96 行有 matrix 记录）；其余尝试发生在被 --retry-failed 覆盖的批次汇总、driver 层重试与已删除的临时 runs 中，没有逐 run 账本，无法复算 164。本表只报告可审计数字，不把估计值当记录。",
+        "match": false,
+        "matrix_json_attempts_sum": 63,
+        "matrix_json_coverage": "60/96"
+      },
+      "总消耗约 787M / 1B token": {
+        "explanation": "#8 的 787M 是当时的 UI 口径累计（首批预算表还包含 2 个重复目录，多算 packaging 两臂约 17.2M）。canonical 以每 run UI 值优先、12 个 UI 缺失的 run 用 session 汇总补全（+182368593），所以总量更高；两套口径都保留说明。",
+        "v1_tokens_session_fallback_sum": 182368593,
+        "v1_tokens_total": 944018093,
+        "v1_tokens_ui_sum": 761649500
+      }
+    },
+    "not_recomputed_here": "issue #8 的 paired 汇总（n=30 / A 21/30 / B 22/30 / W3 L2 T25）由 reaggregate.py + baseline-metrics.json 负责；本文件只固定 env/attempt 口径。",
+    "notes": "V2 只有 10 个 run（regression-0.6.1/mvp.yml），pilot 1 个；其余 5 份 regression-0.6.1 清单预注册未执行（not_run）。0.6.0 与 0.6.1 结论不混用。",
+    "source": "issue #8 comment 2026-11-08（FeatureBench A/B 实验汇报）"
+  },
+  "known_gaps": [
+    "模型实际服务版本/构建不可得：只记录 request 参数（deepseek-account / deepseek-flash / reasoning_effort=max）；UI 展示的品牌串不能当作服务版本证据。",
+    "无随机种子：模型采样不可控；manifest 固定了运行顺序（alternating），但逐 run 启动顺序除日志时间外没有单独记录。",
+    "权限/网络策略未逐 run 落盘：所有 run 统一容器内 danger-full-access + unset HTTP(S)_PROXY（见 tools/evals/featurebench/README.md），meta.json 只记录 timeout/max_tokens；无法从逐 run 制品证明每 run 的权限面完全一致。",
+    "V1 首批 mvp 的 10 个 run 未记录 dsh_cli_actual / plugin_version_actual（driver 后期才加版本探测）；V1 其余实验与 V2/pilot 有 actual 字段。",
+    "attempts 账本不完整：matrix.json 会被后续 --retry-failed 子集运行覆盖，仅 60/96 行有可追溯 attempts；见 attempts_reconciliation。",
+    "canonical 的 96 行身份只对应 95 次物理运行：pilot 的 pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/standard 与 version-regression-mvp 的同 task/arm 是**同一次运行**（pilot 是复用/落盘副本；meta.json/patch.diff/predictions.jsonl/session 的 sha256 全同，见 evidence-index.cross_references）。pilot 行按预注册分组单列、不进 V1/V2 分母，也不能被当成额外独立样本。",
+    "/tmp/fb-runs-2x2-probe（1 个 pydantic standard 探针 run，无官方评分）不在任何预注册实验内，未进入 canonical 表，也未计入 V1/V2/pilot。",
+    "原始 runs（约 2.3GB，含 prompt/session）不提交；本机归档在 ~/.dsh-eval-archive/2026-11-08，仓库只提交逐 artifact hash（审计级别 L2）。",
+    "容器内镜像是 fb-eval-base(-061):<repo> 派生镜像；meta.image_digest 记录的是其官方基础镜像（libercoders/featurebench-specs_*）的 manifest digest，派生镜像本身没有独立 digest 记录。"
+  ],
+  "model": {
+    "model": "deepseek-flash",
+    "note": "只记录请求参数；模型实际服务的 version/build 不可观测，UI 品牌串不可作为版本证据",
+    "provider": "deepseek-account",
+    "reasoning_effort": "max"
+  },
+  "per_experiment": {
+    "2x2": {
+      "arms": [
+        "standard",
+        "standard_guidance",
+        "sdlc",
+        "sdlc_guidance"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 2,
+        "attempts_known": 13,
+        "attempts_sum_known": 14,
+        "resolved": 15,
+        "runs": 20,
+        "scoreable": 20
+      },
+      "image_tags_used": [
+        "fb-eval-base:packaging",
+        "fb-eval-base:pydantic",
+        "fb-eval-base:pytest",
+        "fb-eval-base:seaborn",
+        "fb-eval-base:sphinx"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+          "official_image": "libercoders/featurebench-specs_packaging-instance_c393a6a8",
+          "repo": "pypa/packaging",
+          "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+        },
+        {
+          "image_digest": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+          "official_image": "libercoders/featurebench-specs_pytest-instance_2b74d6c4",
+          "repo": "pytest-dev/pytest",
+          "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+        },
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifests/2x2.yml",
+      "manifest_sha256": "34f9f7b44bea7bbb21e4415661a1f1c2cadc7e1f5eb4e30178895524c5929876",
+      "run_manifest_sha256": "34f9f7b44bea7bbb21e4415661a1f1c2cadc7e1f5eb4e30178895524c5929876",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 250000000
+      },
+      "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+      "time_window": {
+        "started_at_max": "2026-11-07T20:51:25",
+        "started_at_min": "2026-11-07T14:20:54"
+      }
+    },
+    "expanded": {
+      "arms": [
+        "standard",
+        "sdlc"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 6,
+        "attempts_known": 8,
+        "attempts_sum_known": 8,
+        "resolved": 17,
+        "runs": 24,
+        "scoreable": 23
+      },
+      "image_tags_used": [
+        "fb-eval-base:pydantic",
+        "fb-eval-base:seaborn",
+        "fb-eval-base:sphinx"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifests/expanded.yml",
+      "manifest_sha256": "497d6873f12ad99b1bfc39e172a4d45abbc74558e49432c4ec9e346d54560042",
+      "run_manifest_sha256": "497d6873f12ad99b1bfc39e172a4d45abbc74558e49432c4ec9e346d54560042",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 350000000
+      },
+      "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+      "time_window": {
+        "started_at_max": "2026-11-07T23:13:01",
+        "started_at_min": "2026-11-07T14:36:29"
+      }
+    },
+    "mvp": {
+      "arms": [
+        "standard",
+        "sdlc"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 1,
+        "attempts_known": 2,
+        "attempts_sum_known": 2,
+        "resolved": 8,
+        "runs": 10,
+        "scoreable": 10
+      },
+      "image_tags_used": [
+        "fb-eval-base:packaging",
+        "fb-eval-base:pydantic",
+        "fb-eval-base:pytest",
+        "fb-eval-base:seaborn",
+        "fb-eval-base:sphinx"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+          "official_image": "libercoders/featurebench-specs_packaging-instance_c393a6a8",
+          "repo": "pypa/packaging",
+          "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+        },
+        {
+          "image_digest": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+          "official_image": "libercoders/featurebench-specs_pytest-instance_2b74d6c4",
+          "repo": "pytest-dev/pytest",
+          "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+        },
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifest.yml",
+      "manifest_sha256": "6c8e52cf87826a3f52fe00ba0d253b39153ab7fc663491e6c21c574eb6392354",
+      "run_manifest_sha256": "6c8e52cf87826a3f52fe00ba0d253b39153ab7fc663491e6c21c574eb6392354",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 200000000
+      },
+      "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+      "time_window": {
+        "started_at_max": "2026-11-07T00:31:02",
+        "started_at_min": "2026-11-06T17:18:54"
+      }
+    },
+    "pilot": {
+      "arms": [
+        "standard",
+        "standard_guidance",
+        "sdlc",
+        "sdlc_guidance"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 0,
+        "attempts_known": 0,
+        "attempts_sum_known": 0,
+        "resolved": 0,
+        "runs": 1,
+        "scoreable": 1
+      },
+      "image_tags_used": [
+        "fb-eval-base-061:packaging"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+          "official_image": "libercoders/featurebench-specs_packaging-instance_c393a6a8",
+          "repo": "pypa/packaging",
+          "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+        },
+        {
+          "image_digest": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+          "official_image": "libercoders/featurebench-specs_pytest-instance_2b74d6c4",
+          "repo": "pytest-dev/pytest",
+          "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+        },
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifests/regression-0.6.1/2x2.yml",
+      "manifest_sha256": "c5b63ee044238fb622251cb43f6fbcd4f40a5761659432048267ac8499b7ac5f",
+      "run_manifest_sha256": "c5b63ee044238fb622251cb43f6fbcd4f40a5761659432048267ac8499b7ac5f",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 250000000
+      },
+      "runtime_group": "pilot",
+      "time_window": {
+        "started_at_max": "2026-11-08T15:57:55",
+        "started_at_min": "2026-11-08T15:57:55"
+      }
+    },
+    "repeat-sampling": {
+      "arms": [
+        "standard",
+        "sdlc"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 1,
+        "attempts_known": 18,
+        "attempts_sum_known": 18,
+        "resolved": 12,
+        "runs": 18,
+        "scoreable": 18
+      },
+      "image_tags_used": [
+        "fb-eval-base:packaging",
+        "fb-eval-base:seaborn",
+        "fb-eval-base:sphinx"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+          "official_image": "libercoders/featurebench-specs_packaging-instance_c393a6a8",
+          "repo": "pypa/packaging",
+          "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifests/repeat-sampling.yml",
+      "manifest_sha256": "a016611b14631bd58f7fcb430c74632f9c81b0dfbb5749ddc39040fb113b7237",
+      "run_manifest_sha256": "a016611b14631bd58f7fcb430c74632f9c81b0dfbb5749ddc39040fb113b7237",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 300000000
+      },
+      "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+      "time_window": {
+        "started_at_max": "2026-11-08T03:19:12",
+        "started_at_min": "2026-11-08T01:09:32"
+      }
+    },
+    "verify-calibration": {
+      "arms": [
+        "sdlc"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 4,
+        "attempts_known": 10,
+        "attempts_sum_known": 12,
+        "resolved": 8,
+        "runs": 10,
+        "scoreable": 10
+      },
+      "image_tags_used": [
+        "fb-eval-base:pydantic",
+        "fb-eval-base:pytest",
+        "fb-eval-base:seaborn",
+        "fb-eval-base:sphinx"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+          "official_image": "libercoders/featurebench-specs_pytest-instance_2b74d6c4",
+          "repo": "pytest-dev/pytest",
+          "task_id": "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1"
+        },
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1"
+        },
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1"
+        },
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifests/verify-calibration.yml",
+      "manifest_sha256": "0a8f5d398031e01e363f1f0e91c24cee4e150cde91d546ed509d0a56c15ea167",
+      "run_manifest_sha256": "0a8f5d398031e01e363f1f0e91c24cee4e150cde91d546ed509d0a56c15ea167",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 350000000
+      },
+      "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+      "time_window": {
+        "started_at_max": "2026-11-07T12:58:52",
+        "started_at_min": "2026-11-07T11:47:21"
+      }
+    },
+    "verify-stress": {
+      "arms": [
+        "sdlc"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 2,
+        "attempts_known": 0,
+        "attempts_sum_known": 0,
+        "resolved": 1,
+        "runs": 3,
+        "scoreable": 3
+      },
+      "image_tags_used": [
+        "fb-eval-base:sphinx"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifests/verify-stress.yml",
+      "manifest_sha256": "c2e725aff7113560f30bb4b6ab2288c79bc10cc6cfa8fd7d9da4dc4c3320dbda",
+      "run_manifest_sha256": "c2e725aff7113560f30bb4b6ab2288c79bc10cc6cfa8fd7d9da4dc4c3320dbda",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 150000000
+      },
+      "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+      "time_window": {
+        "started_at_max": "2026-11-07T14:04:07",
+        "started_at_min": "2026-11-07T13:45:16"
+      }
+    },
+    "version-regression-mvp": {
+      "arms": [
+        "standard",
+        "sdlc"
+      ],
+      "benchmark": {
+        "name": "FeatureBench",
+        "package": "featurebench==0.3.0",
+        "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+        "split": "fast"
+      },
+      "counts": {
+        "agent_failures": 3,
+        "attempts_known": 9,
+        "attempts_sum_known": 9,
+        "resolved": 7,
+        "runs": 10,
+        "scoreable": 10
+      },
+      "image_tags_used": [
+        "fb-eval-base-061:packaging",
+        "fb-eval-base-061:pydantic",
+        "fb-eval-base-061:pytest",
+        "fb-eval-base-061:seaborn",
+        "fb-eval-base-061:sphinx"
+      ],
+      "images": [
+        {
+          "image_digest": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+          "official_image": "libercoders/featurebench-specs_packaging-instance_c393a6a8",
+          "repo": "pypa/packaging",
+          "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+        },
+        {
+          "image_digest": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+          "official_image": "libercoders/featurebench-specs_pytest-instance_2b74d6c4",
+          "repo": "pytest-dev/pytest",
+          "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+        },
+        {
+          "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+          "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+          "repo": "pydantic/pydantic",
+          "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+        },
+        {
+          "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+          "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+          "repo": "mwaskom/seaborn",
+          "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+        },
+        {
+          "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+          "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+          "repo": "sphinx-doc/sphinx",
+          "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+        }
+      ],
+      "manifest": "tools/evals/featurebench/manifests/regression-0.6.1/mvp.yml",
+      "manifest_sha256": "dff7753164b0a805d0844e34ad1a11f3a673edf7d8189d46e531c8c3ca57170e",
+      "run_manifest_sha256": "dff7753164b0a805d0844e34ad1a11f3a673edf7d8189d46e531c8c3ca57170e",
+      "run_policy": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "order": "alternating",
+        "timeout_seconds": 2700,
+        "total_token_budget": 300000000
+      },
+      "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+      "time_window": {
+        "started_at_max": "2026-11-08T17:37:14",
+        "started_at_min": "2026-11-08T15:57:55"
+      }
+    }
+  },
+  "purpose": "AC-002：固定并追踪评测环境身份。V1（0.6.0/0.2.1-rc.5）与 V2（0.6.1/0.2.2-rc.1）分列，不混用；pilot 单列。数据来源：预注册 manifest + 每 run meta.json。",
+  "runtime_groups": {
+    "pilot": {
+      "actual_version_evidence": "pilot 单 run 记录 dsh_cli_actual=0.2.2-rc.1 / plugin_version_actual=0.6.1",
+      "counts": {
+        "resolved": 0,
+        "runs": 1,
+        "scoreable": 1
+      },
+      "dsh_cli_actual": {
+        "0.2.2-rc.1": 1
+      },
+      "experiments": [
+        "pilot"
+      ],
+      "id": "pilot",
+      "image_tags_used": [
+        "fb-eval-base-061:packaging"
+      ],
+      "label": "Pilot: plugin 0.6.1 + DSH 0.2.2-rc.1（探索性单 run，独立分组，不进 V1/V2 分母）",
+      "official_image_digests": {
+        "libercoders/featurebench-specs_packaging-instance_c393a6a8": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+        "libercoders/featurebench-specs_pydantic-instance_78693714": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+        "libercoders/featurebench-specs_pytest-instance_2b74d6c4": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+        "libercoders/featurebench-specs_seaborn-instance_52738fbb": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+        "libercoders/featurebench-specs_sphinx-instance_6191afb1": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268"
+      },
+      "official_reports": 1,
+      "plugin_version_actual": {
+        "0.6.1": 1
+      },
+      "run_policy_common": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "note": "timeout/单 run token/重试/顺序在组内各实验 manifest 完全一致；total_token_budget 逐实验不同，见 per_experiment[exp].run_policy",
+        "order": "alternating",
+        "timeout_seconds": 2700
+      },
+      "runner": {
+        "dsh_cli_recorded": "0.2.2-rc.1",
+        "model": {
+          "model": "deepseek-flash",
+          "note": "只记录请求参数；模型实际服务的 version/build 不可观测，UI 品牌串不可作为版本证据",
+          "provider": "deepseek-account",
+          "reasoning_effort": "max"
+        },
+        "plugin_tarball_sha256": "da201253cd412beed5e49f1e1830171a608c39d1ea37140b755f0c780203e0b7",
+        "plugin_version_recorded": "0.6.1"
+      },
+      "time_window": {
+        "started_at_max": "2026-11-08T15:57:55",
+        "started_at_min": "2026-11-08T15:57:55"
+      },
+      "tokens": {
+        "session_runs": 0,
+        "session_sum": 0,
+        "ui_runs": 1,
+        "ui_sum": 20900000
+      }
+    },
+    "v1": {
+      "actual_version_evidence": "5 个 V1 实验的 meta 记录 dsh_cli_actual/plugin_version_actual；首批 mvp 的 10 条运行在 driver 加版本探测之前执行，字段为 null（dsh_cli/plugin_version 记录的是manifest 钉死值），见 known_gaps",
+      "counts": {
+        "resolved": 61,
+        "runs": 85,
+        "scoreable": 84
+      },
+      "dsh_cli_actual": {
+        "0.2.1-rc.5": 75,
+        "null(未记录)": 10
+      },
+      "experiments": [
+        "mvp",
+        "2x2",
+        "expanded",
+        "verify-calibration",
+        "verify-stress",
+        "repeat-sampling"
+      ],
+      "id": "v1-0.6.0-0.2.1-rc.5",
+      "image_tags_used": [
+        "fb-eval-base:packaging",
+        "fb-eval-base:pydantic",
+        "fb-eval-base:pytest",
+        "fb-eval-base:seaborn",
+        "fb-eval-base:sphinx"
+      ],
+      "label": "V1: plugin 0.6.0 + DSH CLI 0.2.1-rc.5",
+      "official_image_digests": {
+        "libercoders/featurebench-specs_packaging-instance_c393a6a8": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+        "libercoders/featurebench-specs_pydantic-instance_78693714": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+        "libercoders/featurebench-specs_pytest-instance_2b74d6c4": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+        "libercoders/featurebench-specs_seaborn-instance_52738fbb": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+        "libercoders/featurebench-specs_sphinx-instance_6191afb1": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268"
+      },
+      "official_reports": 84,
+      "plugin_version_actual": {
+        "0.6.0": 75,
+        "null(未记录)": 10
+      },
+      "run_policy_common": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "note": "timeout/单 run token/重试/顺序在组内各实验 manifest 完全一致；total_token_budget 逐实验不同，见 per_experiment[exp].run_policy",
+        "order": "alternating",
+        "timeout_seconds": 2700
+      },
+      "runner": {
+        "dsh_cli_recorded": "0.2.1-rc.5",
+        "model": {
+          "model": "deepseek-flash",
+          "note": "只记录请求参数；模型实际服务的 version/build 不可观测，UI 品牌串不可作为版本证据",
+          "provider": "deepseek-account",
+          "reasoning_effort": "max"
+        },
+        "plugin_tarball_sha256": "bac39b42037ea09747fbf5924d7d2cda1381ca31d7b039843fc4f46d8ee6dc88",
+        "plugin_version_recorded": "0.6.0"
+      },
+      "time_window": {
+        "started_at_max": "2026-11-08T03:19:12",
+        "started_at_min": "2026-11-06T17:18:54"
+      },
+      "tokens": {
+        "session_runs": 10,
+        "session_sum": 182368593,
+        "ui_runs": 75,
+        "ui_sum": 761649500
+      }
+    },
+    "v2": {
+      "actual_version_evidence": "V2 全部 10 条运行均记录 dsh_cli_actual=0.2.2-rc.1 / plugin_version_actual=0.6.1",
+      "counts": {
+        "resolved": 7,
+        "runs": 10,
+        "scoreable": 10
+      },
+      "dsh_cli_actual": {
+        "0.2.2-rc.1": 10
+      },
+      "experiments": [
+        "version-regression-mvp"
+      ],
+      "id": "v2-0.6.1-0.2.2-rc.1",
+      "image_tags_used": [
+        "fb-eval-base-061:packaging",
+        "fb-eval-base-061:pydantic",
+        "fb-eval-base-061:pytest",
+        "fb-eval-base-061:seaborn",
+        "fb-eval-base-061:sphinx"
+      ],
+      "label": "V2: plugin 0.6.1 + DSH 0.2.2-rc.1",
+      "official_image_digests": {
+        "libercoders/featurebench-specs_packaging-instance_c393a6a8": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+        "libercoders/featurebench-specs_pydantic-instance_78693714": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+        "libercoders/featurebench-specs_pytest-instance_2b74d6c4": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+        "libercoders/featurebench-specs_seaborn-instance_52738fbb": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+        "libercoders/featurebench-specs_sphinx-instance_6191afb1": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268"
+      },
+      "official_reports": 10,
+      "plugin_version_actual": {
+        "0.6.1": 10
+      },
+      "run_policy_common": {
+        "agent_retries": 0,
+        "failure_classes": [
+          "timeout",
+          "over_budget",
+          "infra_error",
+          "empty_patch",
+          "agent_error",
+          "unresolved"
+        ],
+        "infra_retries": 1,
+        "max_tokens_per_run": 40000000,
+        "note": "timeout/单 run token/重试/顺序在组内各实验 manifest 完全一致；total_token_budget 逐实验不同，见 per_experiment[exp].run_policy",
+        "order": "alternating",
+        "timeout_seconds": 2700
+      },
+      "runner": {
+        "dsh_cli_recorded": "0.2.2-rc.1",
+        "model": {
+          "model": "deepseek-flash",
+          "note": "只记录请求参数；模型实际服务的 version/build 不可观测，UI 品牌串不可作为版本证据",
+          "provider": "deepseek-account",
+          "reasoning_effort": "max"
+        },
+        "plugin_tarball_sha256": "da201253cd412beed5e49f1e1830171a608c39d1ea37140b755f0c780203e0b7",
+        "plugin_version_recorded": "0.6.1"
+      },
+      "time_window": {
+        "started_at_max": "2026-11-08T17:37:14",
+        "started_at_min": "2026-11-08T15:57:55"
+      },
+      "tokens": {
+        "session_runs": 2,
+        "session_sum": 43212480,
+        "ui_runs": 8,
+        "ui_sum": 81700000
+      }
+    }
+  },
+  "schema_version": 1
+}
