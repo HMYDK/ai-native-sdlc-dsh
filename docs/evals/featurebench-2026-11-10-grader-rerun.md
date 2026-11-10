@@ -165,6 +165,10 @@ B 复评：2026-11-10T14:08:30Z → 14:09:06Z，**36s**（测试执行阶段 30s
   logs/attempt1-A-lock-permission-error.log      # 环境失败，仅留证
 ```
 
+本机持久归档：`~/.dsh-eval-archive/2026-11-10-grader-rerun/`（A/B/logs/config，
+共 380KB，带 `SHA256SUMS.txt`；不含可重建的 HF datasets 缓存），避免 /tmp 清理后
+AC-007 证据丢失。
+
 关键 artifact sha256：
 
 | 文件 | sha256 |
