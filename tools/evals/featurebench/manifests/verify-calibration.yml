@@ -1,0 +1,108 @@
+# 实验②验证者校准：预注册清单（2026-11-07，首次运行前固定）。
+# 规则：沿用 MVP 的 5 个 repo/镜像；每个 repo 内未使用过的 lv1 任务按 instance_id 升序，
+# 按 repo 顺序做轮转（每轮每 repo 取下一个），凑满 10 个，保证每个有候选的 repo 都被抽到。
+# 只跑 B（AI 原生 SDLC + 固定引导）1 次，官方 fb eval 评分后统计 sdlc_verify 最终裁决
+# vs 官方 resolved（假阳性/假阴性/无裁决）。
+# 注：这 5 个 repo 在 fast split 里没有 lv2 任务（实测 lv2=0），故校准样本是 lv1 分布；
+# 另用 verify-stress.yml 对 MVP 中两臂都失败的 sphinx 任务重复 3 次，单独报告。
+version: 1
+date: '2026-11-07'
+benchmark:
+  name: FeatureBench
+  package: featurebench==0.3.0
+  dataset: LiberCoders/FeatureBench
+  revision: 76b4a4566e04f4bcc13c35125d4f301791efa736
+  split: fast
+runtime:
+  dsh_cli: 0.2.1-rc.5
+  plugin_package: '@ai-native-sdlc-plugin/dsh-sdlc'
+  plugin_version: 0.6.0
+  plugin_tarball_sha256: bac39b42037ea09747fbf5924d7d2cda1381ca31d7b039843fc4f46d8ee6dc88
+  base_os: Ubuntu 22.04.5 / Python 3.11 / conda testbed env
+  node_in_container: v24.21.0 (linux-x64 tarball, baked into fb-eval-base)
+  provider: deepseek-account
+  model: deepseek-flash
+  reasoning_effort: max
+arms:
+  sdlc:
+    preset: AI 原生 SDLC
+    prompt_suffix: '
+
+      ## Evaluation requirement
+
+
+      Use the AI-native SDLC workflow for this task before you finish:
+
+      1. create a task with `sdlc_task_create`;
+
+      2. write intent/spec/plan via `sdlc_artifact_write` and advance stages with
+      `sdlc_task_advance`;
+
+      3. run `sdlc_verify` before claiming completion and address its findings.
+
+      '
+run_policy:
+  timeout_seconds: 2700
+  max_tokens_per_run: 40000000
+  total_token_budget: 350000000
+  infra_retries: 1
+  agent_retries: 0
+  order: alternating
+  failure_classes:
+  - timeout
+  - over_budget
+  - infra_error
+  - empty_patch
+  - agent_error
+  - unresolved
+tasks:
+- id: pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1
+  repo: pytest-dev/pytest
+  level: 1
+  image: libercoders/featurebench-specs_pytest-instance_2b74d6c4
+  image_digest: sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291
+- id: pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1
+  repo: pydantic/pydantic
+  level: 1
+  image: libercoders/featurebench-specs_pydantic-instance_78693714
+  image_digest: sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b
+- id: mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1
+  repo: mwaskom/seaborn
+  level: 1
+  image: libercoders/featurebench-specs_seaborn-instance_52738fbb
+  image_digest: sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1
+- id: sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1
+  repo: sphinx-doc/sphinx
+  level: 1
+  image: libercoders/featurebench-specs_sphinx-instance_6191afb1
+  image_digest: sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268
+- id: pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1
+  repo: pydantic/pydantic
+  level: 1
+  image: libercoders/featurebench-specs_pydantic-instance_78693714
+  image_digest: sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b
+- id: mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1
+  repo: mwaskom/seaborn
+  level: 1
+  image: libercoders/featurebench-specs_seaborn-instance_52738fbb
+  image_digest: sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1
+- id: sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1
+  repo: sphinx-doc/sphinx
+  level: 1
+  image: libercoders/featurebench-specs_sphinx-instance_6191afb1
+  image_digest: sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268
+- id: pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1
+  repo: pydantic/pydantic
+  level: 1
+  image: libercoders/featurebench-specs_pydantic-instance_78693714
+  image_digest: sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b
+- id: mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1
+  repo: mwaskom/seaborn
+  level: 1
+  image: libercoders/featurebench-specs_seaborn-instance_52738fbb
+  image_digest: sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1
+- id: sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1
+  repo: sphinx-doc/sphinx
+  level: 1
+  image: libercoders/featurebench-specs_sphinx-instance_6191afb1
+  image_digest: sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268
