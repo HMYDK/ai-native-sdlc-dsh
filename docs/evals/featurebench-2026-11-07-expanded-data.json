@@ -709,7 +709,7 @@
    "mean_diff_B_minus_A": 0.18181818181818182,
    "A_only": 0,
    "B_only": 2,
-   "both_resolved": 9,
+   "both_resolved": 7,
    "both_failed": 2
   },
   "by_repo": {

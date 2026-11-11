@@ -7,6 +7,9 @@
   deepseek-flash(reasoningEffort=max) / 同批 `fb-eval-base:*` 镜像
 - 口径：官方 `fb eval` 为唯一成绩；`timeout` / `over_budget` 计入分母不重试；
   每任务每臂各 1 次
+- **2026-11-12 修订**：`analyze_expanded.py` 的 `both_resolved` 原先把 `diff==0`（含两臂
+  都失败）也算作「都通过」；已改为只统计两臂都为 resolved。④ 的「两臂都通过」从 9 更正为
+  **7**（都失败 2、B 独有 2、A 独有 0，共 11 对）。
 
 ## 设计
 
@@ -32,7 +35,7 @@
 
 - **B 独有通过 2 个**（seaborn test_relational、sphinx test_ext_napoleon_docstring）；
 - **A 独有通过 0 个**；
-- 9 个任务两臂都通过；
+- 7 个任务两臂都通过；
 - 2 个任务两臂都失败（sphinx test_ext_doctest、test_ext_math）；
 - 平均差（B − A）= **+0.182**（方向性，n=11，不能据此做显著性结论）。
 
