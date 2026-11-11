@@ -188,10 +188,11 @@
 
 - 口径：**canonical 主会话口径**（`featurebench-runs.jsonl` 的 `verify_verdicts`；
   验证者子会话里的同名 status JSON 不重复计数）。旧 `report-data.json` 的「全 session」
-  口径保留在 `featurebench-verifier-confusion.json` 里作对照：#8 的 15.4% 由该旧口径下
-  18 个 B 运行子集算出。修复 2×2 数据快照的分臂 bug 后，V1 两种口径已一致
-  （approve 29+7、无裁决 11）；V2 仍差 1 条（packaging 的旧序列多出子会话 approve，
-  最后裁决 approve vs 主会话 reject）。**AC-006 以主会话口径为准**。
+  口径保留在 `featurebench-verifier-confusion.json` 里作对照。修复两处 repeat/arm 身份
+  bug 后，18 次 B 运行子集按旧口径重算为 **approve 14、FP 2（14.3%）**；#8 正文的
+  13/2（15.4%）是更早一次汇总（未留下脚本），差 1 个 approve，结论不变。V1 两种口径
+  现在一致（approve 29+7、无裁决 11）；V2 仍差 1 条（packaging 的旧序列多出子会话
+  approve，最后裁决 approve vs 主会话 reject）。**AC-006 以主会话口径为准**。
 - 54 个 B run 中 **16 个**带 agent 提前失败/截断标记（timeout/over_budget/turn_error 等），
   其中 11 个最终无裁决（6 个官方 resolved、5 个 unresolved）；「无裁决」是删失，不是
   通过也不是失败。另有 47/54 个 B run 真实触发了 SDLC 工作流。

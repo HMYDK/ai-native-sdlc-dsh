@@ -460,12 +460,12 @@
   "generated_by": "tools/evals/featurebench/collect_runs.py（本地离线，无生成时间戳）",
   "legacy_report_data_scope": {
     "combined_mvp_verify_stress": {
-      "approve": 12,
-      "approve_unresolved": 1,
-      "false_positive_rate": 0.08333333333333333,
+      "approve": 14,
+      "approve_unresolved": 2,
+      "false_positive_rate": 0.14285714285714285,
       "issue_8_claim": "#8 评论：18 次 B 运行、15 次有裁决、approve 13 次中 2 次官方 unresolved（约 15.4%）。按 report-data 旧口径复算见左侧数字；主口径（只取主会话）的差异来自子会话同名 JSON 被重复计数/裁决序列顺序不同，详见 confusion 一节。",
-      "reject": 3,
-      "reject_resolved": 1,
+      "reject": 1,
+      "reject_resolved": 0,
       "runs": 18,
       "with_verdict": 15
     },
@@ -488,8 +488,9 @@
       },
       "verify-stress": {
         "final_verdict_x_official": {
-          "reject|False": 2,
-          "reject|True": 1
+          "approve|False": 1,
+          "approve|True": 1,
+          "reject|False": 1
         },
         "runs": 3
       }

@@ -611,7 +611,7 @@ def collect_runs(runs_base: Path) -> tuple[list[dict], dict, dict, dict]:
                         "arm_dir": arm_dir,
                         "report_path": report_path,
                         "session_stats": sess,
-                        "verify_verdicts_report_data": verdicts_by_key.get((task_id, arm)),
+                        "verify_verdicts_report_data": verdicts_by_key.get((task_id, arm, repeat)),
                         "manifest_arm": arm,
                     }
                     canonical.append(row)
@@ -633,20 +633,25 @@ def collect_runs(runs_base: Path) -> tuple[list[dict], dict, dict, dict]:
 
 
 def load_report_data_verdicts(exp: dict, root: Path) -> dict:
-    """summarize_runs.py 生成的 report-data.json → (task, arm) -> verify_verdicts（兜底）。"""
-    paths = []
+    """summarize_runs.py 生成的 report-data.json → (task, arm, repeat) -> verify_verdicts。
+
+    兜底用途（zstandard 缺失时）与 build_legacy_confusion 都依赖它。rep-layout 必须把
+    repeat 放进 key：三个 rep 的 report-data 是独立运行，按 (task, arm) 会互相覆盖，
+    导致 legacy 混淆矩阵把三个 rep 都算成最后一个 rep 的裁决。
+    """
+    paths: list[tuple[int, Path]] = []
     if exp["layout"] == "rep":
-        paths = [root / f"rep{rep}" / "report-data.json" for rep in (1, 2, 3)]
+        paths = [(rep, root / f"rep{rep}" / "report-data.json") for rep in (1, 2, 3)]
     else:
-        paths = [root / "report-data.json"]
+        paths = [(1, root / "report-data.json")]
     out: dict = {}
-    for p in paths:
+    for rep, p in paths:
         d = load_json(p)
         if not d:
             continue
         for row in d.get("runs") or []:
             if "verify_verdicts" in row:
-                out[(row["task_id"], row["arm"])] = row["verify_verdicts"]
+                out[(row["task_id"], row["arm"], rep)] = row["verify_verdicts"]
     return out
 
 
