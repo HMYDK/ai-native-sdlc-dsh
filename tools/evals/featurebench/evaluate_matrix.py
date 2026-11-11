@@ -52,8 +52,9 @@ def main() -> int:
     args = ap.parse_args()
 
     manifest = yaml.safe_load(open(args.manifest, encoding="utf-8"))
-    runs_root = Path(args.runs_root)
-    out_path = Path(args.out) if args.out else runs_root / "summary.json"
+    # 统一 resolve：fb eval 以 cwd=eval_dir 运行，相对 predictions 路径会指向错误位置。
+    runs_root = Path(args.runs_root).resolve()
+    out_path = (Path(args.out) if args.out else runs_root / "summary.json").resolve()
     summary = {"manifest": str(Path(args.manifest).resolve()), "tasks": []}
 
     only = set(args.only_task)
@@ -69,7 +70,7 @@ def main() -> int:
             if not (d / "patch.diff").exists():
                 continue
             patch = (d / "patch.diff").read_text(encoding="utf-8", errors="replace")
-            pred = d / "predictions.jsonl"
+            pred = (d / "predictions.jsonl").resolve()
             pred.write_text(json.dumps({
                 "instance_id": task["id"],
                 "model_name_or_path": f"dsh-sdlc-eval-{arm}",
