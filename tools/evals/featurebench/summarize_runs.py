@@ -163,7 +163,9 @@ def main() -> None:
             else:
                 row["tokens_source"] = "ui"
             if arm in sdlc_arms:
-                row.update(sdlc_stats(task_dir))
+                # 必须传当前 arm 目录 d，不能传 task_dir：2×2 的同一 task 下同时有
+                # sdlc/ 与 sdlc_guidance/，递归读会串臂、把另一臂的工具调用/裁决算进来。
+                row.update(sdlc_stats(d))
                 verdicts = row.get("verify_verdicts") or []
                 if "resolved" not in row:
                     row["verifier_vs_official"] = "not_applicable"
@@ -174,6 +176,36 @@ def main() -> None:
                     approves = verdicts[-1] == "approve"
                     row["verifier_vs_official"] = "agree" if approves == row["resolved"] else "mismatch"
             tasks.append(row)
+
+    # matrix.json 里记录过尝试、但没留下 meta.json 的 run（infra 重试耗尽或初始化阶段就挂掉）
+    # 不能从报告和分母里静默消失；补成显式 infra_error 行，保留 attempted cohort。
+    seen = {(r["task_id"], r["arm"]) for r in tasks}
+    matrix_path = runs_root / "matrix.json"
+    matrix = load_json(matrix_path) if matrix_path.exists() else None
+    task_by_id = {t["id"]: t for t in manifest["tasks"]}
+    for mrun in (matrix or {}).get("runs") or []:
+        tid, arm = mrun.get("task"), mrun.get("arm")
+        if tid not in task_by_id or arm not in arms or (tid, arm) in seen:
+            continue
+        tasks.append({
+            "task_id": tid,
+            "repo": task_by_id[tid]["repo"],
+            "arm": arm,
+            "preset": manifest["arms"][arm].get("preset"),
+            "image": mrun.get("image"),
+            "image_digest": None,
+            "tokens": mrun.get("tokens"),
+            "tokens_source": "ui" if mrun.get("tokens") is not None else None,
+            "elapsed_seconds": None,
+            "patch_chars": mrun.get("patch_chars"),
+            "full_patch_chars": None,
+            "agent_completed": mrun.get("agent_completed"),
+            "agent_failure": "infra_error",
+            "infra_exit_code": mrun.get("exit"),
+            "attempts": mrun.get("attempts"),
+            "leak_scan_hits": [],
+        })
+        seen.add((tid, arm))
 
     data = {"manifest": str(Path(args.manifest).resolve()),
             "runs_root": str(runs_root.resolve()), "runs": tasks}
