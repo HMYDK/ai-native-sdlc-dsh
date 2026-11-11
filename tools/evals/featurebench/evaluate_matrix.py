@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -94,35 +95,56 @@ def main() -> int:
     env = dict(os.environ, FEATUREBENCH_IMAGE_PREFIX="docker.io")
     for j in jobs:
         print(f"[eval] {j['task']} {j['arm']} ...")
+        # 复评/重跑时必须先让旧的 report 失效：否则 fb eval 失败（或没写出新 report）时，
+        # 下面的查找会接受上一次 patch 的评分，把旧成绩算到新补丁头上。
+        stale_removed = 0
+        for cand in (j["dir"] / "report.json", j["eval_dir"] / "report.json"):
+            if cand.exists():
+                cand.unlink()
+                stale_removed += 1
+        started = time.time()
         r = subprocess.run(j["cmd"], cwd=j["eval_dir"], env=env, capture_output=True, text=True)
         (j["eval_dir"] / "eval.log").write_text(r.stdout + "\n" + r.stderr)
         # fb eval 把 report.json 写在 predictions.jsonl 所在目录（arm 目录），
         # 不是我们指定的 eval_dir；两处都找，并复制一份到 eval_dir 便于归档。
         report_path = None
         for cand in (j["dir"] / "report.json", j["eval_dir"] / "report.json"):
-            if cand.exists():
+            if cand.exists() and cand.stat().st_mtime >= started - 1:
                 report_path = cand
                 break
         report = {}
-        if report_path is not None:
+        report_ok = r.returncode == 0
+        if report_ok and report_path is not None:
             try:
                 report = json.loads(report_path.read_text()).get("attempt_1", {})
+            except Exception:
+                report = {}
+            if report:
                 if report_path != (j["eval_dir"] / "report.json"):
                     (j["eval_dir"] / "report.json").write_text(
                         json.dumps({"attempt_1": report}, ensure_ascii=False, indent=2))
-            except Exception:
-                report = {}
+            else:
+                report_ok = False
+        else:
+            report_ok = False
+        if not report_ok:
+            print(f"[eval] WARNING: {j['task']} {j['arm']} 没有可接受的本次评分"
+                  f"（exit={r.returncode}, report={report_path}）；不沿用旧 report", file=sys.stderr)
         meta = load_meta(j["dir"].parent, j["arm"])
         summary["tasks"].append({
             "task_id": j["task"]["id"],
             "repo": j["task"]["repo"],
             "arm": j["arm"],
             "image_digest": j["task"].get("image_digest"),
-            "resolved": bool(report.get("resolved_instances")),
-            "pass_rate": report.get("pass_rate"),
-            "resolved_rate": report.get("resolved_rate"),
-            "error_instances": report.get("error_instances"),
-            "not_applied_empty": report.get("not_applied_patch_empty_instances"),
+            "resolved": bool(report.get("resolved_instances")) if report_ok else None,
+            "pass_rate": report.get("pass_rate") if report_ok else None,
+            "resolved_rate": report.get("resolved_rate") if report_ok else None,
+            "error_instances": report.get("error_instances") if report_ok else None,
+            "not_applied_empty":
+                report.get("not_applied_patch_empty_instances") if report_ok else None,
+            "eval_status": "ok" if report_ok else (
+                "eval_failed" if r.returncode != 0 else "report_missing_or_stale"),
+            "stale_reports_removed": stale_removed,
             "tokens": meta.get("token_usage"),
             "elapsed_seconds": meta.get("elapsed_seconds"),
             "patch_chars": meta.get("patch_chars", j["patch_chars"]),

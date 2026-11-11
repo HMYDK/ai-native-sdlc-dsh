@@ -162,6 +162,37 @@ def parse_adoption(sessions_dir: Path) -> dict:
     }
 
 
+def session_token_total(sessions_dir: Path) -> int | None:
+    """从已导出的 session 日志汇总 assistant usage.totalTokens（driver timeout 兜底）。
+
+    与 summarize_runs.session_tokens 同口径；会包含验证者子会话的消耗，所以只在
+    run.json 缺失（timeout 时 driver 被 kill）时使用，并在 meta 里标明 source。
+    """
+    try:
+        import zstandard
+    except Exception:
+        return None
+    total = 0
+    found = False
+    for f in sorted(sessions_dir.rglob("*.zstd")):
+        try:
+            raw = zstandard.ZstdDecompressor().stream_reader(open(f, "rb")).read()
+        except Exception:
+            continue
+        for line in raw.splitlines():
+            try:
+                x = json.loads(line)
+            except Exception:
+                continue
+            d = x.get("data") or {}
+            msg = d.get("message") if isinstance(d.get("message"), dict) else {}
+            u = msg.get("usage") or d.get("usage")
+            if isinstance(u, dict) and isinstance(u.get("totalTokens"), int):
+                total += u["totalTokens"]
+                found = True
+    return total if found else None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
@@ -402,6 +433,16 @@ def main() -> int:
                 run_meta = json.loads((out / "run.json").read_text())
             except Exception:
                 run_meta = {}
+        # timeout 时 driver 进程被 kill，run.json 可能没写出来（实测），此时 session 日志
+        # 已经导出；用 session 汇总 token 兜底，否则 run_matrix/编排会把这次昂贵运行记成
+        # 0 token，总预算约束被绕过。
+        token_usage = run_meta.get("usage_tokens")
+        token_usage_source = "driver" if token_usage is not None else None
+        if token_usage is None and args.mode == "agent":
+            fallback = session_token_total(out / "sessions")
+            if fallback is not None:
+                token_usage = fallback
+                token_usage_source = "session_fallback"
         meta = {
             "task_id": inst.instance_id,
             "arm": args.arm,
@@ -415,7 +456,8 @@ def main() -> int:
             "plugin_version_actual": plugin_actual,
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "elapsed_seconds": run_meta.get("elapsed_s"),
-            "token_usage": run_meta.get("usage_tokens"),
+            "token_usage": token_usage,
+            "token_usage_source": token_usage_source,
             "agent_completed": bool(run_meta.get("done")),
             "agent_failure": agent_failed,
             "patch_chars": len(patch),
