@@ -1,0 +1,1000 @@
+{
+  "experiment": "verify-01",
+  "generated_by": "tools/evals/verify01/summarize_ab.py",
+  "runs_root_layout": "<task_id>/<arm>/{meta.json,patch.diff,sessions/}; official via fb eval report.json",
+  "denominator_policy": {
+    "attempts": "发现的全部 run（含 agent 失败、超时、缺官方评分）",
+    "scoreable": "有官方 report.json 的 run（resolved 可判定）",
+    "decided": "主会话有结构化 sdlc_verify 最终裁决的 run",
+    "no_verdict": "decided 的补集；其中 agent_failure/timeout 是删失，不当通过或失败",
+    "tokens": "只对 meta.token_usage 非空的 run 求和/取中位数，不对缺失值插补",
+    "verdict_bucket": "verifier 最终裁决 × 官方 resolved；approve_unresolved 为假阳性"
+  },
+  "arms": {
+    "sdlc_baseline": {
+      "attempts": 5,
+      "completed": 4,
+      "agent_failures": 1,
+      "scoreable": 5,
+      "official_resolved": 1,
+      "official_resolved_rate_on_scoreable": 0.2,
+      "decided": 4,
+      "approve": 4,
+      "reject": 0,
+      "needs_human": 0,
+      "no_verdict": 1,
+      "verifier_ran_real_build": 1,
+      "buckets": {
+        "approve_resolved": 1,
+        "approve_unresolved_false_positive": 3,
+        "no_verdict_unresolved": 1
+      },
+      "tokens": {
+        "sum": 96600000,
+        "median": 19700000,
+        "n_with_value": 5
+      },
+      "elapsed_seconds": {
+        "median": 1187,
+        "sum": 5731,
+        "n_with_value": 5
+      }
+    },
+    "sdlc_candidate": {
+      "attempts": 4,
+      "completed": 4,
+      "agent_failures": 0,
+      "scoreable": 4,
+      "official_resolved": 3,
+      "official_resolved_rate_on_scoreable": 0.75,
+      "decided": 4,
+      "approve": 3,
+      "reject": 0,
+      "needs_human": 1,
+      "no_verdict": 0,
+      "verifier_ran_real_build": 2,
+      "buckets": {
+        "approve_resolved": 3,
+        "needs_human_unresolved": 1
+      },
+      "tokens": {
+        "sum": 42000000,
+        "median": 11450000.0,
+        "n_with_value": 4
+      },
+      "elapsed_seconds": {
+        "median": 1519.0,
+        "sum": 6427,
+        "n_with_value": 4
+      }
+    }
+  },
+  "paired": {
+    "n_pairs": 4,
+    "official_resolved": {
+      "A": 1,
+      "B": 3,
+      "both": 1,
+      "A_only": 0,
+      "B_only": 2,
+      "neither": 1
+    },
+    "verdict_transitions": {
+      "approve->approve": 3,
+      "approve->needs_human": 1
+    },
+    "pairs": [
+      {
+        "task_id": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1",
+        "arm_a": "sdlc_baseline",
+        "arm_b": "sdlc_candidate",
+        "A": {
+          "resolved": true,
+          "final_verdict": "approve",
+          "bucket": "approve_resolved",
+          "token_usage": 19700000,
+          "elapsed_seconds": 1326
+        },
+        "B": {
+          "resolved": true,
+          "final_verdict": "approve",
+          "bucket": "approve_resolved",
+          "token_usage": 11500000,
+          "elapsed_seconds": 961
+        }
+      },
+      {
+        "task_id": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1",
+        "arm_a": "sdlc_baseline",
+        "arm_b": "sdlc_candidate",
+        "A": {
+          "resolved": false,
+          "final_verdict": "approve",
+          "bucket": "approve_unresolved_false_positive",
+          "token_usage": 26600000,
+          "elapsed_seconds": 1747
+        },
+        "B": {
+          "resolved": true,
+          "final_verdict": "approve",
+          "bucket": "approve_resolved",
+          "token_usage": 15400000,
+          "elapsed_seconds": 2428
+        }
+      },
+      {
+        "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+        "arm_a": "sdlc_baseline",
+        "arm_b": "sdlc_candidate",
+        "A": {
+          "resolved": false,
+          "final_verdict": "approve",
+          "bucket": "approve_unresolved_false_positive",
+          "token_usage": 7900000,
+          "elapsed_seconds": 1146
+        },
+        "B": {
+          "resolved": true,
+          "final_verdict": "approve",
+          "bucket": "approve_resolved",
+          "token_usage": 11400000,
+          "elapsed_seconds": 2037
+        }
+      },
+      {
+        "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+        "arm_a": "sdlc_baseline",
+        "arm_b": "sdlc_candidate",
+        "A": {
+          "resolved": false,
+          "final_verdict": "approve",
+          "bucket": "approve_unresolved_false_positive",
+          "token_usage": 1900000,
+          "elapsed_seconds": 325
+        },
+        "B": {
+          "resolved": false,
+          "final_verdict": "needs_human",
+          "bucket": "needs_human_unresolved",
+          "token_usage": 3700000,
+          "elapsed_seconds": 1001
+        }
+      }
+    ]
+  },
+  "runs": [
+    {
+      "task_id": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1",
+      "arm": "sdlc_baseline",
+      "run_dir": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/sdlc_baseline",
+      "meta": {
+        "started_at": "2026-11-12T03:49:21",
+        "elapsed_seconds": 1326,
+        "token_usage": 19700000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 12437,
+        "patch_sha256": "82642704f15be89a1637028216e6439dc8848440d05d7d2403d2057840de849c",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2",
+        "sdlc_tool_calls": {
+          "sdlc_status": 4,
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 3,
+          "sdlc_task_advance": 8,
+          "sdlc_verify": 1,
+          "sdlc_task_status": 3,
+          "sdlc_rsi_analyze": 1
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": true,
+        "pass_rate": 1.0,
+        "f2p_failed": [],
+        "f2p_success": [
+          "astropy/visualization/tests/test_basic_rgb.py::test_image_mapping",
+          "astropy/visualization/tests/test_basic_rgb.py::test_linear",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log",
+          "astropy/visualization/tests/test_basic_rgb.py::test_int8",
+          "astropy/visualization/tests/test_basic_rgb.py::test_float64",
+          "astropy/visualization/tests/test_basic_rgb.py::test_linear_min_max",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log_min_max",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log_scalar_interval",
+          "astropy/visualization/tests/test_basic_rgb.py::test_linear_bw",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log_bw",
+          "astropy/visualization/tests/test_basic_rgb.py::test_different_shapes_asserts",
+          "astropy/visualization/tests/test_basic_rgb.py::test_incorrect_interval_length",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[bool]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[str0]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[int64]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[complex128]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[str1]"
+        ],
+        "p2p_failed": [],
+        "p2p_success_count": 98,
+        "resolved_instances": 1,
+        "total_instances": 1,
+        "report_rel": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/sdlc_baseline/eval_outputs/astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/attempt-1/report.json",
+        "report_sha256": "0617d840cf1a2b2babbfc4e788dcc6e9483bba7fdf03ea080a838ec2f60048aa"
+      },
+      "verifier": {
+        "main_session_rel": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/sdlc_baseline/sessions/sessions/--testbed--/session-5e826cf1-0617-4eb8-8bb6-c5f8c58a3c1f/session.v4.jsonl.zstd",
+        "verifier_session_count": 1,
+        "verify_calls": 1,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "approve"
+        ],
+        "final_verdict": "approve",
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": []
+      },
+      "verdict_bucket": "approve_resolved",
+      "run_status": "complete"
+    },
+    {
+      "task_id": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1",
+      "arm": "sdlc_candidate",
+      "run_dir": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/sdlc_candidate",
+      "meta": {
+        "started_at": "2026-11-12T04:06:09",
+        "elapsed_seconds": 961,
+        "token_usage": 11500000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 12382,
+        "patch_sha256": "87f2aa7de5ca1aaf738a8632de71ce1ef797cc52be5bf17c2ca63b4fbe913732",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2",
+        "sdlc_tool_calls": {
+          "sdlc_status": 1,
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 3,
+          "sdlc_task_advance": 8,
+          "sdlc_task_status": 2,
+          "sdlc_verify": 1,
+          "sdlc_rsi_analyze": 1
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": true,
+        "pass_rate": 1.0,
+        "f2p_failed": [],
+        "f2p_success": [
+          "astropy/visualization/tests/test_basic_rgb.py::test_image_mapping",
+          "astropy/visualization/tests/test_basic_rgb.py::test_linear",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log",
+          "astropy/visualization/tests/test_basic_rgb.py::test_int8",
+          "astropy/visualization/tests/test_basic_rgb.py::test_float64",
+          "astropy/visualization/tests/test_basic_rgb.py::test_linear_min_max",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log_min_max",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log_scalar_interval",
+          "astropy/visualization/tests/test_basic_rgb.py::test_linear_bw",
+          "astropy/visualization/tests/test_basic_rgb.py::test_log_bw",
+          "astropy/visualization/tests/test_basic_rgb.py::test_different_shapes_asserts",
+          "astropy/visualization/tests/test_basic_rgb.py::test_incorrect_interval_length",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[bool]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[str0]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[int64]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[complex128]",
+          "astropy/visualization/tests/test_basic_rgb.py::test_invalid_output_dtype[str1]"
+        ],
+        "p2p_failed": [],
+        "p2p_success_count": 98,
+        "resolved_instances": 1,
+        "total_instances": 1,
+        "report_rel": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/sdlc_candidate/eval_outputs/astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/attempt-1/report.json",
+        "report_sha256": "eba2b8a97c1c45cc771dad8320f1dca8089e0b135c0944d3c9e0a60705f76a39"
+      },
+      "verifier": {
+        "main_session_rel": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1/sdlc_candidate/sessions/sessions/--testbed--/session-96fec347-c6b3-432b-aff3-286622de45f2/session.v4.jsonl.zstd",
+        "verifier_session_count": 1,
+        "verify_calls": 1,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "approve"
+        ],
+        "final_verdict": "approve",
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": []
+      },
+      "verdict_bucket": "approve_resolved",
+      "run_status": "complete"
+    },
+    {
+      "task_id": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1",
+      "arm": "sdlc_baseline",
+      "run_dir": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/sdlc_baseline",
+      "meta": {
+        "started_at": "2026-11-12T05:17:45",
+        "elapsed_seconds": 1747,
+        "token_usage": 26600000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 32398,
+        "patch_sha256": "dbedeab6d9e75323a945e5a5ef955c66f4c3bb270f68e7ecbbc0df141463a8cc",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2",
+        "sdlc_tool_calls": {
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 3,
+          "sdlc_task_advance": 10,
+          "sdlc_verify": 1,
+          "sdlc_task_issue": 4
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": false,
+        "pass_rate": 0.0,
+        "f2p_failed": [],
+        "f2p_success": [],
+        "p2p_failed": [],
+        "p2p_success_count": 158,
+        "resolved_instances": 0,
+        "total_instances": 1,
+        "report_rel": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/sdlc_baseline/eval_outputs/astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/attempt-1/report.json",
+        "report_sha256": "a89908dd3553a8a137807f9371949d1ba3a11ed6a594c10c199f3620429896cc"
+      },
+      "verifier": {
+        "main_session_rel": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/sdlc_baseline/sessions/sessions/--testbed--/session-a532b24a-2b96-44d0-b12c-07154fe92166/session.v4.jsonl.zstd",
+        "verifier_session_count": 1,
+        "verify_calls": 1,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "approve"
+        ],
+        "final_verdict": "approve",
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": []
+      },
+      "verdict_bucket": "approve_unresolved_false_positive",
+      "run_status": "complete"
+    },
+    {
+      "task_id": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1",
+      "arm": "sdlc_candidate",
+      "run_dir": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/sdlc_candidate",
+      "meta": {
+        "started_at": "2026-11-12T04:47:33",
+        "elapsed_seconds": 2428,
+        "token_usage": 15400000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 56245,
+        "patch_sha256": "440b3039c8fff2e89cc332a8857ba19e1085d83521c0d399406d2755d8e5d67c",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2",
+        "sdlc_tool_calls": {
+          "sdlc_status": 4,
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 3,
+          "sdlc_task_advance": 10,
+          "sdlc_verify": 2,
+          "sdlc_task_status": 3,
+          "sdlc_task_issue": 7
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": true,
+        "pass_rate": 1.0,
+        "f2p_failed": [],
+        "f2p_success": [
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_shortcut",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_convert[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_format_vectorized[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_convert[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_format_vectorized[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_convert[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_format_vectorized[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_convert[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_format_vectorized[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_convert[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_format_vectorized[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_format_error_wrong_format",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_format_error_noncosmology_cant_convert",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_parse_format::test_parse_formats_vectorized",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_simple",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_equivalent",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_too_many_cosmo",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_error[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_specify[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_equivalent_format_specify[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_error[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_specify[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_equivalent_format_specify[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_error[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_specify[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_equivalent_format_specify[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_error[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_specify[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_equivalent_format_specify[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_error[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_specify[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_equivalent_format_specify[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_simple",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_too_many_cosmo",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_equivalent",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_error[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_specify[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_equivalent_format_specify[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_error[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_specify[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_equivalent_format_specify[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_error[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_specify[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_equivalent_format_specify[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_error[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_specify[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_equivalent_format_specify[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_error[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_specify[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_equivalent_format_specify[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_auto[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_auto[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_auto[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_auto[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_equal::test_cosmology_equal_format_auto[yaml]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_auto[astropy.model]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_auto[astropy.row]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_auto[astropy.table]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_auto[mapping]",
+          "astropy/cosmology/_src/tests/funcs/test_comparison.py::Test_cosmology_not_equal::test_cosmology_not_equal_format_auto[yaml]"
+        ],
+        "p2p_failed": [],
+        "p2p_success_count": 158,
+        "resolved_instances": 1,
+        "total_instances": 1,
+        "report_rel": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/sdlc_candidate/eval_outputs/astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/attempt-1/report.json",
+        "report_sha256": "cc08096e097f1cdcf4a7a04ee4d92c652a389b30668e96c62d4846172f13b131"
+      },
+      "verifier": {
+        "main_session_rel": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1/sdlc_candidate/sessions/sessions/--testbed--/session-ad808e67-e1dc-496e-acec-60bedd3c2e96/session.v4.jsonl.zstd",
+        "verifier_session_count": 2,
+        "verify_calls": 2,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "approve",
+          "approve"
+        ],
+        "final_verdict": "approve",
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": []
+      },
+      "verdict_bucket": "approve_resolved",
+      "run_status": "complete"
+    },
+    {
+      "task_id": "astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1",
+      "arm": "sdlc_baseline",
+      "run_dir": "astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1/sdlc_baseline",
+      "meta": {
+        "started_at": "2026-11-12T05:38:19",
+        "elapsed_seconds": 1187,
+        "token_usage": 40500000,
+        "token_usage_source": "driver",
+        "agent_completed": false,
+        "agent_failure": "over_budget",
+        "aborted": "over_budget",
+        "patch_chars": 41158,
+        "patch_sha256": "cc5d09222a297d30b70184fa80cf44e94a8d1c3b0287683ac9fd8bb5d0b4e835",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2",
+        "sdlc_tool_calls": {
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 3,
+          "sdlc_task_advance": 2
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": false,
+        "pass_rate": 0.2,
+        "f2p_failed": [
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompHDUSections::test_section_slicing",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompHDUSections::test_section_slicing_scaling",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompHDUSections::test_section_properties",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_empty",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[<-data0-RICE_1-16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[<-data1-GZIP_1--0.01]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[<-data2-GZIP_2--0.01]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[<-data3-HCOMPRESS_1-16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[<-data4-PLIO_1-16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[>-data0-RICE_1-16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[>-data1-GZIP_1--0.01]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[>-data2-GZIP_2--0.01]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[>-data3-HCOMPRESS_1-16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image[>-data4-PLIO_1-16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image_hcompress_image_stack",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_subtractive_dither_seed",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_comp_hdu_direct_from_existing",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_rewriting_large_scaled_image_compressed",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_scale_back_compressed",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_lossless_gzip_compression",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_column_tforms",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_update_header",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_update_header_with_reserved",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_header_append",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_header_insert",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_header_set_before_after",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_header_append_commentary",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_with_gzip_column",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_duplicate_compression_header_keywords",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_scale_back_compressed_uint_assignment",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_header_double_extname",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_scaled_float[BSCALE-uint8-float32]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_scaled_float[BSCALE-int16-float32]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_scaled_float[BSCALE-int32-float64]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_scaled_float[BZERO-uint8-float32]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_scaled_float[BZERO-int16-float32]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_scaled_float[BZERO-int32-float64]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_integers[uint8]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_integers[int16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_integers[uint16]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_integers[int32]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_integers[uint32]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[NOCOMPRESS-f]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[NOCOMPRESS-i4]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[RICE_1-f]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[RICE_1-i4]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[GZIP_1-f]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[GZIP_1-i4]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[GZIP_2-f]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[GZIP_2-i4]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[PLIO_1-f]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[PLIO_1-i4]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[HCOMPRESS_1-f]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_write_non_contiguous_data[HCOMPRESS_1-i4]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_slice_and_write_comp_hdu",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_optional_prefix_tform",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_inplace_data_modify",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_comphdu_fileobj",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_comphdu_bscale",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_image_write_readonly",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_uint_option",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_incorrect_bzero",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_compression_settings_delayed_data",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_header_assignment_issue",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_section_scaling",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_header_order",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_hdu_lazy_loading",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_compression_options_with_mutated_data[quantize_level_w_data]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_compression_options_with_mutated_data[quantize_level_wo_data]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_compression_options_with_mutated_data[quantize_level_dither_seed_w_data]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_compression_options_with_mutated_data[quantize_level_dither_seed_wo_data]",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_reserved_keywords_stripped"
+        ],
+        "f2p_success": [
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image_hcompression_1_invalid_data",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_disable_image_compression",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_open_comp_image_in_update_mode",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compression_header_append2",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_scale_bzero_with_compressed_int_data",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_header_extname",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_compressed_header_minimal",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image_properties_default",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_comp_image_properties_set",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_info",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_shape",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_summary_noload",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::TestCompressedImage::test_fileinfo",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_custom_extname",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_pickle",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_section_unwritten",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_header",
+          "astropy/io/fits/hdu/compressed/tests/test_compressed.py::test_rice_one_alias"
+        ],
+        "p2p_failed": [
+          "astropy/time/tests/test_basic.py::TestBasic::test_simple",
+          "astropy/coordinates/tests/test_icrs_observed_transformations.py::test_icrs_altaz_consistency"
+        ],
+        "p2p_success_count": 398,
+        "resolved_instances": 0,
+        "total_instances": 1,
+        "report_rel": "astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1/sdlc_baseline/eval_outputs/astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1/attempt-1/report.json",
+        "report_sha256": "e956c75f4a36c02fb41762e112b60800acb48a224b122135cd3600256b02c28d"
+      },
+      "verifier": {
+        "main_session_rel": "astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1/sdlc_baseline/sessions/sessions/--testbed--/session-2a81342b-3edd-4b1f-a3a2-9206bdb1cfcf/session.v4.jsonl.zstd",
+        "verifier_session_count": 0,
+        "verify_calls": 0,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [],
+        "final_verdict": null,
+        "ran_real_build": false,
+        "ran_project_tests": false,
+        "ran_own_probe": false,
+        "read_author_evidence": false,
+        "real_build_commands": []
+      },
+      "verdict_bucket": "no_verdict_unresolved",
+      "run_status": "agent_incomplete"
+    },
+    {
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "arm": "sdlc_baseline",
+      "run_dir": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_baseline",
+      "meta": {
+        "started_at": "2026-11-12T02:22:07",
+        "elapsed_seconds": 1146,
+        "token_usage": 7900000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 9309,
+        "patch_sha256": "1da6c041fb427edd85dc87c0912aeba650b82e7248e6fbec4c8087908a0da53d",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+        "sdlc_tool_calls": {
+          "sdlc_task_create": 2,
+          "sdlc_artifact_write": 6,
+          "sdlc_task_advance": 18,
+          "sdlc_fix_start": 2,
+          "sdlc_fix_end": 2,
+          "sdlc_task_status": 8,
+          "sdlc_verify": 8,
+          "sdlc_task_issue": 22,
+          "sdlc_rsi_analyze": 2
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p_failed": [
+          "tests/test_builders/test_build_gettext.py::test_build_gettext",
+          "tests/test_builders/test_build_gettext.py::test_msgfmt",
+          "tests/test_builders/test_build_gettext.py::test_gettext_index_entries",
+          "tests/test_builders/test_build_gettext.py::test_gettext_disable_index_entries",
+          "tests/test_builders/test_build_gettext.py::test_gettext_template",
+          "tests/test_builders/test_build_gettext.py::test_gettext_template_msgid_order_in_sphinxpot",
+          "tests/test_builders/test_build_gettext.py::test_gettext_custom_output_template",
+          "tests/test_builders/test_build_gettext.py::test_build_single_pot",
+          "tests/test_builders/test_build_gettext.py::test_gettext_prolog_epilog_substitution",
+          "tests/test_builders/test_build_gettext.py::test_gettext_prolog_epilog_substitution_excluded",
+          "tests/test_builders/test_build_gettext.py::test_gettext_literalblock_additional",
+          "tests/test_builders/test_build_gettext.py::test_gettext_trailing_backslashes"
+        ],
+        "f2p_success": [
+          "tests/test_builders/test_build_gettext.py::test_Catalog_duplicated_message"
+        ],
+        "p2p_failed": [],
+        "p2p_success_count": 137,
+        "resolved_instances": 0,
+        "total_instances": 1,
+        "report_rel": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_baseline/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+        "report_sha256": "3a236b15ebea74b6baac5df0b1ad60ddd88c377da674cc79c5eedeeab64bbeae"
+      },
+      "verifier": {
+        "main_session_rel": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_baseline/sessions/sessions/--testbed--/session-d36390f6-5ca1-4842-894e-3f8e2486b296/session.v4.jsonl.zstd",
+        "verifier_session_count": 2,
+        "verify_calls": 4,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "approve",
+          "approve"
+        ],
+        "final_verdict": "approve",
+        "ran_real_build": true,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": [
+          "mkdir -p /tmp/sh001/docproj && cd /tmp/sh001/docproj && printf 'project = \"demo\"\\nversion = \"1.0\"\\n' > conf.py && printf 'Demo\\n====\\n\\nHello world.\\n' > index.rst && python -m sphinx -b gettext . _build 2>&1 | tail -12; echo \"exit=$?\"; ls -R _build 2>/dev/null | head"
+        ]
+      },
+      "verdict_bucket": "approve_unresolved_false_positive",
+      "run_status": "complete"
+    },
+    {
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "arm": "sdlc_candidate",
+      "run_dir": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_candidate",
+      "meta": {
+        "started_at": "2026-11-12T02:57:08",
+        "elapsed_seconds": 2037,
+        "token_usage": 11400000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 68582,
+        "patch_sha256": "b925a9ddd5e6f3329db4c32d76a4b77c9b83b9d43da52f01035c492ee11cfb18",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+        "sdlc_tool_calls": {
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 7,
+          "sdlc_task_advance": 13,
+          "sdlc_task_status": 3,
+          "sdlc_verify": 2,
+          "sdlc_task_issue": 8
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": true,
+        "pass_rate": 1.0,
+        "f2p_failed": [],
+        "f2p_success": [
+          "tests/test_builders/test_build_gettext.py::test_Catalog_duplicated_message",
+          "tests/test_builders/test_build_gettext.py::test_build_gettext",
+          "tests/test_builders/test_build_gettext.py::test_gettext_index_entries",
+          "tests/test_builders/test_build_gettext.py::test_gettext_disable_index_entries",
+          "tests/test_builders/test_build_gettext.py::test_gettext_template",
+          "tests/test_builders/test_build_gettext.py::test_gettext_template_msgid_order_in_sphinxpot",
+          "tests/test_builders/test_build_gettext.py::test_gettext_custom_output_template",
+          "tests/test_builders/test_build_gettext.py::test_build_single_pot",
+          "tests/test_builders/test_build_gettext.py::test_gettext_prolog_epilog_substitution",
+          "tests/test_builders/test_build_gettext.py::test_gettext_prolog_epilog_substitution_excluded",
+          "tests/test_builders/test_build_gettext.py::test_gettext_literalblock_additional",
+          "tests/test_builders/test_build_gettext.py::test_gettext_trailing_backslashes"
+        ],
+        "p2p_failed": [],
+        "p2p_success_count": 137,
+        "resolved_instances": 1,
+        "total_instances": 1,
+        "report_rel": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_candidate/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+        "report_sha256": "d08666aa4a89e445235ab534d8bc11f21aaaa38d851c588dd3fdd8e47fdfb244"
+      },
+      "verifier": {
+        "main_session_rel": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_candidate/sessions/sessions/--testbed--/session-040bc466-9edb-47b5-a86c-f65567adf516/session.v4.jsonl.zstd",
+        "verifier_session_count": 2,
+        "verify_calls": 2,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "needs_human",
+          "approve"
+        ],
+        "final_verdict": "approve",
+        "ran_real_build": true,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": [
+          "cd /testbed && rm -rf /tmp/out-gettext-verify && python -m sphinx -b gettext tests/roots/test-gettext-template /tmp/out-gettext-verify -q; echo \"exit=$?\"; find /tmp/out-gettext-verify -maxdepth 1 -type f -printf '%f\\n' | sort; echo '--- sphinx.pot head ---'; head -40 /tmp/out-gettext-verify/sphinx.p",
+          "cd /testbed && rm -rf /tmp/out-gettext-root && python -m sphinx -b gettext tests/roots/test-root /tmp/out-gettext-root -q; echo \"exit=$?\"; ls /tmp/out-gettext-root/*.pot 2>/dev/null | sed 's#.*/##' | sort | head -30; echo '--- extapi/subdir/markup existence ---'; for f in extapi.pot subdir.pot marku",
+          "cd /testbed && ls tests/roots | grep gettext; echo '--- custom template root ---'; find tests/roots/test-gettext-custom-output-template -maxdepth 2 -type f | head -20; rm -rf /tmp/out-gettext-custom && python -m sphinx -b gettext tests/roots/test-gettext-custom-output-template /tmp/out-gettext-custo",
+          "cd /testbed && rm -rf /tmp/out-gettext-compact && python -m sphinx -b gettext tests/roots/test-root /tmp/out-gettext-compact -q -D gettext_compact=documentation 2>/dev/null; echo \"exit=$?\"; ls /tmp/out-gettext-compact/*.pot 2>/dev/null | sed 's#.*/##'",
+          "cd /testbed && rm -rf /tmp/out-intl-literal && python -m sphinx -b gettext tests/roots/test-intl /tmp/out-intl-literal -q -D gettext_compact=0 -D gettext_additional_targets=literal-block,doctest-block 2>/dev/null; echo \"exit=$?\"; ls /tmp/out-intl-literal/*.pot 2>/dev/null | sed 's#.*/##' | sort; ech",
+          "cd /testbed && rm -rf /tmp/out-intl-literal-off && python -m sphinx -b gettext tests/roots/test-intl /tmp/out-intl-literal-off -q -D gettext_compact=0 -D gettext_additional_targets= 2>/dev/null; echo \"exit=$?\"; ls /tmp/out-intl-literal-off/*.pot 2>/dev/null | sed 's#.*/##' | sort | head; echo '--- l"
+        ]
+      },
+      "verdict_bucket": "approve_resolved",
+      "run_status": "complete"
+    },
+    {
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+      "arm": "sdlc_baseline",
+      "run_dir": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc_baseline",
+      "meta": {
+        "started_at": "2026-11-12T03:20:56",
+        "elapsed_seconds": 325,
+        "token_usage": 1900000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 487,
+        "patch_sha256": "e16baca7460029c7bb3d292ed8faf99e5b9592e3e1edac9ce6073bcb57de604b",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+        "sdlc_tool_calls": {
+          "sdlc_status": 1,
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 4,
+          "sdlc_task_status": 3,
+          "sdlc_task_advance": 7,
+          "sdlc_verify": 1
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": false,
+        "pass_rate": 0.0909,
+        "f2p_failed": [
+          "tests/test_extensions/test_ext_doctest.py::test_build",
+          "tests/test_extensions/test_ext_doctest.py::test_skipif",
+          "tests/test_extensions/test_ext_doctest.py::test_reporting_with_autodoc",
+          "tests/test_extensions/test_ext_doctest.py::test_fail_fast[False]",
+          "tests/test_extensions/test_ext_doctest.py::test_fail_fast[True]",
+          "tests/test_extensions/test_ext_doctest.py::test_fail_fast[None]",
+          "tests/test_extensions/test_ext_doctest.py::test_doctest_block_group_name[None-default]",
+          "tests/test_extensions/test_ext_doctest.py::test_doctest_block_group_name[CustomGroupName-CustomGroupName]",
+          "tests/test_extensions/test_ext_doctest.py::test_highlight_language_default",
+          "tests/test_extensions/test_ext_doctest.py::test_highlight_language_python3"
+        ],
+        "f2p_success": [
+          "tests/test_extensions/test_ext_doctest.py::test_is_allowed_version"
+        ],
+        "p2p_failed": [],
+        "p2p_success_count": 124,
+        "resolved_instances": 0,
+        "total_instances": 1,
+        "report_rel": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc_baseline/eval_outputs/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/attempt-1/report.json",
+        "report_sha256": "9fede9fbdc6d6a473e5cf459310d62a44435523ecba6de93ea3f055bc312ffb0"
+      },
+      "verifier": {
+        "main_session_rel": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc_baseline/sessions/sessions/--testbed--/session-93b6d892-68bc-407e-b4cf-9e6d53a12445/session.v4.jsonl.zstd",
+        "verifier_session_count": 1,
+        "verify_calls": 1,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "approve"
+        ],
+        "final_verdict": "approve",
+        "ran_real_build": false,
+        "ran_project_tests": false,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": []
+      },
+      "verdict_bucket": "approve_unresolved_false_positive",
+      "run_status": "complete"
+    },
+    {
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+      "arm": "sdlc_candidate",
+      "run_dir": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc_candidate",
+      "meta": {
+        "started_at": "2026-11-12T03:14:39",
+        "elapsed_seconds": 1001,
+        "token_usage": 3700000,
+        "token_usage_source": "driver",
+        "agent_completed": true,
+        "agent_failure": null,
+        "aborted": null,
+        "patch_chars": 632,
+        "patch_sha256": "590c15815d7a61e6759cf3c533d8030f9a7745656e92431e2464813641e7de9b",
+        "plugin_version_actual": "0.6.1",
+        "dsh_cli_actual": "0.2.2-rc.1",
+        "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+        "sdlc_tool_calls": {
+          "sdlc_status": 2,
+          "sdlc_task_create": 1,
+          "sdlc_artifact_write": 5,
+          "sdlc_task_advance": 8,
+          "sdlc_verify": 2,
+          "sdlc_task_issue": 5
+        },
+        "policy": {
+          "timeout_seconds": 2700,
+          "max_tokens_per_run": 40000000
+        },
+        "repeat": null
+      },
+      "official": {
+        "report_shape": "per_instance",
+        "resolved": false,
+        "pass_rate": 0.0909,
+        "f2p_failed": [
+          "tests/test_extensions/test_ext_doctest.py::test_build",
+          "tests/test_extensions/test_ext_doctest.py::test_skipif",
+          "tests/test_extensions/test_ext_doctest.py::test_reporting_with_autodoc",
+          "tests/test_extensions/test_ext_doctest.py::test_fail_fast[False]",
+          "tests/test_extensions/test_ext_doctest.py::test_fail_fast[True]",
+          "tests/test_extensions/test_ext_doctest.py::test_fail_fast[None]",
+          "tests/test_extensions/test_ext_doctest.py::test_doctest_block_group_name[None-default]",
+          "tests/test_extensions/test_ext_doctest.py::test_doctest_block_group_name[CustomGroupName-CustomGroupName]",
+          "tests/test_extensions/test_ext_doctest.py::test_highlight_language_default",
+          "tests/test_extensions/test_ext_doctest.py::test_highlight_language_python3"
+        ],
+        "f2p_success": [
+          "tests/test_extensions/test_ext_doctest.py::test_is_allowed_version"
+        ],
+        "p2p_failed": [],
+        "p2p_success_count": 124,
+        "resolved_instances": 0,
+        "total_instances": 1,
+        "report_rel": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc_candidate/eval_outputs/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/attempt-1/report.json",
+        "report_sha256": "4591b70e62094988d476ad013ff45a4d87f649cc4105620b731cdee19aa37a13"
+      },
+      "verifier": {
+        "main_session_rel": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc_candidate/sessions/sessions/--testbed--/session-d8cc9362-cc53-4601-9bbd-121515855ede/session.v4.jsonl.zstd",
+        "verifier_session_count": 2,
+        "verify_calls": 2,
+        "verify_calls_without_result": 0,
+        "unmatched_results": 0,
+        "verdict_sequence": [
+          "needs_human",
+          "needs_human"
+        ],
+        "final_verdict": "needs_human",
+        "ran_real_build": true,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "real_build_commands": [
+          "cd /testbed && rm -rf /tmp/build-doctest && python -m sphinx -b doctest tests/roots/test-ext-doctest /tmp/build-doctest 2>&1 | tail -40; echo \"EXIT=${PIPESTATUS[0]}\"",
+          "rm -rf /tmp/sphinx-baseline && mkdir -p /tmp/sphinx-baseline && cd /testbed && git archive HEAD | tar -x -C /tmp/sphinx-baseline && grep -c \"is_allowed_version\" /tmp/sphinx-baseline/sphinx/ext/doctest.py; echo \"baseline_grep_exit=$?\"; cd /tmp && rm -rf /tmp/build-base-doctest && PYTHONPATH=/tmp/sphi",
+          "cd /testbed && rm -rf /tmp/build-html-doctest && python -m sphinx -b html tests/roots/test-ext-doctest /tmp/build-html-doctest 2>&1 | tail -14; echo \"HTML_EXIT=${PIPESTATUS[0]}\"; echo \"=== baseline html ===\"; cd /tmp && PYTHONPATH=/tmp/sphinx-baseline python -m sphinx -b html /testbed/tests/roots/te",
+          "cd /testbed && rm -rf /tmp/verify_build_doctest && PYTHONPYCACHEPREFIX=/tmp/pycache_verify python -m sphinx -b doctest tests/roots/test-ext-doctest /tmp/verify_build_doctest > /tmp/verify_doctest_build.out 2>&1; echo \"build_exit=$?\"; tail -25 /tmp/verify_doctest_build.out; echo '=== err log tail ===",
+          "cd /testbed && PYTHONPYCACHEPREFIX=/tmp/pycache_verify python -c \"from sphinx.ext.doctest import TestDirective, DocTestBuilder; print('TestDirective.run:', hasattr(TestDirective,'run')); print('DocTestBuilder.compile:', hasattr(DocTestBuilder,'compile'))\"; echo '--- HTML build ---'; rm -rf /tmp/veri"
+        ]
+      },
+      "verdict_bucket": "needs_human_unresolved",
+      "run_status": "complete"
+    }
+  ],
+  "runs_root": "runs-root（不写本机绝对路径）"
+}
