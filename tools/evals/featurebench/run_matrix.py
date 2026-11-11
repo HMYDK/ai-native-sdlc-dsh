@@ -39,6 +39,16 @@ def arm_cmd(args, manifest_path: Path, task_id: str, arm: str, image: str, out: 
             "--credentials", str(Path(args.credentials).resolve()), "--execute"]
 
 
+def snapshot_meta(out: Path) -> dict | None:
+    p = out / "meta.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def collect(out: Path, record: dict) -> None:
     if not (out / "meta.json").exists():
         return
@@ -171,22 +181,43 @@ def main() -> int:
                 time.sleep(5)  # 错开启动，避免同时抢镜像/Chrome
             for slot, arm, out, proc in procs:
                 code = proc.wait()
-                record = {"task": item["task"], "arm": arm, "image": item["image"],
-                          "exit": code, "attempts": 1}
+                # 重试会复用/覆盖同一个输出目录的 meta.json；每次尝试的 token 必须在被覆盖前
+                # 记账，否则只有最后一次尝试进入共享预算与成本汇总。
+                attempt_metas = [snapshot_meta(out)]
+                charged = 0
                 for attempt in range(infra_retries):
                     if code != 2:
+                        break
+                    prev_tokens = int((attempt_metas[-1] or {}).get("token_usage") or 0)
+                    if prev_tokens:
+                        with lock:
+                            summary["total_tokens"] += prev_tokens
+                            charged += prev_tokens
+                            (runs_root / "matrix.json").write_text(
+                                json.dumps(summary, ensure_ascii=False, indent=2))
+                            if budget and summary["total_tokens"] > budget:
+                                over_budget = True
+                                stop_event.set()
+                    if stop_event.is_set():
                         break
                     print(f"[retry] task={item['task']} arm={arm} infra error, attempt {attempt + 2}")
                     cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
                     cmd += ["--web-port", str(item["web_port"] + slot),
                             "--cdp-port", str(item["cdp_port"] + slot)]
                     code = subprocess.run(cmd).returncode
-                    record["attempts"] += 1
-                    record["exit"] = code
+                    attempt_metas.append(snapshot_meta(out))
+                record = {"task": item["task"], "arm": arm, "image": item["image"],
+                          "exit": code, "attempts": len(attempt_metas),
+                          "attempt_usage": [
+                              (m or {}).get("token_usage") for m in attempt_metas
+                          ]}
                 collect(out, record)
+                usage = [(m or {}).get("token_usage") for m in attempt_metas]
+                if any(t is not None for t in usage):
+                    record["tokens"] = sum(int(t or 0) for t in usage)
                 with lock:
                     summary["runs"].append(record)
-                    summary["total_tokens"] += int(record.get("tokens") or 0)
+                    summary["total_tokens"] += max(0, int(record.get("tokens") or 0) - charged)
                     (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
                     if budget and summary["total_tokens"] > budget:
                         over_budget = True

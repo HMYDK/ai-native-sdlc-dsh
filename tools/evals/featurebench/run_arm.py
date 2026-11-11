@@ -382,11 +382,14 @@ def main() -> int:
             prompt_file = out / "prompt.txt"
             run_json = out / "run.json"
             try:
+                # driver 自己负责在 MAX_WALL_S / MAX_TOKENS 处停 turn 并写 payload；
+                # Python 侧 timeout 只是驱动挂死时的安全网（留出 stopTurn 的收尾时间）。
                 r = subprocess.run(
                     [node, str(driver), str(args.cdp_port), arm_cfg["preset"],
                      str(prompt_file), str(run_json)],
-                    capture_output=True, text=True, timeout=timeout,
-                    env=dict(os.environ, WEB_PORT=str(args.web_port), MAX_TOKENS=str(max_tokens)),
+                    capture_output=True, text=True, timeout=timeout + 240,
+                    env=dict(os.environ, WEB_PORT=str(args.web_port), MAX_TOKENS=str(max_tokens),
+                             MAX_WALL_S=str(timeout)),
                 )
             except subprocess.TimeoutExpired as e:
                 (out / "agent_run.log").write_text(f"TIMEOUT after {timeout}s\n{e.stdout or ''}\n{e.stderr or ''}")
@@ -402,6 +405,8 @@ def main() -> int:
                         agent_failed = "turn_error"
                     elif payload.get("aborted") == "over_budget":
                         agent_failed = "over_budget"
+                    elif payload.get("aborted") == "timeout":
+                        agent_failed = "timeout"
                     elif not payload.get("done"):
                         agent_failed = "agent_incomplete"
 
@@ -460,6 +465,7 @@ def main() -> int:
             "token_usage_source": token_usage_source,
             "agent_completed": bool(run_meta.get("done")),
             "agent_failure": agent_failed,
+            "aborted": run_meta.get("aborted"),
             "patch_chars": len(patch),
             "full_patch_chars": len(full_patch),
             "artifact_patch_chars": len(full_patch) - len(patch),
