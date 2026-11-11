@@ -139,18 +139,19 @@ def parse_adoption(sessions_dir: Path) -> dict:
                 d = json.loads(line)
             except Exception:
                 continue
-
-            def walk(o):
-                if isinstance(o, dict):
-                    if o.get("type") == "tool-call" and isinstance(o.get("name"), str):
-                        names[o["name"]] = names.get(o["name"], 0) + 1
-                    for v in o.values():
-                        walk(v)
-                elif isinstance(o, list):
-                    for v in o:
-                        walk(v)
-
-            walk(d)
+            # 只数 tool/call 事件。⚠️ 不要把 assistant/message.content 里的
+            # {"type":"tool-call"} 一起数：同一次工具调用会在 session 日志里留下
+            # 两份记录（assistant message 的 content + tool/call 事件），旧版
+            # walk() 两个都数，导致 adoption.json / meta.json 的 sdlc_tool_calls
+            # 恰好是真实调用数的 2 倍（实测 2026-11-08 归档 11/11 案例复现，
+            # 2026-11-12 VERIFY-01 抓出）。裁决提取（verify_verdicts）本来就是
+            # tool/result 口径，不受影响；但任何行为统计都会被放大。
+            if not isinstance(d, dict) or d.get("type") != "tool/call":
+                continue
+            data = d.get("data") or {}
+            name = data.get("name")
+            if isinstance(name, str):
+                names[name] = names.get(name, 0) + 1
     sdlc = {k: v for k, v in names.items() if k.startswith("sdlc_")}
     return {
         "available": True,

@@ -45,6 +45,8 @@ prompt sha256 完全相同），**1 个是 sphinx doctest task**
    当它与任务说明/官方 oracle 可能冲突时应标 `needs_human`+`unverified`，不得单独据此 reject。
    → 对应 FN-1/FN-3。
 5. **数据质量（非 prompt）**：canonical `sdlc_tool_calls` 恰好是主会话 `tool/call` 数的 **2 倍**（11/11 案例），
+   根因已定位为 `run_arm.py::parse_adoption` 同时统计了 `assistant/message.content` 里的
+   `{"type":"tool-call"}` 与独立的 `tool/call` 事件（每次调用两份记录）；本轮已修函数并加注释，
    见 §8；#15 的宽口径提取缺陷未修复，本分析改用 callId 配对重算。
 
 ---
@@ -300,9 +302,12 @@ F2P，说明不是环境大范围损坏，而是“被剥离代码 + 隐藏测�
 **不一致 / 数据质量（需告知 Lead）**：
 1. **`sdlc_tool_calls` 系统性 2 倍**：11/11 案例中 `meta.json`/`runs.jsonl` 的每个 sdlc 工具计数都恰好是
    主会话 `tool/call` 数的 2 倍（V1-1: `sdlc_verify` 2 vs 1、`sdlc_artifact_write` 6 vs 3、`sdlc_task_advance`
-   20 vs 10；V1-2: 6 vs 3；V2: 8 vs 4；FN-2: 6 vs 3……）。看起来汇总脚本把同一 session 数了两遍（或把
-   call/result 各计一次）。**不影响 verdict**（verdict 是主会话口径），但任何用 `sdlc_tool_calls` 的行为
-   统计都会被放大 2 倍，建议在 canonical 生成器里修；也与 #15 关注的“口径/重复计数”同类。
+   20 vs 10；V1-2: 6 vs 3；V2: 8 vs 4；FN-2: 6 vs 3……）。根因：`run_arm.py::parse_adoption`
+   的 `walk()` 同时统计了 `assistant/message.content` 里的 `{"type":"tool-call"}` 和独立的
+   `tool/call` 事件——同一次调用在 session 里留下两份记录，所以恰好 2 倍。
+   **不影响 verdict**（verdict 是主会话 `tool/result` 口径），但任何用 `sdlc_tool_calls` 的行为
+   统计都会被放大 2 倍。本轮已修 `parse_adoption`（只数 `tool/call` 事件，2026-11-12）并加注释；
+   历史 canonical 数据不回填，留作历史读数；也与 #15 关注的“口径/重复计数”同类。
 2. 官方 F2P 测试文件在 testbed 中不存在（gettext：`tests/test_builders/test_build_gettext.py` 缺失；
    doctest：`tests/test_extensions/test_ext_doctest.py` 缺失，但 doctest 的 `pyproject.toml` 仍列有
    `tests.test_extensions.test_ext_doctest`）。这是官方隐藏测试设计的副作用，不是本次数据提取错误；
