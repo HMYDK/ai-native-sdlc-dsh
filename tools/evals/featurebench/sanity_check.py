@@ -28,6 +28,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import yaml
@@ -104,6 +105,23 @@ def structural(manifests_dir: Path) -> int:
     return 0
 
 
+def read_fresh_report(work: Path, pred: Path, started: float) -> tuple[dict, bool]:
+    """读取本次 control 调用写出的官方 report；exit code 之外还要求 report 是新的且有效。
+
+    返回 (report, report_ok)。report_ok=False 表示评分器崩溃/没写出报告/报告为空，
+    此时不能把空 report 的 resolved=False 当成「官方判 unresolved」。
+    """
+    for cand in (work / "report.json", pred.parent / "report.json"):
+        if cand.exists() and cand.stat().st_mtime >= started - 1:
+            try:
+                report = json.loads(cand.read_text(encoding="utf-8")).get("attempt_1", {})
+            except Exception:
+                report = {}
+            ok = bool(report) and "resolved_instances" in report
+            return report, ok
+    return {}, False
+
+
 def control(task_id: str, image: str, config: str | None, fb_bin: str) -> int:
     from datasets import load_dataset
     from featurebench.harness.utils import preprocess_hf_patch
@@ -132,26 +150,35 @@ def control(task_id: str, image: str, config: str | None, fb_bin: str) -> int:
             cmd += ["--config-path", config]
         work = tmp / label
         work.mkdir()
+        started = time.time()
         r = subprocess.run(cmd, cwd=work, env=env, capture_output=True, text=True)
         (work / "eval.log").write_text(r.stdout + "\n" + r.stderr)
-        report = {}
-        if (work / "report.json").exists():
-            report = json.loads((work / "report.json").read_text()).get("attempt_1", {})
-        elif (pred.parent / "report.json").exists():
-            report = json.loads((pred.parent / "report.json").read_text()).get("attempt_1", {})
+        report, report_ok = read_fresh_report(work, pred, started)
+        if r.returncode != 0:
+            report_ok = False
         results[label] = {
-            "resolved": bool(report.get("resolved_instances")),
-            "pass_rate": report.get("pass_rate"),
+            "resolved": (bool(report.get("resolved_instances")) if report_ok else None),
+            "pass_rate": report.get("pass_rate") if report_ok else None,
             "postprocessed_patch_chars": len(patch),
             "eval_exit": r.returncode,
+            "report_ok": report_ok,
         }
-        print(f"[control] {label}: resolved={results[label]['resolved']} "
+        print(f"[control] {label}: eval_exit={r.returncode} report_ok={report_ok} "
+              f"resolved={results[label]['resolved']} "
               f"pass_rate={results[label]['pass_rate']}")
-    ok = results["gold"]["resolved"] is True and results["empty"]["resolved"] is False
+    both_reports_ok = all(r["report_ok"] for r in results.values())
+    ok = (both_reports_ok
+          and results["gold"]["resolved"] is True
+          and results["empty"]["resolved"] is False)
     print(json.dumps({"task_id": task_id, "image": image, "ok": ok, "results": results},
                      ensure_ascii=False, indent=2))
     if not ok:
-        print("CONTROL FAILED：gold 应 resolved 且 empty 应 unresolved", file=sys.stderr)
+        if not both_reports_ok:
+            print("CONTROL FAILED：评分器没有为两个 control 都产出有效 report"
+                  "（exit code / report 缺失或为空），不能据此判定评分链路正常",
+                  file=sys.stderr)
+        else:
+            print("CONTROL FAILED：gold 应 resolved 且 empty 应 unresolved", file=sys.stderr)
         return 1
     print("control check OK")
     return 0
