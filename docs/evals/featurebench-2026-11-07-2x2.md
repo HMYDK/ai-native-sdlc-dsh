@@ -5,6 +5,10 @@
   [`../../tools/evals/featurebench/manifests/2x2.yml`](../../tools/evals/featurebench/manifests/2x2.yml)
 - 环境：同首批（FeatureBench 0.3.0 / dataset v1.1 / DSH 0.2.1-rc.5 / plugin 0.6.0 / deepseek-flash max）
 - 口径：官方 `fb eval` 为唯一成绩；每任务每条件 1 次；超时/over_budget 计入分母
+- **2026-11-12 修订**：`summarize_runs.py` 原先对 SDLC 统计按 task 目录递归，2×2 下会把
+  `sdlc/` 与 `sdlc_guidance/` 的会话合并计入两臂；已改为按当前 arm 目录统计并重算数据快照。
+  原先「4 个 B 侧 arm 中 4/5 调用 sdlc_*」与「两个 SDLC arm 各有 1 例 mismatch」两句按真实
+  分臂结果更正（见解读 4/5）。
 
 ## 问题
 
@@ -70,10 +74,12 @@ packaging 的 standard 这次 F2P 98.98%（1 个测试没通过）——与 MVP/
      不同运行间结果翻转；
    - seaborn 的 `sdlc_guidance` 是 patch=0（agent 没改代码就结束），属于模型行为，
      不是流程机制本身的稳定效果。
-4. **引导话术确实改变了行为但不改变成绩**：4 个 B 侧 arm 中 4/5 真的调用了 `sdlc_*`
-   （见 report-data），但正确率没有提升；token 也没有因为流程而下降（sdlc 反而 +9.8%）。
-5. **验证者与官方**：两个 SDLC arm 各有 1 例 mismatch（seaborn sdlc_guidance approve?
-   本次 `sdlc_guidance` 无裁决；sphinx approve 但 unresolved），与②结论一致：approve 不可靠。
+4. **引导话术决定流程是否被触发，但没有改变成绩**：`sdlc_guidance` 臂 4/5 真的调用了
+   `sdlc_*`；而裸 `sdlc`（纯 preset、无引导）**0/5** 触发流程（见 report-data）。正确率
+   没有提升；token 也没有因为流程而下降（sdlc 反而 +9.8%）。
+5. **验证者与官方**：裸 `sdlc` 臂 0/5 触发流程、全部无裁决；`sdlc_guidance` 臂 4/5 有裁决
+   （3 例 agree；sphinx 4 次 approve 但官方 unresolved，1 例 mismatch；seaborn patch=0 无
+   裁决），与②结论一致：approve 不可靠。
 6. **n=5、每条件 1 次**：这些主效应（±0.1）完全在单次运行的方差范围内，不能据此
    下「SDLC 无用」的结论；但可以排除「大效应」——如果流程有显著提升，5 个任务全过
    的天花板下也应看到更少失败，而不是 sdlc_guidance 更差。

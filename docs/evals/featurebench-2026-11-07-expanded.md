@@ -10,6 +10,9 @@
 - **2026-11-10 EVAL-01 口径修订**：原文表格把「有官方评分的 n=12」与 7/12 并列，实际
   A 组只有 11 条可评分运行（1 条官方评分因 HF dataset revision 解析失败缺失，属环境
   失败而非 agent 失败）。现改为 ITT / 可评分双口径并列；结论方向不变，原因见结果表下方注。
+- **2026-11-12 修订**：`analyze_expanded.py` 的 `both_resolved` 原先把 `diff==0`（含两臂
+  都失败）也算作「都通过」；已改为只统计两臂都为 resolved。④ 的「两臂都通过」从 9 更正为
+  **7**（都失败 2、B 独有 2、A 独有 0，共 11 对）。
 
 ## 设计
 
@@ -44,7 +47,7 @@
 
 - **B 独有通过 2 个**（seaborn test_relational、sphinx test_ext_napoleon_docstring）；
 - **A 独有通过 0 个**；
-- 9 个任务两臂都通过；
+- 7 个任务两臂都通过；
 - 2 个任务两臂都失败（sphinx test_ext_doctest、test_ext_math）；
 - 平均差（B − A）= **+0.182**（方向性，n=11，不能据此做显著性结论）。
 
