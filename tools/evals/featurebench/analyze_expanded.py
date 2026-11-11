@@ -104,7 +104,9 @@ def main() -> None:
             "mean_diff_B_minus_A": mean(diffs),
             "A_only": sum(1 for d in diffs if d < 0),
             "B_only": sum(1 for d in diffs if d > 0),
-            "both_resolved": sum(1 for d in diffs if d == 0),
+            # 不能写成 diff==0：0 同时包含「两臂都通过」和「两臂都失败」。
+            "both_resolved": sum(1 for r in pairs
+                                 if r["A_resolved"] is True and r["B_resolved"] is True),
             "both_failed": sum(1 for r in pairs
                                if r["A_resolved"] is False and r["B_resolved"] is False),
         },

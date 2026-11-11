@@ -75,8 +75,13 @@ def main() -> int:
         return cmd
 
     def evaluate(manifest, out):
-        return [py, str(HERE / "evaluate_matrix.py"), "--manifest", str(mdir / manifest),
-                "--runs-root", str(out), "--execute"]
+        cmd = [py, str(HERE / "evaluate_matrix.py"), "--manifest", str(mdir / manifest),
+               "--runs-root", str(out)]
+        # 默认 dry-run 必须一路传到官方评分：只有 --execute 才真正调用 fb eval，
+        # 否则默认调用会用已有 patch 覆盖评分产物。
+        if args.execute:
+            cmd += ["--execute"]
+        return cmd
 
     groups = [
         ("2x2", "2x2.yml", lambda out, i: [matrix("2x2.yml", out, 2, 2, args.web_port_base + i * 20, args.cdp_port_base + i * 20), evaluate("2x2.yml", out)]),
