@@ -561,7 +561,7 @@ def collect_runs(runs_base: Path) -> tuple[list[dict], dict, dict, dict]:
                     attempts_val = attempts.get((task_id, arm, repeat))
                     verify_verdicts = sess["verify_verdicts"]
                     if not sess["zstandard_available"]:
-                        verify_verdicts = verdicts_by_key.get((task_id, arm), [])
+                        verify_verdicts = verdicts_by_key.get((task_id, arm, repeat), [])
                     status = "included"
                     exclusion_reason = None
                     if exp["group"] == "pilot":
