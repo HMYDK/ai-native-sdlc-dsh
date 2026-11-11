@@ -44,29 +44,33 @@ def compute(reports, rep_paths=None) -> dict:
     `reports` 是 report-data dict 的列表（按 rep 顺序）；
     `rep_paths` 只影响输出里的 `reps` 字段（路径溯源），不参与任何统计。
     """
-    cells = defaultdict(list)   # (task_id, arm) -> [row]
+    cells = defaultdict(list)       # (task_id, arm) -> [scoreable row]
+    attempted = defaultdict(list)   # (task_id, arm) -> [row] 含 unscoreable/infra
     tasks = set()
     for rep_idx, data in enumerate(reports, start=1):
         for r in data["runs"]:
-            if "resolved" not in r:
-                continue
             r = dict(r)
             r["_rep"] = rep_idx
-            cells[(r["task_id"], r["arm"])].append(r)
+            attempted[(r["task_id"], r["arm"])].append(r)
             tasks.add(r["task_id"])
+            if "resolved" in r:
+                cells[(r["task_id"], r["arm"])].append(r)
 
     def cell_stats(task_id, arm):
+        all_rs = attempted.get((task_id, arm), [])
         rs = cells.get((task_id, arm), [])
         resolved = sum(1 for r in rs if r["resolved"])
-        toks = [r.get("tokens") for r in rs if isinstance(r.get("tokens"), (int, float))]
-        fails = [r.get("agent_failure") for r in rs if r.get("agent_failure")]
+        toks = [r.get("tokens") for r in all_rs if isinstance(r.get("tokens"), (int, float))]
+        fails = [r.get("agent_failure") for r in all_rs if r.get("agent_failure")]
         return {
-            "k": len(rs),
+            "k": len(all_rs),            # attempted replicates
+            "scoreable": len(rs),
             "resolved": resolved,
             "resolved_rate": resolved / len(rs) if rs else None,
             "tokens_mean": statistics.mean(toks) if toks else None,
             "tokens_stdev": statistics.stdev(toks) if len(toks) > 1 else None,
             "failures": fails,
+            "unscoreable_reps": [r["_rep"] for r in all_rs if "resolved" not in r],
         }
 
     per_task = {}

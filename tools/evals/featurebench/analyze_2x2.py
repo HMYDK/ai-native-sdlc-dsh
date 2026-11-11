@@ -37,22 +37,29 @@ def compute(report: dict, data_path=None) -> dict:
 
     `data_path` 只影响输出里的 `data` 字段（路径溯源），不参与任何统计。
     """
-    rows = [r for r in report["runs"] if r.get("arm") in ARMS and "resolved" in r]
-    by_arm = defaultdict(list)
-    for r in rows:
-        by_arm[r["arm"]].append(r)
+    # attempted cohort 必须包含没有官方评分的 run（infra 重试耗尽/评分缺失）；
+    # 把「缺评分」静默过滤掉会让分母变小、失败计数归零（issue #13 review P2）。
+    all_rows = [r for r in report["runs"] if r.get("arm") in ARMS]
+    by_arm_all = defaultdict(list)
+    for r in all_rows:
+        by_arm_all[r["arm"]].append(r)
 
     def arm_stats(arm: str) -> dict:
-        rs = by_arm.get(arm, [])
+        all_rs = by_arm_all.get(arm, [])
+        rs = [r for r in all_rs if "resolved" in r]  # scoreable，只用于成绩/配对
         return {
-            "n": len(rs),
+            "n": len(all_rs),          # attempted（含 unscoreable）
+            "scoreable": len(rs),
             "resolved": sum(1 for r in rs if r["resolved"]),
             "resolved_rate": mean([1.0 if r["resolved"] else 0.0 for r in rs]),
             "pass_rate": mean([float(r.get("pass_rate") or 0) for r in rs]),
-            "tokens": mean([r.get("tokens") for r in rs]),
-            "elapsed": mean([r.get("elapsed_seconds") for r in rs]),
-            "failures": [{"task": r["task_id"], "failure": r.get("agent_failure")}
-                         for r in rs if r.get("agent_failure")],
+            "tokens": mean([r.get("tokens") for r in all_rs]),
+            "elapsed": mean([r.get("elapsed_seconds") for r in all_rs]),
+            "failures": [{"task": r["task_id"], "failure": r.get("agent_failure"),
+                          "resolved": r.get("resolved")}
+                         for r in all_rs if r.get("agent_failure")],
+            "unscoreable": [{"task": r["task_id"], "failure": r.get("agent_failure")}
+                            for r in all_rs if "resolved" not in r],
         }
 
     stats = {a: arm_stats(a) for a in ARMS}
@@ -82,7 +89,8 @@ def compute(report: dict, data_path=None) -> dict:
                 mean([tokens["standard"], tokens["sdlc"]]) - 1
                 if all(tokens.get(a) for a in ARMS) else None),
         },
-        "per_task": rows,
+        # per-task 明细只列可评分行（与统计口径一致）；attempted cohort 在 arms.*.n 里
+        "per_task": [r for r in all_rows if "resolved" in r],
     }
 
 
