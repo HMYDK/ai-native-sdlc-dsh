@@ -42,14 +42,18 @@ def main() -> None:
     files = 0
     bytes_added = 0
     entries = []
+    seen: set[str] = set()
 
     def add(tar: tarfile.TarFile, path: Path) -> None:
         nonlocal files, bytes_added
-        rel = path.relative_to(root)
-        tar.add(path, arcname=str(rel))
+        rel = str(path.relative_to(root))
+        if rel in seen:
+            return
+        seen.add(rel)
+        tar.add(path, arcname=rel)
         files += 1
         bytes_added += path.stat().st_size
-        entries.append({"path": str(rel), "bytes": path.stat().st_size})
+        entries.append({"path": rel, "bytes": path.stat().st_size})
 
     with tarfile.open(out, "w:gz", compresslevel=6) as tar:
         for task_dir in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -62,17 +66,19 @@ def main() -> None:
                     if "sessions" in p.parts and not args.with_sessions:
                         continue
                     add(tar, p)
-            for eval_dir in task_dir.glob("eval-*"):
-                for f in ("report.json", "eval.log"):
-                    p = eval_dir / f
-                    if p.exists():
-                        add(tar, p)
+            # 官方评分证据可能在 task/eval-<arm>/（单批）或 repN/task/eval-<arm>/（重复采样）；
+            # 按任意深度收，避免 run_repeats 的目录布局丢掉 report.json/eval.log。
+            for f in ("report.json", "eval.log"):
+                for p in task_dir.rglob(f):
+                    if "sessions" in p.parts and not args.with_sessions:
+                        continue
+                    add(tar, p)
             if args.with_sessions:
                 for p in task_dir.rglob("*.zstd"):
                     add(tar, p)
+        # 每个 group/repetition 的汇总产物也按任意深度收（repN/matrix.json 等）
         for f in ("matrix.json", "summary.json", "report-data.json", "report.md"):
-            p = root / f
-            if p.exists():
+            for p in sorted(root.rglob(f)):
                 add(tar, p)
 
     digest = hashlib.sha256(out.read_bytes()).hexdigest()

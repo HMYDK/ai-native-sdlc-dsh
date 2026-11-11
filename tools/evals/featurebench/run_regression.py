@@ -33,6 +33,35 @@ def load_json(p):
 
 
 def total_tokens(root: Path) -> int:
+    """跨 group/repetition 累计 token；优先用各 matrix.json 的 total_tokens。
+
+    只看 meta.json 会漏掉 infra 重试中失败那次的用量（run_matrix 已把每次尝试记进
+    matrix.json），跨组预算会在重跑后仍被低估；matrix 覆盖不到的 meta 才单独补。
+    """
+    matrices = sorted(root.rglob("matrix.json"))
+    if matrices:
+        total = 0
+        covered: list[Path] = []
+        for m in matrices:
+            d = load_json(m) or {}
+            t = d.get("total_tokens")
+            if isinstance(t, (int, float)):
+                total += int(t)
+            else:
+                for f in m.parent.glob("**/meta.json"):
+                    md = load_json(f) or {}
+                    tt = md.get("token_usage")
+                    if isinstance(tt, (int, float)):
+                        total += int(tt)
+            covered.append(m.parent)
+        for f in root.glob("**/meta.json"):
+            if any(f.is_relative_to(d) for d in covered):
+                continue
+            d = load_json(f) or {}
+            t = d.get("token_usage")
+            if isinstance(t, (int, float)):
+                total += int(t)
+        return total
     total = 0
     for f in root.glob("**/meta.json"):
         d = load_json(f) or {}
