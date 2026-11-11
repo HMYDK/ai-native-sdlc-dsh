@@ -6580,7 +6580,7 @@
       {
         "path": "docs/evals/featurebench-2026-11-07-2x2-data.json",
         "rows": 20,
-        "sha256": "32fa9b4648e44441f3ca67bc39a706c0a9f30be08374b4e09ff0c90dd4888e96"
+        "sha256": "3ef236244a8e2fee20274f2251dd07890a71e6e529d90118eaa1c30fb474ec87"
       },
       {
         "path": "docs/evals/featurebench-2026-11-07-expanded-data.json",

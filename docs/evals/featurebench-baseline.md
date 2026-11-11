@@ -188,9 +188,10 @@
 
 - 口径：**canonical 主会话口径**（`featurebench-runs.jsonl` 的 `verify_verdicts`；
   验证者子会话里的同名 status JSON 不重复计数）。旧 `report-data.json` 的「全 session」
-  口径（approve 32+8、无裁决 7）会重复计入子会话裁决；#8 的 15.4% 由旧口径下 18 个 B 运行
-  子集算出。两种口径都保留在 `featurebench-verifier-confusion.json` 里，
-  **AC-006 以主会话口径为准**。
+  口径保留在 `featurebench-verifier-confusion.json` 里作对照：#8 的 15.4% 由该旧口径下
+  18 个 B 运行子集算出。修复 2×2 数据快照的分臂 bug 后，V1 两种口径已一致
+  （approve 29+7、无裁决 11）；V2 仍差 1 条（packaging 的旧序列多出子会话 approve，
+  最后裁决 approve vs 主会话 reject）。**AC-006 以主会话口径为准**。
 - 54 个 B run 中 **16 个**带 agent 提前失败/截断标记（timeout/over_budget/turn_error 等），
   其中 11 个最终无裁决（6 个官方 resolved、5 个 unresolved）；「无裁决」是删失，不是
   通过也不是失败。另有 47/54 个 B run 真实触发了 SDLC 工作流。
@@ -361,3 +362,8 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval -p <predictions.jsonl> --split fast 
 - 2026-11-10：首次发布（EVAL-01）。历史报告分母修订（扩样本 ITT/可评分双口径）、
   #8 数字对账（84 report / 164 attempts 不可复算 / token 双口径）、AC-007 复评记录、
   数据快照脱敏。
+- 2026-11-12：按 PR #13/#14 的 Codex review 修复并重算——2×2 按 arm 统计 SDLC 会话、
+  `analyze_expanded` 的 `both_resolved` 口径（9→7）、infra 失败 run 留存、`turn_error`
+  归 infra 重试、`run_regression` dry-run 传播、`collect_runs` 的 repeat attempts 身份与
+  `--check` 失败语义；同步重算 2×2/扩样本快照、canonical run 表、证据索引与
+  baseline metrics/index。主面板与 canonical 验证者数字不变。

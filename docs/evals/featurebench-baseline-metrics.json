@@ -2233,22 +2233,22 @@
         "sdlc_runs": 49,
         "official_resolved": 36,
         "confusion": {
-          "approve_resolved": 32,
-          "approve_unresolved_false_positive": 8,
+          "approve_resolved": 29,
+          "approve_unresolved_false_positive": 7,
           "reject_unresolved": 1,
           "reject_resolved_false_negative": 1,
           "needs_human": 0,
-          "no_verdict": 7
+          "no_verdict": 11
         },
-        "false_positive_rate": 0.2,
+        "false_positive_rate": 0.19444444444444445,
         "false_negative_rate": 0.5,
-        "verdict_accuracy_on_decided": 0.7857142857142857,
+        "verdict_accuracy_on_decided": 0.7894736842105263,
         "verdict_sequences": {
-          "approve": 26,
+          "approve": 24,
           "reject → reject → needs_human → reject → approve": 1,
-          "approve → approve → approve → approve": 5,
-          "(none)": 7,
-          "reject → approve": 4,
+          "approve → approve → approve → approve": 4,
+          "(none)": 11,
+          "reject → approve": 3,
           "approve → approve": 3,
           "reject → approve → approve": 1,
           "approve → approve → approve → reject → reject": 1,
@@ -2276,6 +2276,33 @@
             "experiment": "mvp-2026-11-06"
           },
           {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+            "repo": "pytest-dev/pytest",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+            "repo": "pydantic/pydantic",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
             "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
             "repo": "mwaskom/seaborn",
             "verdicts": [],
@@ -2296,15 +2323,10 @@
           {
             "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
             "repo": "sphinx-doc/sphinx",
-            "verdicts": [
-              "approve",
-              "approve",
-              "approve",
-              "approve"
-            ],
+            "verdicts": [],
             "resolved": false,
             "pass_rate": 0.0769,
-            "bucket": "false_positive",
+            "bucket": "no_verdict",
             "experiment": "2x2-2026-11-07"
           },
           {
@@ -2485,22 +2507,22 @@
         "sdlc_runs": 54,
         "official_resolved": 40,
         "confusion": {
-          "approve_resolved": 35,
-          "approve_unresolved_false_positive": 9,
+          "approve_resolved": 32,
+          "approve_unresolved_false_positive": 8,
           "reject_unresolved": 1,
           "reject_resolved_false_negative": 2,
           "needs_human": 0,
-          "no_verdict": 7
+          "no_verdict": 11
         },
-        "false_positive_rate": 0.20454545454545456,
+        "false_positive_rate": 0.2,
         "false_negative_rate": 0.6666666666666666,
-        "verdict_accuracy_on_decided": 0.7659574468085106,
+        "verdict_accuracy_on_decided": 0.7674418604651163,
         "verdict_sequences": {
-          "approve": 27,
+          "approve": 25,
           "reject → reject → needs_human → reject → approve": 1,
-          "approve → approve → approve → approve": 7,
-          "(none)": 7,
-          "reject → approve": 4,
+          "approve → approve → approve → approve": 6,
+          "(none)": 11,
+          "reject → approve": 3,
           "approve → approve": 3,
           "reject → approve → approve": 1,
           "approve → approve → approve → reject → reject": 1,
@@ -2530,6 +2552,33 @@
             "experiment": "mvp-2026-11-06"
           },
           {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+            "repo": "pytest-dev/pytest",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+            "repo": "pydantic/pydantic",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
             "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
             "repo": "mwaskom/seaborn",
             "verdicts": [],
@@ -2550,15 +2599,10 @@
           {
             "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
             "repo": "sphinx-doc/sphinx",
-            "verdicts": [
-              "approve",
-              "approve",
-              "approve",
-              "approve"
-            ],
+            "verdicts": [],
             "resolved": false,
             "pass_rate": 0.0769,
-            "bucket": "false_positive",
+            "bucket": "no_verdict",
             "experiment": "2x2-2026-11-07"
           },
           {

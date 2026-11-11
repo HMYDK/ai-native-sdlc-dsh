@@ -155,7 +155,7 @@
           "data": [
             {
               "path": "docs/evals/featurebench-2026-11-07-2x2-data.json",
-              "sha256": "48592b2d6dfd2a470976fa3fb9ee1624f26781039c47c65aebb4bbb4eefd137e",
+              "sha256": "3ef236244a8e2fee20274f2251dd07890a71e6e529d90118eaa1c30fb474ec87",
               "role": "report",
               "runs_selector": "report.runs",
               "rows": 20
@@ -216,7 +216,7 @@
           "data": [
             {
               "path": "docs/evals/featurebench-2026-11-07-expanded-data.json",
-              "sha256": "538238a44eea9c3bc355b818e777a540cdcdc9497d4c084e6ad613cc5669079c",
+              "sha256": "c77369eb9d6dbaf533b691d5d25dd212273553557288c89fc06dcb0ec4c3e38c",
               "role": "report",
               "runs_selector": "report.runs",
               "rows": 24
@@ -644,7 +644,7 @@
     },
     "evidence_index": {
       "path": "docs/evals/featurebench-evidence-index.json",
-      "sha256": "8ce79a28136cda1803cb0a56b6b93980130142a1b7e451de4272f44fa69d9729"
+      "sha256": "178c3f0a13e8ee19c862c5b5b974c612b7c828e7a30179602345c30f2b5ee213"
     }
   },
   "audit_level": {
