@@ -744,7 +744,11 @@ def build_evidence_index(
         for s in sessions:
             akey = "./" + s["path"]
             want = archive_sums.get(akey)
-            if want is not None and want != s["sha256"]:
+            if want is None:
+                # session 日志是裁决/兜底 token 的证据来源；归档清单里缺失必须计入
+                # not_in_sums（--check 会失败），不能因为「没得比」就静默跳过。
+                archive_missing.append(akey)
+            elif want != s["sha256"]:
                 archive_mismatch += 1
         runs.append(
             {
