@@ -23,7 +23,7 @@ import subprocess
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import yaml
@@ -115,18 +115,38 @@ def main() -> int:
                "manifest": str(manifest_path.resolve()), "runs": [],
                "total_tokens": 0, "stopped_for_budget": False}
     lock = threading.Lock()
+    # 预算耗尽是“全局停止条件”，必须在启动任何新 run 之前检查；否则 --parallel-tasks>1 时
+    # ThreadPoolExecutor.map 会把整个 plan 都排进队列，单个 worker 的局部 over_budget
+    # 阻止不了其他 worker 继续启动剩余任务（实测 1 token 预算仍会跑完 8 个任务）。
+    stop_event = threading.Event()
+
+    def budget_exhausted() -> bool:
+        if not budget:
+            return False
+        with lock:
+            return summary["total_tokens"] > budget
 
     def run_task(item: dict) -> str:
         """跑一个任务的所有 arm（并发）。返回 stop / ok / infra。"""
+        if stop_event.is_set() or budget_exhausted():
+            stop_event.set()
+            return "stop"
         # 用完整 instance_id 做目录：同 repo 的多个任务不能共用一个 arm 目录，
         # 否则后跑的会覆盖先跑的 meta/patch（实验②踩过，数据作废重跑）。
         task_dir = runs_root / item["task"]
         over_budget = False
         arm_parallel = args.arm_parallel or len(item["arms"])
         for batch_start in range(0, len(item["arms"]), arm_parallel):
+            if stop_event.is_set() or budget_exhausted():
+                stop_event.set()
+                return "stop"
             batch = list(enumerate(item["arms"]))[batch_start:batch_start + arm_parallel]
             procs = []
             for slot, arm in batch:
+                if stop_event.is_set() or budget_exhausted():
+                    stop_event.set()
+                    over_budget = True
+                    break
                 out = task_dir / arm
                 if args.retry_failed and (out / "meta.json").exists():
                     try:
@@ -170,6 +190,7 @@ def main() -> int:
                     (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
                     if budget and summary["total_tokens"] > budget:
                         over_budget = True
+                        stop_event.set()
         return "stop" if over_budget else "ok"
 
     if args.parallel_tasks <= 1:
@@ -179,9 +200,11 @@ def main() -> int:
                 return 4
     else:
         with ThreadPoolExecutor(max_workers=args.parallel_tasks) as ex:
-            for status in ex.map(run_task, plan):
-                if status == "stop":
+            futures = [ex.submit(run_task, item) for item in plan]
+            for fut in as_completed(futures):
+                if fut.result() == "stop":
                     summary["stopped_for_budget"] = True
+                    stop_event.set()
                     (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
                     return 4
     summary["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
