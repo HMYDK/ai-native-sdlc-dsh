@@ -714,23 +714,10 @@
     "not_applied_empty": 0,
     "tokens_source": "ui",
     "available": true,
-    "sdlc_tool_calls": {
-     "sdlc_status": 2,
-     "sdlc_task_create": 2,
-     "sdlc_artifact_check": 6,
-     "sdlc_artifact_write": 6,
-     "sdlc_task_advance": 22,
-     "sdlc_task_status": 6,
-     "sdlc_verify": 4,
-     "sdlc_task_issue": 32,
-     "sdlc_rsi_analyze": 2
-    },
-    "verify_verdicts": [
-     "reject",
-     "approve"
-    ],
-    "used_sdlc": true,
-    "verifier_vs_official": "agree"
+    "sdlc_tool_calls": {},
+    "verify_verdicts": [],
+    "used_sdlc": false,
+    "verifier_vs_official": "no_verdict"
    },
    {
     "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
@@ -844,19 +831,10 @@
     "not_applied_empty": 0,
     "tokens_source": "ui",
     "available": true,
-    "sdlc_tool_calls": {
-     "sdlc_task_create": 2,
-     "sdlc_artifact_write": 6,
-     "sdlc_task_status": 4,
-     "sdlc_task_advance": 14,
-     "sdlc_verify": 2,
-     "sdlc_task_issue": 4
-    },
-    "verify_verdicts": [
-     "approve"
-    ],
-    "used_sdlc": true,
-    "verifier_vs_official": "agree"
+    "sdlc_tool_calls": {},
+    "verify_verdicts": [],
+    "used_sdlc": false,
+    "verifier_vs_official": "no_verdict"
    },
    {
     "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
@@ -956,20 +934,10 @@
     "not_applied_empty": 0,
     "tokens_source": "ui",
     "available": true,
-    "sdlc_tool_calls": {
-     "sdlc_status": 2,
-     "sdlc_task_create": 2,
-     "sdlc_artifact_write": 6,
-     "sdlc_task_advance": 16,
-     "sdlc_verify": 2,
-     "sdlc_task_status": 2,
-     "sdlc_rsi_analyze": 2
-    },
-    "verify_verdicts": [
-     "approve"
-    ],
-    "used_sdlc": true,
-    "verifier_vs_official": "agree"
+    "sdlc_tool_calls": {},
+    "verify_verdicts": [],
+    "used_sdlc": false,
+    "verifier_vs_official": "no_verdict"
    },
    {
     "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
@@ -1164,24 +1132,10 @@
     "not_applied_empty": 0,
     "tokens_source": "ui",
     "available": true,
-    "sdlc_tool_calls": {
-     "sdlc_status": 8,
-     "sdlc_task_create": 2,
-     "sdlc_artifact_write": 8,
-     "sdlc_task_advance": 22,
-     "sdlc_task_status": 6,
-     "sdlc_verify": 6,
-     "sdlc_task_issue": 10,
-     "sdlc_rsi_analyze": 2
-    },
-    "verify_verdicts": [
-     "approve",
-     "approve",
-     "approve",
-     "approve"
-    ],
-    "used_sdlc": true,
-    "verifier_vs_official": "mismatch"
+    "sdlc_tool_calls": {},
+    "verify_verdicts": [],
+    "used_sdlc": false,
+    "verifier_vs_official": "no_verdict"
    },
    {
     "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
