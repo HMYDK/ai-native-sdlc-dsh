@@ -162,6 +162,23 @@ def parse_adoption(sessions_dir: Path) -> dict:
     }
 
 
+# 复用输出目录重试时必须清掉的 attempt 产物：否则上一轮的 patch/predictions 会被
+# evaluate_matrix 当成本次提交去评分，或上一次的 payload 被误读。
+ATTEMPT_ARTIFACTS = ("run.json", "meta.json", "patch.diff", "patch.full.diff",
+                     "predictions.jsonl")
+
+
+def clear_attempt_artifacts(out: Path) -> list[str]:
+    """删除上一次尝试留在 out 目录里的 attempt 产物，返回实际删除的文件名。"""
+    removed: list[str] = []
+    for name in ATTEMPT_ARTIFACTS:
+        stale = out / name
+        if stale.exists():
+            stale.unlink()
+            removed.append(name)
+    return removed
+
+
 def session_token_total(sessions_dir: Path) -> int | None:
     """从已导出的 session 日志汇总 assistant usage.totalTokens（driver timeout 兜底）。
 
@@ -255,13 +272,10 @@ def main() -> int:
         print("[dry-run] add --execute to actually run")
         return 0
 
-    # 复用同一输出目录重试时，上一次尝试的 run.json/meta.json 必须先清掉：否则本次
-    # driver 提前退出（timeout/崩溃）没写 payload 时，下面会读到上一轮的 usage/
-    # turn_error/done，导致 token 重复计账、timeout 被误判成 infra、或跳过 session 兜底。
-    for stale_name in ("run.json", "meta.json"):
-        stale = out / stale_name
-        if stale.exists():
-            stale.unlink()
+    # 复用同一输出目录重试时，上一次尝试的 run.json/meta.json/patch/predictions 必须先
+    # 清掉：driver 提前退出会读到旧 payload；初始化阶段失败则可能让 evaluate_matrix 把
+    # 上一轮的 patch.diff 当成本次提交评分。
+    clear_attempt_artifacts(out)
 
     # 真正执行才需要的运行时依赖（dry-run 已在上面返回）。
     import docker
