@@ -4,11 +4,15 @@
 三种模式：
 
 1) `--structural`（CI 默认，不依赖 Docker/网络）：
-   递归扫描 base manifest 与 `manifests/**/*.yml`（含 `regression-0.6.1/`），校验
-   字段、任务 id 唯一性、镜像 digest 一致性、level 与 id 后缀一致、arm 的 preset、
-   运行纪律取值上限、标准臂不得带引导（否则 A/B 不再可比），以及 runtime group：
+   递归扫描 base manifest 与 `manifests/**/*.yml`（含 `regression-0.6.1/`、
+   `verify-01/`），校验字段、任务 id 唯一性、镜像 digest 一致性、level 与 id 后缀
+   一致、arm 的 preset、运行纪律取值上限、标准臂不得带引导（否则 A/B 不再可比），
+   以及 runtime group：
    - base + V1 实验清单：plugin 0.6.0 / DSH 0.2.1-rc.5；
    - `regression-0.6.1/*.yml`：plugin 0.6.1 / DSH 0.2.2-rc.1；
+   - `verify-01/*.yml`（VERIFY-01 verifier 策略 A/B）：同样跑在 V2 runtime 上，
+     但两臂都必须是 SDLC preset（唯一受控差异是 plugin tarball），所以单独校验
+     arm 集合/预设/引导文本与两臂 tarball 差异；
    - 同一 runtime group 内 tarball sha256 必须一致，V2 不得复用 V1 的 tarball；
    - regression 清单必须是同名 V1 清单的同构副本（task id 列表与 arm 集合一致），
      保证「版本回归」比较的是同一协议。
@@ -53,6 +57,10 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 RUNTIME_FIELDS = ("plugin_package", "plugin_version", "plugin_tarball_sha256",
                   "dsh_cli", "provider", "model", "reasoning_effort")
 ALLOWED_ARMS = ("standard", "standard_guidance", "sdlc", "sdlc_guidance")
+# VERIFY-01：两臂都是 SDLC preset，只允许 verifier 插件 tarball（即 verdict prompt）
+# 不同。arm 名刻意不用 standard/sdlc，避免被现有 V1 manifest 校验误当成 EVAL-01 的
+# treatment 比较。
+VERIFY01_ARMS = ("sdlc_baseline", "sdlc_candidate")
 GROUP_V1 = "v1-0.6.0-0.2.1-rc.5"
 GROUP_V2 = "v2-0.6.1-0.2.2-rc.1"
 V1_VERSIONS = {"dsh_cli": "0.2.1-rc.5", "plugin_version": "0.6.0"}
@@ -98,7 +106,9 @@ def _runtime_group_of(path: Path) -> str:
 
 
 def check_manifest(path: Path, base: dict | None, runtime_ref: dict | None,
-                   expected_group: str | None, base_image_map: dict | None) -> list[str]:
+                   expected_group: str | None, base_image_map: dict | None,
+                   allowed_arms: tuple[str, ...] = ALLOWED_ARMS,
+                   allow_unknown_repos: bool = False) -> list[str]:
     errs: list[str] = []
     try:
         m = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -137,7 +147,11 @@ def check_manifest(path: Path, base: dict | None, runtime_ref: dict | None,
         if base_image_map is not None:
             expected = base_image_map.get(t.get("repo"))
             if expected is None:
-                errs.append(f"{path}: {tid} 的 repo {t.get('repo')} 不在 base 镜像表")
+                # VERIFY-01 引入新 repo（例如 astropy）时允许不在 base 镜像表，
+                # 但镜像名/digest 必须在同清单内自洽（下面的 _check_verify01_manifest
+                # 再校验同 repo 一致），digest 格式由上面的 DIGEST_RE 已校验。
+                if not allow_unknown_repos:
+                    errs.append(f"{path}: {tid} 的 repo {t.get('repo')} 不在 base 镜像表")
             else:
                 if str(t.get("image_digest")) != expected["image_digest"]:
                     errs.append(f"{path}: {tid} image_digest 与 base 同 repo 不一致")
@@ -156,8 +170,8 @@ def check_manifest(path: Path, base: dict | None, runtime_ref: dict | None,
     names = set(m["arms"])
     has_guidance_variant = "sdlc_guidance" in names
     for name, arm in m["arms"].items():
-        if name not in ALLOWED_ARMS:
-            errs.append(f"{path}: 未知 arm {name}（允许 {', '.join(ALLOWED_ARMS)}）")
+        if name not in allowed_arms:
+            errs.append(f"{path}: 未知 arm {name}（允许 {', '.join(allowed_arms)}）")
             continue
         if not arm.get("preset"):
             errs.append(f"{path}: arm {name} 缺少 preset")
@@ -191,6 +205,18 @@ def check_manifest(path: Path, base: dict | None, runtime_ref: dict | None,
             elif suffix != guidance_suffix:
                 errs.append(f"{path}: 主 treatment arm sdlc 必须带固定引导文本"
                             "（与 base sdlc arm 一致）")
+        elif name in VERIFY01_ARMS:
+            # VERIFY-01 两臂都是 SDLC preset + 同一份固定引导文本；唯一差别是
+            # 插件 tarball（即 verifier prompt）。
+            if arm.get("preset") != sdlc_preset:
+                errs.append(f"{path}: arm {name} preset 必须是 base SDLC 臂"
+                            f"（{sdlc_preset!r}），实际 {arm.get('preset')!r}")
+            if suffix != guidance_suffix:
+                errs.append(f"{path}: arm {name} 的引导文本必须与 base sdlc arm 完全一致"
+                            "（否则 A/B 混入 guidance 变量）")
+            sha = str(arm.get("plugin_tarball_sha256") or "")
+            if not re.fullmatch(r"[0-9a-f]{64}", sha):
+                errs.append(f"{path}: arm {name} 缺少合法 plugin_tarball_sha256")
     pol = m["run_policy"]
     for k in ("timeout_seconds", "max_tokens_per_run", "total_token_budget"):
         if not isinstance(pol.get(k), (int, float)) or pol.get(k) <= 0:
@@ -223,6 +249,40 @@ def _load_runtime_ref(path: Path) -> dict:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("runtime") or {}
 
 
+def _check_verify01_manifest(path: Path) -> list[str]:
+    """VERIFY-01 清单的额外不变量（两臂唯一差异 + 任务角色 + 新 repo 镜像自洽）。"""
+    errs: list[str] = []
+    m = yaml.safe_load(path.read_text(encoding="utf-8"))
+    arms = m.get("arms") or {}
+    if set(arms) != set(VERIFY01_ARMS):
+        errs.append(f"{path}: VERIFY-01 arms 必须恰好是 {VERIFY01_ARMS}，实际 {sorted(arms)}")
+        return errs
+    base_sha = str((arms.get("sdlc_baseline") or {}).get("plugin_tarball_sha256") or "")
+    cand_sha = str((arms.get("sdlc_candidate") or {}).get("plugin_tarball_sha256") or "")
+    if base_sha == cand_sha:
+        errs.append(f"{path}: baseline 与 candidate 的 plugin tarball 相同（没有 treatment）")
+    runtime_sha = str((m.get("runtime") or {}).get("plugin_tarball_sha256") or "")
+    if runtime_sha != base_sha:
+        errs.append(f"{path}: runtime.plugin_tarball_sha256 必须等于 baseline 臂 tarball")
+    roles = [str((t or {}).get("role") or "") for t in (m.get("tasks") or [])]
+    if not any(r == "diagnostic_regression" for r in roles):
+        errs.append(f"{path}: 缺少 diagnostic_regression 任务")
+    if not any(r == "independent" for r in roles):
+        errs.append(f"{path}: 缺少 independent 任务（预注册后不得为空）")
+    unknown = sorted({r for r in roles if r not in ("diagnostic_regression", "independent")})
+    if unknown:
+        errs.append(f"{path}: 未知 role {unknown}")
+    # 新 repo 的官方镜像/digest 在清单内按 repo 必须一致（防止悄悄换镜像）。
+    repo_images: dict[str, tuple[str, str]] = {}
+    for task in m.get("tasks") or []:
+        repo = str((task or {}).get("repo"))
+        pair = (str((task or {}).get("image")), str((task or {}).get("image_digest")))
+        if repo in repo_images and repo_images[repo] != pair:
+            errs.append(f"{path}: repo {repo} 的 image/digest 在清单内不一致")
+        repo_images[repo] = pair
+    return errs
+
+
 def _check_regression_isomorphic(v1_files: list, regression_dir: Path,
                                  base_path: Path) -> list[str]:
     """regression-0.6.1/*.yml 必须是同名 V1 清单的同构副本（同 task 列表、同 arm 集合）。"""
@@ -250,6 +310,8 @@ def _check_regression_isomorphic(v1_files: list, regression_dir: Path,
     return errs
 
 
+
+
 def structural(manifests_dir: Path) -> int:
     base_path = HERE / "manifest.yml"
     base = yaml.safe_load(base_path.read_text(encoding="utf-8"))
@@ -260,6 +322,18 @@ def structural(manifests_dir: Path) -> int:
     v1_files = sorted(manifests_dir.glob("*.yml")) if manifests_dir.exists() else []
     for f in v1_files:
         errors += check_manifest(f, base, base["runtime"], GROUP_V1, base_image_map)
+    verify01_dir = manifests_dir / "verify-01"
+    verify01_files = sorted(verify01_dir.glob("*.yml")) if verify01_dir.exists() else []
+    if verify01_files:
+        ref_name = "mvp.yml"
+        runtime_v2 = _load_runtime_ref(regression_dir / ref_name)
+        if not runtime_v2:
+            errors.append(f"{verify01_dir}: 缺少 V2 参考清单 {ref_name}（无法校验 runtime）")
+        for f in verify01_files:
+            errors += check_manifest(f, base, runtime_v2, GROUP_V2, base_image_map,
+                                     allowed_arms=VERIFY01_ARMS,
+                                     allow_unknown_repos=True)
+            errors += _check_verify01_manifest(f)
     reg_files = sorted(regression_dir.glob("*.yml")) if regression_dir.exists() else []
     if reg_files:
         ref_name = "mvp.yml"
@@ -272,7 +346,8 @@ def structural(manifests_dir: Path) -> int:
         errors += _check_regression_isomorphic(v1_files, regression_dir, base_path)
     print(f"manifests: base + V1 {len(v1_files)} "
           f"({', '.join(f.name for f in v1_files)}) + V2 regression {len(reg_files)} "
-          f"({', '.join(f.name for f in reg_files)})")
+          f"({', '.join(f.name for f in reg_files)}) + verify-01 {len(verify01_files)} "
+          f"({', '.join(f.name for f in verify01_files)})")
     if errors:
         print("\n".join(f"ERROR {e}" for e in errors), file=sys.stderr)
         return 1
@@ -578,7 +653,13 @@ def control(task_id: str, image: str, config: str | None, fb_bin: str) -> int:
     tmp = Path(tempfile.mkdtemp(prefix="fb-control-"))
     results = {}
     for label, patch in (("gold", gold), ("empty", "")):
-        pred = tmp / f"{label}.jsonl"
+        # 每个 control 必须有独立的输出根：`fb eval` 的 Output 目录 = predictions
+        # 所在目录，两个 label 共用 tmp 根时 empty 会复用 gold 的
+        # eval_outputs/<task>/attempt-1（缓存命中 → 0.0s 且 resolved 抄了 gold），
+        # 造成假阳性/假阴性。实测 2026-11-12：empty 曾误报 resolved=1。
+        work = tmp / label
+        work.mkdir()
+        pred = work / f"{label}.jsonl"
         pred.write_text(json.dumps({
             "instance_id": task_id, "model_name_or_path": f"control-{label}",
             "model_patch": patch, "success": True, "n_attempt": 1,
@@ -587,8 +668,6 @@ def control(task_id: str, image: str, config: str | None, fb_bin: str) -> int:
                "--n-concurrent", "1", "--data-version", "v1.1"]
         if config:
             cmd += ["--config-path", config]
-        work = tmp / label
-        work.mkdir()
         started = time.time()
         r = subprocess.run(cmd, cwd=work, env=env, capture_output=True, text=True)
         (work / "eval.log").write_text(r.stdout + "\n" + r.stderr)
