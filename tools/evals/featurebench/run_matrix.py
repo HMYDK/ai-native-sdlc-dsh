@@ -91,6 +91,8 @@ def main() -> int:
                     help="跳过已成功（agent_completed、无 agent_failure、patch 非空）的 arm，只补跑失败/缺失的")
     ap.add_argument("--only-task", action="append", default=[],
                     help="只跑指定 task id（可重复）；顺序仍按 manifest 中的奇偶规则")
+    ap.add_argument("--total-budget", type=int, default=None,
+                    help="覆盖 manifest 的 total_token_budget（父编排传入剩余额度）")
     ap.add_argument("--execute", action="store_true", help="真正执行（默认 dry-run）")
     args = ap.parse_args()
 
@@ -104,6 +106,10 @@ def main() -> int:
     runs_root.mkdir(parents=True, exist_ok=True)
     policy = manifest.get("run_policy", {})
     budget = int(policy.get("total_token_budget", 0))
+    if args.total_budget is not None:
+        # 父编排（run_repeats/run_regression）传进来的是「剩余额度」；取两者较小值，
+        # manifest 未设预算时才直接采用剩余额度。
+        budget = min(budget, max(0, args.total_budget)) if budget else max(0, args.total_budget)
     infra_retries = int(policy.get("infra_retries", 1))
     only = set(args.only_task)
     only_arms = set(args.only_arm)

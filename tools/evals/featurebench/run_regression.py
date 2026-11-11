@@ -99,6 +99,8 @@ def main() -> int:
                "--web-port-base", str(port_base), "--cdp-port-base", str(cdp_base)]
         for m in args.image_map:
             cmd += ["--image-map", m]
+        remaining = max(0, args.budget - total_tokens(root))
+        cmd += ["--total-budget", str(remaining)]
         if args.execute:
             cmd += ["--execute"]
         return cmd
@@ -149,6 +151,8 @@ def main() -> int:
                    "--cdp-port-base", str(args.cdp_port_base)]
             for m in args.image_map:
                 cmd += ["--image-map", m]
+            remaining = max(0, args.budget - total_tokens(root))
+            cmd += ["--budget", str(remaining)]
             if args.execute:
                 cmd += ["--execute"]
             subprocess.run(cmd, stdout=open(root / f"{name}.log", "w"), stderr=subprocess.STDOUT)
