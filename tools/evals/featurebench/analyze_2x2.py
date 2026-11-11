@@ -62,15 +62,26 @@ def main() -> None:
         }
 
     stats = {a: arm_stats(a) for a in ARMS}
-    resolved = {a: (stats[a]["resolved_rate"] or 0.0) for a in ARMS}
+    # None = 该 arm 没有可评分 run；不能 `or 0.0` 当成观测到的 0 成功率，否则会算出
+    # 没有可比证据支持的 treatment effect。缺任何一格 → 相关 effect 记 None。
+    resolved = {a: stats[a]["resolved_rate"] for a in ARMS}
     tokens = {a: stats[a]["tokens"] for a in ARMS}
 
-    preset_effect = (mean([resolved["sdlc"], resolved["sdlc_guidance"]])
-                     - mean([resolved["standard"], resolved["standard_guidance"]]))
-    guidance_effect = (mean([resolved["standard_guidance"], resolved["sdlc_guidance"]])
-                       - mean([resolved["standard"], resolved["sdlc"]]))
-    interaction = ((resolved["sdlc_guidance"] - resolved["sdlc"])
-                   - (resolved["standard_guidance"] - resolved["standard"]))
+    def effect(a_arms, b_arms):
+        vals = [resolved[a] for a in (*a_arms, *b_arms)]
+        if any(v is None for v in vals):
+            return None
+        return mean([resolved[a] for a in a_arms]) - mean([resolved[b] for b in b_arms])
+
+    preset_effect = effect(("sdlc", "sdlc_guidance"),
+                           ("standard", "standard_guidance"))
+    guidance_effect = effect(("standard_guidance", "sdlc_guidance"),
+                             ("standard", "sdlc"))
+    if any(resolved[a] is None for a in ARMS):
+        interaction = None
+    else:
+        interaction = ((resolved["sdlc_guidance"] - resolved["sdlc"])
+                       - (resolved["standard_guidance"] - resolved["standard"]))
 
     def ratio(a, b):
         return (tokens[a] / tokens[b] - 1) if tokens.get(a) and tokens.get(b) else None
@@ -103,10 +114,15 @@ def main() -> None:
                      f"{round(s['elapsed']) if s['elapsed'] else None} | "
                      f"{len(s['failures'])} |")
     me = out["main_effects"]
+
+    def fmt_effect(key):
+        v = me.get(key)
+        return f"{v:+.3f}" if v is not None else "不可用（有 arm 无官方评分）"
+
     lines += ["", "## 主效应（resolved 比例）", "",
-              f"- preset（SDLC - 标准）：{me['preset_effect_resolved']:+.3f}",
-              f"- 引导（有 - 无）：{me['guidance_effect_resolved']:+.3f}",
-              f"- 交互项：{me['interaction_resolved']:+.3f}",
+              f"- preset（SDLC - 标准）：{fmt_effect('preset_effect_resolved')}",
+              f"- 引导（有 - 无）：{fmt_effect('guidance_effect_resolved')}",
+              f"- 交互项：{fmt_effect('interaction_resolved')}",
               f"- token 倍数（sdlc/standard）：{me['token_ratio_sdlc_vs_standard']:+.2%}"
               if me.get('token_ratio_sdlc_vs_standard') is not None else "",
               f"- token 倍数（引导/无引导）：{me['token_ratio_guidance_vs_none']:+.2%}"
