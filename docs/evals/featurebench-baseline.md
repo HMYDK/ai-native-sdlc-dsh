@@ -314,6 +314,10 @@
   （会重复计入验证者子会话），两种口径都保留，但 AC-006 以主会话为准。
 - canonical 96 行对应 **95 次物理运行**（pilot 是 V2 同一 run 的副本）；不能把 canonical
   行数当作独立样本数。
+- 历史编排在 driver wall-clock timeout 时可能把 token 记为 0（`run.json` 未写出），本基线的
+  token 汇总已用 session 补全，但当时的预算约束可能因此被低估；该问题已在 PR #13 修复
+  （`run_arm` 会话兜底、`run_matrix` 共享预算停止条件、`evaluate_matrix` 拒绝旧 report），
+  历史数字不回填，作为当时的编排局限记录。
 - 历史报告（2026-11-06 ~ 11-08）保留当时口径；本文与
   [`featurebench-baseline-metrics.json`](featurebench-baseline-metrics.json) 为当前基线；
   分母修订记录见相关报告顶部的「2026-11-10 EVAL-01 修订」注。
