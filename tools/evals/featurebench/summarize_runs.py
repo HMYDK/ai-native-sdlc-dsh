@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import re
 from pathlib import Path
 
 import yaml
@@ -77,6 +78,27 @@ def session_tokens(task_dir: Path) -> int | None:
     return total or None
 
 
+VERDICT_STATUSES = ("approve", "reject", "needs_human")
+
+
+def extract_verify_status(text: str) -> str | None:
+    """从 sdlc_verify 结果文本里取「有效裁决」，优先 structured verdict。
+
+    - 正常结果：`"verdict": {"status": "..."}` 是经过 criteria policy 后的有效裁决；
+      `raw_verdict.status` / `raw_status` 只是模型原始判断，可能被降级。
+    - 验证器输出无法解析时，index 会直接返回 `{"status": "needs_human", ...}`（无 raw_status）。
+    - 老日志/截断文本没有结构化结果时，回退到 raw_status。
+    """
+    m = re.search(r'"verdict"\s*:\s*\{\s*"status"\s*:\s*"(approve|reject|needs_human)"', text)
+    if m:
+        return m.group(1)
+    m = re.match(r'\s*\{\s*"status"\s*:\s*"(approve|reject|needs_human)"', text)
+    if m:
+        return m.group(1)
+    m = re.search(r'"raw_status"\s*:\s*"(approve|reject|needs_human)"', text)
+    return m.group(1) if m else None
+
+
 def sdlc_stats(task_dir: Path) -> dict:
     """从 session 日志统计实际工具调用与 verify 裁决（zstandard 可选）。"""
     try:
@@ -106,12 +128,12 @@ def sdlc_stats(task_dir: Path) -> dict:
                     for v in o:
                         walk(v)
                 elif isinstance(o, str):
-                    # sdlc_verify 的裁决 JSON 嵌在 tool/result 的文本里：
-                    #   {"status": "approve", ..., "raw_status": "approve"}
-                    for k in ("approve", "reject", "needs_human"):
-                        if f'"raw_status": "{k}"' in o:
-                            verdicts.append(k)
-                            break
+                    # sdlc_verify 的结果 JSON 嵌在 tool/result 文本里；取有效 status
+                    # （可能被 policy 从 approve 降级为 needs_human/reject），
+                    # 不能直接读 raw_status。
+                    status = extract_verify_status(o)
+                    if status is not None:
+                        verdicts.append(status)
 
             walk(d)
     sdlc = {k: v for k, v in calls.items() if k.startswith("sdlc_")}

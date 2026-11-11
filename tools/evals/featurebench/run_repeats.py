@@ -86,11 +86,15 @@ def main() -> int:
     ap.add_argument("--arm-parallel", type=int, default=2)
     ap.add_argument("--web-port-base", type=int, default=3500)
     ap.add_argument("--cdp-port-base", type=int, default=9800)
+    ap.add_argument("--budget", type=int, default=None,
+                    help="覆盖 manifest 的 total_token_budget（父编排传入剩余额度）")
     ap.add_argument("--execute", action="store_true")
     args = ap.parse_args()
 
     manifest = yaml.safe_load(open(args.manifest, encoding="utf-8"))
     budget = int(manifest.get("run_policy", {}).get("total_token_budget", 0))
+    if args.budget is not None:
+        budget = min(budget, max(0, args.budget)) if budget else max(0, args.budget)
     runs_root = Path(args.runs_root)
     runs_root.mkdir(parents=True, exist_ok=True)
     plan = []
@@ -117,13 +121,20 @@ def main() -> int:
 
     for rep, rep_root, cmd in plan:
         used = total_tokens(runs_root)
-        if budget and used > budget:
-            print(f"[stop] total tokens {used} > budget {budget}", file=sys.stderr)
+        remaining = max(0, budget - used) if budget else None
+        if budget and remaining <= 0:
+            print(f"[stop] total tokens {used} >= budget {budget}", file=sys.stderr)
             return 4
-        print(f"[rep] {rep} start {time.strftime('%H:%M:%S')} used={used}")
+        print(f"[rep] {rep} start {time.strftime('%H:%M:%S')} used={used} "
+              f"remaining={remaining}")
+        # 每个 rep 的 matrix 必须继承剩余额度：否则已花掉 290M 后，下一个 rep 还会拿到
+        # manifest 里的完整 300M 预算，跨 rep 的限制形同虚设。
+        rep_cmd = list(cmd)
+        if remaining is not None:
+            rep_cmd += ["--total-budget", str(remaining)]
         log = runs_root / f"rep{rep}.matrix.log"
         with open(log, "w") as fh:
-            code = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT).returncode
+            code = subprocess.run(rep_cmd, stdout=fh, stderr=subprocess.STDOUT).returncode
         print(f"[rep] {rep} matrix exit={code}")
         # 官方评分（只评这一 rep）
         eval_cmd = [sys.executable, str(HERE / "evaluate_matrix.py"),
