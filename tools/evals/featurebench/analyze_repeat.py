@@ -116,8 +116,10 @@ def main() -> None:
         lines.append(f"| {task_id} | {a['resolved']}/{a['k']} | {b['resolved']}/{b['k']} | "
                      f"{tmean(a)} | {tmean(b)} | {sorted(d['rep_diffs'].items())} |")
     p = out["paired"]
+    mean_diff = p["mean_diff_B_minus_A"]
+    diff_text = f"{mean_diff:+.3f}" if mean_diff is not None else "不可用（没有可比配对）"
     lines += ["", "## 汇总", "",
-              f"- paired n={p['n']}，平均差（B−A）= {p['mean_diff_B_minus_A']:+.3f}，"
+              f"- paired n={p['n']}，平均差（B−A）= {diff_text}，"
               f"bootstrap 95% CI = [{lo if lo is None else round(lo,3)}, {hi if hi is None else round(hi,3)}]",
               f"- B 独有胜：{p['B_only']}，A 独有胜：{p['A_only']}，平局：{p['ties']}",
               "", "> 每任务每臂 k=3；resolved 是 0/1，k=3 时单 cell 方差很大；",
