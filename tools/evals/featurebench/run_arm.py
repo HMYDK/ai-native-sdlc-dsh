@@ -255,6 +255,14 @@ def main() -> int:
         print("[dry-run] add --execute to actually run")
         return 0
 
+    # 复用同一输出目录重试时，上一次尝试的 run.json/meta.json 必须先清掉：否则本次
+    # driver 提前退出（timeout/崩溃）没写 payload 时，下面会读到上一轮的 usage/
+    # turn_error/done，导致 token 重复计账、timeout 被误判成 infra、或跳过 session 兜底。
+    for stale_name in ("run.json", "meta.json"):
+        stale = out / stale_name
+        if stale.exists():
+            stale.unlink()
+
     # 真正执行才需要的运行时依赖（dry-run 已在上面返回）。
     import docker
     from featurebench.infer.container import ContainerManager
