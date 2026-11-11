@@ -6580,12 +6580,12 @@
       {
         "path": "docs/evals/featurebench-2026-11-07-2x2-data.json",
         "rows": 20,
-        "sha256": "3ef236244a8e2fee20274f2251dd07890a71e6e529d90118eaa1c30fb474ec87"
+        "sha256": "28ef68f6779a7f99fa05a4ee40b8ce8ff7568eeb8c26bfbd04a43467ad02e0b7"
       },
       {
         "path": "docs/evals/featurebench-2026-11-07-expanded-data.json",
         "rows": 24,
-        "sha256": "c77369eb9d6dbaf533b691d5d25dd212273553557288c89fc06dcb0ec4c3e38c"
+        "sha256": "05539d60a145142eaf49d268116f15a4b8acf672827d492867c08ddd779941dc"
       },
       {
         "path": "docs/evals/featurebench-2026-11-07-verifier-data.json",
@@ -6600,7 +6600,7 @@
       {
         "path": "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json",
         "rows": 18,
-        "sha256": "fee817325ea9005a38bab6f4008e14614913a1b57308cf6aca2dca0f385a26b5"
+        "sha256": "fbeb1e5ee7f85d576d73fc26fe024f9a7c5f2c91c923b120e46dbee614219326"
       },
       {
         "path": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
