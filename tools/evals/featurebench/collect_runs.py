@@ -971,7 +971,7 @@ def build_env_identity(canonical: list[dict], manifests: dict, extras: dict,
         "pilot 单 run 记录 dsh_cli_actual=0.2.2-rc.1 / plugin_version_actual=0.6.1"
     )
 
-    attempts_block = build_attempts_reconciliation(canonical, extras)
+    attempts_block = build_attempts_reconciliation(canonical, extras, runs_base)
     return {
         "schema_version": 1,
         "generated_by": "tools/evals/featurebench/collect_runs.py（本地离线，无生成时间戳）",
@@ -1021,7 +1021,8 @@ def build_env_identity(canonical: list[dict], manifests: dict, extras: dict,
     }
 
 
-def build_attempts_reconciliation(canonical: list[dict], extras: dict) -> dict:
+def build_attempts_reconciliation(canonical: list[dict], extras: dict,
+                                   runs_base: Path) -> dict:
     matrix_covered = sum(1 for r in canonical if r["attempts"] is not None)
     matrix_sum = sum(r["attempts"] or 0 for r in canonical)
     per_exp = {}
@@ -1038,7 +1039,9 @@ def build_attempts_reconciliation(canonical: list[dict], extras: dict) -> dict:
     retry_events = 0
     run_events = 0
     for exp in EXPERIMENTS:
-        root = DEFAULT_RUNS_BASE / exp["root_rel"]
+        # 必须用调用方选定的 runs base：归档被恢复到非 /tmp 路径时，读 DEFAULT_RUNS_BASE
+        # 会得到 0 条日志事件（或混入无关旧日志），让 --check 对同一份归档误报漂移。
+        root = runs_base / exp["root_rel"]
         patterns = "*.log"
         for p in sorted(root.glob(patterns)):
             try:
