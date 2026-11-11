@@ -12,6 +12,23 @@ await new Promise(r => ws.onopen = r);
 const call = (method, params={}) => new Promise(res => { const i=++id; pending.set(i,res); ws.send(JSON.stringify({id:i,method,params})); });
 const evalJS = async expr => { const r = await call('Runtime.evaluate', {expression: expr, awaitPromise: true, returnByValue: true, timeout: 180000}); if (r.result?.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0,500)); return r.result?.result?.value; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// 超预算/墙钟到点时必须先停掉正在生成的 turn，再让 run_arm 导出 session / 抽 patch；
+// 否则 agent 在抽 patch 期间还会继续花 token、改文件，成绩与用量取决于导出时机。
+const stopTurn = async () => {
+  const clicked = await evalJS(`(()=>{const labels=['停止','停止生成','停止回答','Stop'];const b=[...document.querySelectorAll('button')].find(x=>labels.includes((x.innerText||'').trim()));if(b){b.click();return true}return false})()`);
+  for (let i = 0; i < 30; i++) {
+    const generating = await evalJS(`document.body.innerText.includes('深度求索中')`);
+    if (!generating) return clicked ? 'clicked+idle' : 'idle';
+    await sleep(1000);
+  }
+  // 按钮文案不匹配时的兜底：Escape，再等 10s
+  await evalJS(`(()=>{document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true})()`);
+  for (let i = 0; i < 10; i++) {
+    await sleep(1000);
+    if (!(await evalJS(`document.body.innerText.includes('深度求索中')`))) return 'escape+idle';
+  }
+  return 'still-generating';
+};
 await call('Page.bringToFront');
 await call('Emulation.setFocusEmulationEnabled', {enabled: true}).catch(()=>{});
 // 1. 等前端 boot 出 composer
@@ -116,6 +133,8 @@ await call('Input.dispatchKeyEvent', {type:'rawKeyDown', key:'Enter', code:'Ente
 await call('Input.dispatchKeyEvent', {type:'keyUp', key:'Enter', code:'Enter', windowsVirtualKeyCode:13, nativeVirtualKeyCode:13});
 const t0 = Date.now();
 const maxTokens = Number(process.env.MAX_TOKENS || '0');
+const maxWallS = Number(process.env.MAX_WALL_S || '0');
+const wallDeadline = maxWallS > 0 ? t0 + maxWallS * 1000 : Infinity;
 let lastBody = ''; let idleSince = 0; let done = false; let aborted = null; let usageSeen = ''; let turnError = false;
 const parseUsage = (body) => {
   // 实测 UI 有时显示「用量 12.3M tok」，有时底部只显示「12.3M tok·缓存命中…」；
@@ -134,7 +153,14 @@ while (Date.now() - t0 < 3 * 60 * 60 * 1000) {
   const st = JSON.parse(state);
   const used = parseUsage(st.body);
   if (used !== null) usageSeen = String(used);
-  if (maxTokens > 0 && used !== null && used > maxTokens) { aborted = 'over_budget'; break; }
+  const overBudget = maxTokens > 0 && used !== null && used > maxTokens;
+  const wallExceeded = Date.now() >= wallDeadline;
+  if (overBudget || wallExceeded) {
+    aborted = overBudget ? 'over_budget' : 'timeout';
+    console.log('ABORT', aborted, 'used=', usageSeen);
+    console.log('STOP_TURN', await stopTurn());
+    break;
+  }
   // 不能只看「已完成」：todo 控件里的 "0/5 已完成" 会误判（实测 B 组被提前截断，
   // 产出 1.5MB 垃圾 patch）。真实完成标记是 turn 尾部的「已完成，用时 N 秒」。
   // 另外 turn 可能以错误结束（实测 DeepSeek stream 在 message_stop 前断开），页面
