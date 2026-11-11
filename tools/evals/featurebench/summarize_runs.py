@@ -130,6 +130,15 @@ def main() -> None:
     manifest = yaml.safe_load(open(args.manifest, encoding="utf-8"))
     runs_root = Path(args.runs_root)
     arms = list(manifest["arms"].keys())
+    # matrix.json 保存了每次 attempt 的 token 用量；meta.json 只有最后一次尝试，
+    # infra 重试过的 run 只看 meta 会少算成本。这里按 (task, arm) 对齐回报告行。
+    matrix_runs: dict = {}
+    matrix_path = runs_root / "matrix.json"
+    if matrix_path.exists():
+        matrix_data = load_json(matrix_path) or {}
+        for mrun in matrix_data.get("runs") or []:
+            key = (mrun.get("task"), mrun.get("arm"))
+            matrix_runs[key] = mrun
     sdlc_arms = [a for a in arms if "SDLC" in (manifest["arms"][a].get("preset") or "")]
     tasks = []
     for task in manifest["tasks"]:
@@ -157,11 +166,23 @@ def main() -> None:
                 "leak_scan_hits": meta.get("leak_scan_hits", []),
             }
             row.update(official_metrics(task_dir, arm))
-            if row["tokens"] is None:
+            mrun = matrix_runs.get((task["id"], arm))
+            if mrun:
+                row["attempts"] = mrun.get("attempts")
+                row["attempt_usage"] = mrun.get("attempt_usage")
+            if row["tokens"] is None and mrun and isinstance(mrun.get("tokens"), (int, float)):
+                row["tokens"] = int(mrun["tokens"])
+                row["tokens_source"] = "matrix_attempts_sum"
+            elif row["tokens"] is None:
                 row["tokens"] = session_tokens(d)
                 row["tokens_source"] = "session" if row["tokens"] else None
             else:
                 row["tokens_source"] = "ui"
+            # 发生 infra 重试时 meta 只是最后一次尝试，改用 matrix 的 attempt 总和。
+            if (mrun and isinstance(mrun.get("tokens"), (int, float))
+                    and int(mrun.get("attempts") or 1) > 1):
+                row["tokens"] = int(mrun["tokens"])
+                row["tokens_source"] = "matrix_attempts_sum"
             if arm in sdlc_arms:
                 # 必须传当前 arm 目录 d，不能传 task_dir：2×2 的同一 task 下同时有
                 # sdlc/ 与 sdlc_guidance/，递归读会串臂、把另一臂的工具调用/裁决算进来。

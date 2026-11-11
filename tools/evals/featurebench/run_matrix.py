@@ -39,6 +39,13 @@ def arm_cmd(args, manifest_path: Path, task_id: str, arm: str, image: str, out: 
             "--credentials", str(Path(args.credentials).resolve()), "--execute"]
 
 
+def load_json(p: Path):
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def snapshot_meta(out: Path) -> dict | None:
     p = out / "meta.json"
     if not p.exists():
@@ -121,9 +128,18 @@ def main() -> int:
         print("missing --image-map for:", missing, file=sys.stderr)
         return 2
 
+    # --retry-failed 会复用同一个 runs root；必须先载入已有 matrix ledger，否则本次
+    # 只包含补跑的 run，会把之前的 attempted-run 证据与 token 账本整体覆盖成空。
+    prior_matrix_path = runs_root / "matrix.json"
+    prior_matrix = load_json(prior_matrix_path) if prior_matrix_path.exists() else {}
     summary = {"started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-               "manifest": str(manifest_path.resolve()), "runs": [],
-               "total_tokens": 0, "stopped_for_budget": False}
+               "manifest": str(manifest_path.resolve()),
+               "runs": list(prior_matrix.get("runs") or []),
+               "total_tokens": int(prior_matrix.get("total_tokens") or 0),
+               "stopped_for_budget": False}
+    if prior_matrix:
+        summary["resumed"] = True
+        summary["resumed_from_total_tokens"] = int(prior_matrix.get("total_tokens") or 0)
     lock = threading.Lock()
     # 预算耗尽是“全局停止条件”，必须在启动任何新 run 之前检查；否则 --parallel-tasks>1 时
     # ThreadPoolExecutor.map 会把整个 plan 都排进队列，单个 worker 的局部 over_budget
@@ -216,6 +232,16 @@ def main() -> int:
                 if any(t is not None for t in usage):
                     record["tokens"] = sum(int(t or 0) for t in usage)
                 with lock:
+                    # 补跑同一个 (task, arm)：保留旧记录里的尝试证据，再用本次结果替换；
+                    # 旧 token 已在 resumed_from_total_tokens 里计入，不重复加。
+                    prior_record = next(
+                        (r for r in summary["runs"]
+                         if r.get("task") == item["task"] and r.get("arm") == arm), None)
+                    if prior_record is not None:
+                        summary["runs"].remove(prior_record)
+                        record["prior_attempts"] = prior_record.get("attempts")
+                        record["prior_attempt_usage"] = prior_record.get("attempt_usage")
+                        record["prior_tokens"] = prior_record.get("tokens")
                     summary["runs"].append(record)
                     summary["total_tokens"] += max(0, int(record.get("tokens") or 0) - charged)
                     (runs_root / "matrix.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
