@@ -677,19 +677,24 @@
  "analysis": {
   "data": "/private/tmp/fb-runs-expanded/report-data.json",
   "A": {
-   "n": 11,
+   "n": 12,
+   "scoreable": 11,
    "resolved": 7,
    "resolved_rate": 0.6363636363636364,
    "failures": [
     "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1:turn_error"
    ],
-   "tokens_median": 4600000,
-   "tokens_mean": 6749000.0,
+   "unscoreable": [
+    "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1"
+   ],
+   "tokens_median": 4400000.0,
+   "tokens_mean": 6436583.333333333,
    "tokens_p90": 16300000,
-   "elapsed_median": 440
+   "elapsed_median": 437.5
   },
   "B": {
    "n": 12,
+   "scoreable": 12,
    "resolved": 10,
    "resolved_rate": 0.8333333333333334,
    "failures": [
@@ -699,6 +704,7 @@
     "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1:over_budget",
     "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1:timeout"
    ],
+   "unscoreable": [],
    "tokens_median": 10350000.0,
    "tokens_mean": 14895438.083333334,
    "tokens_p90": 40100000,

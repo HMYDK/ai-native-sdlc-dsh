@@ -70,18 +70,22 @@ def main() -> None:
         pairs.append(rec)
 
     def arm_summary(arm: str) -> dict:
-        rs = [r for r in data["runs"] if r.get("arm") == arm and "resolved" in r]
+        # attempted 含缺官方评分的 run；scoreable 只用于 resolved/pass_rate。
+        all_rs = [r for r in data["runs"] if r.get("arm") == arm]
+        rs = [r for r in all_rs if "resolved" in r]
         resolved = [r for r in rs if r["resolved"]]
         return {
-            "n": len(rs),
+            "n": len(all_rs),
+            "scoreable": len(rs),
             "resolved": len(resolved),
             "resolved_rate": len(resolved) / len(rs) if rs else None,
-            "failures": [r["task_id"] + ":" + str(r.get("agent_failure")) for r in rs
+            "failures": [r["task_id"] + ":" + str(r.get("agent_failure")) for r in all_rs
                          if r.get("agent_failure")],
-            "tokens_median": median([r.get("tokens") for r in rs]),
-            "tokens_mean": mean([r.get("tokens") for r in rs]),
-            "tokens_p90": p90([r.get("tokens") for r in rs]),
-            "elapsed_median": median([r.get("elapsed_seconds") for r in rs]),
+            "unscoreable": [r["task_id"] for r in all_rs if "resolved" not in r],
+            "tokens_median": median([r.get("tokens") for r in all_rs]),
+            "tokens_mean": mean([r.get("tokens") for r in all_rs]),
+            "tokens_p90": p90([r.get("tokens") for r in all_rs]),
+            "elapsed_median": median([r.get("elapsed_seconds") for r in all_rs]),
         }
 
     diffs = [r["diff"] for r in pairs if r["diff"] is not None]

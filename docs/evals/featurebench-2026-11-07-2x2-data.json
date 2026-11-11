@@ -568,6 +568,7 @@
   "arms": {
    "standard": {
     "n": 5,
+    "scoreable": 5,
     "resolved": 4,
     "resolved_rate": 0.8,
     "pass_rate": 0.99796,
@@ -576,21 +577,26 @@
     "failures": [
      {
       "task": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
-      "failure": "turn_error"
+      "failure": "turn_error",
+      "resolved": true
      }
-    ]
+    ],
+    "unscoreable": []
    },
    "standard_guidance": {
     "n": 5,
+    "scoreable": 5,
     "resolved": 4,
     "resolved_rate": 0.8,
     "pass_rate": 0.81538,
     "tokens": 5220000.0,
     "elapsed": 540.4,
-    "failures": []
+    "failures": [],
+    "unscoreable": []
    },
    "sdlc": {
     "n": 5,
+    "scoreable": 5,
     "resolved": 4,
     "resolved_rate": 0.8,
     "pass_rate": 0.81538,
@@ -599,18 +605,22 @@
     "failures": [
      {
       "task": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
-      "failure": "over_budget"
+      "failure": "over_budget",
+      "resolved": true
      }
-    ]
+    ],
+    "unscoreable": []
    },
    "sdlc_guidance": {
     "n": 5,
+    "scoreable": 5,
     "resolved": 3,
     "resolved_rate": 0.6,
     "pass_rate": 0.61538,
     "tokens": 16846700.0,
     "elapsed": 1625.4,
-    "failures": []
+    "failures": [],
+    "unscoreable": []
    }
   },
   "main_effects": {

@@ -610,21 +610,25 @@
    "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1": {
     "A": {
      "k": 3,
+     "scoreable": 3,
      "resolved": 3,
      "resolved_rate": 1.0,
      "tokens_mean": 877000,
      "tokens_stdev": 117042.72724095247,
-     "failures": []
+     "failures": [],
+     "unscoreable_reps": []
     },
     "B": {
      "k": 3,
+     "scoreable": 3,
      "resolved": 3,
      "resolved_rate": 1.0,
      "tokens_mean": 10384972,
      "tokens_stdev": 4334489.534230299,
      "failures": [
       "timeout"
-     ]
+     ],
+     "unscoreable_reps": []
     },
     "rep_diffs": {
      "1": 0,
@@ -636,19 +640,23 @@
    "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1": {
     "A": {
      "k": 3,
+     "scoreable": 3,
      "resolved": 3,
      "resolved_rate": 1.0,
      "tokens_mean": 10300000,
      "tokens_stdev": 4200000.0,
-     "failures": []
+     "failures": [],
+     "unscoreable_reps": []
     },
     "B": {
      "k": 3,
+     "scoreable": 3,
      "resolved": 3,
      "resolved_rate": 1.0,
      "tokens_mean": 12566666.666666666,
      "tokens_stdev": 2967041.1748631555,
-     "failures": []
+     "failures": [],
+     "unscoreable_reps": []
     },
     "rep_diffs": {
      "1": 0,
@@ -660,19 +668,23 @@
    "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1": {
     "A": {
      "k": 3,
+     "scoreable": 3,
      "resolved": 0,
      "resolved_rate": 0.0,
      "tokens_mean": 1833333.3333333333,
-     "tokens_stdev": 850490.0548115382,
-     "failures": []
+     "tokens_stdev": 850490.0548115383,
+     "failures": [],
+     "unscoreable_reps": []
     },
     "B": {
      "k": 3,
+     "scoreable": 3,
      "resolved": 0,
      "resolved_rate": 0.0,
      "tokens_mean": 4733333.333333333,
      "tokens_stdev": 1270170.5922171767,
-     "failures": []
+     "failures": [],
+     "unscoreable_reps": []
     },
     "rep_diffs": {
      "1": 0,
