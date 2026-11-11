@@ -1,14 +1,18 @@
-# verify01：VERIFY-01 Step 1 归因提取脚本
+# verify01：VERIFY-01 分析/实验工具
 
-对应 GitHub issue **HMYDK/ai-native-sdlc-dsh#16** Step 1（AC-001/AC-002）。
+对应 GitHub issue **HMYDK/ai-native-sdlc-dsh#16**（Step 1 归因、Step 4 A/B 汇总）。
 本目录只有分析工具，不含 verifier 代码改动。
 
 - `attribute_cases.py` —— 从本机只读原始归档重算 11 个案例的
   `sdlc_verify` 裁决来源、官方评分结果、spec/AC、verifier 子会话动作，并附上
   Step 1 归因标签（标签是人工复核结论，以常量形式固化，便于复跑得到同一份数据）。
+- `summarize_ab.py` —— 从 A/B runs 目录聚合 Step 4 指标：官方 resolved、
+  verifier 裁决序列（主会话 callId 配对）、token/耗时/失败分类，输出机读 JSON +
+  markdown 表。**分母口径全部显式列出、不插补缺失值**。
 - 产物（生成/维护于 `docs/evals/`，不在本目录）：
   - `docs/evals/verify-01-attribution.md`（可读归因表 + 失败模式 + 数据限制）
   - `docs/evals/verify-01-attribution-data.json`（机读版，无本机绝对路径）
+  - `docs/evals/verify-01-experiment-data.json`（Step 4 机读结果）
 
 ## 用法
 
