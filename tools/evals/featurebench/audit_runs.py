@@ -775,6 +775,16 @@ def check_leak(rows: list[dict], ck: Checker) -> dict:
     per_run = {r["run_id"]: r for r in la["per_run"]}
     if set(per_run) != {r["run_id"] for r in rows}:
         ck.fail("leak-audit.per_run 的 run 集合与 runs.jsonl 不一致")
+    # isolation check 未完成/失败是硬失败：不能用「没有泄漏命中」掩盖「没做隔离检查」。
+    isolation_missing = la.get("totals", {}).get("isolation_check_missing_or_failed") or []
+    if isolation_missing:
+        ck.fail(f"leak-audit: {len(isolation_missing)} 个 run 的 isolation check 未完成: "
+                f"{isolation_missing[:5]}")
+    if la.get("totals", {}).get("leak_scan_txt_mismatches"):
+        ck.fail("leak-audit: totals.leak_scan_txt_mismatches 非空")
+    for item in per_run.values():
+        if item.get("isolation_check_done") is not True:
+            ck.fail(f"{item.get('run_id')}: isolation check 未完成（isolation_check_done != true）")
     recomputed_hits = 0
     hits_runs = 0
     for r in rows:

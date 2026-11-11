@@ -34,7 +34,7 @@ RULES = [
     ("home-user-path", re.compile(r"/hom" + r"e/[A-Za-z0-9._-]+/")),
     ("private-tmp", re.compile(r"/priv" + r"ate/tmp")),
     ("macos-temp", re.compile(r"/var/" + r"folders/")),
-    ("windows-user-path", re.compile(r"[A-Za-z]:\\\\" + r"Us" + r"ers\\\\")),
+    ("windows-user-path", re.compile(r"[A-Za-z]:[\\/]+" + r"Us" + r"ers[\\/]+")),
     ("api-key-sk", re.compile(r"\bsk" + r"-[A-Za-z0-9_-]{16,}")),
     ("bearer-token", re.compile(r"Bearer\s+" + r"[A-Za-z0-9._~+/=-]{20,}")),
 ]
