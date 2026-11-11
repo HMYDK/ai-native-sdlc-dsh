@@ -7,6 +7,9 @@
   deepseek-flash(reasoningEffort=max) / 同批 `fb-eval-base:*` 镜像
 - 口径：官方 `fb eval` 为唯一成绩；`timeout` / `over_budget` 计入分母不重试；
   每任务每臂各 1 次
+- **2026-11-10 EVAL-01 口径修订**：原文表格把「有官方评分的 n=12」与 7/12 并列，实际
+  A 组只有 11 条可评分运行（1 条官方评分因 HF dataset revision 解析失败缺失，属环境
+  失败而非 agent 失败）。现改为 ITT / 可评分双口径并列；结论方向不变，原因见结果表下方注。
 - **2026-11-12 修订**：`analyze_expanded.py` 的 `both_resolved` 原先把 `diff==0`（含两臂
   都失败）也算作「都通过」；已改为只统计两臂都为 resolved。④ 的「两臂都通过」从 9 更正为
   **7**（都失败 2、B 独有 2、A 独有 0，共 11 对）。
@@ -23,13 +26,22 @@
 
 | 指标 | A 标准 | B SDLC+引导 |
 |---|---|---|
-| resolved（有官方评分的 n=12） | **7/12（58.3%）** | **10/12（83.3%）** |
+| resolved（ITT，n=12；A 组 1 次缺官方评分按未解决计入） | **7/12（58.3%）** | **10/12（83.3%）** |
+| resolved（可评分口径） | **7/11（63.6%）** | **10/12（83.3%）** |
 | 平均 F2P pass rate | 0.685 | 0.856 |
 | token 中位数 | 4.6M | 10.4M |
 | token p90 | 16.3M | 40.1M |
 | timeout / over_budget | 1 / 0 | 3 / 1 |
 
-> 注：一个 A 组任务（seaborn regression）没有成功产出可评分运行，paired 口径下是 11 对。
+> 注：A 组 seaborn `test_regression` 的运行有补丁（33,855 字符、agent 完成），但官方
+> `fb eval` 当时因 HF dataset revision 解析失败未产出 `report.json`（环境失败，不是
+> agent 失败，见原始 `eval-standard/eval.log`），因此没有官方评分。按预注册的「全部
+> 尝试计入分母、不静默剔除」，ITT 口径把它按未解决计入（7/12）；可评分口径为
+> 7/11（63.6%）。paired 只在两臂都可评分时计算，共 11 对。该条已列为 EVAL-01 的补评
+> 对象（issue #12 AC-007）。**2026-11-10 官方 Grader 复评完成：resolved=1.0**
+> （[`featurebench-2026-11-10-grader-rerun.md`](featurebench-2026-11-10-grader-rerun.md)）。
+> 本表保留历史 ITT / 可评分口径，不回填；补评后若计入，ITT 为 8/12——该敏感性只在
+> [`featurebench-baseline.md`](featurebench-baseline.md) 里单独列出。
 
 ### paired 比较（两臂都有评分的 11 个任务）
 
@@ -84,6 +96,8 @@
 
 - 每任务每臂 1 次，无法估计运行方差；④ 与③ / 首批的结论方向不一致，说明单次样本
   的噪声足以翻转 ±25pp 的 resolved 率。
+- 1 次 A 运行因官方评分环境失败缺结果：ITT 已计入分母，可评分口径单列（见结果表注）；
+  不能把它静默排除，也不能把「没有评分」当成「通过」。
 - 任务是「5 个 repo 的剩余 lv1」，不是按难度分层的随机样本；fast split 里这批 repo
   没有 lv2，无法覆盖多文件大任务。
 - timeout/over_budget 的补丁被官方评分并计入（若有补丁），这是「固定预算下的结果」；

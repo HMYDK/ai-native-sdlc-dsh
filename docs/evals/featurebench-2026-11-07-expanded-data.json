@@ -2,8 +2,8 @@
  "experiment": "expanded",
  "date": "2026-11-07",
  "report": {
-  "manifest": "/Users/zk/mine/code/github/mine_repo/ai-native-sdlc-dsh/ai-native-sdlc-dsh/tools/evals/featurebench/manifests/expanded.yml",
-  "runs_root": "/private/tmp/fb-runs-expanded",
+  "manifest": "tools/evals/featurebench/manifests/expanded.yml",
+  "runs_root": "/tmp/fb-runs-expanded",
   "runs": [
    {
     "task_id": "pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1",
@@ -675,7 +675,7 @@
   ]
  },
  "analysis": {
-  "data": "/private/tmp/fb-runs-expanded/report-data.json",
+  "data": "/tmp/fb-runs-expanded/report-data.json",
   "A": {
    "n": 12,
    "scoreable": 11,

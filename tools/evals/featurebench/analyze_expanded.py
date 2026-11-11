@@ -7,6 +7,10 @@
 - 官方 resolved 为唯一成绩；agent_failure（timeout/over_budget/turn_error）全部进分母；
 - token 优先用 meta/UI 读数，缺失时 summarize 已用 session 汇总补；
 - paired 差异只在两臂都有 resolved 的任务上算，同时报告缺失/失败任务。
+
+离线复算（issue #12 / AC-003）：`compute(report[, data_path])` 是纯函数（不读写
+文件、不联网、不调模型），`reaggregate.py --check` 用已提交数据快照重算后与已提交
+`analysis` 逐项对账；CLI 行为保持不变（`--data` / `--out` / `--markdown`）。
 """
 from __future__ import annotations
 
@@ -35,16 +39,10 @@ def p90(xs):
     return xs[idx]
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--markdown", required=True)
-    args = ap.parse_args()
-
-    data = json.loads(Path(args.data).read_text(encoding="utf-8"))
+def compute(report: dict, data_path=None) -> dict:
+    """从 report-data.json 的内容算扩样本分析结果（纯函数，不碰文件系统）。"""
     by_task = defaultdict(dict)
-    for r in data["runs"]:
+    for r in report["runs"]:
         if "resolved" not in r:
             continue
         by_task[r["task_id"]][r["arm"]] = r
@@ -71,7 +69,7 @@ def main() -> None:
 
     def arm_summary(arm: str) -> dict:
         # attempted 含缺官方评分的 run；scoreable 只用于 resolved/pass_rate。
-        all_rs = [r for r in data["runs"] if r.get("arm") == arm]
+        all_rs = [r for r in report["runs"] if r.get("arm") == arm]
         rs = [r for r in all_rs if "resolved" in r]
         resolved = [r for r in rs if r["resolved"]]
         return {
@@ -99,8 +97,8 @@ def main() -> None:
             by_repo[repo]["B"][1] += 1
             by_repo[repo]["B"][0] += int(bool(r["B_resolved"]))
 
-    out = {
-        "data": str(Path(args.data).resolve()),
+    return {
+        "data": str(Path(data_path).resolve()) if data_path is not None else None,
         "A": arm_summary("standard"),
         "B": arm_summary("sdlc"),
         "paired": {
@@ -119,28 +117,44 @@ def main() -> None:
                     for k, v in by_repo.items()},
         "pairs": pairs,
     }
-    Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
 
+
+def render_markdown(result: dict) -> str:
+    """把 compute() 的结果渲染成 markdown（纯函数）。"""
     lines = ["# ④ 扩样本结果（A vs B+引导）", "",
-             f"- A（standard）: {out['A']['resolved']}/{out['A']['n']} resolved，"
-             f"median token={out['A']['tokens_median']}, p90={out['A']['tokens_p90']}",
-             f"- B（sdlc，含引导）: {out['B']['resolved']}/{out['B']['n']} resolved，"
-             f"median token={out['B']['tokens_median']}, p90={out['B']['tokens_p90']}",
-             f"- paired（两臂都有评分）: n={out['paired']['n_paired']}，"
-             f"平均差(B-A)={out['paired']['mean_diff_B_minus_A']}，"
-             f"A-only={out['paired']['A_only']}，B-only={out['paired']['B_only']}，"
-             f"both-resolved={out['paired']['both_resolved']}",
+             f"- A（standard）: {result['A']['resolved']}/{result['A']['n']} resolved，"
+             f"median token={result['A']['tokens_median']}, p90={result['A']['tokens_p90']}",
+             f"- B（sdlc，含引导）: {result['B']['resolved']}/{result['B']['n']} resolved，"
+             f"median token={result['B']['tokens_median']}, p90={result['B']['tokens_p90']}",
+             f"- paired（两臂都有评分）: n={result['paired']['n_paired']}，"
+             f"平均差(B-A)={result['paired']['mean_diff_B_minus_A']}，"
+             f"A-only={result['paired']['A_only']}，B-only={result['paired']['B_only']}，"
+             f"both-resolved={result['paired']['both_resolved']}",
              "", "| repo | A | B |", "|---|---|---|"]
-    for repo, v in sorted(out["by_repo"].items()):
+    for repo, v in sorted(result["by_repo"].items()):
         lines.append(f"| {repo} | {v['A']['resolved']}/{v['A']['n']} | {v['B']['resolved']}/{v['B']['n']} |")
     lines += ["", "| task | A resolved | B resolved | A tokens | B tokens | A fail | B fail |",
               "|---|---|---|---|---|---|---|"]
-    for r in sorted(pairs, key=lambda x: x["task_id"]):
+    for r in sorted(result["pairs"], key=lambda x: x["task_id"]):
         lines.append(f"| {r['task_id']} | {r['A_resolved']} | {r['B_resolved']} | "
                      f"{r['A_tokens']} | {r['B_tokens']} | {r['A_failure']} | {r['B_failure']} |")
     lines += ["", "> 每任务每臂 1 次；paired 差值只能作方向性证据，不能据此做显著性结论。"]
-    Path(args.markdown).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print("\n".join(lines))
+    return "\n".join(lines)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--markdown", required=True)
+    args = ap.parse_args()
+
+    data = json.loads(Path(args.data).read_text(encoding="utf-8"))
+    result = compute(data, args.data)
+    Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    markdown = render_markdown(result)
+    Path(args.markdown).write_text(markdown + "\n", encoding="utf-8")
+    print(markdown)
 
 
 if __name__ == "__main__":

@@ -11,6 +11,10 @@
 - markdown 报告。
 
 口径：官方 resolved 为唯一成绩；timeout/over_budget 计入失败；每 cell k=rep 数。
+
+离线复算（issue #12 / AC-003）：`compute(reports[, rep_paths])` 是纯函数（不读写
+文件、不联网、不调模型），`reaggregate.py --check` 用已提交数据快照的 `reps` 重算
+后与已提交 `analysis` 逐项对账；CLI 行为保持不变（`--reps` / `--out` / `--markdown`）。
 """
 from __future__ import annotations
 
@@ -34,18 +38,16 @@ def boot_ci(values, n=5000, seed=42):
     return (means[int(0.025 * n)], means[int(0.975 * n) - 1])
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--reps", nargs="+", required=True, help="各 rep 的 report-data.json 路径")
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--markdown", required=True)
-    args = ap.parse_args()
+def compute(reports, rep_paths=None) -> dict:
+    """从各 rep 的 report-data 内容算重复采样分析（纯函数，不碰文件系统）。
 
+    `reports` 是 report-data dict 的列表（按 rep 顺序）；
+    `rep_paths` 只影响输出里的 `reps` 字段（路径溯源），不参与任何统计。
+    """
     cells = defaultdict(list)       # (task_id, arm) -> [scoreable row]
     attempted = defaultdict(list)   # (task_id, arm) -> [row] 含 unscoreable/infra
     tasks = set()
-    for rep_idx, path in enumerate(args.reps, start=1):
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    for rep_idx, data in enumerate(reports, start=1):
         for r in data["runs"]:
             r = dict(r)
             r["_rep"] = rep_idx
@@ -91,8 +93,8 @@ def main() -> None:
                                            if r.get("repo")), "")}
 
     lo, hi = boot_ci(diffs)
-    out = {
-        "reps": args.reps,
+    return {
+        "reps": list(rep_paths) if rep_paths is not None else [],
         "per_task": per_task,
         "paired": {
             "n": len(diffs),
@@ -103,19 +105,24 @@ def main() -> None:
             "ties": sum(1 for d in diffs if d == 0),
         },
     }
-    Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
 
+
+def render_markdown(result: dict) -> str:
+    """把 compute() 的结果渲染成 markdown（纯函数）。"""
+    per_task = result["per_task"]
     lines = ["# 重复采样结果（每任务每臂 3 次）", "",
              "| task | A resolved | B resolved | A token mean±sd | B token mean±sd | rep diffs (B-A) |",
              "|---|---|---|---|---|---|"]
     for task_id, d in per_task.items():
         a, b = d["A"], d["B"]
-        tmean = lambda s: (f"{s['tokens_mean']/1e6:.1f}M±{s['tokens_stdev']/1e6:.1f}M"
-                           if s["tokens_mean"] is not None and s["tokens_stdev"] is not None
-                           else (f"{s['tokens_mean']/1e6:.1f}M" if s["tokens_mean"] is not None else "—"))
+        def tmean(s):
+            return (f"{s['tokens_mean']/1e6:.1f}M±{s['tokens_stdev']/1e6:.1f}M"
+                    if s["tokens_mean"] is not None and s["tokens_stdev"] is not None
+                    else (f"{s['tokens_mean']/1e6:.1f}M" if s["tokens_mean"] is not None else "—"))
         lines.append(f"| {task_id} | {a['resolved']}/{a['k']} | {b['resolved']}/{b['k']} | "
                      f"{tmean(a)} | {tmean(b)} | {sorted(d['rep_diffs'].items())} |")
-    p = out["paired"]
+    p = result["paired"]
+    lo, hi = p["bootstrap95_ci"]
     mean_diff = p["mean_diff_B_minus_A"]
     diff_text = f"{mean_diff:+.3f}" if mean_diff is not None else "不可用（没有可比配对）"
     lines += ["", "## 汇总", "",
@@ -124,8 +131,22 @@ def main() -> None:
               f"- B 独有胜：{p['B_only']}，A 独有胜：{p['A_only']}，平局：{p['ties']}",
               "", "> 每任务每臂 k=3；resolved 是 0/1，k=3 时单 cell 方差很大；",
               "> bootstrap 区间按 rep 差值重采样，仅作方向性参考，不要当成显著性检验。"]
-    Path(args.markdown).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print("\n".join(lines))
+    return "\n".join(lines)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--reps", nargs="+", required=True, help="各 rep 的 report-data.json 路径")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--markdown", required=True)
+    args = ap.parse_args()
+
+    reports = [json.loads(Path(p).read_text(encoding="utf-8")) for p in args.reps]
+    result = compute(reports, args.reps)
+    Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    markdown = render_markdown(result)
+    Path(args.markdown).write_text(markdown + "\n", encoding="utf-8")
+    print(markdown)
 
 
 if __name__ == "__main__":

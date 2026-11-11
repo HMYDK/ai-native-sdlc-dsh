@@ -2,8 +2,8 @@
  "experiment": "2x2",
  "date": "2026-11-07",
  "report": {
-  "manifest": "/Users/zk/mine/code/github/mine_repo/ai-native-sdlc-dsh/ai-native-sdlc-dsh/tools/evals/featurebench/manifests/2x2.yml",
-  "runs_root": "/private/tmp/fb-runs-2x2",
+  "manifest": "tools/evals/featurebench/manifests/2x2.yml",
+  "runs_root": "/tmp/fb-runs-2x2",
   "runs": [
    {
     "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
@@ -564,7 +564,7 @@
   ]
  },
  "analysis": {
-  "data": "/private/tmp/fb-runs-2x2/report-data.json",
+  "data": "/tmp/fb-runs-2x2/report-data.json",
   "arms": {
    "standard": {
     "n": 5,

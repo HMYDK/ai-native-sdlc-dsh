@@ -188,3 +188,40 @@ preset / 引导的主效应、交互项与 token 倍数；每任务每条件 1 �
 
 plugin 0.6.1 / DSH 0.2.2-rc.1 最小回归（5 任务 × A/B）：
 [`docs/evals/featurebench-2026-11-08-version-regression.md`](../../../docs/evals/featurebench-2026-11-08-version-regression.md)
+
+## EVAL-01：离线复算、审计与数据一致性（2026-11-10）
+
+issue #12 把历史实验收口为「可审计、可离线复算」的基线。入口文档：
+[`docs/evals/featurebench-baseline.md`](../../../docs/evals/featurebench-baseline.md)
+与 [`featurebench-review-guide.md`](../../../docs/evals/featurebench-review-guide.md)。
+
+数据/脚本分工（全部不调模型、不联网、不依赖 GUI/凭据）：
+
+| 命令 | 作用 |
+|---|---|
+| `sanity_check.py --structural` | 清单结构 + runtime group + 镜像 digest；递归含 `manifests/regression-0.6.1/*.yml` |
+| `sanity_check.py --index` | 校验 `docs/evals/featurebench-baseline-index.json` 里所有文件 sha256、版本分组、计数 |
+| `audit_runs.py --check` | 校验 canonical `featurebench-runs.jsonl`：唯一性、状态枚举、版本混用、分母对账、快照映射、泄漏/证据/验证者摘要 |
+| `reaggregate.py --check` | 从已提交机读数据离线重算全部统计，与 `featurebench-baseline-metrics.json` 逐项比对，并交叉校验 `featurebench-verifier-confusion.json` |
+| `check_redaction.py` | 禁止本机绝对路径/凭据形态进入 docs/evals 与 tools/evals |
+
+CI 的 `evals-check` job 会跑上面五项（外加两个 dry-run），只依赖 `pyyaml` + 标准库。
+
+重新生成（本地、需要历史 raw runs 与 HF 数据集缓存；不是 CI 步骤）：
+
+```bash
+# 1) canonical run 表 / 证据索引 / 环境身份 / 泄漏 / 验证者混淆（需要 pyarrow+zstandard，
+#    用 featurebench 的 uv python；缺依赖默认拒跑，--allow-degraded 只用于排查）
+#    （路径用 `uv tool dir featurebench` 查；不要写死本机主目录）
+UV_PY="$(uv tool dir featurebench)/bin/python"
+"$UV_PY" tools/evals/featurebench/collect_runs.py --check
+
+# 2) 离线统计与索引（只读已提交数据，stdlib+pyyaml）
+python3 tools/evals/featurebench/reaggregate.py \
+  --out docs/evals/featurebench-baseline-metrics.json \
+  --index docs/evals/featurebench-baseline-index.json
+```
+
+`baseline-index.json` 钉死了 7 份 `*-data.json`、7 份 manifest、`runs.jsonl`、
+`evidence-index.json` 的 sha256：任何一处有意修改后必须重跑 `reaggregate.py` 更新索引，
+否则 `sanity_check.py --index` 会失败（防止数据被静默改动）。

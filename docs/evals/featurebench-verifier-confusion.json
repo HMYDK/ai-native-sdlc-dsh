@@ -1,0 +1,1552 @@
+{
+  "agent_premature_failure": {
+    "count": 16,
+    "definition": "agent_completed != True 或 agent_failure != null（含 timeout/over_budget/turn_error）；这些 run 的官方评分与裁决仍如实列出，但作为删失样本单独标注",
+    "runs": [
+      {
+        "agent_failure": "timeout",
+        "bucket": "no_verdict",
+        "experiment": "mvp",
+        "final_verdict": null,
+        "official_resolved": true,
+        "run_id": "mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "over_budget",
+        "bucket": "no_verdict",
+        "experiment": "2x2",
+        "final_verdict": null,
+        "official_resolved": true,
+        "run_id": "2x2:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "no_verdict",
+        "experiment": "expanded",
+        "final_verdict": null,
+        "official_resolved": true,
+        "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "approve_resolved",
+        "experiment": "expanded",
+        "final_verdict": "approve",
+        "official_resolved": true,
+        "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "approve_resolved",
+        "experiment": "expanded",
+        "final_verdict": "approve",
+        "official_resolved": true,
+        "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "over_budget",
+        "bucket": "no_verdict",
+        "experiment": "expanded",
+        "final_verdict": null,
+        "official_resolved": false,
+        "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "approve_resolved",
+        "experiment": "expanded",
+        "final_verdict": "approve",
+        "official_resolved": true,
+        "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "over_budget",
+        "bucket": "no_verdict",
+        "experiment": "verify-calibration",
+        "final_verdict": null,
+        "official_resolved": false,
+        "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "approve_resolved",
+        "experiment": "verify-calibration",
+        "final_verdict": "approve",
+        "official_resolved": true,
+        "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "approve_resolved",
+        "experiment": "verify-calibration",
+        "final_verdict": "approve",
+        "official_resolved": true,
+        "run_id": "verify-calibration:pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "over_budget",
+        "bucket": "no_verdict",
+        "experiment": "verify-calibration",
+        "final_verdict": null,
+        "official_resolved": false,
+        "run_id": "verify-calibration:sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "approve_resolved",
+        "experiment": "verify-stress",
+        "final_verdict": "approve",
+        "official_resolved": true,
+        "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r2"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "reject_unresolved",
+        "experiment": "verify-stress",
+        "final_verdict": "reject",
+        "official_resolved": false,
+        "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r3"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "reject_resolved_false_negative",
+        "experiment": "repeat-sampling",
+        "final_verdict": "reject",
+        "official_resolved": true,
+        "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r2"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "reject_resolved_false_negative",
+        "experiment": "version-regression-mvp",
+        "final_verdict": "reject",
+        "official_resolved": true,
+        "run_id": "version-regression-mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1"
+      },
+      {
+        "agent_failure": "timeout",
+        "bucket": "reject_resolved_false_negative",
+        "experiment": "version-regression-mvp",
+        "final_verdict": "reject",
+        "official_resolved": true,
+        "run_id": "version-regression-mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1"
+      }
+    ]
+  },
+  "by_experiment": {
+    "2x2": {
+      "counts": {
+        "approve_resolved": 3,
+        "approve_unresolved_false_positive": 1,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 6,
+        "no_verdict_resolved": 4,
+        "no_verdict_unresolved": 2,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 0,
+        "reject_unresolved": 0
+      },
+      "denominators": {
+        "all_b_runs": 10,
+        "approve": 4,
+        "decided": 4,
+        "reject": 0
+      },
+      "official_resolved": 7,
+      "rates": {
+        "coverage_on_all_b_runs": 0.4,
+        "false_negative_rate": null,
+        "false_positive_rate": 0.25,
+        "verdict_accuracy_on_decided": 0.75
+      },
+      "runs": 10,
+      "runs_with_final_verdict": 4,
+      "runs_with_official": 10,
+      "workflow_used_runs": 4
+    },
+    "expanded": {
+      "counts": {
+        "approve_resolved": 9,
+        "approve_unresolved_false_positive": 1,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 2,
+        "no_verdict_resolved": 1,
+        "no_verdict_unresolved": 1,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 0,
+        "reject_unresolved": 0
+      },
+      "denominators": {
+        "all_b_runs": 12,
+        "approve": 10,
+        "decided": 10,
+        "reject": 0
+      },
+      "official_resolved": 10,
+      "rates": {
+        "coverage_on_all_b_runs": 0.8333333333333334,
+        "false_negative_rate": null,
+        "false_positive_rate": 0.1,
+        "verdict_accuracy_on_decided": 0.9
+      },
+      "runs": 12,
+      "runs_with_final_verdict": 10,
+      "runs_with_official": 12,
+      "workflow_used_runs": 12
+    },
+    "mvp": {
+      "counts": {
+        "approve_resolved": 3,
+        "approve_unresolved_false_positive": 1,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 1,
+        "no_verdict_resolved": 1,
+        "no_verdict_unresolved": 0,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 0,
+        "reject_unresolved": 0
+      },
+      "denominators": {
+        "all_b_runs": 5,
+        "approve": 4,
+        "decided": 4,
+        "reject": 0
+      },
+      "official_resolved": 4,
+      "rates": {
+        "coverage_on_all_b_runs": 0.8,
+        "false_negative_rate": null,
+        "false_positive_rate": 0.25,
+        "verdict_accuracy_on_decided": 0.75
+      },
+      "runs": 5,
+      "runs_with_final_verdict": 4,
+      "runs_with_official": 5,
+      "workflow_used_runs": 5
+    },
+    "repeat-sampling": {
+      "counts": {
+        "approve_resolved": 5,
+        "approve_unresolved_false_positive": 3,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 0,
+        "no_verdict_resolved": 0,
+        "no_verdict_unresolved": 0,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 1,
+        "reject_unresolved": 0
+      },
+      "denominators": {
+        "all_b_runs": 9,
+        "approve": 8,
+        "decided": 9,
+        "reject": 1
+      },
+      "official_resolved": 6,
+      "rates": {
+        "coverage_on_all_b_runs": 1.0,
+        "false_negative_rate": 1.0,
+        "false_positive_rate": 0.375,
+        "verdict_accuracy_on_decided": 0.5555555555555556
+      },
+      "runs": 9,
+      "runs_with_final_verdict": 9,
+      "runs_with_official": 9,
+      "workflow_used_runs": 9
+    },
+    "verify-calibration": {
+      "counts": {
+        "approve_resolved": 8,
+        "approve_unresolved_false_positive": 0,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 2,
+        "no_verdict_resolved": 0,
+        "no_verdict_unresolved": 2,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 0,
+        "reject_unresolved": 0
+      },
+      "denominators": {
+        "all_b_runs": 10,
+        "approve": 8,
+        "decided": 8,
+        "reject": 0
+      },
+      "official_resolved": 8,
+      "rates": {
+        "coverage_on_all_b_runs": 0.8,
+        "false_negative_rate": null,
+        "false_positive_rate": 0.0,
+        "verdict_accuracy_on_decided": 1.0
+      },
+      "runs": 10,
+      "runs_with_final_verdict": 8,
+      "runs_with_official": 10,
+      "workflow_used_runs": 9
+    },
+    "verify-stress": {
+      "counts": {
+        "approve_resolved": 1,
+        "approve_unresolved_false_positive": 1,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 0,
+        "no_verdict_resolved": 0,
+        "no_verdict_unresolved": 0,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 0,
+        "reject_unresolved": 1
+      },
+      "denominators": {
+        "all_b_runs": 3,
+        "approve": 2,
+        "decided": 3,
+        "reject": 1
+      },
+      "official_resolved": 1,
+      "rates": {
+        "coverage_on_all_b_runs": 1.0,
+        "false_negative_rate": 0.0,
+        "false_positive_rate": 0.5,
+        "verdict_accuracy_on_decided": 0.6666666666666666
+      },
+      "runs": 3,
+      "runs_with_final_verdict": 3,
+      "runs_with_official": 3,
+      "workflow_used_runs": 3
+    },
+    "version-regression-mvp": {
+      "counts": {
+        "approve_resolved": 2,
+        "approve_unresolved_false_positive": 1,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 0,
+        "no_verdict_resolved": 0,
+        "no_verdict_unresolved": 0,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 2,
+        "reject_unresolved": 0
+      },
+      "denominators": {
+        "all_b_runs": 5,
+        "approve": 3,
+        "decided": 5,
+        "reject": 2
+      },
+      "official_resolved": 4,
+      "rates": {
+        "coverage_on_all_b_runs": 1.0,
+        "false_negative_rate": 1.0,
+        "false_positive_rate": 0.3333333333333333,
+        "verdict_accuracy_on_decided": 0.4
+      },
+      "runs": 5,
+      "runs_with_final_verdict": 5,
+      "runs_with_official": 5,
+      "workflow_used_runs": 5
+    }
+  },
+  "confusion": {
+    "all_b_runs": {
+      "counts": {
+        "approve_resolved": 31,
+        "approve_unresolved_false_positive": 8,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 11,
+        "no_verdict_resolved": 6,
+        "no_verdict_unresolved": 5,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 3,
+        "reject_unresolved": 1
+      },
+      "denominators": {
+        "all_b_runs": 54,
+        "approve": 39,
+        "decided": 43,
+        "reject": 4
+      },
+      "official_resolved": 40,
+      "rates": {
+        "coverage_on_all_b_runs": 0.7962962962962963,
+        "false_negative_rate": 0.75,
+        "false_positive_rate": 0.20512820512820512,
+        "verdict_accuracy_on_decided": 0.7441860465116279
+      },
+      "runs": 54,
+      "runs_with_final_verdict": 43,
+      "runs_with_official": 54,
+      "workflow_used_runs": 47
+    },
+    "v1_b_runs": {
+      "counts": {
+        "approve_resolved": 29,
+        "approve_unresolved_false_positive": 7,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 11,
+        "no_verdict_resolved": 6,
+        "no_verdict_unresolved": 5,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 1,
+        "reject_unresolved": 1
+      },
+      "denominators": {
+        "all_b_runs": 49,
+        "approve": 36,
+        "decided": 38,
+        "reject": 2
+      },
+      "official_resolved": 36,
+      "rates": {
+        "coverage_on_all_b_runs": 0.7755102040816326,
+        "false_negative_rate": 0.5,
+        "false_positive_rate": 0.19444444444444445,
+        "verdict_accuracy_on_decided": 0.7894736842105263
+      },
+      "runs": 49,
+      "runs_with_final_verdict": 38,
+      "runs_with_official": 49,
+      "workflow_used_runs": 42
+    },
+    "v2_b_runs": {
+      "counts": {
+        "approve_resolved": 2,
+        "approve_unresolved_false_positive": 1,
+        "needs_human": 0,
+        "needs_human_resolved": 0,
+        "needs_human_unresolved": 0,
+        "no_verdict": 0,
+        "no_verdict_resolved": 0,
+        "no_verdict_unresolved": 0,
+        "official_missing": 0,
+        "reject_resolved_false_negative": 2,
+        "reject_unresolved": 0
+      },
+      "denominators": {
+        "all_b_runs": 5,
+        "approve": 3,
+        "decided": 5,
+        "reject": 2
+      },
+      "official_resolved": 4,
+      "rates": {
+        "coverage_on_all_b_runs": 1.0,
+        "false_negative_rate": 1.0,
+        "false_positive_rate": 0.3333333333333333,
+        "verdict_accuracy_on_decided": 0.4
+      },
+      "runs": 5,
+      "runs_with_final_verdict": 5,
+      "runs_with_official": 5,
+      "workflow_used_runs": 5
+    }
+  },
+  "generated_by": "tools/evals/featurebench/collect_runs.py（本地离线，无生成时间戳）",
+  "legacy_report_data_scope": {
+    "combined_mvp_verify_stress": {
+      "approve": 14,
+      "approve_unresolved": 2,
+      "false_positive_rate": 0.14285714285714285,
+      "issue_8_claim": "#8 评论：18 次 B 运行、15 次有裁决、approve 13 次中 2 次官方 unresolved（约 15.4%）。按 report-data 旧口径复算见左侧数字；主口径（只取主会话）的差异来自子会话同名 JSON 被重复计数/裁决序列顺序不同，详见 confusion 一节。",
+      "reject": 1,
+      "reject_resolved": 0,
+      "runs": 18,
+      "with_verdict": 15
+    },
+    "definition": "report-data.json 的 verify_verdicts（summarize_runs.py 扫全部 session 文件，包含验证者子会话中的同名 status JSON）",
+    "experiments": {
+      "mvp": {
+        "final_verdict_x_official": {
+          "None|True": 1,
+          "approve|False": 1,
+          "approve|True": 3
+        },
+        "runs": 5
+      },
+      "verify-calibration": {
+        "final_verdict_x_official": {
+          "None|False": 2,
+          "approve|True": 8
+        },
+        "runs": 10
+      },
+      "verify-stress": {
+        "final_verdict_x_official": {
+          "approve|False": 1,
+          "approve|True": 1,
+          "reject|False": 1
+        },
+        "runs": 3
+      }
+    }
+  },
+  "method": {
+    "no_verdict_reason": "workflow_not_used = 该 run 未调用任何 sdlc_* 工具（2x2 无引导 sdlc 臂常见）；no_verdict_with_workflow = 用了流程但没有裁决（多为 timeout/over_budget/turn_error 截断）。两者都是删失，不能当通过或失败",
+    "official_source": "官方 fb eval 的 report.json（resolved_instances），不采用 agent 自报 DONE/approve 作为成绩",
+    "scope": "所有 B（treatment/SDLC preset）运行；2x2 的 sdlc 与 sdlc_guidance 都算 B 运行（arm 名如实记录），paired 口径另由 reaggregate 处理",
+    "verdict_source": "主会话文件 session-*.jsonl.zstd 中 sdlc_verify 工具结果文本里的有效 verdict.status 序列（structured verdict 优先；malformed 兜底取顶层 status；两者缺失时才回退 raw_status）；最终裁决 = 最后一个。子验证者会话内的同名 JSON 不重复计入（否则一次调用被数两遍）"
+  },
+  "purpose": "AC-006：Verifier 的 approve 与官方 resolved 分开保存/展示，可核对错误放行（false positive）、错误拒绝（false negative）、无裁决与 Agent 提前失败；证据不足处明确标注不可判断。",
+  "runs": [
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "mvp",
+      "final_verdict": null,
+      "no_verdict_reason": "no_verdict_with_workflow",
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "verdicts": [],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "mvp",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "mvp:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "mvp",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "mvp",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "mvp:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+      "verdicts": [
+        "needs_human",
+        "reject",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "mvp",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "2x2",
+      "final_verdict": null,
+      "no_verdict_reason": "workflow_not_used",
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "2x2:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "verdicts": [],
+      "workflow_used": false
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc_guidance",
+      "bucket": "no_verdict",
+      "experiment": "2x2",
+      "final_verdict": null,
+      "no_verdict_reason": "workflow_not_used",
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "2x2:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc_guidance:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "verdicts": [],
+      "workflow_used": false
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "over_budget",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "2x2",
+      "final_verdict": null,
+      "no_verdict_reason": "workflow_not_used",
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "2x2:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+      "verdicts": [],
+      "workflow_used": false
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc_guidance",
+      "bucket": "approve_resolved",
+      "experiment": "2x2",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "2x2:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc_guidance:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "2x2",
+      "final_verdict": null,
+      "no_verdict_reason": "workflow_not_used",
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "2x2:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "verdicts": [],
+      "workflow_used": false
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc_guidance",
+      "bucket": "approve_resolved",
+      "experiment": "2x2",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "2x2:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc_guidance:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "verdicts": [
+        "reject",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "2x2",
+      "final_verdict": null,
+      "no_verdict_reason": "workflow_not_used",
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "2x2:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+      "verdicts": [],
+      "workflow_used": false
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc_guidance",
+      "bucket": "approve_resolved",
+      "experiment": "2x2",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "2x2:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc_guidance:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "2x2",
+      "final_verdict": null,
+      "no_verdict_reason": "workflow_not_used",
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "2x2:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [],
+      "workflow_used": false
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc_guidance",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "2x2",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "2x2:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc_guidance:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "expanded",
+      "final_verdict": null,
+      "no_verdict_reason": "no_verdict_with_workflow",
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+      "verdicts": [],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "expanded:pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "over_budget",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "expanded",
+      "final_verdict": null,
+      "no_verdict_reason": "no_verdict_with_workflow",
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1",
+      "verdicts": [],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "expanded",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "over_budget",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "verify-calibration",
+      "final_verdict": null,
+      "no_verdict_reason": "no_verdict_with_workflow",
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+      "verdicts": [],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "verify-calibration:pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "verify-calibration:pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1",
+      "verdicts": [
+        "reject",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "verify-calibration:pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "verify-calibration:pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "over_budget",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "no_verdict",
+      "experiment": "verify-calibration",
+      "final_verdict": null,
+      "no_verdict_reason": "workflow_not_used",
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-calibration:sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+      "verdicts": [],
+      "workflow_used": false
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-calibration:sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-calibration",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-calibration:sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "verify-stress",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "verify-stress",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 2,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r2",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "reject",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "reject_unresolved",
+      "experiment": "verify-stress",
+      "final_verdict": "reject",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 3,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r3",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve",
+        "reject"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "reject_resolved_false_negative",
+      "experiment": "repeat-sampling",
+      "final_verdict": "reject",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 2,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r2",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "verdicts": [
+        "reject"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 3,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r3",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "verdicts": [
+        "reject",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 2,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r2",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 3,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r3",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 2,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r2",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "repeat-sampling",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 3,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r3",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "reject_resolved_false_negative",
+      "experiment": "version-regression-mvp",
+      "final_verdict": "reject",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "version-regression-mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "verdicts": [
+        "reject"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "version-regression-mvp",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "version-regression-mvp:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+      "verdicts": [
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": false,
+      "agent_failure": "timeout",
+      "agent_premature_failure": true,
+      "arm": "sdlc",
+      "bucket": "reject_resolved_false_negative",
+      "experiment": "version-regression-mvp",
+      "final_verdict": "reject",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "version-regression-mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "verdicts": [
+        "approve",
+        "reject"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_resolved",
+      "experiment": "version-regression-mvp",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": true,
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "version-regression-mvp:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+      "verdicts": [
+        "needs_human",
+        "needs_human",
+        "approve"
+      ],
+      "workflow_used": true
+    },
+    {
+      "agent_completed": true,
+      "agent_failure": null,
+      "agent_premature_failure": false,
+      "arm": "sdlc",
+      "bucket": "approve_unresolved_false_positive",
+      "experiment": "version-regression-mvp",
+      "final_verdict": "approve",
+      "no_verdict_reason": null,
+      "official_resolved": false,
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "version-regression-mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "verdicts": [
+        "approve",
+        "approve"
+      ],
+      "workflow_used": true
+    }
+  ],
+  "schema_version": 1,
+  "totals": {
+    "b_runs": 54,
+    "by_experiment": {
+      "2x2": 10,
+      "expanded": 12,
+      "mvp": 5,
+      "repeat-sampling": 9,
+      "verify-calibration": 10,
+      "verify-stress": 3,
+      "version-regression-mvp": 5
+    },
+    "v1_b_runs": 49,
+    "v2_b_runs": 5
+  },
+  "undecidable_notes": [
+    "没有裁决的 run 里，一部分是流程未被触发（2x2 无引导 sdlc 臂），一部分是 timeout/over_budget/turn_error 把验证截断；两类都在 runs[] 里给出原因。",
+    "needs_human 是显式的『验证者无法判断』，不进 2×2 分母，单独按官方结果拆分。",
+    "样本量小 + 单次采样：假阳性率/假阴性率只描述观测，不做显著性宣称。"
+  ]
+}

@@ -1,6 +1,6 @@
 {
-  "manifest": "/Users/zk/mine/code/github/mine_repo/ai-native-sdlc-dsh/ai-native-sdlc-dsh/tools/evals/featurebench/manifest.yml",
-  "runs_root": "/private/tmp/fb-runs",
+  "manifest": "tools/evals/featurebench/manifest.yml",
+  "runs_root": "/tmp/fb-runs",
   "runs": [
     {
       "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",

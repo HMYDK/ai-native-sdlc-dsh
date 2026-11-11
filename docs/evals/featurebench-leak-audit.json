@@ -1,0 +1,2670 @@
+{
+  "by_image": {
+    "mwaskom/seaborn": {
+      "experiments": [
+        "2x2",
+        "expanded",
+        "mvp",
+        "repeat-sampling",
+        "verify-calibration",
+        "version-regression-mvp"
+      ],
+      "hit_paths": [],
+      "hits_total": 0,
+      "image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+      "known_cause": null,
+      "official_image": "libercoders/featurebench-specs_seaborn-instance_52738fbb",
+      "repo": "mwaskom/seaborn",
+      "runs": 27,
+      "runs_with_hits": 0
+    },
+    "pydantic/pydantic": {
+      "experiments": [
+        "2x2",
+        "expanded",
+        "mvp",
+        "verify-calibration",
+        "version-regression-mvp"
+      ],
+      "hit_paths": [],
+      "hits_total": 0,
+      "image_digest": "sha256:755c424c73170faf66d88006022ed2733f8e269446f330f301d762b0d0ab7d6b",
+      "known_cause": null,
+      "official_image": "libercoders/featurebench-specs_pydantic-instance_78693714",
+      "repo": "pydantic/pydantic",
+      "runs": 13,
+      "runs_with_hits": 0
+    },
+    "pypa/packaging": {
+      "experiments": [
+        "2x2",
+        "mvp",
+        "pilot",
+        "repeat-sampling",
+        "version-regression-mvp"
+      ],
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "hits_total": 135,
+      "image_digest": "sha256:96b12548b35b5983ac1dab9a101b4a49946fceb6a05c97690cd942ff014be916",
+      "known_cause": "官方镜像内 pip/setuptools/wheel vendored packaging 副本（两臂都可见，未修改官方镜像；敏感度分析见 packaging_sensitivity）",
+      "official_image": "libercoders/featurebench-specs_packaging-instance_c393a6a8",
+      "repo": "pypa/packaging",
+      "runs": 15,
+      "runs_with_hits": 15
+    },
+    "pytest-dev/pytest": {
+      "experiments": [
+        "2x2",
+        "mvp",
+        "verify-calibration",
+        "version-regression-mvp"
+      ],
+      "hit_paths": [],
+      "hits_total": 0,
+      "image_digest": "sha256:90aad241a5422d096bff4b5a796300bcb737fbe347531f5c0dc71ea93421f291",
+      "known_cause": null,
+      "official_image": "libercoders/featurebench-specs_pytest-instance_2b74d6c4",
+      "repo": "pytest-dev/pytest",
+      "runs": 9,
+      "runs_with_hits": 0
+    },
+    "sphinx-doc/sphinx": {
+      "experiments": [
+        "2x2",
+        "expanded",
+        "mvp",
+        "repeat-sampling",
+        "verify-calibration",
+        "verify-stress",
+        "version-regression-mvp"
+      ],
+      "hit_paths": [],
+      "hits_total": 0,
+      "image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+      "known_cause": null,
+      "official_image": "libercoders/featurebench-specs_sphinx-instance_6191afb1",
+      "repo": "sphinx-doc/sphinx",
+      "runs": 32,
+      "runs_with_hits": 0
+    }
+  },
+  "by_task": [
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 6,
+          "runs_with_hits": 0
+        },
+        "sdlc_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 6,
+          "runs_with_hits": 0
+        },
+        "standard_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 14,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "mwaskom/seaborn",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 3,
+          "runs_with_hits": 0
+        },
+        "sdlc_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 3,
+          "runs_with_hits": 0
+        },
+        "standard_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "pydantic/pydantic",
+      "runs": 8,
+      "runs_with_hits": 0,
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "pydantic/pydantic",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "pydantic/pydantic",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "pydantic/pydantic",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "pydantic/pydantic",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 54,
+          "runs": 6,
+          "runs_with_hits": 6
+        },
+        "sdlc_guidance": {
+          "hits_total": 9,
+          "runs": 1,
+          "runs_with_hits": 1
+        },
+        "standard": {
+          "hits_total": 63,
+          "runs": 7,
+          "runs_with_hits": 7
+        },
+        "standard_guidance": {
+          "hits_total": 9,
+          "runs": 1,
+          "runs_with_hits": 1
+        }
+      },
+      "hits_total": 135,
+      "repo": "pypa/packaging",
+      "runs": 15,
+      "runs_with_hits": 15,
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 3,
+          "runs_with_hits": 0
+        },
+        "sdlc_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 3,
+          "runs_with_hits": 0
+        },
+        "standard_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "pytest-dev/pytest",
+      "runs": 8,
+      "runs_with_hits": 0,
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "pytest-dev/pytest",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 9,
+          "runs_with_hits": 0
+        },
+        "sdlc_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 6,
+          "runs_with_hits": 0
+        },
+        "standard_guidance": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 17,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 1,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1"
+    },
+    {
+      "by_arm": {
+        "sdlc": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        },
+        "standard": {
+          "hits_total": 0,
+          "runs": 1,
+          "runs_with_hits": 0
+        }
+      },
+      "hits_total": 0,
+      "repo": "sphinx-doc/sphinx",
+      "runs": 2,
+      "runs_with_hits": 0,
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1"
+    }
+  ],
+  "generated_by": "tools/evals/featurebench/collect_runs.py（本地离线，无生成时间戳）",
+  "gold_comparison": {
+    "available": true,
+    "dataset": {
+      "arrow": {
+        "arrow_file": "feature_bench-fast.arrow",
+        "arrow_sha256": "b208d75a78aa20b50e4cab7e9cb2fc149749ac864440a3e1a65639c8cda702a0",
+        "available": true,
+        "field": "patch（官方 dataset 的参考补丁；test_patch 为隐藏测试补丁，另存不比对）",
+        "instances": 100
+      },
+      "cache": "~/.cache/huggingface/datasets/LiberCoders___feature_bench/default/0.0.0/76b4a4566e04f4bcc13c35125d4f301791efa736",
+      "name": "LiberCoders/FeatureBench",
+      "revision": "76b4a4566e04f4bcc13c35125d4f301791efa736"
+    },
+    "exact_sha256_matches": 0,
+    "limitations": [
+      "byte 比对是**单向**证据：相等 ⇒ 与官方参考补丁逐字节相同（强泄漏信号）；不等 ⇏ 独立实现，模型可能收敛到语义相同的实现。",
+      "gold patch 是 dataset 的 `patch` 字段（feature commit diff）；agent 的 patch.diff 是 mask/restore 初始化后 git diff 的产物，header/index/顺序/上下文可能天然不同，因此归一化比对仍只能当线索。",
+      "本轮 96 个 run 没有任何一条与 gold patch 逐字节相同（exact=0，normalized=0），与 README 记录的『第一版挂载 /eval 事故作废后零宿主挂载』一致；这不等于任务绝对无泄漏，见 packaging 已知参考副本。",
+      "test_patch（隐藏测试）单独存在于 dataset，不参与本比对。"
+    ],
+    "normalized_sha256_matches": 0,
+    "per_task_gold_sha256": {
+      "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1": {
+        "chars": 4957,
+        "sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+        "sha256_normalized": "12dcc36ae3ee0b1691543fd0ff536466ad6660227778196d103d9300301235df"
+      },
+      "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1": {
+        "chars": 6224,
+        "sha256": "fc2cf2d37d2db3bdbceb6fb063dd0e40b39bf0401cfebac6cdc83f85705c5817",
+        "sha256_normalized": "ef229a4bccea81aef5d6b30f8b95575d48f60550901ecc867557792e0a9a4c6e"
+      },
+      "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1": {
+        "chars": 64814,
+        "sha256": "f74b1cd260b3df92b962c4b0e9a0265cc012886ce35781bc6a89d2f82e9b9fd6",
+        "sha256_normalized": "74139eb39cf2eb70704ad307a2021b8f8f9c9271c3faeb89bc552c2875ad65dd"
+      },
+      "mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1": {
+        "chars": 14824,
+        "sha256": "a7ad0409005ca998a06449a94763c74c98082e8b6e02953da2cdc01d535f86b2",
+        "sha256_normalized": "f72687e41ce3b2477c95a4cdfba681431467d7f7dab033bdb799915b9950ee1e"
+      },
+      "mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1": {
+        "chars": 19010,
+        "sha256": "dd9245b58babfe297749356c43545d4d7fea78ec773199e7bb35441498aecd29",
+        "sha256_normalized": "2cbc8ac7bbb02e949173f052d5c7916853a31c97797a6ef024191e982dc3b7ec"
+      },
+      "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1": {
+        "chars": 34353,
+        "sha256": "db3b3f7b53ba1cb1bb9833d5df101fd378cb6f45b8432222820de69f7e50d3ab",
+        "sha256_normalized": "fb30926bccd8de2dbd2a72f89ad871a63f961d5eb8d1adc426b21a06927eea6d"
+      },
+      "mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1": {
+        "chars": 33793,
+        "sha256": "2fe2c39e2f5a399cc06c38ec233212f4d696148f994dfb86577c2890c977904b",
+        "sha256_normalized": "7ed1064bac5177b8abd0b2e43d41cfc942f62069fbeb6eb075148b84ca8bec23"
+      },
+      "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1": {
+        "chars": 33081,
+        "sha256": "2f2bb34892a4aaef1c10d1d8e9f0ae407ceff2c24b8daa1bbddab8963ad3083f",
+        "sha256_normalized": "b14ad90ecfe320be1e7e9aaff88b7e88bb27aed99e4e3c088da8975bc2370d0f"
+      },
+      "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1": {
+        "chars": 8009,
+        "sha256": "c44e736dda1c20135b7c0d324cf9f3805efe05a82d051cad6a2ef5a19338a731",
+        "sha256_normalized": "6e105ef8490dffff3a846f667a577b791f282b9b3a000f8044bb65310aa865ce"
+      },
+      "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1": {
+        "chars": 23336,
+        "sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+        "sha256_normalized": "26b85790b0490d093214ddbc8c7c410cd1b6e363c523e0d031cde1325928b78d"
+      },
+      "pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1": {
+        "chars": 22823,
+        "sha256": "548ecbb04e11c9dd2c1c35db01d6e8a9c3cc816532715bbd4a46a14fa2538183",
+        "sha256_normalized": "d5b2c56a35ab03bc1587402c18beac8fe657fd43622a5c20719dc4da830a5d21"
+      },
+      "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1": {
+        "chars": 26396,
+        "sha256": "09dfa367b55a748f842d7fbcb80c89adfed90cfd856f24887504b8887baa3106",
+        "sha256_normalized": "2042144dd217f97ef433ad0506bac63e81cd2cf8559d712f85e231af3142d255"
+      },
+      "pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1": {
+        "chars": 21069,
+        "sha256": "16cfe8031e238dd5cfde20be76cfd547f86b1f2a2c35d25c4a6028216d123c12",
+        "sha256_normalized": "15d67c46be342c6f4740f68d366bcb4c97bdfaa92a08cd3198a58eb40deb3533"
+      },
+      "pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1": {
+        "chars": 49605,
+        "sha256": "fa6cf3d2e4b7bafa04dbf829b8521510386119814e791642d2eff03d737fca8a",
+        "sha256_normalized": "103e2dd913d5802cd30638c6ea989579efa2ed7c75bfb8f67942932fe2a80d27"
+      },
+      "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1": {
+        "chars": 51131,
+        "sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+        "sha256_normalized": "c922a47fea99abd415bad59cd457d1acb2f0e1d6eeb8b6a86cb09d16e828bd4f"
+      },
+      "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1": {
+        "chars": 14037,
+        "sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+        "sha256_normalized": "30e57942aca20bc49ef4c9f59a6e67c10a7c92c2fe6328321ff5691a3262cc5e"
+      },
+      "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1": {
+        "chars": 34426,
+        "sha256": "23d0b2d6055f589cc0b9a84610c6da6a0525b98503cdc4e99323fd5b0458c3eb",
+        "sha256_normalized": "8b78b3cd09b57d6304e5b14c5d73327c9378525dd06f6107d525aad58a9803f9"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1": {
+        "chars": 51919,
+        "sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+        "sha256_normalized": "67f9cd7270f72b6cd19e1c1f49c98d40297f16f3cbc95caef821c00a8815c106"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1": {
+        "chars": 216760,
+        "sha256": "e3cf5425e784c69cbf2859502519c55e6a3e0bb3728b5320fa31bcb4e19f86f6",
+        "sha256_normalized": "701aa89d553e9bd9354cf88df9685c25403bf60937ada897192248ef9fc6d790"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1": {
+        "chars": 32226,
+        "sha256": "4a9c701ff0f179b6b9956355224a5c6faa3fac9f811d6fe5b9e9c4473b493b44",
+        "sha256_normalized": "493c8becb0889fccbddfe3c483900d25b862d841ccffba951d73c3f2c8fe0ca1"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1": {
+        "chars": 9858,
+        "sha256": "4dc3b5a4bf7cf85cc35341887ff328418c8e66275105b73ce4269db0038c0047",
+        "sha256_normalized": "04d918c8b093c3754231fa783c343c9caa92a574515943e25d2f282169c4e5a7"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1": {
+        "chars": 25688,
+        "sha256": "751c578f6e5906230dc72b9087738d2a7c482d6b88a9dc834272a677c42296da",
+        "sha256_normalized": "d642a266023b800f76d5fb0d30b5efe1cf58a4e96ca0970a1186ad2b8a668240"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1": {
+        "chars": 22683,
+        "sha256": "2f49cd2f6ef4ddc6ca74dec97e8808a6c98727beb37730276abc6f629ee381c1",
+        "sha256_normalized": "d46b2392b09915caf4efcf209a63beeb8c918ef19f9d7c7a933333ecb844c4eb"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1": {
+        "chars": 42314,
+        "sha256": "f6636960cd0f3250722159ad57589b66b4e98366c02c3e3df8d9a0bdcba8b84b",
+        "sha256_normalized": "ee664a585d1d99fe397840a632ee44452b258ea6bc622f2e4d7238b1e8f10db2"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1": {
+        "chars": 64897,
+        "sha256": "f8d36a3e0c338487573430a315804d5b9c83c76669fa173160f6cd36ad50899b",
+        "sha256_normalized": "cdbcc1bab5b36f239dee2ef73350dedcbd3c614f2f10cf285efc77acf877bd13"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1": {
+        "chars": 70046,
+        "sha256": "64e7eaa1a0bf0ff1c00317c13a9c2ba163b31ebde897fc8b4bbee56955bbf32d",
+        "sha256_normalized": "01f498d008f8432c9b837dbe4d9466ce395228e7b2311082b25af56cc9399207"
+      },
+      "sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1": {
+        "chars": 10942,
+        "sha256": "5767c27124af3e5b5a215df6ce795e64d57f21baa2e6b4f600f1f38e1531508b",
+        "sha256_normalized": "4214560adc7c7df7d7a5386972f4210a1d027803e76c7c88f6817805179363e9"
+      }
+    },
+    "tasks_with_gold": 100
+  },
+  "identical_cross_arm_limitations": "同一 task 两臂补丁字节相同是**独立性线索**，不能直接判定抄袭：同一模型 + 同一任务 + 精确 Interface Description 下收敛到相同修改（尤其小修复/恢复型任务）是可能的。如果同一补丁在不同 run 得到不同官方评分，那是评分/环境稳定性的线索，需单独复核。",
+  "identical_cross_arm_patches": {
+    "all_cross_arm_pair_count": 7,
+    "all_cross_arm_pairs": [
+      {
+        "arms": [
+          "sdlc",
+          "standard"
+        ],
+        "experiment": "2x2",
+        "official_resolved": [
+          true,
+          true
+        ],
+        "patch_chars": 13712,
+        "patch_sha256": "ad1c957050bbf9c4413d51ca8f5e6dddc7ff651137782c4b1f4ddb0cd6406971",
+        "repeat": 1,
+        "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+      },
+      {
+        "arms": [
+          "sdlc_guidance",
+          "standard_guidance"
+        ],
+        "experiment": "2x2",
+        "official_resolved": [
+          true,
+          true
+        ],
+        "patch_chars": 13964,
+        "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+        "repeat": 1,
+        "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+      },
+      {
+        "arms": [
+          "sdlc",
+          "standard_guidance"
+        ],
+        "experiment": "2x2",
+        "official_resolved": [
+          false,
+          false
+        ],
+        "patch_chars": 2711,
+        "patch_sha256": "66cb635aa4206ca73437f95cc61bf93b76cd46e2ef913ee8b43a9836db331081",
+        "repeat": 1,
+        "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+      },
+      {
+        "arms": [
+          "sdlc",
+          "standard"
+        ],
+        "experiment": "expanded",
+        "official_resolved": [
+          true,
+          true
+        ],
+        "patch_chars": 33073,
+        "patch_sha256": "b764fe54f61957afe8c5190ad4741472bc15eef9f2b241271b8fe03ddbeefd04",
+        "repeat": 1,
+        "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1"
+      },
+      {
+        "arms": [
+          "sdlc",
+          "standard"
+        ],
+        "experiment": "expanded",
+        "official_resolved": [
+          true,
+          true
+        ],
+        "patch_chars": 8007,
+        "patch_sha256": "8156aa827bf5338231249470924ad18678dc6f449594a2c7765762a8eb36d8d1",
+        "repeat": 1,
+        "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1"
+      },
+      {
+        "arms": [
+          "sdlc",
+          "standard"
+        ],
+        "experiment": "mvp",
+        "official_resolved": [
+          true,
+          true
+        ],
+        "patch_chars": 13964,
+        "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+        "repeat": 1,
+        "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+      },
+      {
+        "arms": [
+          "sdlc",
+          "standard"
+        ],
+        "experiment": "version-regression-mvp",
+        "official_resolved": [
+          true,
+          true
+        ],
+        "patch_chars": 13964,
+        "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+        "repeat": 1,
+        "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+      }
+    ],
+    "definition": "A 臂 = standard；B 臂 = 该实验的 treatment 臂（见 b_arm）。",
+    "primary_ab_pair_count": 4,
+    "primary_ab_pairs": [
+      {
+        "arm_a": "standard",
+        "arm_b": "sdlc",
+        "experiment": "expanded",
+        "official_resolved_a": true,
+        "official_resolved_b": true,
+        "patch_chars_a": 33073,
+        "patch_chars_b": 33073,
+        "patch_sha256": "b764fe54f61957afe8c5190ad4741472bc15eef9f2b241271b8fe03ddbeefd04",
+        "repeat": 1,
+        "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1",
+        "timeout_truncated_a": false,
+        "timeout_truncated_b": true
+      },
+      {
+        "arm_a": "standard",
+        "arm_b": "sdlc",
+        "experiment": "expanded",
+        "official_resolved_a": true,
+        "official_resolved_b": true,
+        "patch_chars_a": 8007,
+        "patch_chars_b": 8007,
+        "patch_sha256": "8156aa827bf5338231249470924ad18678dc6f449594a2c7765762a8eb36d8d1",
+        "repeat": 1,
+        "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1",
+        "timeout_truncated_a": false,
+        "timeout_truncated_b": false
+      },
+      {
+        "arm_a": "standard",
+        "arm_b": "sdlc",
+        "experiment": "mvp",
+        "official_resolved_a": true,
+        "official_resolved_b": true,
+        "patch_chars_a": 13964,
+        "patch_chars_b": 13964,
+        "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+        "repeat": 1,
+        "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+        "timeout_truncated_a": false,
+        "timeout_truncated_b": false
+      },
+      {
+        "arm_a": "standard",
+        "arm_b": "sdlc",
+        "experiment": "version-regression-mvp",
+        "official_resolved_a": true,
+        "official_resolved_b": true,
+        "patch_chars_a": 13964,
+        "patch_chars_b": 13964,
+        "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+        "repeat": 1,
+        "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+        "timeout_truncated_a": false,
+        "timeout_truncated_b": false
+      }
+    ],
+    "resolved_outcome_inconsistencies": []
+  },
+  "method": {
+    "gold_compare": "dataset `patch` 字段的 UTF-8 sha256 vs meta.patch_sha256（= patch.diff 字节 sha256）",
+    "isolation": "leak_scan.txt 的 'isolation check:' CHECK_DONE 表示该 run 的隔离检查完成",
+    "leak_scan": "run_arm.py 在初始化后 grep gold 补丁中的函数签名扫描容器（排除 /testbed 与 /proc /sys），命中写 leak_scan.txt 与 meta.leak_scan_hits",
+    "normalized_compare": "规范化（CRLF→LF、去行尾空白、末尾恰好一个换行）后再比对，作为 byte 比对的更宽松二次检查；仍不处理 diff 顺序/上下文差异"
+  },
+  "packaging_sensitivity": {
+    "caveat": "样本量很小；packaging 的 vendored 副本对所有臂机会均等，泄漏本身不制造 A/B 差异，但会抬高天花板/增加方差。结论不删除任何分母，含/不含并列给出。",
+    "definition": "packaging = repo pypa/packaging 的任务（唯一已知镜像内含 pip/Setuptools/wheel vendored packaging 参考实现的 repo，两臂均可见）。paired 口径：A=standard，B=该实验 treatment arm（mvp/expanded/repeat 的 sdlc，2x2 的 sdlc_guidance）。scoreable pair 才进 W/L/T；ITT 分母不删。主表只用 V1（与 #8 的 comparable paired 主面板同口径：V1 31 attempted / 30 scoreable）；V2 单独列，不合并。",
+    "interpretation": "V1（30 个 scoreable pair）：含 packaging 时 A 4/5 vs B 5/5、W1 L0 T4，净 B−A=+1；不含 packaging 时 A 17/25 vs B 17/25、W2 L2 T21，完全打平。即 V1 的净 +1 对完全由 packaging 这 1 个 pair 贡献，与『参考副本泄漏只抬高天花板/增加方差、不制造 A/B 差异』的 caveat 一致。注意 ITT 口径（31 attempted）不含 packaging 时 A 17/26 vs B 18/26 仍差 1：那 1 条是 expanded 的 A 侧官方评分环境缺失（按 ITT 记未解决），不是胜负。V2 的 5 个 pair 里 packaging 也是同一个『A98.64% 边缘失败 / B 通过』个案；V2 单独列，不并入 V1 结论。",
+    "v1": {
+      "all_pairs": {
+        "a_resolved_itt": 21,
+        "a_resolved_scoreable": 21,
+        "b_resolved_itt": 23,
+        "b_resolved_scoreable": 22,
+        "net_b_minus_a_itt": 2,
+        "net_b_minus_a_scoreable": 1,
+        "paired_wlt": {
+          "a_wins": 2,
+          "b_wins": 3,
+          "ties": 25,
+          "ties_both_failed": 6,
+          "ties_both_resolved": 19
+        },
+        "pairs_attempted": 31,
+        "pairs_scoreable": 30
+      },
+      "non_packaging_pairs": {
+        "a_resolved_itt": 17,
+        "a_resolved_scoreable": 17,
+        "b_resolved_itt": 18,
+        "b_resolved_scoreable": 17,
+        "net_b_minus_a_itt": 1,
+        "net_b_minus_a_scoreable": 0,
+        "paired_wlt": {
+          "a_wins": 2,
+          "b_wins": 2,
+          "ties": 21,
+          "ties_both_failed": 6,
+          "ties_both_resolved": 15
+        },
+        "pairs_attempted": 26,
+        "pairs_scoreable": 25
+      },
+      "note": "plugin 0.6.0 + DSH CLI 0.2.1-rc.5；#8 comparable_pairs 主面板口径",
+      "packaging_pairs": {
+        "a_resolved_itt": 4,
+        "a_resolved_scoreable": 4,
+        "b_resolved_itt": 5,
+        "b_resolved_scoreable": 5,
+        "net_b_minus_a_itt": 1,
+        "net_b_minus_a_scoreable": 1,
+        "paired_wlt": {
+          "a_wins": 0,
+          "b_wins": 1,
+          "ties": 4,
+          "ties_both_failed": 0,
+          "ties_both_resolved": 4
+        },
+        "pairs_attempted": 5,
+        "pairs_scoreable": 5
+      }
+    },
+    "v2": {
+      "all_pairs": {
+        "a_resolved_itt": 3,
+        "a_resolved_scoreable": 3,
+        "b_resolved_itt": 4,
+        "b_resolved_scoreable": 4,
+        "net_b_minus_a_itt": 1,
+        "net_b_minus_a_scoreable": 1,
+        "paired_wlt": {
+          "a_wins": 0,
+          "b_wins": 1,
+          "ties": 4,
+          "ties_both_failed": 1,
+          "ties_both_resolved": 3
+        },
+        "pairs_attempted": 5,
+        "pairs_scoreable": 5
+      },
+      "non_packaging_pairs": {
+        "a_resolved_itt": 3,
+        "a_resolved_scoreable": 3,
+        "b_resolved_itt": 3,
+        "b_resolved_scoreable": 3,
+        "net_b_minus_a_itt": 0,
+        "net_b_minus_a_scoreable": 0,
+        "paired_wlt": {
+          "a_wins": 0,
+          "b_wins": 0,
+          "ties": 4,
+          "ties_both_failed": 1,
+          "ties_both_resolved": 3
+        },
+        "pairs_attempted": 4,
+        "pairs_scoreable": 4
+      },
+      "note": "plugin 0.6.1 + DSH 0.2.2-rc.1；只有 regression-0.6.1/mvp.yml 的 5 个 paired cell。**不与 V1 合并统计**，只作版本回归的泄漏敏感性附注。",
+      "packaging_pairs": {
+        "a_resolved_itt": 0,
+        "a_resolved_scoreable": 0,
+        "b_resolved_itt": 1,
+        "b_resolved_scoreable": 1,
+        "net_b_minus_a_itt": 1,
+        "net_b_minus_a_scoreable": 1,
+        "paired_wlt": {
+          "a_wins": 0,
+          "b_wins": 1,
+          "ties": 0,
+          "ties_both_failed": 0,
+          "ties_both_resolved": 0
+        },
+        "pairs_attempted": 1,
+        "pairs_scoreable": 1
+      }
+    }
+  },
+  "per_run": [
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "49be670fd3833cbba7fa0e242f1b49d029943023279e7fba9e4bebdf6fe717b7",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "d426cf09037ea406c06ff0076d5ae20e3bca2f57473210a245a6f3629b6c1ad6",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "2a76de0e19232e6ddca0e4f6eb6c8160d6ebe8ac6ccb552ce13c6060226367bb",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "mvp:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:standard:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "32d5a6f75e1fffb1adad80f552075f9f63399dd884f42aafc2f0c696046a747c",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "mvp:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "4d4d0519c2bf9d247cb49ec3a9738b3130bdd6d3eba3c154a4b9cd3c04f23790",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ec577f1f635f92366132474dc4caae6897720d29c6fe8f6ab0033d3f11f81964",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "mvp:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:standard:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "mvp:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "5d5f2bd3d3406a1a12d96cc31cf0d5a636d55525519e4bcb37ce6d28a6d7c6b8",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "mvp",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ebfe483b47146e28c263fa2a2658c0a354564f9de706f58bfcb59d8bc5f05ed3",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "bacd32e42bc61dbf55c51ca46122577e916aab49849833533dd44feb325a4efb",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "2x2:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "standard_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ea63739124c30ac522594009c7c94491d2a27ecb9dd8f4c947c284d975cfc22e",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "2x2:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:standard_guidance:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "68cb95a439fc2d62e7b3fa737512c3340db32d21baa3f2bbf487a6cf09a330b6",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "2x2:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "sdlc_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "2x2:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc_guidance:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "75f06ee90d011b2584044468bd7c8e6fafd0bb4908ab317f38d71131969848d3",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "2x2:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:standard:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "standard_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "df3426716f1090ddc0278cd00de9041076cbf9fcdfa93c2fb3d580f2095068a1",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "2x2:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:standard_guidance:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "a40eab6241bfe6104851551a1b7a3d2d076078c22b29cb40efe9b193ccadae58",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "2x2:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "sdlc_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "f39bc69b7b7dcf37f8d57c2d1c147c141e93329d68df6e34b91bab73a89839fb",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "2x2:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc_guidance:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "05a33aab64d295354a2282586dd82d9edc4b16b66ea7b8e2114855f4b459fea6",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "2x2:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "standard_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "08f4dae4f0c28f3e3755d11dee3adce18dbdc4c9732d01346f3ecb9a44538369",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "2x2:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard_guidance:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "101800c9e43fd95480178dcc773be4701a0a3dfd0088a74c8d621ddb322d4859",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "2x2:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "sdlc_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "38414aa2f36b5602682e5ea3532570ef5ea97df24d8aebdab679f15703df3354",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "2x2:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc_guidance:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ad1c957050bbf9c4413d51ca8f5e6dddc7ff651137782c4b1f4ddb0cd6406971",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "2x2:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:standard:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "standard_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "2x2:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:standard_guidance:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ad1c957050bbf9c4413d51ca8f5e6dddc7ff651137782c4b1f4ddb0cd6406971",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "2x2:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "sdlc_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "2x2:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc_guidance:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "7f3dcda1fd0ba9b38323a4687bcf4ca76b9e8ab630f179d537434cd88ab693b7",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "2x2:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "66cb635aa4206ca73437f95cc61bf93b76cd46e2ef913ee8b43a9836db331081",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "2x2:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:standard_guidance:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "66cb635aa4206ca73437f95cc61bf93b76cd46e2ef913ee8b43a9836db331081",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "2x2:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc_guidance",
+      "equals_gold_patch": false,
+      "experiment": "2x2",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "bb5a23bed92d1c2236cc7014ac07d1ab6efe9929c3a607d0f701d4a381928489",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "2x2:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc_guidance:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "dd9245b58babfe297749356c43545d4d7fea78ec773199e7bb35441498aecd29",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "f8e007e8ee8b9a4f13e4c95d92f1149ecbb4a6da52991a08e2a0fd0cfd4be364",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "dd9245b58babfe297749356c43545d4d7fea78ec773199e7bb35441498aecd29",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "9ff55ed70f7dff6f7322f701e23d811288038550ad35c3a33de0094d29a0d5d6",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_plot.b645d353.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "db3b3f7b53ba1cb1bb9833d5df101fd378cb6f45b8432222820de69f7e50d3ab",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "54048dd0fdfe5c2a1d10936d87cfef9f0794442efd668e127a813151f3c9ebe8",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "db3b3f7b53ba1cb1bb9833d5df101fd378cb6f45b8432222820de69f7e50d3ab",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "a343074ff0e6a347f452bc3624257663dcc98e3eae16df20f3b4eed3c174d48e",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "2fe2c39e2f5a399cc06c38ec233212f4d696148f994dfb86577c2890c977904b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "c1e6b0094cff63f4eb18fafc20adf11ee8445ae26b929515d7e65d2ceaa5b16a",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "2fe2c39e2f5a399cc06c38ec233212f4d696148f994dfb86577c2890c977904b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "82b84824c11136e256e2eb29c5bdfead65174db4455c0bd255702c6a4c4955c7",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_relational.f23eb542.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "2f2bb34892a4aaef1c10d1d8e9f0ae407ceff2c24b8daa1bbddab8963ad3083f",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "b764fe54f61957afe8c5190ad4741472bc15eef9f2b241271b8fe03ddbeefd04",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "2f2bb34892a4aaef1c10d1d8e9f0ae407ceff2c24b8daa1bbddab8963ad3083f",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "b764fe54f61957afe8c5190ad4741472bc15eef9f2b241271b8fe03ddbeefd04",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "c44e736dda1c20135b7c0d324cf9f3805efe05a82d051cad6a2ef5a19338a731",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "8156aa827bf5338231249470924ad18678dc6f449594a2c7765762a8eb36d8d1",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "c44e736dda1c20135b7c0d324cf9f3805efe05a82d051cad6a2ef5a19338a731",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "8156aa827bf5338231249470924ad18678dc6f449594a2c7765762a8eb36d8d1",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "expanded:mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "fa6cf3d2e4b7bafa04dbf829b8521510386119814e791642d2eff03d737fca8a",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "2c02c061d2bcaeb5d95a41e57f3cde51702f477ff0021bad8909a8293401510f",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "expanded:pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1:standard:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "fa6cf3d2e4b7bafa04dbf829b8521510386119814e791642d2eff03d737fca8a",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "544ce96cad1c87f6f8d94a47408cf104ee1e88680c1b26f1af12bd097b3e2552",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "expanded:pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_types_self.3ae7e16d.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "751c578f6e5906230dc72b9087738d2a7c482d6b88a9dc834272a677c42296da",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "4c7e44ef7ec5e0fd7fb67548c6246739e5400a867d8a4dcf6eda926c0b68b034",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "751c578f6e5906230dc72b9087738d2a7c482d6b88a9dc834272a677c42296da",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "f709bdfb6d82138db05497dcb791b5fc45d7a074850a4453440829de9fcfde7b",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_domain_c.4068b9e8.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "2f49cd2f6ef4ddc6ca74dec97e8808a6c98727beb37730276abc6f629ee381c1",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "e72f608dfe358fc189264e77fdcab848fa4f44db05663b9f9a91f5e33fbe2025",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "2f49cd2f6ef4ddc6ca74dec97e8808a6c98727beb37730276abc6f629ee381c1",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ed67865e76091877e1555091774b0ea7320fe2ae82712aa2ea388662cea2e6fd",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "f6636960cd0f3250722159ad57589b66b4e98366c02c3e3df8d9a0bdcba8b84b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "8c24109b435cd449e8ca8d5e0ce18b5e416ddb398be07743764471057ecd1f6b",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "f6636960cd0f3250722159ad57589b66b4e98366c02c3e3df8d9a0bdcba8b84b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "b0e04b4df352c58bd7d7a22b667226fa0cda7d7ba73cff7afa0693ef247ea54c",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "f8d36a3e0c338487573430a315804d5b9c83c76669fa173160f6cd36ad50899b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "b9baf72380cbd10c2d54f571f8549afe0274a25497848ebcc5066c28f86ee370",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "f8d36a3e0c338487573430a315804d5b9c83c76669fa173160f6cd36ad50899b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ae0f931eae70b8bdd7868f78a0dba978ec8b228d6bbcf9186c206f44a0a261da",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "64e7eaa1a0bf0ff1c00317c13a9c2ba163b31ebde897fc8b4bbee56955bbf32d",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "851ef626ec6f21d4ef65bff2c1f48f0ec1ecc744c6e92fafd963b40da50a8b08",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "64e7eaa1a0bf0ff1c00317c13a9c2ba163b31ebde897fc8b4bbee56955bbf32d",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "300b692e095bb842e5094cd05b51d92a1c1d4c88805dd6a168cbf3868b889efd",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "5767c27124af3e5b5a215df6ce795e64d57f21baa2e6b4f600f1f38e1531508b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "816536821e2cb1f6921ab4bfa38e551866cb62a6315ee56a7eda9e58d0ce15a8",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "expanded",
+      "gold_patch_sha256": "5767c27124af3e5b5a215df6ce795e64d57f21baa2e6b4f600f1f38e1531508b",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "01b720450f0364521791bac685a2441a108bdbada6e17f4389fd2f8a9c2e4c9f",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_util_nodes.08cdc62d.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "fc2cf2d37d2db3bdbceb6fb063dd0e40b39bf0401cfebac6cdc83f85705c5817",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "f6adc69e8759f89343f65a63123e7c5a0009efc6f90ca8d67190c70619c01f8f",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "f74b1cd260b3df92b962c4b0e9a0265cc012886ce35781bc6a89d2f82e9b9fd6",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "22187142b90f20ec69111ddf1360ec357bd0d55b637147c6e925a2db8509f6e4",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "a7ad0409005ca998a06449a94763c74c98082e8b6e02953da2cdc01d535f86b2",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "96714b91cfc66164ad36670097697037158973ddcf4fed7013a91feafcc6e724",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "verify-calibration:mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_line.25304a8b.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "548ecbb04e11c9dd2c1c35db01d6e8a9c3cc816532715bbd4a46a14fa2538183",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "37f665d928c350220f0f51a4199ceb8de3073c19cf87b79bc8d9262a9a97b925",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "verify-calibration:pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_experimental_arguments_schema.00dc2dd4.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "09dfa367b55a748f842d7fbcb80c89adfed90cfd856f24887504b8887baa3106",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "7aabde5f9667fd2e9f4d86b2dfbe82348cb44ae2b3df30de8fc8f1a71e75c8e0",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "verify-calibration:pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "16cfe8031e238dd5cfde20be76cfd547f86b1f2a2c35d25c4a6028216d123c12",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "da698b527b8a8326e2c917e908f2ce9724c05b34576b94467a53e2f2d7552543",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "verify-calibration:pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_titles.e806bda8.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "23d0b2d6055f589cc0b9a84610c6da6a0525b98503cdc4e99323fd5b0458c3eb",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "101e97cdf982b2653e43fe1fcf4bcc1c96c52c57a4936a2f42dd15a767900489",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "verify-calibration:pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.test_local.40fb2f1f.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "e3cf5425e784c69cbf2859502519c55e6a3e0bb3728b5320fa31bcb4e19f86f6",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3b1fd8f657b0ca5fcbc7fec2080014221f7e840461d6ab08415c34e42eacf0a0",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-calibration:sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "4a9c701ff0f179b6b9956355224a5c6faa3fac9f811d6fe5b9e9c4473b493b44",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3c2e7d4441bf44697b3fed119110573644112769f5cc60245bf53d0f1fadea32",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-calibration:sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-calibration",
+      "gold_patch_sha256": "4dc3b5a4bf7cf85cc35341887ff328418c8e66275105b73ce4269db0038c0047",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "8e02776f2ca2fe142e6817e9ef77c03da7765f3c214810f5a8c5555349a44a99",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-calibration:sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_command_line.039d53a2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-stress",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "a296a5eaac3fc79cdbf6adbaf40068516955f47d8ac5de4515f494273db85402",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-stress",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "a3d275935625cef5e2a9b43b8c1734e837f919e5b35b1b4b5e05f965089da26d",
+      "repeat": 2,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r2",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "verify-stress",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "d9be77993850da48e9c1330e5890a0225c0f00b3087797e1115ec4acb960dedf",
+      "repeat": 3,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r3",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "da5ac880e81f6bb396286a9916a5d2fc566513f9bc410652b2080e98cd281afc",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "bacd32e42bc61dbf55c51ca46122577e916aab49849833533dd44feb325a4efb",
+      "repeat": 2,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:standard:r2",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "da5ac880e81f6bb396286a9916a5d2fc566513f9bc410652b2080e98cd281afc",
+      "repeat": 3,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:standard:r3",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "9eee1bbdb1705a448c286bd1cb2debdf4b67cfa5ff6fa500328e291fb0aea9f3",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "219ff3b791ed287e2ec79620560a76592085c68bc070e42ce8acac2625082c1f",
+      "repeat": 2,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r2",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "0d54af82ee3869c271056832677bf2d89188bd6fffbb4845fccfde5ce79be750",
+      "repeat": 3,
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r3",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "f91500135d91a4a49759dbafc0175b4704840439bf22e2cc49e6292e36cc7963",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "692590874a2cc5d11d0d14af626e51b20f0fba606fa0f279d7848cb6518d0698",
+      "repeat": 2,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard:r2",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "1a40ad6f926dec7dc5255d311f09c08f4c7d2f9276b9faa35d75c1e6239dba8b",
+      "repeat": 3,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard:r3",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "524a65d8a4dd072e7f05a22dbb618255ff00bb00807ef37b29ed5a2d77610a65",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "6c920bc1c463526e304d13b7f2b790dccb532f109a3ee5b758c7f9f6292462c2",
+      "repeat": 2,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r2",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "524a65d8a4dd072e7f05a22dbb618255ff00bb00807ef37b29ed5a2d77610a65",
+      "repeat": 3,
+      "repo": "pypa/packaging",
+      "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r3",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "66cb635aa4206ca73437f95cc61bf93b76cd46e2ef913ee8b43a9836db331081",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "c1874782a690c04263746c0d32fdda9b3a1390997b14fa0422572e5e63af055a",
+      "repeat": 2,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:standard:r2",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "40b6007d990d2b1a81a8a77333003626242681667d8b32ad2815591bf82df3dc",
+      "repeat": 3,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:standard:r3",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "2faf6606306ca3d6a3c427e470d60c08760d34c277502bf6cb1ff5b1f1cb22ae",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "ccf543aa1a7de15811c6c4de2bf5b64e1d6867b97ada5ae0818c2ca2c3ef1972",
+      "repeat": 2,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r2",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "repeat-sampling",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "72983a3b0df3b4b09c9941dca404d1607cfc4921214f5be604f1d19e1656535f",
+      "repeat": 3,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r3",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "117ee805ee707b3db5aab8207e2cc809cba5f165c22a317e3139275c29ff3638",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "version-regression-mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:standard:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "ef4e24228fc1ee1e5514e4eb5afadb0359cf09e03438a4487a5873a1376c95f3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "8fa29e9f45c0782a599c51847df697c16163f53ebf0819a345f57d930e1a291a",
+      "repeat": 1,
+      "repo": "mwaskom/seaborn",
+      "run_id": "version-regression-mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "7f265b09d797849f443345e4fc1bd39d823ab26747f8ae6ae821926b1f771c0a",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "version-regression-mvp:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:standard:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "bd5779565c96bc943bd521097eda353150de8a60f29f0bf5ed6f2d1a733c8cb3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "e64bf01a8182888181033461e965ec10df9433edfd82ec72ca232d37bc69d884",
+      "repeat": 1,
+      "repo": "pydantic/pydantic",
+      "run_id": "version-regression-mvp:pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1:sdlc:r1",
+      "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "8deb1141db83f3224cf8f255c117a5924df70fd85f1677d9514200b3f1607c39",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "version-regression-mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "a496e5e9fded1555d2583827c84c84baf215170f9c4faf4e520a2072b0f35c54",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "version-regression-mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "version-regression-mvp:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:standard:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "23e9e438ac07aba605c7f65709a68d55102fe398c8a8008c23ba256a7a5b32a3",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "3c968769d5fa0d9caa74a93451c5c574c27874c58dce4dddc4d58b63749c0280",
+      "repeat": 1,
+      "repo": "pytest-dev/pytest",
+      "run_id": "version-regression-mvp:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc:r1",
+      "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "e13171215ab00c95e5e4d5e88ebecace49ffe9617b0b0c85bdbdefa8e77bae40",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "version-regression-mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:standard:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "sdlc",
+      "equals_gold_patch": false,
+      "experiment": "version-regression-mvp",
+      "gold_patch_sha256": "3d368625929583045afbd455c12eec14b7f7da5d8b5ea84c7fd162176dba1ce4",
+      "hit_paths": [],
+      "isolation_check_done": true,
+      "leak_scan_hits": 0,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "66cb635aa4206ca73437f95cc61bf93b76cd46e2ef913ee8b43a9836db331081",
+      "repeat": 1,
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "version-regression-mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    },
+    {
+      "arm": "standard",
+      "equals_gold_patch": false,
+      "experiment": "pilot",
+      "gold_patch_sha256": "26b63856550849f57f4b3d127c11b5a88295936e1aec879ea16e5b89f2e3497b",
+      "hit_paths": [
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/pip/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/setuptools/_vendor/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/envs/pytorch_base/lib/python3.10/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/pkg_resources/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/setuptools/_vendor/packaging/_parser.py",
+        "/opt/miniconda3/lib/python3.11/site-packages/wheel/vendored/packaging/_parser.py",
+        "/opt/node24/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/_parser.py"
+      ],
+      "isolation_check_done": true,
+      "leak_scan_hits": 9,
+      "leak_scan_txt_consistent": true,
+      "patch_sha256": "8deb1141db83f3224cf8f255c117a5924df70fd85f1677d9514200b3f1607c39",
+      "repeat": 1,
+      "repo": "pypa/packaging",
+      "run_id": "pilot:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:standard:r1",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+    }
+  ],
+  "purpose": "AC-005：隔离与泄漏审计。逐镜像/任务/arm 汇总 leak_scan_hits，标记已知参考实现泄漏；用官方 dataset gold patch 做 sha256 比对；packaging 泄漏的敏感性分析；A/B 补丁同一性作为独立性线索（不据此宣称严格盲评/抄袭）。",
+  "schema_version": 1,
+  "totals": {
+    "hits_total": 135,
+    "isolation_check_missing_or_failed": [],
+    "leak_scan_txt_mismatches": [],
+    "runs": 96,
+    "runs_with_hits": 15
+  }
+}

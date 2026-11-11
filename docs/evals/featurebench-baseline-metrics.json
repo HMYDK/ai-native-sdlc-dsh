@@ -1,0 +1,2971 @@
+{
+  "schema_version": 1,
+  "generated_by": "tools/evals/featurebench/reaggregate.py",
+  "definitions": {
+    "attempted": "快照里出现的 run 行数（含超时/失败/缺官方评分的 run），不静默剔除。",
+    "scoreable": "带官方评分结果（resolved 字段）的 run。",
+    "itt_resolved_rate": "resolved / attempted：缺官方评分的 run 按未解决计入。",
+    "pp_resolved_rate": "resolved / scoreable（per-protocol：只看官方评过分的那部分）。",
+    "paired_W_L_T": "A=standard 为参照：W=B resolved 且 A unresolved；L=A resolved 且 B unresolved；T=两者相同。PP 只算两臂都 scoreable 的对，ITT 把缺臂按 unresolved 计入。",
+    "tokens": "只取 scoreable 行的数值；median/mean/p90 复用 analyze_expanded 实现；total 为样本和。",
+    "failure_classes": "来自快照 agent_failure 字段（timeout/over_budget/turn_error 等）；官方 unresolved 属成绩、不属 agent 失败。",
+    "comparable_panel": "V1 内可比配对面板，见 tools/evals/featurebench/reaggregate.py 的模块 docstring。"
+  },
+  "experiments": {
+    "mvp-2026-11-06": {
+      "experiment": "mvp",
+      "date": "2026-11-06",
+      "runtime_groups": [
+        "v1-0.6.0-0.2.1-rc.5"
+      ],
+      "sides": {
+        "all": {
+          "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-06-data.json",
+            "runs": 10,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "standard": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-06-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 3300000,
+                "mean": 4594771.8,
+                "p90": 8500000,
+                "total": 22973859,
+                "sources": {
+                  "session": 2,
+                  "ui": 3
+                }
+              },
+              "elapsed_seconds": {
+                "n": 5,
+                "median": 415,
+                "mean": 644.4,
+                "p90": 1526,
+                "total": 3222
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 5,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 0,
+                "resolved_with_failure": 0,
+                "details": []
+              },
+              "unscoreable": []
+            },
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-06-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 9500000,
+                "mean": 9480731.6,
+                "p90": 13500000,
+                "total": 47403658,
+                "sources": {
+                  "session": 2,
+                  "ui": 3
+                }
+              },
+              "elapsed_seconds": {
+                "n": 4,
+                "median": 1997.0,
+                "mean": 1858.25,
+                "p90": 2318,
+                "total": 7433
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 1,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 4,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 1,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [
+            {
+              "pair_id": "standard_vs_sdlc",
+              "A_arm": "standard",
+              "B_arm": "sdlc",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-06-data.json",
+                "pairs": 5,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 5,
+              "scoreable_pairs": 5,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 5,
+                "both_resolved": 4,
+                "both_failed": 1,
+                "W": 0,
+                "L": 0,
+                "T": 5,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              },
+              "itt": {
+                "n": 5,
+                "both_resolved": 4,
+                "both_failed": 1,
+                "W": 0,
+                "L": 0,
+                "T": 5,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              }
+            }
+          ],
+          "notes": [
+            "首批 MVP：5 个 repo 各 1 个 lv1 任务 × {标准, SDLC+引导}。"
+          ]
+        }
+      }
+    },
+    "2x2-2026-11-07": {
+      "experiment": "2x2",
+      "date": "2026-11-07",
+      "runtime_groups": [
+        "v1-0.6.0-0.2.1-rc.5"
+      ],
+      "sides": {
+        "all": {
+          "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+            "runs": 20,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "standard": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 5300000,
+                "mean": 10660000.0,
+                "p90": 22300000,
+                "total": 53300000,
+                "sources": {
+                  "ui": 5
+                }
+              },
+              "elapsed_seconds": {
+                "n": 5,
+                "median": 661,
+                "mean": 831.6,
+                "p90": 1746,
+                "total": 4158
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 1,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 4,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 1,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+                    "arm": "standard",
+                    "failure": "turn_error",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            },
+            "standard_guidance": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 4800000,
+                "mean": 5220000.0,
+                "p90": 11700000,
+                "total": 26100000,
+                "sources": {
+                  "ui": 5
+                }
+              },
+              "elapsed_seconds": {
+                "n": 5,
+                "median": 515,
+                "mean": 540.4,
+                "p90": 976,
+                "total": 2702
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 5,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 0,
+                "resolved_with_failure": 0,
+                "details": []
+              },
+              "unscoreable": []
+            },
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 4300000,
+                "mean": 11700000.0,
+                "p90": 40200000,
+                "total": 58500000,
+                "sources": {
+                  "ui": 5
+                }
+              },
+              "elapsed_seconds": {
+                "n": 5,
+                "median": 725,
+                "mean": 716.4,
+                "p90": 1161,
+                "total": 3582
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 1,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 4,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 1,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+                    "arm": "sdlc",
+                    "failure": "over_budget",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            },
+            "sdlc_guidance": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 3,
+              "itt_resolved_rate": 0.6,
+              "pp_resolved_rate": 0.6,
+              "tokens": {
+                "n": 5,
+                "median": 11300000,
+                "mean": 16846700.0,
+                "p90": 37800000,
+                "total": 84233500,
+                "sources": {
+                  "ui": 5
+                }
+              },
+              "elapsed_seconds": {
+                "n": 5,
+                "median": 1596,
+                "mean": 1625.4,
+                "p90": 2552,
+                "total": 8127
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 5,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 0,
+                "resolved_with_failure": 0,
+                "details": []
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [
+            {
+              "pair_id": "standard_vs_sdlc",
+              "A_arm": "standard",
+              "B_arm": "sdlc",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "pairs": 5,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 5,
+              "scoreable_pairs": 5,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 5,
+                "both_resolved": 3,
+                "both_failed": 0,
+                "W": 1,
+                "L": 1,
+                "T": 3,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              },
+              "itt": {
+                "n": 5,
+                "both_resolved": 3,
+                "both_failed": 0,
+                "W": 1,
+                "L": 1,
+                "T": 3,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              }
+            },
+            {
+              "pair_id": "standard_guidance_vs_sdlc_guidance",
+              "A_arm": "standard_guidance",
+              "B_arm": "sdlc_guidance",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "pairs": 5,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 5,
+              "scoreable_pairs": 5,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 5,
+                "both_resolved": 3,
+                "both_failed": 1,
+                "W": 0,
+                "L": 1,
+                "T": 4,
+                "A_resolved": 4,
+                "B_resolved": 3,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.6,
+                "mean_diff_B_minus_A": -0.2
+              },
+              "itt": {
+                "n": 5,
+                "both_resolved": 3,
+                "both_failed": 1,
+                "W": 0,
+                "L": 1,
+                "T": 4,
+                "A_resolved": 4,
+                "B_resolved": 3,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.6,
+                "mean_diff_B_minus_A": -0.2
+              }
+            },
+            {
+              "pair_id": "standard_vs_sdlc_guidance",
+              "A_arm": "standard",
+              "B_arm": "sdlc_guidance",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "pairs": 5,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 5,
+              "scoreable_pairs": 5,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 5,
+                "both_resolved": 2,
+                "both_failed": 0,
+                "W": 1,
+                "L": 2,
+                "T": 2,
+                "A_resolved": 4,
+                "B_resolved": 3,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.6,
+                "mean_diff_B_minus_A": -0.2
+              },
+              "itt": {
+                "n": 5,
+                "both_resolved": 2,
+                "both_failed": 0,
+                "W": 1,
+                "L": 2,
+                "T": 2,
+                "A_resolved": 4,
+                "B_resolved": 3,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.6,
+                "mean_diff_B_minus_A": -0.2
+              }
+            },
+            {
+              "pair_id": "standard_guidance_vs_sdlc",
+              "A_arm": "standard_guidance",
+              "B_arm": "sdlc",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-2x2-data.json",
+                "pairs": 5,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 5,
+              "scoreable_pairs": 5,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 5,
+                "both_resolved": 4,
+                "both_failed": 1,
+                "W": 0,
+                "L": 0,
+                "T": 5,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              },
+              "itt": {
+                "n": 5,
+                "both_resolved": 4,
+                "both_failed": 1,
+                "W": 0,
+                "L": 0,
+                "T": 5,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              }
+            }
+          ],
+          "notes": [
+            "2×2 拆分：preset × 引导；主 treatment 对应 arm=sdlc_guidance。"
+          ]
+        }
+      }
+    },
+    "expanded-2026-11-07": {
+      "experiment": "expanded",
+      "date": "2026-11-07",
+      "runtime_groups": [
+        "v1-0.6.0-0.2.1-rc.5"
+      ],
+      "sides": {
+        "all": {
+          "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-07-expanded-data.json",
+            "runs": 24,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "standard": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-expanded-data.json",
+                "runs": 12,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 12,
+              "scoreable": 11,
+              "resolved": 7,
+              "itt_resolved_rate": 0.5833333333333334,
+              "pp_resolved_rate": 0.6363636363636364,
+              "tokens": {
+                "n": 11,
+                "median": 4600000,
+                "mean": 6749000.0,
+                "p90": 16300000,
+                "total": 74239000,
+                "sources": {
+                  "ui": 11
+                }
+              },
+              "elapsed_seconds": {
+                "n": 11,
+                "median": 440,
+                "mean": 492.6363636363636,
+                "p90": 841,
+                "total": 5419
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 1,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 11,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 1,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1",
+                    "arm": "standard",
+                    "failure": "turn_error",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": [
+                {
+                  "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+                  "arm": "standard",
+                  "agent_failure": null,
+                  "reason": "missing_official_result"
+                }
+              ]
+            },
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-expanded-data.json",
+                "runs": 12,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 12,
+              "scoreable": 12,
+              "resolved": 10,
+              "itt_resolved_rate": 0.8333333333333334,
+              "pp_resolved_rate": 0.8333333333333334,
+              "tokens": {
+                "n": 12,
+                "median": 10350000.0,
+                "mean": 14895438.083333334,
+                "p90": 40100000,
+                "total": 178745257,
+                "sources": {
+                  "session": 1,
+                  "ui": 11
+                }
+              },
+              "elapsed_seconds": {
+                "n": 11,
+                "median": 1146,
+                "mean": 1270.909090909091,
+                "p90": 2121,
+                "total": 13980
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 4,
+                  "over_budget": 1,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 7,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 5,
+                "resolved_with_failure": 4,
+                "details": [
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  },
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_scales.d9dcdef6.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  },
+                  {
+                    "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_intersphinx.04901873.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  },
+                  {
+                    "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1",
+                    "arm": "sdlc",
+                    "failure": "over_budget",
+                    "resolved": false
+                  },
+                  {
+                    "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_napoleon_docstring.50dabe1f.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [
+            {
+              "pair_id": "standard_vs_sdlc",
+              "A_arm": "standard",
+              "B_arm": "sdlc",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-expanded-data.json",
+                "pairs": 12,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 12,
+              "scoreable_pairs": 11,
+              "unpaired_pairs": 1,
+              "pp": {
+                "n": 11,
+                "both_resolved": 7,
+                "both_failed": 2,
+                "W": 2,
+                "L": 0,
+                "T": 9,
+                "A_resolved": 7,
+                "B_resolved": 9,
+                "A_resolved_rate": 0.6363636363636364,
+                "B_resolved_rate": 0.8181818181818182,
+                "mean_diff_B_minus_A": 0.18181818181818182
+              },
+              "itt": {
+                "n": 12,
+                "both_resolved": 7,
+                "both_failed": 2,
+                "W": 3,
+                "L": 0,
+                "T": 9,
+                "A_resolved": 7,
+                "B_resolved": 10,
+                "A_resolved_rate": 0.5833333333333334,
+                "B_resolved_rate": 0.8333333333333334,
+                "mean_diff_B_minus_A": 0.25
+              }
+            }
+          ],
+          "notes": [
+            "12 个未用过的 lv1 任务 × {标准, SDLC+引导}；standard 臂有 1 条运行缺官方评分（seaborn test_regression），该对不计入 PP 配对，只在 ITT 敏感性里按 unresolved 计入。"
+          ]
+        }
+      }
+    },
+    "verifier-calibration-2026-11-07": {
+      "experiment": "verifier-calibration",
+      "date": "2026-11-07",
+      "runtime_groups": [
+        "v1-0.6.0-0.2.1-rc.5"
+      ],
+      "sides": {
+        "all": {
+          "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-07-verifier-data.json",
+            "runs": 10,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-verifier-data.json",
+                "runs": 10,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 10,
+              "scoreable": 10,
+              "resolved": 8,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 10,
+                "median": 14615549.5,
+                "mean": 20588036.2,
+                "p90": 40100000,
+                "total": 205880362,
+                "sources": {
+                  "session": 2,
+                  "ui": 8
+                }
+              },
+              "elapsed_seconds": {
+                "n": 8,
+                "median": 1653.0,
+                "mean": 1681.625,
+                "p90": 2536,
+                "total": 13453
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 2,
+                  "over_budget": 2,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 6,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 4,
+                "resolved_with_failure": 2,
+                "details": [
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+                    "arm": "sdlc",
+                    "failure": "over_budget",
+                    "resolved": false
+                  },
+                  {
+                    "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+                    "arm": "sdlc",
+                    "failure": "over_budget",
+                    "resolved": false
+                  },
+                  {
+                    "task_id": "pydantic__pydantic.e1dcaf9e.test_pipeline.c9b08962.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  },
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [],
+          "notes": [
+            "验证者校准：10 个未用过的 lv1 任务 × B 组各 1 次（无 A 臂，不可配对）。"
+          ]
+        }
+      }
+    },
+    "verifier-stress-2026-11-07": {
+      "experiment": "verifier-stress",
+      "date": "2026-11-07",
+      "runtime_groups": [
+        "v1-0.6.0-0.2.1-rc.5"
+      ],
+      "sides": {
+        "all": {
+          "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-07-verifier-stress-data.json",
+            "runs": 3,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-07-verifier-stress-data.json",
+                "runs": 3,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 3,
+              "scoreable": 3,
+              "resolved": 1,
+              "itt_resolved_rate": 0.3333333333333333,
+              "pp_resolved_rate": 0.3333333333333333,
+              "tokens": {
+                "n": 3,
+                "median": 29285894,
+                "mean": 22518847.0,
+                "p90": 29870647,
+                "total": 67556541,
+                "sources": {
+                  "session": 2,
+                  "ui": 1
+                }
+              },
+              "elapsed_seconds": {
+                "n": 1,
+                "median": 1576,
+                "mean": 1576.0,
+                "p90": 1576,
+                "total": 1576
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 2,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 1,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 2,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  },
+                  {
+                    "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": false
+                  }
+                ]
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [],
+          "notes": [
+            "known-fail 任务重复 3 次（无 A 臂）。"
+          ]
+        }
+      }
+    },
+    "repeat-sampling-2026-11-08": {
+      "experiment": "repeat-sampling",
+      "date": "2026-11-08",
+      "runtime_groups": [
+        "v1-0.6.0-0.2.1-rc.5"
+      ],
+      "sides": {
+        "all": {
+          "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json",
+            "runs": 18,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "standard": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json",
+                "runs": 9,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 9,
+              "scoreable": 9,
+              "resolved": 6,
+              "itt_resolved_rate": 0.6666666666666666,
+              "pp_resolved_rate": 0.6666666666666666,
+              "tokens": {
+                "n": 9,
+                "median": 1800000,
+                "mean": 4336777.777777778,
+                "p90": 8500000,
+                "total": 39031000,
+                "sources": {
+                  "ui": 9
+                }
+              },
+              "elapsed_seconds": {
+                "n": 9,
+                "median": 285,
+                "mean": 353.6666666666667,
+                "p90": 577,
+                "total": 3183
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 9,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 0,
+                "resolved_with_failure": 0,
+                "details": []
+              },
+              "unscoreable": []
+            },
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json",
+                "runs": 9,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 9,
+              "scoreable": 9,
+              "resolved": 6,
+              "itt_resolved_rate": 0.6666666666666666,
+              "pp_resolved_rate": 0.6666666666666666,
+              "tokens": {
+                "n": 9,
+                "median": 9800000,
+                "mean": 9228324.0,
+                "p90": 14854916,
+                "total": 83054916,
+                "sources": {
+                  "session": 1,
+                  "ui": 8
+                }
+              },
+              "elapsed_seconds": {
+                "n": 8,
+                "median": 1261.0,
+                "mean": 1343.5,
+                "p90": 1523,
+                "total": 10748
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 1,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 8,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 1,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [
+            {
+              "pair_id": "standard_vs_sdlc_by_rep",
+              "A_arm": "standard",
+              "B_arm": "sdlc",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json",
+                "pairs": 9,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 9,
+              "scoreable_pairs": 9,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 9,
+                "both_resolved": 6,
+                "both_failed": 3,
+                "W": 0,
+                "L": 0,
+                "T": 9,
+                "A_resolved": 6,
+                "B_resolved": 6,
+                "A_resolved_rate": 0.6666666666666666,
+                "B_resolved_rate": 0.6666666666666666,
+                "mean_diff_B_minus_A": 0.0
+              },
+              "itt": {
+                "n": 9,
+                "both_resolved": 6,
+                "both_failed": 3,
+                "W": 0,
+                "L": 0,
+                "T": 9,
+                "A_resolved": 6,
+                "B_resolved": 6,
+                "A_resolved_rate": 0.6666666666666666,
+                "B_resolved_rate": 0.6666666666666666,
+                "mean_diff_B_minus_A": 0.0
+              }
+            }
+          ],
+          "notes": [
+            "3 任务 × 2 臂 × 3 rep；配对单位是 (task, rep)，共 9 对。"
+          ]
+        }
+      }
+    },
+    "version-regression-2026-11-08": {
+      "experiment": "version-regression",
+      "date": "2026-11-08",
+      "runtime_groups": [
+        "v1-0.6.0-0.2.1-rc.5",
+        "v2-0.6.1-0.2.2-rc.1"
+      ],
+      "sides": {
+        "new": {
+          "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+            "runs": 10,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "standard": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 3,
+              "itt_resolved_rate": 0.6,
+              "pp_resolved_rate": 0.6,
+              "tokens": {
+                "n": 5,
+                "median": 10500000,
+                "mean": 9760000.0,
+                "p90": 20900000,
+                "total": 48800000,
+                "sources": {
+                  "ui": 5
+                }
+              },
+              "elapsed_seconds": {
+                "n": 5,
+                "median": 465,
+                "mean": 655.2,
+                "p90": 1396,
+                "total": 3276
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 1,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 4,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 1,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+                    "arm": "standard",
+                    "failure": "turn_error",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            },
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 14830964,
+                "mean": 15222496.0,
+                "p90": 28381516,
+                "total": 76112480,
+                "sources": {
+                  "session": 2,
+                  "ui": 3
+                }
+              },
+              "elapsed_seconds": {
+                "n": 3,
+                "median": 1641,
+                "mean": 1516.3333333333333,
+                "p90": 1647,
+                "total": 4549
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 2,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 3,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 2,
+                "resolved_with_failure": 2,
+                "details": [
+                  {
+                    "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  },
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [
+            {
+              "pair_id": "standard_vs_sdlc",
+              "A_arm": "standard",
+              "B_arm": "sdlc",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+                "pairs": 5,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 5,
+              "scoreable_pairs": 5,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 5,
+                "both_resolved": 3,
+                "both_failed": 1,
+                "W": 1,
+                "L": 0,
+                "T": 4,
+                "A_resolved": 3,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.6,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.2
+              },
+              "itt": {
+                "n": 5,
+                "both_resolved": 3,
+                "both_failed": 1,
+                "W": 1,
+                "L": 0,
+                "T": 4,
+                "A_resolved": 3,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.6,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.2
+              }
+            }
+          ],
+          "notes": [
+            "V2 新版本最小回归：5 任务 × 2 臂（plugin 0.6.1 / DSH 0.2.2-rc.1）。"
+          ]
+        },
+        "old": {
+          "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+          "source": {
+            "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+            "runs": 10,
+            "exclusion": "只读已提交机读快照；该 side 的 run 全量进入 attempted，不静默剔除失败/超时/缺官方评分的 run。"
+          },
+          "arms": {
+            "standard": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 3300000,
+                "mean": 4594771.8,
+                "p90": 8500000,
+                "total": 22973859,
+                "sources": {
+                  "session": 2,
+                  "ui": 3
+                }
+              },
+              "elapsed_seconds": {
+                "n": 5,
+                "median": 415,
+                "mean": 644.4,
+                "p90": 1526,
+                "total": 3222
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 0,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 5,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 0,
+                "resolved_with_failure": 0,
+                "details": []
+              },
+              "unscoreable": []
+            },
+            "sdlc": {
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+                "runs": 5,
+                "exclusion": "token/耗时分布只取 scoreable 行数值；缺官方评分的 run 计入 attempted 与 unscoreable，不进分布。"
+              },
+              "attempted": 5,
+              "scoreable": 5,
+              "resolved": 4,
+              "itt_resolved_rate": 0.8,
+              "pp_resolved_rate": 0.8,
+              "tokens": {
+                "n": 5,
+                "median": 9500000,
+                "mean": 9480731.6,
+                "p90": 13500000,
+                "total": 47403658,
+                "sources": {
+                  "session": 2,
+                  "ui": 3
+                }
+              },
+              "elapsed_seconds": {
+                "n": 4,
+                "median": 1997.0,
+                "mean": 1858.25,
+                "p90": 2318,
+                "total": 7433
+              },
+              "failures": {
+                "counts": {
+                  "timeout": 1,
+                  "over_budget": 0,
+                  "turn_error": 0,
+                  "infra_error": 0,
+                  "agent_error": 0,
+                  "empty_patch": 0,
+                  "unresolved": 0,
+                  "none": 4,
+                  "other": 0
+                },
+                "runs_with_agent_failure": 1,
+                "resolved_with_failure": 1,
+                "details": [
+                  {
+                    "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+                    "arm": "sdlc",
+                    "failure": "timeout",
+                    "resolved": true
+                  }
+                ]
+              },
+              "unscoreable": []
+            }
+          },
+          "paired": [
+            {
+              "pair_id": "standard_vs_sdlc",
+              "A_arm": "standard",
+              "B_arm": "sdlc",
+              "source": {
+                "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+                "pairs": 5,
+                "exclusion": "PP 只统计两臂都带官方 resolved 的对；缺臂/缺官方评分只进 ITT 敏感性。"
+              },
+              "attempted_pairs": 5,
+              "scoreable_pairs": 5,
+              "unpaired_pairs": 0,
+              "pp": {
+                "n": 5,
+                "both_resolved": 4,
+                "both_failed": 1,
+                "W": 0,
+                "L": 0,
+                "T": 5,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              },
+              "itt": {
+                "n": 5,
+                "both_resolved": 4,
+                "both_failed": 1,
+                "W": 0,
+                "L": 0,
+                "T": 5,
+                "A_resolved": 4,
+                "B_resolved": 4,
+                "A_resolved_rate": 0.8,
+                "B_resolved_rate": 0.8,
+                "mean_diff_B_minus_A": 0.0
+              }
+            }
+          ],
+          "notes": [
+            "旧版基线：复用 MVP 的同一批运行读数（重复样本，不重复计入主面板）。"
+          ]
+        }
+      }
+    }
+  },
+  "comparable_pairs": {
+    "panel_id": "v1-headline-ab-paired",
+    "source": {
+      "files": [
+        "docs/evals/featurebench-2026-11-06-data.json",
+        "docs/evals/featurebench-2026-11-07-2x2-data.json",
+        "docs/evals/featurebench-2026-11-07-expanded-data.json",
+        "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json"
+      ],
+      "pairs": 30,
+      "exclusion": "只聚合 V1 实验里「两臂都有官方评分」的 scoreable 配对；version-regression old 是 MVP 复用，不重复计入；B-only 实验（验证者校准/压力）不进配对面板。"
+    },
+    "definition": "V1 runtime group 内 A=「标准模式（无引导）」、B=「AI 原生 SDLC preset + manifest 固定 prompt_suffix」的可比配对面板。MVP/expanded/repeat-sampling 取 arm=sdlc（该 arm 自带引导），2×2 取 arm=sdlc_guidance（2×2 的裸 sdlc 是纯 preset、无引导）。主口径只算两臂都有官方评分的 scoreable 对（PP）；version-regression old 是 MVP 复用、不重复计入；B-only 实验不可配对。",
+    "main": {
+      "counts": {
+        "n": 30,
+        "A_resolved": 21,
+        "B_resolved": 22,
+        "A_resolved_rate": 0.7,
+        "B_resolved_rate": 0.7333333333333333,
+        "mean_diff_B_minus_A": 0.03333333333333333,
+        "both_resolved": 19,
+        "both_failed": 6,
+        "W": 3,
+        "L": 2,
+        "T": 25,
+        "attempted_pairs": 31,
+        "scoreable_pairs": 30
+      },
+      "members": [
+        {
+          "experiment": "mvp-2026-11-06",
+          "pair_id": "standard_vs_sdlc",
+          "A_arm": "standard",
+          "B_arm": "sdlc",
+          "attempted_pairs": 5,
+          "scoreable_pairs": 5,
+          "A_resolved": 4,
+          "B_resolved": 4,
+          "W": 0,
+          "L": 0,
+          "T": 5
+        },
+        {
+          "experiment": "2x2-2026-11-07",
+          "pair_id": "standard_vs_sdlc_guidance",
+          "A_arm": "standard",
+          "B_arm": "sdlc_guidance",
+          "attempted_pairs": 5,
+          "scoreable_pairs": 5,
+          "A_resolved": 4,
+          "B_resolved": 3,
+          "W": 1,
+          "L": 2,
+          "T": 2
+        },
+        {
+          "experiment": "expanded-2026-11-07",
+          "pair_id": "standard_vs_sdlc",
+          "A_arm": "standard",
+          "B_arm": "sdlc",
+          "attempted_pairs": 12,
+          "scoreable_pairs": 11,
+          "A_resolved": 7,
+          "B_resolved": 9,
+          "W": 2,
+          "L": 0,
+          "T": 9
+        },
+        {
+          "experiment": "repeat-sampling-2026-11-08",
+          "pair_id": "standard_vs_sdlc_by_rep",
+          "A_arm": "standard",
+          "B_arm": "sdlc",
+          "attempted_pairs": 9,
+          "scoreable_pairs": 9,
+          "A_resolved": 6,
+          "B_resolved": 6,
+          "W": 0,
+          "L": 0,
+          "T": 9
+        }
+      ]
+    },
+    "sensitivity": {
+      "variant_2x2_sdlc": {
+        "definition": "主面板的变体：2×2 改用纯 sdlc（无引导）arm。用于证明 arm 选择来自 treatment 定义而非按结果挑选。",
+        "counts": {
+          "n": 30,
+          "A_resolved": 21,
+          "B_resolved": 23,
+          "A_resolved_rate": 0.7,
+          "B_resolved_rate": 0.7666666666666667,
+          "mean_diff_B_minus_A": 0.06666666666666667,
+          "both_resolved": 20,
+          "both_failed": 6,
+          "W": 3,
+          "L": 1,
+          "T": 26,
+          "attempted_pairs": 31,
+          "scoreable_pairs": 30
+        },
+        "members": [
+          {
+            "experiment": "mvp-2026-11-06",
+            "pair_id": "standard_vs_sdlc",
+            "A_arm": "standard",
+            "B_arm": "sdlc",
+            "attempted_pairs": 5,
+            "scoreable_pairs": 5,
+            "A_resolved": 4,
+            "B_resolved": 4,
+            "W": 0,
+            "L": 0,
+            "T": 5
+          },
+          {
+            "experiment": "2x2-2026-11-07",
+            "pair_id": "standard_vs_sdlc",
+            "A_arm": "standard",
+            "B_arm": "sdlc",
+            "attempted_pairs": 5,
+            "scoreable_pairs": 5,
+            "A_resolved": 4,
+            "B_resolved": 4,
+            "W": 1,
+            "L": 1,
+            "T": 3
+          },
+          {
+            "experiment": "expanded-2026-11-07",
+            "pair_id": "standard_vs_sdlc",
+            "A_arm": "standard",
+            "B_arm": "sdlc",
+            "attempted_pairs": 12,
+            "scoreable_pairs": 11,
+            "A_resolved": 7,
+            "B_resolved": 9,
+            "W": 2,
+            "L": 0,
+            "T": 9
+          },
+          {
+            "experiment": "repeat-sampling-2026-11-08",
+            "pair_id": "standard_vs_sdlc_by_rep",
+            "A_arm": "standard",
+            "B_arm": "sdlc",
+            "attempted_pairs": 9,
+            "scoreable_pairs": 9,
+            "A_resolved": 6,
+            "B_resolved": 6,
+            "W": 0,
+            "L": 0,
+            "T": 9
+          }
+        ]
+      },
+      "variant_itt": {
+        "definition": "主面板的 ITT 变体：expanded 缺官方评分的那条 A 运行按 unresolved 计入，n=31（多出一对 B win）。",
+        "counts": {
+          "n": 31,
+          "A_resolved": 21,
+          "B_resolved": 23,
+          "A_resolved_rate": 0.6774193548387096,
+          "B_resolved_rate": 0.7419354838709677,
+          "mean_diff_B_minus_A": 0.06451612903225806,
+          "both_resolved": 19,
+          "both_failed": 6,
+          "W": 4,
+          "L": 2,
+          "T": 25,
+          "attempted_pairs": 31,
+          "scoreable_pairs": 30
+        },
+        "members": [
+          {
+            "experiment": "mvp-2026-11-06",
+            "pair_id": "standard_vs_sdlc",
+            "A_arm": "standard",
+            "B_arm": "sdlc",
+            "attempted_pairs": 5,
+            "scoreable_pairs": 5,
+            "A_resolved": 4,
+            "B_resolved": 4,
+            "W": 0,
+            "L": 0,
+            "T": 5
+          },
+          {
+            "experiment": "2x2-2026-11-07",
+            "pair_id": "standard_vs_sdlc_guidance",
+            "A_arm": "standard",
+            "B_arm": "sdlc_guidance",
+            "attempted_pairs": 5,
+            "scoreable_pairs": 5,
+            "A_resolved": 4,
+            "B_resolved": 3,
+            "W": 1,
+            "L": 2,
+            "T": 2
+          },
+          {
+            "experiment": "expanded-2026-11-07",
+            "pair_id": "standard_vs_sdlc",
+            "A_arm": "standard",
+            "B_arm": "sdlc",
+            "attempted_pairs": 12,
+            "scoreable_pairs": 11,
+            "A_resolved": 7,
+            "B_resolved": 10,
+            "W": 3,
+            "L": 0,
+            "T": 9
+          },
+          {
+            "experiment": "repeat-sampling-2026-11-08",
+            "pair_id": "standard_vs_sdlc_by_rep",
+            "A_arm": "standard",
+            "B_arm": "sdlc",
+            "attempted_pairs": 9,
+            "scoreable_pairs": 9,
+            "A_resolved": 6,
+            "B_resolved": 6,
+            "W": 0,
+            "L": 0,
+            "T": 9
+          }
+        ]
+      }
+    },
+    "issue8_reconciliation": {
+      "reference": "issue #8 评论（Lead 提供）：n=30 / A 21/30 / B 22/30",
+      "claimed": {
+        "n": 30,
+        "A_resolved": 21,
+        "B_resolved": 22
+      },
+      "reproduced": {
+        "n": 30,
+        "A_resolved": 21,
+        "B_resolved": 22
+      },
+      "matches": true,
+      "notes": [
+        "主面板 B 侧必须取 manifest 里自带引导的 arm：MVP/expanded/repeat 的 sdlc arm 有 prompt_suffix，2×2 中只有 sdlc_guidance 有 suffix；2×2 的裸 sdlc 是「纯 preset」子实验，不放进主 treatment。",
+        "n=30 是两臂都有官方评分的 scoreable 配对；expanded 有 1 条标准臂运行缺官方评分（seaborn test_regression），PP 面板不计该对，ITT 敏感性里按 unresolved 计入（n=31，A 21/31、B 23/31）。",
+        "variant_2x2_sdlc 敏感性：n=30、A 21/30、B 23/30；两个变体都从同一批已提交数据可复算。"
+      ]
+    }
+  },
+  "verifier_confusion": {
+    "definition": "复用 analyze_verifier.py 的 confusion_for_rows 口径：最终裁决 approve/reject/needs_human/none × 官方 resolved/unresolved；needs_human 与无裁决不混进 approve/reject 分母。",
+    "canonical_main_session_scope": {
+      "definition": "canonical runs.jsonl 的 verify_verdicts（主会话口径，验证者子会话同名 status JSON 不重复计数）+ 官方 report resolved；分桶规则复用 analyze_verifier.confusion_for_rows。",
+      "source": {
+        "file": "docs/evals/featurebench-runs.jsonl",
+        "runs": 54,
+        "exclusion": "只取 B（SDLC preset）运行：arm ∈ {sdlc, sdlc_guidance}、runtime_group ∈ {V1,V2}；pilot 与非 B arm 不计入。"
+      },
+      "v1_all_b_runs": {
+        "sdlc_runs": 49,
+        "official_resolved": 36,
+        "confusion": {
+          "approve_resolved": 29,
+          "approve_unresolved_false_positive": 7,
+          "reject_unresolved": 1,
+          "reject_resolved_false_negative": 1,
+          "needs_human": 0,
+          "no_verdict": 11
+        },
+        "false_positive_rate": 0.19444444444444445,
+        "false_negative_rate": 0.5,
+        "verdict_accuracy_on_decided": 0.7894736842105263,
+        "verdict_sequences": {
+          "(none)": 11,
+          "approve → approve": 9,
+          "approve": 22,
+          "needs_human → reject → approve": 1,
+          "reject → approve": 4,
+          "approve → reject": 1,
+          "reject": 1
+        },
+        "notable_runs": [
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "mvp"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "mvp"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+            "repo": "pydantic/pydantic",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+            "repo": "pytest-dev/pytest",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "expanded"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0909,
+            "bucket": "false_positive",
+            "experiment": "expanded"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.1852,
+            "bucket": "no_verdict",
+            "experiment": "expanded"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.9375,
+            "bucket": "no_verdict",
+            "experiment": "verify-calibration"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.4375,
+            "bucket": "no_verdict",
+            "experiment": "verify-calibration"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "verify-stress"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "repeat-sampling"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling"
+          }
+        ]
+      },
+      "v2_all_b_runs": {
+        "sdlc_runs": 5,
+        "official_resolved": 4,
+        "confusion": {
+          "approve_resolved": 2,
+          "approve_unresolved_false_positive": 1,
+          "reject_unresolved": 0,
+          "reject_resolved_false_negative": 2,
+          "needs_human": 0,
+          "no_verdict": 0
+        },
+        "false_positive_rate": 0.3333333333333333,
+        "false_negative_rate": 1.0,
+        "verdict_accuracy_on_decided": 0.4,
+        "verdict_sequences": {
+          "reject": 1,
+          "approve": 1,
+          "approve → reject": 1,
+          "needs_human → needs_human → approve": 1,
+          "approve → approve": 1
+        },
+        "notable_runs": [
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "version-regression-mvp"
+          },
+          {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [
+              "approve",
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "version-regression-mvp"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "version-regression-mvp"
+          }
+        ]
+      },
+      "all_b_runs": {
+        "sdlc_runs": 54,
+        "official_resolved": 40,
+        "confusion": {
+          "approve_resolved": 31,
+          "approve_unresolved_false_positive": 8,
+          "reject_unresolved": 1,
+          "reject_resolved_false_negative": 3,
+          "needs_human": 0,
+          "no_verdict": 11
+        },
+        "false_positive_rate": 0.20512820512820512,
+        "false_negative_rate": 0.75,
+        "verdict_accuracy_on_decided": 0.7441860465116279,
+        "verdict_sequences": {
+          "(none)": 11,
+          "approve → approve": 10,
+          "approve": 23,
+          "needs_human → reject → approve": 1,
+          "reject → approve": 4,
+          "approve → reject": 2,
+          "reject": 2,
+          "needs_human → needs_human → approve": 1
+        },
+        "notable_runs": [
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "mvp"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "mvp"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+            "repo": "pydantic/pydantic",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+            "repo": "pytest-dev/pytest",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "no_verdict",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "2x2"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "expanded"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0909,
+            "bucket": "false_positive",
+            "experiment": "expanded"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.1852,
+            "bucket": "no_verdict",
+            "experiment": "expanded"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.9375,
+            "bucket": "no_verdict",
+            "experiment": "verify-calibration"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.4375,
+            "bucket": "no_verdict",
+            "experiment": "verify-calibration"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "verify-stress"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "repeat-sampling"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "version-regression-mvp"
+          },
+          {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [
+              "approve",
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "version-regression-mvp"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "version-regression-mvp"
+          }
+        ]
+      }
+    },
+    "legacy_report_data_scope": {
+      "definition": "旧 summarize_runs.py 产出的 report-data.json 里的 verify_verdicts（会扫到验证者子会话的同名 status JSON，可能重复计数/裁决序列顺序不同）；保留此列只为解释旧报告与 issue #8 数字的来源，不作为 AC-006 权威口径。",
+      "source": {
+        "files": [
+          "docs/evals/featurebench-2026-11-06-data.json",
+          "docs/evals/featurebench-2026-11-07-2x2-data.json",
+          "docs/evals/featurebench-2026-11-07-expanded-data.json",
+          "docs/evals/featurebench-2026-11-07-verifier-data.json",
+          "docs/evals/featurebench-2026-11-07-verifier-stress-data.json",
+          "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json",
+          "docs/evals/featurebench-2026-11-08-version-regression-data.json"
+        ],
+        "runs": 54,
+        "exclusion": "与 analyze_verifier.py 相同的 report-data 口径；缺官方 resolved 的 run 不进入混淆矩阵。"
+      },
+      "v1_all_b_runs": {
+        "sdlc_runs": 49,
+        "official_resolved": 36,
+        "confusion": {
+          "approve_resolved": 29,
+          "approve_unresolved_false_positive": 7,
+          "reject_unresolved": 1,
+          "reject_resolved_false_negative": 1,
+          "needs_human": 0,
+          "no_verdict": 11
+        },
+        "false_positive_rate": 0.19444444444444445,
+        "false_negative_rate": 0.5,
+        "verdict_accuracy_on_decided": 0.7894736842105263,
+        "verdict_sequences": {
+          "approve": 24,
+          "reject → reject → needs_human → reject → approve": 1,
+          "approve → approve → approve → approve": 4,
+          "(none)": 11,
+          "reject → approve": 3,
+          "approve → approve": 3,
+          "reject → approve → approve": 1,
+          "approve → approve → approve → reject → reject": 1,
+          "reject → reject → reject": 1
+        },
+        "notable_runs": [
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "mvp-2026-11-06"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "mvp-2026-11-06"
+          },
+          {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+            "repo": "pytest-dev/pytest",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+            "repo": "pydantic/pydantic",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "expanded-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0909,
+            "bucket": "false_positive",
+            "experiment": "expanded-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.1852,
+            "bucket": "no_verdict",
+            "experiment": "expanded-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.9375,
+            "bucket": "no_verdict",
+            "experiment": "verifier-calibration-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.4375,
+            "bucket": "no_verdict",
+            "experiment": "verifier-calibration-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "verifier-stress-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling-2026-11-08"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject",
+              "reject",
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "repeat-sampling-2026-11-08"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling-2026-11-08"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling-2026-11-08"
+          }
+        ]
+      },
+      "v2_all_b_runs": {
+        "sdlc_runs": 5,
+        "official_resolved": 4,
+        "confusion": {
+          "approve_resolved": 3,
+          "approve_unresolved_false_positive": 1,
+          "reject_unresolved": 0,
+          "reject_resolved_false_negative": 1,
+          "needs_human": 0,
+          "no_verdict": 0
+        },
+        "false_positive_rate": 0.25,
+        "false_negative_rate": 1.0,
+        "verdict_accuracy_on_decided": 0.6,
+        "verdict_sequences": {
+          "approve → reject → approve → approve": 1,
+          "approve → approve → approve → approve": 2,
+          "approve": 1,
+          "reject": 1
+        },
+        "notable_runs": [
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "version-regression-2026-11-08"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "version-regression-2026-11-08"
+          }
+        ]
+      },
+      "all_b_runs": {
+        "sdlc_runs": 54,
+        "official_resolved": 40,
+        "confusion": {
+          "approve_resolved": 32,
+          "approve_unresolved_false_positive": 8,
+          "reject_unresolved": 1,
+          "reject_resolved_false_negative": 2,
+          "needs_human": 0,
+          "no_verdict": 11
+        },
+        "false_positive_rate": 0.2,
+        "false_negative_rate": 0.6666666666666666,
+        "verdict_accuracy_on_decided": 0.7674418604651163,
+        "verdict_sequences": {
+          "approve": 25,
+          "reject → reject → needs_human → reject → approve": 1,
+          "approve → approve → approve → approve": 6,
+          "(none)": 11,
+          "reject → approve": 3,
+          "approve → approve": 3,
+          "reject → approve → approve": 1,
+          "approve → approve → approve → reject → reject": 1,
+          "reject → reject → reject": 1,
+          "approve → reject → approve → approve": 1,
+          "reject": 1
+        },
+        "notable_runs": [
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "mvp-2026-11-06"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "mvp-2026-11-06"
+          },
+          {
+            "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+            "repo": "pypa/packaging",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
+            "repo": "pytest-dev/pytest",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "pydantic__pydantic.e1dcaf9e.test_deprecated_fields.40a2ec54.lv1",
+            "repo": "pydantic/pydantic",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "no_verdict",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "2x2-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "no_verdict",
+            "experiment": "expanded-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0909,
+            "bucket": "false_positive",
+            "experiment": "expanded-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_math.96576214.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.1852,
+            "bucket": "no_verdict",
+            "experiment": "expanded-2026-11-07"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.9375,
+            "bucket": "no_verdict",
+            "experiment": "verifier-calibration-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [],
+            "resolved": false,
+            "pass_rate": 0.4375,
+            "bucket": "no_verdict",
+            "experiment": "verifier-calibration-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "verifier-stress-2026-11-07"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling-2026-11-08"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject",
+              "reject",
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "repeat-sampling-2026-11-08"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling-2026-11-08"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "repeat-sampling-2026-11-08"
+          },
+          {
+            "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+            "repo": "mwaskom/seaborn",
+            "verdicts": [
+              "reject"
+            ],
+            "resolved": true,
+            "pass_rate": 1.0,
+            "bucket": "false_negative",
+            "experiment": "version-regression-2026-11-08"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+            "repo": "sphinx-doc/sphinx",
+            "verdicts": [
+              "approve",
+              "approve",
+              "approve",
+              "approve"
+            ],
+            "resolved": false,
+            "pass_rate": 0.0769,
+            "bucket": "false_positive",
+            "experiment": "version-regression-2026-11-08"
+          }
+        ]
+      }
+    },
+    "notes": [
+      "同一 task 的重复运行（repeat-sampling 3 rep、verifier-stress 3 次）按 run 计数，不做去重；这是验证者行为样本，不是任务级正确率。",
+      "版本回归（V2）单独一列，不与 V1 混算。",
+      "AC-006 权威混淆矩阵见 data-auditor 的 docs/evals/featurebench-verifier-confusion.json（canonical_main_session_scope 应与它一致，reaggregate.py --check 会交叉校验）；legacy 列的差异来自旧口径。"
+    ]
+  },
+  "version_regression": {
+    "new_version": "plugin 0.6.1 + DSH 0.2.2-rc.1",
+    "old_version": "plugin 0.6.0 + DSH 0.2.1-rc.5",
+    "new": {
+      "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+      "paired": {
+        "W": 1,
+        "L": 0,
+        "T": 4,
+        "scoreable_pairs": 5
+      },
+      "attempted": 10,
+      "source": {
+        "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+        "runs": 10,
+        "exclusion": "只取 new.runs（V2 新版运行）。"
+      }
+    },
+    "old": {
+      "runtime_group": "v1-0.6.0-0.2.1-rc.5",
+      "paired": {
+        "W": 0,
+        "L": 0,
+        "T": 5,
+        "scoreable_pairs": 5
+      },
+      "attempted": 10,
+      "source": {
+        "file": "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+        "runs": 10,
+        "exclusion": "只取 old.runs（复用 MVP 基线读数，不新增样本）。"
+      }
+    },
+    "comparison": {
+      "resolved": {
+        "standard": {
+          "new": 3,
+          "old": 4,
+          "delta": -1
+        },
+        "sdlc": {
+          "new": 4,
+          "old": 4,
+          "delta": 0
+        }
+      },
+      "tokens": {
+        "standard": {
+          "new_total": 48800000,
+          "old_total": 22973859,
+          "ratio": 1.1241533692707004
+        },
+        "sdlc": {
+          "new_total": 76112480,
+          "old_total": 47403658,
+          "ratio": 0.6056246123453173
+        },
+        "total": {
+          "new_total": 124912480,
+          "old_total": 70377517,
+          "ratio": 0.7748918308669515
+        }
+      },
+      "paired_net": {
+        "new": {
+          "W": 1,
+          "L": 0,
+          "T": 4,
+          "scoreable_pairs": 5
+        },
+        "old": {
+          "W": 0,
+          "L": 0,
+          "T": 5,
+          "scoreable_pairs": 5
+        }
+      },
+      "notes": [
+        "V2 = plugin 0.6.1 / DSH 0.2.2-rc.1，5 任务 × 2 臂最小回归；old 是 MVP 基线读数复用（不新增样本）。",
+        "旧结论：B 组 4/5 无回归；A 少 1 个是 packaging 98.64% 边缘失败；成本明显上升（UI/session 口径 +77%）。"
+      ]
+    }
+  },
+  "not_run": {
+    "v2_regression_manifests": [
+      {
+        "path": "tools/evals/featurebench/manifests/regression-0.6.1/2x2.yml",
+        "sha256": "c5b63ee044238fb622251cb43f6fbcd4f40a5761659432048267ac8499b7ac5f",
+        "date": "2026-11-08",
+        "tasks": 5,
+        "arms": [
+          "sdlc",
+          "sdlc_guidance",
+          "standard",
+          "standard_guidance"
+        ],
+        "planned_runs": 20,
+        "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+        "reason": "V2 最小回归只执行了 mvp.yml（5 任务 × 2 臂）；其余预注册清单保持 not_run，不补跑。 2x2.yml 出现过 1 条 pilot 探索 run（status=pilot，不进 V1/V2 分母），不计为已执行。",
+        "pilot_runs": 1
+      },
+      {
+        "path": "tools/evals/featurebench/manifests/regression-0.6.1/expanded.yml",
+        "sha256": "bf58a70e32dae8df3d869411e00a2a1d45e9371f31254098d8226865dc67f40f",
+        "date": "2026-11-08",
+        "tasks": 12,
+        "arms": [
+          "sdlc",
+          "standard"
+        ],
+        "planned_runs": 24,
+        "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+        "reason": "V2 最小回归只执行了 mvp.yml（5 任务 × 2 臂）；其余预注册清单保持 not_run，不补跑。"
+      },
+      {
+        "path": "tools/evals/featurebench/manifests/regression-0.6.1/repeat-sampling.yml",
+        "sha256": "637c9bb396b74f1ddbede960f5bf23a9d2128aa39f0957e9c847f0b01836c324",
+        "date": "2026-11-08",
+        "tasks": 3,
+        "arms": [
+          "sdlc",
+          "standard"
+        ],
+        "planned_runs": 6,
+        "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+        "reason": "V2 最小回归只执行了 mvp.yml（5 任务 × 2 臂）；其余预注册清单保持 not_run，不补跑。"
+      },
+      {
+        "path": "tools/evals/featurebench/manifests/regression-0.6.1/verify-calibration.yml",
+        "sha256": "8541abe4d79ebaa11e0fb92aa12d35f8a68c14ac5d770f7258e9e53cb621bdef",
+        "date": "2026-11-08",
+        "tasks": 10,
+        "arms": [
+          "sdlc"
+        ],
+        "planned_runs": 10,
+        "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+        "reason": "V2 最小回归只执行了 mvp.yml（5 任务 × 2 臂）；其余预注册清单保持 not_run，不补跑。"
+      },
+      {
+        "path": "tools/evals/featurebench/manifests/regression-0.6.1/verify-stress.yml",
+        "sha256": "21308b485552e5ca35efae2914bec01fe8c979c74ee50bbf2918593548a19c57",
+        "date": "2026-11-08",
+        "tasks": 1,
+        "arms": [
+          "sdlc"
+        ],
+        "planned_runs": 1,
+        "runtime_group": "v2-0.6.1-0.2.2-rc.1",
+        "reason": "V2 最小回归只执行了 mvp.yml（5 任务 × 2 臂）；其余预注册清单保持 not_run，不补跑。"
+      }
+    ],
+    "note": "预注册但未执行的 V2 清单只登记、不补跑；执行与否由用户预算决定。"
+  },
+  "snapshot_inventory": {
+    "source": {
+      "files": [
+        "docs/evals/featurebench-2026-11-06-data.json",
+        "docs/evals/featurebench-2026-11-07-2x2-data.json",
+        "docs/evals/featurebench-2026-11-07-expanded-data.json",
+        "docs/evals/featurebench-2026-11-07-verifier-data.json",
+        "docs/evals/featurebench-2026-11-07-verifier-stress-data.json",
+        "docs/evals/featurebench-2026-11-08-repeat-sampling-data.json",
+        "docs/evals/featurebench-2026-11-08-version-regression-data.json",
+        "docs/evals/featurebench-2026-11-08-version-regression-data.json"
+      ],
+      "rows": 105,
+      "exclusion": "只统计 7 个已提交机读快照里的 run 行；version-regression old 与 MVP 重复，duplicate_baseline_rows 单独计数。"
+    },
+    "total_rows": 105,
+    "by_experiment": {
+      "mvp-2026-11-06": 10,
+      "2x2-2026-11-07": 20,
+      "expanded-2026-11-07": 24,
+      "verifier-calibration-2026-11-07": 10,
+      "verifier-stress-2026-11-07": 3,
+      "repeat-sampling-2026-11-08": 18,
+      "version-regression-2026-11-08": 20
+    },
+    "duplicate_baseline_rows": 10,
+    "duplicate_baseline_detail": {
+      "experiment": "version-regression-2026-11-08",
+      "side": "old",
+      "duplicates_of": "mvp-2026-11-06",
+      "fields_compared": [
+        "tokens",
+        "elapsed_seconds",
+        "resolved",
+        "pass_rate",
+        "patch_chars",
+        "image",
+        "image_digest",
+        "agent_failure"
+      ]
+    },
+    "deduped_rows": 95,
+    "not_in_snapshots": {
+      "pilot_runs": 1,
+      "note": "V2 pilot 1 run（/tmp 本地目录）未进入已提交快照；canonical run 表见 data-auditor 的 featurebench-runs.jsonl。"
+    },
+    "physical_runs_note": "canonical 行数 ≠ 物理运行次数：pilot 行与 V2 packaging/standard 是同一次物理运行；物理运行去重见 docs/evals/featurebench-evidence-index.json 的 counts.distinct_physical_runs / cross_references。本 metrics 不聚合 attempts（runs.jsonl 里部分行的 matrix.json 被子集重跑覆盖，口径见 env-identity）。",
+    "canonical_expected_rows": 96
+  }
+}

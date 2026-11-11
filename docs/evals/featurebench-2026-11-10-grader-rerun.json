@@ -1,0 +1,342 @@
+{
+  "experiment": "grader-rerun",
+  "date": "2026-11-10",
+  "issue": 12,
+  "criterion": "AC-007",
+  "title": "官方 FeatureBench Grader 实际复评 2 条历史运行（A 条补评 + sphinx unresolved 复现）",
+  "status": "completed",
+  "status_detail": "2/2 条历史运行拿到官方 fb eval 真实输出；A 条补上缺失评分，B 条与原始结果完全一致。未使用 dry-run 或离线汇总。",
+  "report_markdown": "docs/evals/featurebench-2026-11-10-grader-rerun.md",
+  "scope": "只复评 2 条历史运行；不重跑 agent、不调模型、不重跑历史 85 次 run",
+  "grader": {
+    "command": "fb eval",
+    "package": "featurebench==0.3.0",
+    "invokes_docker": true,
+    "uses_model": false
+  },
+  "environment": {
+    "dataset": "LiberCoders/FeatureBench",
+    "split": "fast",
+    "split_instances": 100,
+    "requested_data_version": "v1.1",
+    "resolved_data_revision": "76b4a4566e04f4bcc13c35125d4f301791efa736",
+    "resolved_data_revision_matches_local_cache": true,
+    "datasets_version": "5.1.0",
+    "huggingface_hub_version": "2.4.0",
+    "docker_sdk_version": "7.2.0",
+    "docker_version": "Docker Desktop 29.5.3",
+    "host_platform": "Darwin arm64",
+    "container_platform": "linux/amd64 (Rosetta)",
+    "eval_flags": [
+      "--split fast",
+      "--n-concurrent 1",
+      "--data-version v1.1",
+      "--config-path /tmp/fb-grader-rerun/config.toml"
+    ],
+    "env_vars": {
+      "FEATUREBENCH_IMAGE_PREFIX": "docker.io",
+      "HF_DATASETS_CACHE": "/tmp/fb-grader-rerun/hf-datasets-cache",
+      "all_proxy": "unset (removed for httpx2/HF access)",
+      "http_proxy_https_proxy": "kept (local HTTP proxy)"
+    }
+  },
+  "images": [
+    {
+      "run": "A",
+      "tag": "libercoders/featurebench-specs_seaborn-instance_52738fbb:latest",
+      "local_image_id": "sha256:f0024c7d25078a2a0c38a26bc35fa72cf5f0378b65d7c755779bd6dd807ae574",
+      "local_repo_digest": "libercoders/featurebench-specs_seaborn-instance_52738fbb@sha256:f0024c7d25078a2a0c38a26bc35fa72cf5f0378b65d7c755779bd6dd807ae574",
+      "registered_image_digest": "sha256:fe27a1a5205fa0939453e79d0f40c74cb402bad8ea1d42fff7de5e2106e77ce1",
+      "platform": "linux/amd64"
+    },
+    {
+      "run": "B",
+      "tag": "libercoders/featurebench-specs_sphinx-instance_6191afb1:latest",
+      "local_image_id": "sha256:e8c6256c96deaa7670c55882dad325a82e1496c73169ede340a2d0b5989404a8",
+      "local_repo_digest": "libercoders/featurebench-specs_sphinx-instance_6191afb1@sha256:e8c6256c96deaa7670c55882dad325a82e1496c73169ede340a2d0b5989404a8",
+      "registered_image_digest": "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268",
+      "platform": "linux/amd64"
+    }
+  ],
+  "image_digest_note": "官方 Docker Hub manifest 的 digest 记录在 image_digest；fetch_image.py 校验官方 manifest 与每个 blob 的 sha256。skopeo copy 将 OCI layout 导入本地 Docker 时重新编码 manifest，因此本地 tag 的 manifest digest 不等于官方值（layer blob 未变）。两者指向同一官方 tag，本文件只作追溯记录，不据此宣称字节级一致。",
+  "runs": [
+    {
+      "label": "A",
+      "role": "缺失官方评分的历史运行补评",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+      "repo": "mwaskom/seaborn",
+      "arm": "standard",
+      "historical": {
+        "run_dir": "/tmp/fb-runs-expanded/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+        "patch_path": "/tmp/fb-runs-expanded/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1/standard/patch.diff",
+        "patch_sha256": "54048dd0fdfe5c2a1d10936d87cfef9f0794442efd668e127a813151f3c9ebe8",
+        "patch_chars": 33855,
+        "meta_patch_sha256_matches": true,
+        "meta_agent_completed": true,
+        "meta_agent_failure": null,
+        "report_json_present": false,
+        "eval_log_path": "/tmp/fb-runs-expanded/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1/eval-standard/eval.log",
+        "eval_log_sha256": "3f0c10cbc195869dfa27b3d823178145f5ebc2fae03d6371ab7fb6f48e710448",
+        "eval_log_lines": 116,
+        "failure": "RuntimeError: Unable to resolve dataset revision 'v1.1' for 'LiberCoders/FeatureBench'. Refusing to use an unverified cached dataset.",
+        "failure_cause": "httpx2.ConnectError: [SSL: UNEXPECTED_EOF_WHILE_READING] (network/proxy layer; environment failure, not agent failure)",
+        "original_scores": null
+      },
+      "predictions": {
+        "path": "/tmp/fb-grader-rerun/A/predictions-standard.jsonl",
+        "sha256": "cb957add877a5bdffbb9cb236cf117854fd884d0990a923a68a9f37eb5811ffc",
+        "generated_by": "tools/evals/featurebench/make_predictions.py from patch.diff",
+        "identical_to_historical_predictions_jsonl": true
+      },
+      "rerun": {
+        "started_at_utc": "2026-11-10T14:07:30Z",
+        "finished_at_utc": "2026-11-10T14:08:19Z",
+        "duration_seconds": 49,
+        "eval_phase_seconds": 43,
+        "exit_code": 0,
+        "command": "env -u all_proxy -u ALL_PROXY HF_DATASETS_CACHE=/tmp/fb-grader-rerun/hf-datasets-cache FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval -p /tmp/fb-grader-rerun/A/predictions-standard.jsonl --split fast --task-id mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1 --n-concurrent 1 --data-version v1.1 --config-path /tmp/fb-grader-rerun/config.toml",
+        "summary_report": {
+          "n_attempt": 1,
+          "total_instances": 1,
+          "submitted_instances": 1,
+          "completed_instances": 1,
+          "resolved_instances": 1,
+          "unresolved_instances": 0,
+          "not_applied_patch_empty_instances": 0,
+          "not_applied_patch_other_instances": 0,
+          "error_instances": 0,
+          "resolved_rate": 1.0,
+          "pass_rate": 1.0
+        },
+        "per_instance": {
+          "instance_id": "mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1",
+          "patch_successfully_applied": true,
+          "resolved": true,
+          "pass_rate": 1.0,
+          "FAIL_TO_PASS_success": 52,
+          "FAIL_TO_PASS_failure": 0,
+          "PASS_TO_PASS_success": 218,
+          "PASS_TO_PASS_failure": 0
+        },
+        "applied_patch_sha256": "54048dd0fdfe5c2a1d10936d87cfef9f0794442efd668e127a813151f3c9ebe8"
+      },
+      "comparison": {
+        "original_vs_rerun": "no_original_score",
+        "note": "历史无 report.json，无法比较；本次为补评。若计入历史聚合见 sensitivity_if_backfilled。"
+      }
+    },
+    {
+      "label": "B",
+      "role": "unresolved 复现",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "arm": "standard",
+      "historical": {
+        "run_dir": "/tmp/fb-runs/sphinx-doc__sphinx",
+        "predictions_path": "/tmp/fb-runs/sphinx-doc__sphinx/standard/predictions.jsonl",
+        "predictions_sha256": "91f84e31238c5ba21c22ea659fa46781812ce60edf4669e4f093a8f8e428e362",
+        "patch_path": "/tmp/fb-runs/sphinx-doc__sphinx/standard/patch.diff",
+        "patch_sha256": "5d5f2bd3d3406a1a12d96cc31cf0d5a636d55525519e4bcb37ce6d28a6d7c6b8",
+        "patch_chars": 2387,
+        "meta_patch_sha256_matches": true,
+        "meta_agent_completed": true,
+        "meta_agent_failure": null,
+        "report_json_present": true,
+        "report_json_path": "/tmp/fb-runs/sphinx-doc__sphinx/eval-standard/report.json",
+        "report_json_sha256": "76b9870c2ae159e9e2ce84b43a4eca49b8c20657e72360f19ce4451b42b41c82",
+        "grader_raw_report_json_path": "/tmp/fb-runs/sphinx-doc__sphinx/standard/report.json",
+        "grader_raw_report_json_sha256": "d541a14ce945ec551dff5704e864e9316a2e41baab95733a0d910f9d14a10487",
+        "original_scores": {
+          "n_attempt": 1,
+          "total_instances": 1,
+          "submitted_instances": 1,
+          "completed_instances": 1,
+          "resolved_instances": 0,
+          "unresolved_instances": 1,
+          "not_applied_patch_empty_instances": 0,
+          "not_applied_patch_other_instances": 0,
+          "error_instances": 0,
+          "resolved_rate": 0.0,
+          "pass_rate": 0.0769
+        },
+        "original_per_instance": {
+          "instance_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+          "patch_successfully_applied": true,
+          "resolved": false,
+          "pass_rate": 0.0769,
+          "FAIL_TO_PASS_success": 1,
+          "FAIL_TO_PASS_failure": 12,
+          "PASS_TO_PASS_success": 137,
+          "PASS_TO_PASS_failure": 0,
+          "per_instance_report_sha256": "71d0c99c400b379ba7b8e3a0017f987f08411630d241c87363882df85a7050ef"
+        }
+      },
+      "predictions": {
+        "path": "/tmp/fb-grader-rerun/B/predictions-standard.jsonl",
+        "sha256": "91f84e31238c5ba21c22ea659fa46781812ce60edf4669e4f093a8f8e428e362",
+        "generated_by": "tools/evals/featurebench/make_predictions.py from patch.diff",
+        "identical_to_historical_predictions_jsonl": true
+      },
+      "rerun": {
+        "started_at_utc": "2026-11-10T14:08:30Z",
+        "finished_at_utc": "2026-11-10T14:09:06Z",
+        "duration_seconds": 36,
+        "eval_phase_seconds": 30,
+        "exit_code": 0,
+        "command": "env -u all_proxy -u ALL_PROXY HF_DATASETS_CACHE=/tmp/fb-grader-rerun/hf-datasets-cache FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval -p /tmp/fb-grader-rerun/B/predictions-standard.jsonl --split fast --task-id sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1 --n-concurrent 1 --data-version v1.1 --config-path /tmp/fb-grader-rerun/config.toml",
+        "summary_report": {
+          "n_attempt": 1,
+          "total_instances": 1,
+          "submitted_instances": 1,
+          "completed_instances": 1,
+          "resolved_instances": 0,
+          "unresolved_instances": 1,
+          "not_applied_patch_empty_instances": 0,
+          "not_applied_patch_other_instances": 0,
+          "error_instances": 0,
+          "resolved_rate": 0.0,
+          "pass_rate": 0.0769
+        },
+        "per_instance": {
+          "instance_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+          "patch_successfully_applied": true,
+          "resolved": false,
+          "pass_rate": 0.0769,
+          "FAIL_TO_PASS_success": 1,
+          "FAIL_TO_PASS_failure": 12,
+          "PASS_TO_PASS_success": 137,
+          "PASS_TO_PASS_failure": 0
+        },
+        "applied_patch_sha256": "5d5f2bd3d3406a1a12d96cc31cf0d5a636d55525519e4bcb37ce6d28a6d7c6b8"
+      },
+      "comparison": {
+        "original_vs_rerun": "identical",
+        "fields_identical": [
+          "resolved_instances",
+          "unresolved_instances",
+          "pass_rate",
+          "not_applied_patch_empty_instances",
+          "not_applied_patch_other_instances",
+          "error_instances",
+          "FAIL_TO_PASS 逐条结果",
+          "PASS_TO_PASS 逐条结果"
+        ],
+        "only_difference": "featurebench_eval_completed_at (2026-11-06T21:50:37 vs 2026-11-10T22:08:55)"
+      }
+    }
+  ],
+  "environment_workarounds": [
+    {
+      "stage": "historical_original_failure",
+      "date": "2026-11-07",
+      "run": "A",
+      "symptom": "RuntimeError: Unable to resolve dataset revision 'v1.1' for 'LiberCoders/FeatureBench'. Refusing to use an unverified cached dataset.",
+      "cause": "httpx2.ConnectError: [SSL: UNEXPECTED_EOF_WHILE_READING] — network/proxy layer, unrelated to agent or patch",
+      "fix": "none at the time; no report.json was produced → this run was missing an official score",
+      "evidence": "/tmp/fb-runs-expanded/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1/eval-standard/eval.log"
+    },
+    {
+      "stage": "rerun_probe",
+      "date": "2026-11-10",
+      "symptom": "ImportError: Using SOCKS proxy, but the 'socksio' package is not installed",
+      "cause": "session environment sets all_proxy=socks5://…; httpx2 (HF client) lacks SOCKS support",
+      "fix": "run fb eval with `env -u all_proxy -u ALL_PROXY` (local http_proxy/https_proxy kept); v1.1 then resolved to 76b4a4566e04f4bcc13c35125d4f301791efa736",
+      "no_grader_change": true,
+      "evidence": "/tmp/fb-grader-rerun/logs/attempt0-hf-revision-socks-proxy.log"
+    },
+    {
+      "stage": "rerun_attempt_1",
+      "date": "2026-11-10T14:06:38Z",
+      "run": "A",
+      "duration_seconds": 5,
+      "exit_code": 1,
+      "symptom": "PermissionError: [Errno 1] Operation not permitted: '…/.cache/huggingface/datasets/…_76b4a456….lock'",
+      "cause": "datasets builder needs a write lock in the host home cache; the agent session file sandbox (workspace-write) forbids writes outside the workspace",
+      "fix": "set HF_DATASETS_CACHE=/tmp/fb-grader-rerun/hf-datasets-cache; local HF hub cache reused read-only; dataset revision verification (verify_loaded_dataset_revision) passed",
+      "no_grader_change": true,
+      "evidence": "/tmp/fb-grader-rerun/logs/attempt1-A-lock-permission-error.log"
+    }
+  ],
+  "ac007": {
+    "status": "completed",
+    "runs_expected": 2,
+    "runs_scored": 2,
+    "missing_filled": true,
+    "unresolved_reproduced": true,
+    "reproduction_consistent": true,
+    "uses_dry_run": false,
+    "uses_offline_aggregation": false,
+    "grader_output_used": "report.json written by fb eval",
+    "conclusion": "AC-007 完成（2/2）：A 条补评为 resolved=1 / pass_rate=1.0；B 条官方复现 resolved=0 / pass_rate=0.0769，与原始结果一致。"
+  },
+  "sensitivity_if_backfilled": {
+    "note": "仅敏感性参考，不回填历史聚合；历史报告是否修订由 EVAL-01 汇总方决定。",
+    "A_resolved_before": "7/12",
+    "A_resolved_if_backfilled": "8/12",
+    "A_scorable_before": "7/11",
+    "A_scorable_if_backfilled": "8/12",
+    "B_resolved": "10/12",
+    "paired_B_minus_A_resolved_rate_before": 0.1818,
+    "paired_B_minus_A_resolved_rate_if_backfilled": 0.1667,
+    "direction_unchanged": true
+  },
+  "artifacts": {
+    "rerun_root": "/tmp/fb-grader-rerun",
+    "config": "/tmp/fb-grader-rerun/config.toml",
+    "A": {
+      "predictions": "/tmp/fb-grader-rerun/A/predictions-standard.jsonl",
+      "predictions_sha256": "cb957add877a5bdffbb9cb236cf117854fd884d0990a923a68a9f37eb5811ffc",
+      "report": "/tmp/fb-grader-rerun/A/report.json",
+      "report_sha256": "e69a248a7d39d12851bbdd834a1a514b9c92e0a575dc4f7d0f8fd3a703f347e7",
+      "eval_log": "/tmp/fb-grader-rerun/A/eval.log",
+      "eval_log_sha256": "b0e78e47c8ce2550bd5160391c0cd4b484ca3de18282926650621c81eea55185",
+      "run_meta": "/tmp/fb-grader-rerun/A/run-meta.txt",
+      "per_instance_report": "/tmp/fb-grader-rerun/A/eval_outputs/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1/attempt-1/report.json",
+      "per_instance_report_sha256": "f52cdb8ee24426b75720cbd82a26cf92f4a2d58a36cd45f1f2f45991c5961d77",
+      "applied_patch": "/tmp/fb-grader-rerun/A/eval_outputs/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1/attempt-1/patch.diff",
+      "applied_patch_sha256": "54048dd0fdfe5c2a1d10936d87cfef9f0794442efd668e127a813151f3c9ebe8"
+    },
+    "B": {
+      "predictions": "/tmp/fb-grader-rerun/B/predictions-standard.jsonl",
+      "predictions_sha256": "91f84e31238c5ba21c22ea659fa46781812ce60edf4669e4f093a8f8e428e362",
+      "report": "/tmp/fb-grader-rerun/B/report.json",
+      "report_sha256": "50223c65c8f40b268ebabcdef1b06dd35bff8bcdf9bd7da6650da678af8eb3f5",
+      "eval_log": "/tmp/fb-grader-rerun/B/eval.log",
+      "eval_log_sha256": "1c58d821f3d86e889b47d239bd61de196902e2b9478fc974d83ee054526ae64b",
+      "run_meta": "/tmp/fb-grader-rerun/B/run-meta.txt",
+      "per_instance_report": "/tmp/fb-grader-rerun/B/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+      "per_instance_report_sha256": "7ada1c723e99d429fa0c207005c48284c4d684cf9d859dfd824611baeaec4c9a",
+      "applied_patch": "/tmp/fb-grader-rerun/B/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/patch.diff",
+      "applied_patch_sha256": "5d5f2bd3d3406a1a12d96cc31cf0d5a636d55525519e4bcb37ce6d28a6d7c6b8"
+    },
+    "failed_attempt_logs": [
+      {
+        "path": "/tmp/fb-grader-rerun/logs/attempt0-hf-revision-socks-proxy.log",
+        "sha256": "fd026283171851e0a2064d2e9a0a77b224e0b268bd645ad5b2e9157937ff6f7f"
+      },
+      {
+        "path": "/tmp/fb-grader-rerun/logs/attempt1-A-lock-permission-error.log",
+        "sha256": "2d2b46b7f36a4cf6c1d92d2debdfc3f9604bbfa5e486b9d3b6d8d070a27cc123"
+      }
+    ]
+  },
+  "original_evidence_readonly": {
+    "A_standard_dir": "/tmp/fb-runs-expanded/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1/standard",
+    "A_eval_log": "/tmp/fb-runs-expanded/mwaskom__seaborn.7001ebe7.test_regression.ce8c62e2.lv1/eval-standard/eval.log",
+    "A_eval_log_sha256": "3f0c10cbc195869dfa27b3d823178145f5ebc2fae03d6371ab7fb6f48e710448",
+    "A_report_json_present": false,
+    "B_standard_dir": "/tmp/fb-runs/sphinx-doc__sphinx/standard",
+    "B_report_json": "/tmp/fb-runs/sphinx-doc__sphinx/eval-standard/report.json",
+    "B_report_json_sha256": "76b9870c2ae159e9e2ce84b43a4eca49b8c20657e72360f19ce4451b42b41c82",
+    "B_raw_report_json": "/tmp/fb-runs/sphinx-doc__sphinx/standard/report.json",
+    "B_raw_report_json_sha256": "d541a14ce945ec551dff5704e864e9316a2e41baab95733a0d910f9d14a10487",
+    "B_per_instance_report_sha256": "71d0c99c400b379ba7b8e3a0017f987f08411630d241c87363882df85a7050ef",
+    "original_runs_modified": false
+  },
+  "limitations": [
+    "复评在本机（Darwin arm64 + Docker Desktop/Rosetta）执行；复跑需保留 env -u all_proxy 与 HF_DATASETS_CACHE=/tmp/... 两处环境修复，否则会在 HF 数据集加载阶段失败。",
+    "评分器版本（featurebench 0.3.0）、dataset commit（76b4a45…）、官方镜像 tag 与历史一致；镜像是本地导入副本，digest 口径不同，不能宣称字节级可复现或严格盲评。",
+    "只回答这两条历史运行在官方 Grader 下的真实成绩，不改变样本量限制（每任务每臂 1 次），不做显著性宣称，也不能外推为所有历史 run 可复现。",
+    "复评不调用模型、不重跑 agent，无 token 成本，但也不能用于验证模型服务端行为的变化。"
+  ]
+}
