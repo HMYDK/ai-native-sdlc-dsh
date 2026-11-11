@@ -63,7 +63,11 @@ def main() -> int:
         if only and task["id"] not in only:
             continue
         task_dir = runs_root / task["id"]
-        if not (task_dir / "sdlc").exists() and not (task_dir / "standard").exists():
+        # 全量 task 目录是否存在，要看 manifest 的全部 arm（--only-arm 只跑 guidance 时
+        # 目录里没有 sdlc/standard，不能因此误判成首批旧目录布局，否则 patch 被静默跳过）。
+        has_full_layout = task_dir.exists() and any(
+            (task_dir / arm).exists() for arm in manifest["arms"])
+        if not has_full_layout:
             task_dir = runs_root / task["id"].split(".")[0]  # 兼容首批（每 repo 1 任务）目录
         for arm in manifest["arms"]:
             d = task_dir / arm
