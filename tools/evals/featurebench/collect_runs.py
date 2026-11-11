@@ -288,6 +288,23 @@ def _zstd_module():
         return None
 
 
+def extract_verify_status(text: str) -> str | None:
+    """sdlc_verify 结果文本 → 有效裁决（structured verdict 优先）。
+
+    有效裁决是 criteria policy 之后的 `verdict.status`；`raw_verdict.status` /
+    `raw_status` 只是模型原始判断，可能被降级。malformed 兜底会直接返回
+    `{"status": "needs_human"}`（没有 raw_status）。
+    """
+    m = re.search(r'"verdict"\s*:\s*\{\s*"status"\s*:\s*"(approve|reject|needs_human)"', text)
+    if m:
+        return m.group(1)
+    m = re.match(r'\s*\{\s*"status"\s*:\s*"(approve|reject|needs_human)"', text)
+    if m:
+        return m.group(1)
+    m = re.search(r'"raw_status"\s*:\s*"(approve|reject|needs_human)"', text)
+    return m.group(1) if m else None
+
+
 def _walk_patch_strings(obj, verdicts: list, calls: dict) -> None:
     if isinstance(obj, dict):
         if obj.get("type") == "tool-call" and isinstance(obj.get("name"), str):
@@ -298,10 +315,9 @@ def _walk_patch_strings(obj, verdicts: list, calls: dict) -> None:
         for v in obj:
             _walk_patch_strings(v, verdicts, calls)
     elif isinstance(obj, str):
-        for k in ("approve", "reject", "needs_human"):
-            if f'"raw_status": "{k}"' in obj:
-                verdicts.append(k)
-                break
+        status = extract_verify_status(obj)
+        if status is not None:
+            verdicts.append(status)
 
 
 def parse_session_stats(arm_dir: Path) -> dict:
@@ -1708,8 +1724,9 @@ def build_verifier_confusion(canonical: list[dict], extras: dict) -> dict:
             "scope": "所有 B（treatment/SDLC preset）运行；2x2 的 sdlc 与 sdlc_guidance "
                      "都算 B 运行（arm 名如实记录），paired 口径另由 reaggregate 处理",
             "verdict_source": (
-                "主会话文件 session-*.jsonl.zstd 中 sdlc_verify 工具结果文本里的 "
-                "'\"raw_status\": \"<approve|reject|needs_human>\"' 序列；最终裁决 = 最后一个。"
+                "主会话文件 session-*.jsonl.zstd 中 sdlc_verify 工具结果文本里的"
+                "有效 verdict.status 序列（structured verdict 优先；malformed 兜底取顶层 "
+                "status；两者缺失时才回退 raw_status）；最终裁决 = 最后一个。"
                 "子验证者会话内的同名 JSON 不重复计入（否则一次调用被数两遍）"
             ),
             "official_source": "官方 fb eval 的 report.json（resolved_instances），不采用 "

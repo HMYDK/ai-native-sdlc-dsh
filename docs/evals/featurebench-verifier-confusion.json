@@ -500,7 +500,7 @@
     "no_verdict_reason": "workflow_not_used = 该 run 未调用任何 sdlc_* 工具（2x2 无引导 sdlc 臂常见）；no_verdict_with_workflow = 用了流程但没有裁决（多为 timeout/over_budget/turn_error 截断）。两者都是删失，不能当通过或失败",
     "official_source": "官方 fb eval 的 report.json（resolved_instances），不采用 agent 自报 DONE/approve 作为成绩",
     "scope": "所有 B（treatment/SDLC preset）运行；2x2 的 sdlc 与 sdlc_guidance 都算 B 运行（arm 名如实记录），paired 口径另由 reaggregate 处理",
-    "verdict_source": "主会话文件 session-*.jsonl.zstd 中 sdlc_verify 工具结果文本里的 '\"raw_status\": \"<approve|reject|needs_human>\"' 序列；最终裁决 = 最后一个。子验证者会话内的同名 JSON 不重复计入（否则一次调用被数两遍）"
+    "verdict_source": "主会话文件 session-*.jsonl.zstd 中 sdlc_verify 工具结果文本里的有效 verdict.status 序列（structured verdict 优先；malformed 兜底取顶层 status；两者缺失时才回退 raw_status）；最终裁决 = 最后一个。子验证者会话内的同名 JSON 不重复计入（否则一次调用被数两遍）"
   },
   "purpose": "AC-006：Verifier 的 approve 与官方 resolved 分开保存/展示，可核对错误放行（false positive）、错误拒绝（false negative）、无裁决与 Agent 提前失败；证据不足处明确标注不可判断。",
   "runs": [
@@ -1327,6 +1327,7 @@
       "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
       "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
       "verdicts": [
+        "approve",
         "approve"
       ],
       "workflow_used": true
@@ -1365,6 +1366,7 @@
       "run_id": "repeat-sampling:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r3",
       "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
       "verdicts": [
+        "approve",
         "approve"
       ],
       "workflow_used": true
@@ -1500,7 +1502,8 @@
       "run_id": "version-regression-mvp:pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1:sdlc:r1",
       "task_id": "pytest-dev__pytest.68016f0e.raises_group.c28bf36a.lv1",
       "verdicts": [
-        "approve",
+        "needs_human",
+        "needs_human",
         "approve"
       ],
       "workflow_used": true

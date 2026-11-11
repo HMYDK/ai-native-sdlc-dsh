@@ -367,6 +367,9 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval -p <predictions.jsonl> --split fast 
 - 2026-11-10：首次发布（EVAL-01）。历史报告分母修订（扩样本 ITT/可评分双口径）、
   #8 数字对账（84 report / 164 attempts 不可复算 / token 双口径）、AC-007 复评记录、
   数据快照脱敏。
+- 2026-11-12（第 10 轮 review 收口）：canonical 裁决解析改用 criteria policy 后的有效
+  `verdict.status`（malformed 兜底取顶层 status，最后才回退 raw_status）；跨 rep/group
+  预算改为下发剩余额度。重算 canonical runs/verifier/metrics/index，历史混淆数字不变。
 - 2026-11-12：按 PR #13/#14 的 Codex review 修复并重算——2×2 按 arm 统计 SDLC 会话、
   `analyze_expanded` 的 `both_resolved` 口径（9→7）、infra 失败 run 留存、`turn_error`
   归 infra 重试、`run_regression` dry-run 传播、`collect_runs` 的 repeat attempts 身份与
