@@ -6580,12 +6580,12 @@
       {
         "path": "docs/evals/featurebench-2026-11-07-2x2-data.json",
         "rows": 20,
-        "sha256": "48592b2d6dfd2a470976fa3fb9ee1624f26781039c47c65aebb4bbb4eefd137e"
+        "sha256": "32fa9b4648e44441f3ca67bc39a706c0a9f30be08374b4e09ff0c90dd4888e96"
       },
       {
         "path": "docs/evals/featurebench-2026-11-07-expanded-data.json",
         "rows": 24,
-        "sha256": "538238a44eea9c3bc355b818e777a540cdcdc9497d4c084e6ad613cc5669079c"
+        "sha256": "c77369eb9d6dbaf533b691d5d25dd212273553557288c89fc06dcb0ec4c3e38c"
       },
       {
         "path": "docs/evals/featurebench-2026-11-07-verifier-data.json",

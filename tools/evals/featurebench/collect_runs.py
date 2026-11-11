@@ -409,24 +409,29 @@ def official_metrics(report_path: Path | None) -> dict | None:
 
 
 def load_attempts(exp: dict, runs_base: Path) -> dict:
-    """matrix.json 的 (task, arm) -> attempts。文件被后来的 --retry-failed 子集覆盖时，
-    未覆盖的 run 不在表里（上游返回 None，不猜）。"""
+    """matrix.json 的 (task, arm, repeat) -> attempts。文件被后来的 --retry-failed 子集
+    覆盖时，未覆盖的 run 不在表里（上游返回 None，不猜）。
+
+    rep-layout 必须把 repeat 放进 key：rep1/rep2/rep3 是三次独立尝试，不能把三个
+    matrix.json 按 (task, arm) 合并取 max 再分给每一 rep（那会把一次重试复制成三次，
+    伪造 provenance）。
+    """
     root = runs_base / exp["root_rel"]
-    paths = []
+    paths: list[tuple[int, Path]] = []
     if exp["layout"] == "rep":
         for rep in (1, 2, 3):
             p = root / f"rep{rep}" / "matrix.json"
             if p.exists():
-                paths.append(p)
+                paths.append((rep, p))
     else:
         p = root / "matrix.json"
         if p.exists():
-            paths.append(p)
+            paths.append((1, p))
     out = {}
-    for p in paths:
+    for rep, p in paths:
         d = load_json(p) or {}
         for r in d.get("runs") or []:
-            key = (r.get("task"), r.get("arm"))
+            key = (r.get("task"), r.get("arm"), rep)
             val = r.get("attempts")
             if isinstance(val, int):
                 out[key] = max(out.get(key, 0), val)
@@ -553,7 +558,7 @@ def collect_runs(runs_base: Path) -> tuple[list[dict], dict, dict, dict]:
                     if tokens is None:
                         tokens = session_tokens(arm_dir)
                         tokens_source = "session" if tokens is not None else None
-                    attempts_val = attempts.get((task_id, arm))
+                    attempts_val = attempts.get((task_id, arm, repeat))
                     verify_verdicts = sess["verify_verdicts"]
                     if not sess["zstandard_available"]:
                         verify_verdicts = verdicts_by_key.get((task_id, arm), [])
@@ -1863,6 +1868,39 @@ def main() -> int:
         dump_json(out_dir / "featurebench-env-identity.json", env_identity)
         dump_json(out_dir / "featurebench-leak-audit.json", leak_audit)
         dump_json(out_dir / "featurebench-verifier-confusion.json", verifier)
+
+    if args.check:
+        # --check 不写文件，但必须是真正的检查：archive hash 锚点不符、或「重新生成结果」
+        # 与已提交文件不一致时都要非零退出。否则「检查通过」只是打印了旧索引/旧数据。
+        problems: list[str] = []
+        mism = evidence["counts"]["archive_artifact_mismatches"]
+        not_in_sums = evidence["counts"]["archive_artifact_not_in_sums"]
+        if mism or not_in_sums:
+            problems.append(f"archive 校验失败：mismatches={mism}, not_in_sums={not_in_sums}")
+        runs_text = "\n".join(
+            json.dumps(r, ensure_ascii=False, sort_keys=True) for r in canonical
+        ) + "\n"
+        regenerated = {
+            "featurebench-runs.jsonl": runs_text,
+            "featurebench-evidence-index.json":
+                json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            "featurebench-env-identity.json":
+                json.dumps(env_identity, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            "featurebench-leak-audit.json":
+                json.dumps(leak_audit, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            "featurebench-verifier-confusion.json":
+                json.dumps(verifier, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        }
+        for name, text in regenerated.items():
+            committed = out_dir / name
+            if not committed.exists():
+                problems.append(f"缺少已提交输出 {name}")
+            elif committed.read_text(encoding="utf-8") != text:
+                problems.append(f"{name} 与重新生成结果不一致（需重新生成并 review）")
+        if problems:
+            for msg in problems:
+                print("错误：" + msg, file=sys.stderr)
+            return 1
 
     # 摘要（审计对账）
     v1 = [r for r in canonical if r["runtime_group"].startswith("v1-")]

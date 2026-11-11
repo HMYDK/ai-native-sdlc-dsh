@@ -6,7 +6,7 @@
     "log_evidence": {
       "note": "日志里可见 [run]/[retry] 事件（每个 [run] = 一次 run_arm 启动，[retry] = 同一 run_matrix 进程内的 infra 重试），但这些日志本身不完整（分批/重定向/被覆盖），无法把历史启动逐条归属到 canonical run。",
       "retry_lines_in_surviving_logs": 3,
-      "run_launch_lines_in_surviving_logs": 86
+      "run_launch_lines_in_surviving_logs": 80
     },
     "per_experiment": {
       "2x2": {
