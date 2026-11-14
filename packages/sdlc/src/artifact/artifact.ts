@@ -10,14 +10,19 @@
  * 那为什么还值得做？因为手册给每种制品规定的章节**都是下游的输入**，
  * 不是装饰：
  *   · intent 的 `Open questions` → spec 阶段必须逐条回答或延续（手册阶段 02 第 3 步）
+ *   · spec 的 `Delivery Contract` → 验证者反查「原始目标 → AC → 证据」的固定锚点
  *   · spec 的 `Areas of concern` → 产品负责人要逐项找策略负责人解决
  *   · plan 的 `Proof`         → 验证阶段拿它和实际证据对账
  * 章节缺失会让下游**静默地少掉一个输入**——这才是要防的。
  *
  * ## 已知的检查不了的东西（写在这里，也会出现在工具描述与拒绝信息里）
  *   · 内容是否真的回答了章节名要求的问题
+ *   · Source 是否真实、Outcome 是否充分、AC mapping 是否完整
  *   · 是否与 intent 一致
  *   · 验收标准是否可证伪
+ *
+ * `Delivery Contract` 的五个 `###` 子节只做存在/非空/占位符检查；
+ * 它**不是**状态推进硬门禁（`checkAdvance` 不调用本模块），也不做语义判断。
  */
 
 import {parseSpecAcceptance} from '../shared/acceptance.js';
@@ -32,6 +37,15 @@ export const ARTIFACT_FILENAMES: Record<ArtifactKind, string> = {
   plan: 'plan.md',
 };
 
+export interface SubsectionSpec {
+  /** 规范名（写进提示词与报告）。 */
+  readonly name: string;
+  /** 大小写不敏感的同义词。 */
+  readonly aliases: readonly string[];
+  /** 为什么必需——会出现在"缺了这个子节"的错误信息里。 */
+  readonly why: string;
+}
+
 export interface SectionSpec {
   /** 规范名（写进提示词与报告）。 */
   readonly name: string;
@@ -39,16 +53,24 @@ export interface SectionSpec {
   readonly aliases: readonly string[];
   /** 为什么必需——会出现在"缺了这一节"的错误信息里。 */
   readonly why: string;
+  /**
+   * 可选的固定子节（`###`）。
+   *
+   * 只用于需要稳定下游锚点的章节（目前是 spec 的 Delivery Contract）。
+   * 结构检查会逐个核对存在、非空、无占位符；**不检查语义**。
+   */
+  readonly subsections?: readonly SubsectionSpec[];
 }
 
 /**
- * 手册规定的章节。
+ * 手册规定的章节，加上本仓库为下游验证者增加的 `Delivery Contract` 扩展。
  *
  * 别名表是刻意宽松的：`Files that change` 与 `Files changed` 是同一件事，
  * 因为措辞不同就拒绝，只会让人绕过检查（本项目的既定教训是——
  * **误伤会降低门禁的实际效力，因为人会想办法绕开它**）。
  * 但**不为缺失的语义发明章节**：`Proof` 与 `Tests` 不是一回事
- * （前者要能证明目标行为，后者只说明跑了什么）。
+ * （前者要能证明目标行为，后者只说明跑了什么）。`Delivery Contract`
+ * 是经过 Issue #20 决策的显式扩展，不是临时发明的章节。
  */
 export const REQUIRED_SECTIONS: Record<ArtifactKind, readonly SectionSpec[]> = {
   intent: [
@@ -84,6 +106,51 @@ export const REQUIRED_SECTIONS: Record<ArtifactKind, readonly SectionSpec[]> = {
     },
   ],
   spec: [
+    {
+      name: 'Delivery Contract',
+      aliases: ['delivery contract', '交付契约', '交付合同'],
+      why:
+        '它是下游验证者（#21）反查「原始目标 → AC → 执行证据」的固定锚点；' +
+        '没有它，Source/Outcome/Boundary/Oracle 只能散落在散文里，验证者只能猜。' +
+        '程序只检查五个子节存在、非空、无占位符，不判断内容是否真实、充分。',
+      subsections: [
+        {
+          name: 'Source',
+          aliases: ['source', '来源'],
+          why:
+            '没有可追溯的来源，AC 就可能只是作者自己的转述；' +
+            '来源不可取得或含糊时要标记待确认，不能编造。',
+        },
+        {
+          name: 'Outcome',
+          aliases: ['outcome', '结果', '预期结果'],
+          why:
+            '下游要按 Outcome 反查 AC 是否充分；写成“实现某函数”就无法判断交付结果。' +
+            '优先写最终消费者可观察的行为。',
+        },
+        {
+          name: 'Boundary',
+          aliases: ['boundary', '边界', '范围'],
+          why:
+            '承诺、排除事项和依赖假设不清楚时，外部评分要求会被误当成用户承诺，' +
+            '或者相反被悄悄扩进 AC；范围变化要有依据。',
+        },
+        {
+          name: 'Oracle',
+          aliases: ['oracle', '判据', '验收判据'],
+          why:
+            '没有可观察判据和代表性真实调用入口，验证只能退化成作者自己的探针；' +
+            '这一节是交付路径检查的输入。',
+        },
+        {
+          name: 'AC mapping',
+          aliases: ['ac mapping', 'ac 映射', '验收映射'],
+          why:
+            '某个 Outcome 没有 AC 支撑时，AC 全 met 也不能证明目标达成；' +
+            '这里只引用 Acceptance Criteria 里的 AC ID，不复制第二份清单。',
+        },
+      ],
+    },
     {
       name: 'Acceptance Criteria',
       aliases: ['acceptance criteria', '验收标准'],
@@ -189,19 +256,133 @@ export function sectionBody(markdown: string, sectionName: string): string {
   return body.join('\n').trim();
 }
 
+/**
+ * 从一段二级章节正文里抽出 `###` 子节。
+ *
+ * 只做局部解析，不引入通用 Markdown AST：`####` 及更深标题按正文处理，
+ * 子节正文到下一个 `###` 或该段结束为止。
+ */
+export function extractSubsections(body: string): { heading: string; body: string }[] {
+  const found: { heading: string; lines: string[] }[] = [];
+  let current: { heading: string; lines: string[] } | undefined;
+  for (const line of body.split('\n')) {
+    const m = /^\s{0,3}###\s+(.+?)\s*#*\s*$/.exec(line);
+    if (m?.[1] !== undefined && m[1] !== '') {
+      if (current !== undefined) found.push(current);
+      current = { heading: m[1].trim(), lines: [] };
+    } else if (current !== undefined) {
+      current.lines.push(line);
+    }
+  }
+  if (current !== undefined) found.push(current);
+  return found.map(({ heading, lines }) => ({ heading, body: lines.join('\n').trim() }));
+}
+
+type NamedSection = Pick<SectionSpec, 'name' | 'aliases'>;
+
 /** 章节名是否匹配某个规范章节（大小写不敏感 + 别名）。 */
-function matches(spec: SectionSpec, heading: string): boolean {
+function matches(spec: NamedSection, heading: string): boolean {
   const h = heading.trim().toLowerCase();
   return spec.aliases.some((a) => a.toLowerCase() === h) || spec.name.toLowerCase() === h;
+}
+
+/** 检查固定子节：存在、正文非空、无占位符。只查结构，不查语义。 */
+function checkSubsections(
+  sectionName: string,
+  body: string,
+  subsections: readonly SubsectionSpec[],
+): SectionFinding[] {
+  const findings: SectionFinding[] = [];
+  const parsed = extractSubsections(body);
+  for (const sub of subsections) {
+    const found = parsed.find((s) => matches(sub, s.heading));
+    const label = `${sectionName} / ${sub.name}`;
+    if (found === undefined) {
+      findings.push({
+        kind: 'missing',
+        section: label,
+        detail: `缺少「### ${sub.name}」子章节。为什么需要它：${sub.why}`,
+      });
+      continue;
+    }
+    if (found.body === '') {
+      findings.push({
+        kind: 'empty',
+        section: label,
+        detail:
+          `「### ${found.heading}」有标题但正文为空——这比不写更危险，因为它看起来写过了。` +
+          `为什么需要它：${sub.why}`,
+      });
+      continue;
+    }
+    const ph = PLACEHOLDER_RE.exec(found.body);
+    // 骨架注释可能超过 PLACEHOLDER_RE 的 80 字符上限（AC mapping 的 why 就是 84），
+    // 所以显式认骨架注释本身；只认这一条，不把作者自己写的普通注释当占位符。
+    const skeletonComment = `<!-- ${sub.why} -->`;
+    const hasSkeletonComment = found.body.includes(skeletonComment);
+    if (hasSkeletonComment || ph !== null) {
+      findings.push({
+        kind: 'placeholder',
+        section: label,
+        detail: hasSkeletonComment
+          ? `「### ${found.heading}」还留着骨架注释——这一节还没写完`
+          : `「### ${found.heading}」正文里还有未填的占位符 ${ph![0]}——这一节还没写完`,
+      });
+    }
+  }
+  return findings;
+}
+
+/**
+ * Delivery Contract 必须唯一，且排在 Acceptance Criteria 之前。
+ *
+ * 顺序不只是可读性：它在 AC 章节后面时，`###` 子标题会落进验收章节，
+ * `parseSpecAcceptance` 会把它们当成“无法解析的续行”而拒绝整份 Spec。
+ * 重复时下游只会读到第一个，第二个被静默忽略——所以这里显式拒绝。
+ */
+function checkDeliveryContractStructure(kind: ArtifactKind, heads: readonly string[]): SectionFinding[] {
+  if (kind !== 'spec') return [];
+  const delivery = REQUIRED_SECTIONS.spec.find((s) => s.name === 'Delivery Contract');
+  const acceptance = REQUIRED_SECTIONS.spec.find((s) => s.name === 'Acceptance Criteria');
+  if (delivery === undefined) return [];
+  const findings: SectionFinding[] = [];
+  const deliveryHeads = heads.filter((h) => matches(delivery, h));
+  if (deliveryHeads.length > 1) {
+    findings.push({
+      kind: 'invalid',
+      section: 'Delivery Contract',
+      detail:
+        `只允许一个 \`## Delivery Contract\`，实际有 ${deliveryHeads.length} 个：` +
+        `${deliveryHeads.join(' / ')}。重复会让下游只读到第一个，后面的被静默忽略。`,
+    });
+  }
+  if (acceptance === undefined) return findings;
+  const di = heads.findIndex((h) => matches(delivery, h));
+  const ai = heads.findIndex((h) => matches(acceptance, h));
+  if (di >= 0 && ai >= 0 && di > ai) {
+    findings.push({
+      kind: 'invalid',
+      section: 'Delivery Contract',
+      detail:
+        '`## Delivery Contract` 必须放在 `## Acceptance Criteria` 之前：' +
+        'AC mapping 是 AC 清单的来源；而且 `###` 子标题落在验收章节内时，' +
+        '验收解析器会把它们当成无法解析的续行。',
+    });
+  }
+  return findings;
 }
 
 /**
  * 检查一份制品文档的结构。
  *
- * 三种缺陷都报，因为处置方式不同：
+ * 四类缺陷都报，因为处置方式不同：
  *   · `missing`     —— 整节没写：下游会少一个输入
  *   · `empty`       —— 写了标题但正文为空：最危险，因为它**看起来**写过了
  *   · `placeholder` —— 正文还是 `<>` 占位符：没写完
+ *   · `invalid`     —— 章节顺序或验收解析非法
+ *
+ * ⚠️ 只查结构：Source 是否真实、Outcome 是否充分、AC mapping 是否完整，
+ * 这里都**不判断**。带 `subsections` 的章节会逐个检查子节的存在/空/占位符。
  */
 export function checkArtifact(kind: ArtifactKind, markdown: string): ArtifactCheck {
   const heads = extractSections(markdown);
@@ -228,6 +409,27 @@ export function checkArtifact(kind: ArtifactKind, markdown: string): ArtifactChe
       });
       continue;
     }
+    if (spec.subsections !== undefined) {
+      // 子节检查代替顶层占位符检查：Delivery Contract 的正文就是五个 `###`，
+      // 顶层把标题当正文会掩盖空子节；占位符在子节内逐个报更准确。
+      // 但第一个 `###` 之前的段首也要查：它既可能是 `<...>`，也可能是
+      // 超过 PLACEHOLDER_RE 上限的骨架注释。
+      const intro = body.split(/^\s{0,3}###\s+/m)[0] ?? '';
+      const topLevelSkeletonComment = `<!-- ${spec.why} -->`;
+      const hasTopLevelSkeletonComment = intro.includes(topLevelSkeletonComment);
+      const introPh = hasTopLevelSkeletonComment ? null : PLACEHOLDER_RE.exec(intro);
+      if (hasTopLevelSkeletonComment || introPh !== null) {
+        findings.push({
+          kind: 'placeholder',
+          section: spec.name,
+          detail: hasTopLevelSkeletonComment
+            ? `「## ${heading}」段首还留着骨架注释——这一节还没写完`
+            : `「## ${heading}」段首还有未填的占位符 ${introPh![0]}——这一节还没写完`,
+        });
+      }
+      findings.push(...checkSubsections(spec.name, body, spec.subsections));
+      continue;
+    }
     const ph = PLACEHOLDER_RE.exec(body);
     if (ph !== null) {
       findings.push({
@@ -237,6 +439,8 @@ export function checkArtifact(kind: ArtifactKind, markdown: string): ArtifactChe
       });
     }
   }
+
+  findings.push(...checkDeliveryContractStructure(kind, heads));
 
   if (kind === 'spec' && !findings.some(f=>f.section === 'Acceptance Criteria')) {
     try {parseSpecAcceptance(markdown);}
@@ -270,11 +474,14 @@ export function isArtifactKind(v: unknown): v is ArtifactKind {
   return typeof v === 'string' && (ARTIFACT_KINDS as readonly string[]).includes(v);
 }
 
-/** 生成某个制品类型的骨架，章节名与顺序都按手册模板。 */
+/** 生成某个制品类型的骨架：章节名与顺序按模板；带 `subsections` 的章节连同子节一起生成。 */
 export function skeletonFor(kind: ArtifactKind, title: string): string {
   const lines = [`# ${kind === 'intent' ? 'Intent' : kind === 'spec' ? 'Spec' : 'Plan'}: ${title}`, ''];
   for (const spec of REQUIRED_SECTIONS[kind]) {
     lines.push(`## ${spec.name}`, '', `<!-- ${spec.why} -->`, '');
+    for (const sub of spec.subsections ?? []) {
+      lines.push(`### ${sub.name}`, '', `<!-- ${sub.why} -->`, '');
+    }
   }
   return lines.join('\n');
 }

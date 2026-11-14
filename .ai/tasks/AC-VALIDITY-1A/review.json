@@ -1,0 +1,24 @@
+{
+  "status": "approve",
+  "summary": "AC-VALIDITY-01A：Spec 增加 Delivery Contract（Source/Outcome/Boundary/Oracle/AC mapping），artifact check 增加五子节、段首占位符/骨架注释、重复与顺序检查；指导、模板、单测、smoke、TASK.md 与三个示例文档同步。不修改状态机、AC 解析/登记或裁决 Schema。",
+  "verification_run": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3",
+  "criteria": "AC-001..AC-005 met（独立复验 approve）",
+  "deferred": [
+    {
+      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F1",
+      "reason": "文档的 DC 顺序因果解释不准确；顺序检查本身正确并报 invalid。后续文档措辞清理。"
+    },
+    {
+      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F2",
+      "reason": "局部解析未做 fenced code block 感知；DC 模板代码块是边缘场景，AC 解析器同样刻意不支持代码块。后续按需加 fence 状态。"
+    },
+    {
+      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F3",
+      "reason": "sdlc_artifact_check 的文本 render 未列 details；结构化 details 已返回，后续做 render 一致性改进。"
+    },
+    {
+      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F4",
+      "reason": "PLACEHOLDER_RE 的 80 字符上限仍可被超长尖括号占位符绕过；骨架注释已显式覆盖。后续放宽正则或在文档写明边界。"
+    }
+  ]
+}

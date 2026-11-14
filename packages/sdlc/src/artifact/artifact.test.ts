@@ -21,17 +21,31 @@ import {
   skeletonFor,
   type ArtifactKind,
 } from './artifact.js';
+import { ARTIFACT_POLICY_TEXT } from './policy.js';
+import { parseSpecAcceptance } from '../shared/acceptance.js';
 
 /** 按必需章节生成一份"结构合格"的文档，便于单测从合格基线出发。 */
 function wellFormed(kind: ArtifactKind): string {
   const lines = [`# ${kind}: 示例`, ''];
   for (const s of REQUIRED_SECTIONS[kind]) {
-    lines.push(`## ${s.name}`, '', s.name === 'Acceptance Criteria' ? '- AC-001: 示例行为可验证' : `这里是 ${s.name} 的正文内容，足够长以避免被判为空。`, '');
+    lines.push(`## ${s.name}`, '');
+    if (s.subsections !== undefined) {
+      for (const sub of s.subsections) {
+        lines.push(`### ${sub.name}`, '', `这里是 ${sub.name} 的正文内容，足够长以避免被判为空。`, '');
+      }
+    } else {
+      lines.push(
+        s.name === 'Acceptance Criteria'
+          ? '- AC-001: 示例行为可验证'
+          : `这里是 ${s.name} 的正文内容，足够长以避免被判为空。`,
+        '',
+      );
+    }
   }
   return lines.join('\n');
 }
 
-test('三种制品的必需章节与手册一致', () => {
+test('三种制品的必需章节与当前契约一致（含 Delivery Contract 扩展）', () => {
   assert.deepEqual([...ARTIFACT_KINDS], ['intent', 'spec', 'plan']);
   const names = (k: ArtifactKind) => REQUIRED_SECTIONS[k].map((s) => s.name);
 
@@ -45,8 +59,15 @@ test('三种制品的必需章节与手册一致', () => {
   ]);
   // 手册阶段 03 的 plan 模板
   assert.deepEqual(names('plan'), ['Files that change', 'Order of work', 'Risks', 'Proof']);
-  // spec：手册说需求与设计合并，且必须标注关注领域
-  assert.deepEqual(names('spec'), ['Acceptance Criteria', 'Requirements', 'Design', 'Areas of concern']);
+  // spec：手册说需求与设计合并，且必须标注关注领域；Delivery Contract 是
+  // 本仓库为下游验证者（#21）增加的结构锚点
+  assert.deepEqual(names('spec'), [
+    'Delivery Contract',
+    'Acceptance Criteria',
+    'Requirements',
+    'Design',
+    'Areas of concern',
+  ]);
 
   assert.deepEqual(ARTIFACT_FILENAMES, {
     intent: 'intent.md',
@@ -100,6 +121,155 @@ test('回归：正文还是占位符 → placeholder', () => {
   assert.ok(f);
   assert.equal(f.kind, 'placeholder');
   assert.match(f.detail, /占位符/);
+});
+
+test('Delivery Contract 的五个子节逐个检查：缺失 / 空 / 占位符', () => {
+  const doc = wellFormed('spec');
+  const ok = checkArtifact('spec', doc);
+  assert.equal(ok.ok, true, `合格基线不应报错：${JSON.stringify(ok.findings)}`);
+
+  const missing = doc.replace(/### Source[\s\S]*?(?=### Outcome)/, '');
+  const missingR = checkArtifact('spec', missing);
+  assert.ok(
+    missingR.findings.some((f) => f.section === 'Delivery Contract / Source' && f.kind === 'missing'),
+    `缺 Source 应报 missing：${JSON.stringify(missingR.findings)}`,
+  );
+
+  const empty = doc.replace(/### Source[\s\S]*?(?=### Outcome)/, '### Source\n\n');
+  const emptyR = checkArtifact('spec', empty);
+  assert.ok(
+    emptyR.findings.some((f) => f.section === 'Delivery Contract / Source' && f.kind === 'empty'),
+    `空 Source 应报 empty：${JSON.stringify(emptyR.findings)}`,
+  );
+
+  const placeholder = doc.replace(/### Source[\s\S]*?(?=### Outcome)/, '### Source\n\n<待填>\n\n');
+  const placeholderR = checkArtifact('spec', placeholder);
+  assert.ok(
+    placeholderR.findings.some(
+      (f) => f.section === 'Delivery Contract / Source' && f.kind === 'placeholder',
+    ),
+    `占位符 Source 应报 placeholder：${JSON.stringify(placeholderR.findings)}`,
+  );
+});
+
+test('Delivery Contract 必须在 Acceptance Criteria 之前', () => {
+  const doc = [
+    '# Spec: 顺序错误',
+    '',
+    '## Acceptance Criteria',
+    '- AC-001: 示例行为可验证',
+    '',
+    '## Delivery Contract',
+    '',
+    '### Source',
+    '来源正文',
+    '',
+    '### Outcome',
+    '结果正文',
+    '',
+    '### Boundary',
+    '边界正文',
+    '',
+    '### Oracle',
+    '判据正文',
+    '',
+    '### AC mapping',
+    'O-1 → AC-001',
+    '',
+  ].join('\n');
+  const r = checkArtifact('spec', doc);
+  assert.ok(
+    r.findings.some(
+      (f) =>
+        f.kind === 'invalid' &&
+        f.section === 'Delivery Contract' &&
+        /Acceptance Criteria/.test(f.detail),
+    ),
+    `顺序错误应报 invalid：${JSON.stringify(r.findings)}`,
+  );
+});
+
+test('Delivery Contract 段首的占位符/骨架注释也要检查', () => {
+  const dc = REQUIRED_SECTIONS.spec.find((s) => s.name === 'Delivery Contract');
+  assert.ok(dc);
+  const placeholderDoc = wellFormed('spec').replace(
+    '## Delivery Contract\n\n### Source',
+    '## Delivery Contract\n\n<待填：契约还没写>\n\n### Source',
+  );
+  const placeholderR = checkArtifact('spec', placeholderDoc);
+  assert.ok(
+    placeholderR.findings.some(
+      (f) => f.section === 'Delivery Contract' && f.kind === 'placeholder',
+    ),
+    `段首占位符应报 placeholder：${JSON.stringify(placeholderR.findings)}`,
+  );
+
+  const skeletonDoc = wellFormed('spec').replace(
+    '## Delivery Contract\n\n### Source',
+    `## Delivery Contract\n\n<!-- ${dc.why} -->\n\n### Source`,
+  );
+  const skeletonR = checkArtifact('spec', skeletonDoc);
+  assert.ok(
+    skeletonR.findings.some(
+      (f) => f.section === 'Delivery Contract' && f.kind === 'placeholder',
+    ),
+    `段首骨架注释应报 placeholder：${JSON.stringify(skeletonR.findings)}`,
+  );
+});
+
+test('重复 Delivery Contract 被拒绝（不能只读第一个）', () => {
+  const doc = `${wellFormed('spec')}\n## Delivery Contract\n\n### Source\n\nsecond\n`;
+  const r = checkArtifact('spec', doc);
+  assert.ok(
+    r.findings.some(
+      (f) => f.kind === 'invalid' && f.section === 'Delivery Contract' && /只允许一个/.test(f.detail),
+    ),
+    `重复 Delivery Contract 应报 invalid：${JSON.stringify(r.findings)}`,
+  );
+});
+
+test('长骨架注释不能绕过占位符检查（AC mapping 的 why 超过 80 字符）', () => {
+  const dc = REQUIRED_SECTIONS.spec.find((s) => s.name === 'Delivery Contract');
+  const acMapping = dc?.subsections?.find((s) => s.name === 'AC mapping');
+  assert.ok(acMapping);
+  const doc = wellFormed('spec').replace(
+    /### AC mapping[\s\S]*?(?=## Acceptance Criteria)/,
+    `### AC mapping\n\n<!-- ${acMapping.why} -->\n\n`,
+  );
+  const r = checkArtifact('spec', doc);
+  assert.ok(
+    r.findings.some(
+      (f) => f.section === 'Delivery Contract / AC mapping' && f.kind === 'placeholder',
+    ),
+    `长骨架注释应报 placeholder：${JSON.stringify(r.findings)}`,
+  );
+});
+
+test('Delivery Contract 与五个子节接受中英文别名', () => {
+  const doc = wellFormed('spec')
+    .replace('## Delivery Contract', '## 交付契约')
+    .replace('### Source', '### 来源')
+    .replace('### Outcome', '### 结果')
+    .replace('### Boundary', '### 边界')
+    .replace('### Oracle', '### 判据')
+    .replace('### AC mapping', '### 验收映射');
+  const r = checkArtifact('spec', doc);
+  assert.equal(r.ok, true, `别名不应误伤：${JSON.stringify(r.findings)}`);
+});
+
+test('Delivery Contract 不影响 Acceptance Criteria 解析', () => {
+  const doc = wellFormed('spec');
+  assert.deepEqual(parseSpecAcceptance(doc), [{ id: 'AC-001', text: '示例行为可验证' }]);
+});
+
+test('写作指导覆盖交付契约五个子节与保证边界', () => {
+  for (const term of ['Delivery Contract', 'Source', 'Outcome', 'Boundary', 'Oracle', 'AC mapping']) {
+    assert.match(ARTIFACT_POLICY_TEXT, new RegExp(term), `指导缺少 ${term}`);
+  }
+  assert.match(ARTIFACT_POLICY_TEXT, /待确认/, '必须允许标记待确认而不是编造');
+  assert.match(ARTIFACT_POLICY_TEXT, /hidden tests/, '必须写明外部隐藏测试不是用户承诺');
+  assert.match(ARTIFACT_POLICY_TEXT, /只查结构/, '必须写明只查结构');
+  assert.match(ARTIFACT_POLICY_TEXT, /checkAdvance/, '必须写明不是状态推进硬门禁');
 });
 
 test('骨架自检：skeletonFor 生成的东西**故意**判为不合格', () => {

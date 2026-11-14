@@ -16,7 +16,27 @@ const {load,JSON_SCHEMA}=require('js-yaml');
 const root=await fs.mkdtemp(path.join(os.tmpdir(),'sdlc-acceptance-')),ctx=new Context();
 const agent={id:'author',session:{id:'author',header:{cwd:root}}};
 const criteria=['AC-001: 优惠金额计算正确','AC-002: 并发请求不会重复使用优惠券','AC-003: 优惠失败不能生成错误订单'];
-const spec='# Spec\n\n## Requirements\n优惠券正确消费。\n\n## Acceptance Criteria\n'+criteria.map(c=>'- '+c).join('\n')+'\n\n## Design\n事务中处理优惠券与订单。\n\n## Areas of concern\n并发与失败回滚。\n';
+const deliveryContract=[
+  '## Delivery Contract',
+  '',
+  '### Source',
+  'Issue #2 受控夹具：优惠券消费必须一致。',
+  '',
+  '### Outcome',
+  '- O-1: 金额、并发、失败回滚三项行为符合下面的 AC。',
+  '',
+  '### Boundary',
+  '- 承诺：三项 AC；排除：优惠券发放与过期策略；假设：单进程夹具。',
+  '- 依据：Issue #2。',
+  '',
+  '### Oracle',
+  '- O-1: node --test 受控夹具逐项通过。',
+  '',
+  '### AC mapping',
+  '- O-1 → AC-001, AC-002, AC-003',
+  '',
+].join('\n');
+const spec='# Spec\n\n'+deliveryContract+'\n## Requirements\n优惠券正确消费。\n\n## Acceptance Criteria\n'+criteria.map(c=>'- '+c).join('\n')+'\n\n## Design\n事务中处理优惠券与订单。\n\n## Areas of concern\n并发与失败回滚。\n';
 const intent='# Intent\n\n## Problem\n优惠券消费可能出错。\n\n## Proposed outcome\n金额、并发、失败三项通过。\n\n## Affected users and systems\n订单服务。\n\n## Constraints\n三项全部必验。\n\n## Open questions\n无。\n';
 const plan='# Plan\n\n## Files that change\napp.js\n\n## Order of work\n计算、消费、回滚。\n\n## Risks\n重复消费。\n\n## Proof\n按 Spec 逐项验证。\n';
 let seq=0,checks=0,starts=0,mode='all',during,seenIds=[],issueResults=[];
