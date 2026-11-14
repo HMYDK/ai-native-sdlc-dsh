@@ -1,0 +1,16 @@
+{
+  "status": "approve",
+  "summary": "让 buildVerificationPrompt() 消费 #20 的 Delivery Contract：读取 Source/Outcome/Boundary/Oracle/AC mapping，提取 1–3 个 Outcome，映射支撑 AC，构造最小具体反例，复用一条真实消费路径；按维护者确认的状态/证据矩阵处理 reject/needs_human/unverified、旧任务回退、hidden tests 与幂等返工。新增 7 条 prompt 回归和 6 个离线反例。独立复验 b8941160 approve，AC-001..AC-006 全 met。",
+  "verification_run": "b8941160-2534-41d3-a85b-3d7793edca18",
+  "criteria": "AC-001..AC-006 met（独立复验 approve；变异测试 M08-M19 删除对应规则后测试转红）",
+  "deferred": [
+    {
+      "id": "b8941160-2534-41d3-a85b-3d7793edca18:F1",
+      "reason": "残余测试打磨：未锁 verdict.ts:625 的 needs_human+unverified 映射、finding 详情、intent_of_change 查找顺序（M20/M21/M22）。AC-006 已 met；本轮点名规则均有变异敏感断言。后续按需补更细的测试，不在本轮再触发完整复验。"
+    }
+  ],
+  "limitations": [
+    "真实模型对新增 prompt 的遵循度未取得：付费 spot check 预算未批准，本轮只做离线 fixture、Prompt 回归和人工 Review；不宣称行为已验证，独立 A/B 与统计结论留 #22。",
+    "未验证 UI；未修改状态机/AC 解析/裁决 Schema/checkAdvance。"
+  ]
+}

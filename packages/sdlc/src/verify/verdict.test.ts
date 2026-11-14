@@ -84,3 +84,99 @@ test('作者提供的测试证据仍标注为需要复核（回归）', () => {
   assert.match(prompt, /需要你自己复核/);
   assert.match(prompt, /pytest -q：10 passed/);
 });
+
+// ── #21：验收充分性反查（消费 Delivery Contract）────────────────────
+
+test('消费 Delivery Contract 五子节，并保留旧任务的散文回退（不自动阻断）', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /验收充分性反查/);
+  assert.match(prompt, /## Delivery Contract/);
+  for (const section of ['Source', 'Outcome', 'Boundary', 'Oracle', 'AC mapping']) {
+    assert.match(prompt, new RegExp(`### ${section}`), `缺少 ${section} 子节`);
+  }
+  assert.match(prompt, /旧任务没有 Delivery Contract 时，从 Intent\/Spec 散文推导/);
+  assert.match(prompt, /提取 1–3 个关键 Outcome/);
+  assert.match(prompt, /支撑它的 AC ID/);
+  assert.match(prompt, /AC mapping` 只用于反查充分性/);
+  assert.match(prompt, /唯一权威 AC 清单/);
+  assert.match(prompt, /不能缩减必验 AC/);
+});
+
+test('旧任务回退不自动阻断 approve；只有实质影响时才 needs_human', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /如果推导清晰且不影响交付结论，在 `summary` 里一句话注明/);
+  assert.match(prompt, /不要.*写进 `unverified`/);
+  assert.match(prompt, /不要因此阻断 `approve`/);
+  assert.match(prompt, /只有推导出的目标\/范围本身存在实质不确定性并影响结论时，才写进 `unverified` 并用 `needs_human`/);
+  assert.doesNotMatch(prompt, /在 `unverified` 里写明「目标来自推导/);
+  assert.match(prompt, /与本次交付直接相关的项.*不得为 `approve`/);
+});
+
+test('区分查找顺序与事实权威；hidden tests 不进入 Outcome', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /查找顺序/);
+  assert.match(prompt, /事实权威/);
+  assert.match(prompt, /用户原始需求\/Issue 原文 > Actor 撰写的 Delivery Contract > Actor 自述/);
+  assert.match(prompt, /Source 只是引用，不是已验证事实/);
+  assert.match(prompt, /不要采纳 Actor 的自洽改写/);
+  assert.match(prompt, /Source 原文与 Outcome\/Boundary 冲突时指出矛盾/);
+  assert.match(prompt, /hidden tests \/ 官方 Grader 不进入 Outcome 列表/);
+});
+
+test('具体反例门槛：AC 全 met 但 Outcome 仍失败；无反例不报，缺证据不默认 approve', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /最小具体反例/);
+  assert.match(prompt, /全部 `met`、该 Outcome 仍失败/);
+  assert.match(prompt, /必须落在已确认 Boundary 内/);
+  assert.match(prompt, /必须能被实现出来/);
+  assert.match(prompt, /说不出来就不要报缺口/);
+  assert.match(prompt, /决定性交付证据缺失/);
+  assert.match(prompt, /关键真实入口无法执行/);
+  assert.match(prompt, /把原因写进 `unverified`/);
+  assert.match(prompt, /影响本次交付结论.*needs_human/);
+  assert.match(prompt, /不要默认 `approve`/);
+  assert.match(prompt, /不要制造阻断/);
+});
+
+test('状态矩阵：reject / needs_human / 无关失败 / 范围外不扩需求', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /已证实真实消费入口\/已确认 Outcome 失败且属本次承诺 → `reject`/);
+  assert.ok(prompt.includes('命令 + 关键输出 + Source 位置 + 影响'), 'reject evidence 必须包含命令 + 关键输出 + Source 位置 + 影响');
+  assert.match(prompt, /已证实 AC 不足以证明 Outcome、但尚未证明实际交付失败/);
+  assert.match(prompt, /关键证据无法确认/);
+  assert.match(prompt, /顶层 `needs_human`/);
+  assert.match(prompt, /不要用 `approve` \+ blocking finding 代替/);
+  assert.match(prompt, /`enforceCriteriaPolicy\(\)` 会把它改成 `reject`/);
+  assert.match(prompt, /Source\/Boundary 实质歧义/);
+  assert.match(prompt, /只在歧义影响本次交付结论时阻断/);
+  assert.match(prompt, /无关既有失败 → 留证，不自动拒绝/);
+  assert.match(prompt, /已确认范围之外的独立功能，不能因 hidden tests 失败而扩需求/);
+});
+
+test('幂等：不重复报同一问题，也不因提过自动放行；AC 缺口退回 SPEC', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /前轮已记录\/已处理的同一反例/);
+  assert.match(prompt, /没有新证据不得重复创建 finding 或无意义返工/);
+  assert.match(prompt, /不得因「此前提过」自动放行/);
+  assert.match(prompt, /区分 issue 生命周期与 `issue_results`/);
+  assert.match(prompt, /`issue_results.result` 只能填 `resolved` \/ `unresolved` \/ `cannot_tell`/);
+  assert.match(prompt, /不要把 `clarified` \/ `deferred` 写进 `issue_results`/);
+  assert.match(prompt, /`sdlc_task_issue` 退回 SPEC/);
+  assert.match(prompt, /不要在 VERIFYING 里直接改标准/);
+});
+
+test('优先契约 Oracle，但必须是真实消费入口；只跑一条代表路径', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /优先用契约的 Oracle/);
+  assert.match(prompt, /必须确认它是真实消费入口，不是作者自测/);
+  assert.match(prompt, /只跑这一条，不跑全量 E2E/);
+});
+
+test('验收充分性反查排在交付路径检查之前', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  const sufficiency = prompt.indexOf('## 验收充分性反查');
+  const delivery = prompt.indexOf('## 交付路径检查');
+  assert.ok(sufficiency >= 0, '缺少验收充分性反查章节');
+  assert.ok(delivery >= 0, '缺少交付路径检查章节');
+  assert.ok(sufficiency < delivery, '验收充分性反查必须在交付路径检查之前');
+});
