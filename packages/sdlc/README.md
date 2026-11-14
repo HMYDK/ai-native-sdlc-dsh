@@ -89,7 +89,7 @@ UI 的 `tasksDir` / `rsiDir` 配置应与任务、RSI 组件保持一致。
 包自带 `dsh.bundle.patch`，安装后自动挂载。推荐从 npm 安装：
 
 ```sh
-dsh plugin --profile <你的-profile> add @ai-native-sdlc-plugin/dsh-sdlc@0.6.1
+dsh plugin --profile <你的-profile> add @ai-native-sdlc-plugin/dsh-sdlc@0.6.2
 ```
 
 或从源码构建：

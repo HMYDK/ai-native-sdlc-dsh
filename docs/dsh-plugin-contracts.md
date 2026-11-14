@@ -278,7 +278,7 @@ bundle 会被**自动追加到 `dsh.profile.bundles`**——这一点已实测�
 | `preset-sdlc` | `@deepseek-ai/dsh-agent-preset` | 声明 Agent Preset「AI 原生 SDLC」 |
 
 `preset-sdlc` 的 `config.plugins` 是**DSH 内置 `standard` preset 的完整副本
-（22 行：persona / read / bash / write / skill / subagent…）+ 本套件六个机制组件**
+（23 行：persona / read / bash / write / skill / subagent…）+ 本套件六个机制组件**
 （`sdlc-task` / `artifact` / `status` / `verify` / `workflow` / `rsi`）。只有新建会话
 在模式选择器里选该 preset 时，这六个组件才挂载；标准会话不会加载它们。
 

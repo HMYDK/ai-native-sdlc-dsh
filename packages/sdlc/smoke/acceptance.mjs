@@ -53,9 +53,9 @@ try {
   new ToolRuntime(ctx,'tools');
   installNativeExecutor(ctx, require);
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture'})});
-  ctx.provide('subagents',{startActivation:async({request})=>{
+  ctx.provide('subagents',{startActivation:async(spec)=>{
     starts++;
-    const prompt=request.prompt.map(p=>p.text??'').join('\n');
+    const prompt=spec.prompt.map(p=>p.text??'').join('\n');
     seenIds=[...prompt.matchAll(/^((?:AC|EXTRA)-[A-Za-z0-9-]+): /gm)].map(m=>m[1]);
     let rows=seenIds.map(criterion_id=>({criterion_id,result:'met',evidence:'deterministic verifier fixture'}));
     if(mode==='subset') rows=rows.slice(0,1);

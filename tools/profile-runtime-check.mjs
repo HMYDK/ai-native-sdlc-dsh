@@ -65,6 +65,19 @@ try {
  const cookie=auth.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
  assert.ok(cookie);
  const res=await fetch(base+'/api/sdlc-ui.tasks',{headers:{cookie}});console.log('SDLC_BOARD_HTTP',res.status);assert.equal(res.status,200);
+ // 形态存活探针（2026-11-14）：DSH 0.2.2-rc.2 起 SubagentActivationSpec 把请求字段
+ // 拍平到顶层。用插件真实会发的形状打到真实 subagents 服务；假 parent 应当得到
+ // UNAUTHORIZED（说明形状被接受），而不是 TypeError（说明还在用旧的 request 包装）。
+ if(ctx.get('agents')!==undefined){
+  try{
+   await ctx.subagents.startActivation({provider:'spawn',label:'sdlc-verify',prompt:[{type:'text',text:'shape probe'}],parent:agent,agentPreset:'sdlc-verifier',signal:new AbortController().signal,delivery:'caller'});
+   assert.fail('shape probe unexpectedly started a child');
+  }catch(error){
+   const message=error instanceof Error?error.message:String(error);
+   assert.ok(!/Cannot read properties of undefined/.test(message),`activation spec 形状已过期：${message}`);
+   console.log('SUBAGENT_SPEC_SHAPE',error&&error.code?error.code:'no-code');
+  }
+ }else console.log('SUBAGENT_SPEC_SHAPE','skip (no agents service)');
  const {VERIFIER_PRESET}=await import(pathToFileURL(path.join(profileDir,'node_modules/@ai-native-sdlc-plugin/dsh-sdlc/lib/verify/preset.js')));
  const release=await ctx.agentPresets.register(VERIFIER_PRESET);
  try{

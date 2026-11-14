@@ -382,7 +382,11 @@ async function dispatchVerifier(
     run = await ctx.subagents.startActivation({
       provider,
       label: 'sdlc-verify',
-      request,
+      // DSH 0.2.2-rc.2 起 `SubagentActivationSpec` 把请求字段**拍平**到 spec
+      // 顶层（不再是 `{ request }` 包装）。旧写法在 rc.3 上会在运行时读
+      // `spec.parent.id` 时抛 TypeError，验证者根本派发不出去——类型检查和
+      // 真实运行时探针都抓到过（2026-11-14）。
+      ...request,
       signal,
       // caller：结果直接返回给本次工具调用，不再作为消息投递给父会话。
       delivery: 'caller',
