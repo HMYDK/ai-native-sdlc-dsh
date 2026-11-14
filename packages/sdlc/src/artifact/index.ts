@@ -7,6 +7,7 @@
  *
  * 手册给 intent / spec / plan 各规定了一组必需章节，而这些章节**都是下游的输入**：
  *   · intent 的 `Open questions` → spec 阶段必须逐条回答或延续
+ *   · spec 的 `Delivery Contract` → 验证者反查「原始目标 → AC → 证据」的固定锚点
  *   · spec 的 `Areas of concern` → 产品负责人转交策略负责人的清单
  *   · plan 的 `Proof`            → 验证阶段对账"计划里承诺的证据"
  * 章节缺失会让下游**静默地少掉一个输入**——这正是要防的。
@@ -15,8 +16,13 @@
  *
  * **它只查结构，不查质量。结构合规的废话照样能通过。**
  * 一段把 `## Problem` 填成"我们要做得更好"的 intent.md 在结构上完全合法。
+ * Delivery Contract 的五个子节也只查存在/非空/占位符，不查 Source 真实性、
+ * Outcome 充分性或 AC mapping 完整性。
  * 夸大一个检查的能力比不做更危险——本项目已经因为宣称"绕不过去"
  * 被独立验证者实测推翻过一次（见 docs/dsh-pitfalls.md）。
+ *
+ * 另外：`checkAdvance` 不调用 `checkArtifact`，所以这不是状态推进硬门禁；
+ * Actor 直接写 `spec.md` 仍可绕过。语义与证据由独立验证者（#21）和人核对。
  */
 
 import type { Context } from '@deepseek-ai/cordis';
@@ -36,6 +42,7 @@ import {
   skeletonFor,
   type ArtifactKind,
 } from './artifact.js';
+import { ARTIFACT_POLICY_TEXT } from './policy.js';
 
 export const name = 'sdlc-artifact';
 
@@ -160,6 +167,7 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
           const o = v as Record<string, unknown>;
           const list = (x: unknown) =>
             Array.isArray(x) && x.length > 0 ? (x as string[]).join(', ') : '（无）';
+          const details = Array.isArray(o.details) ? (o.details as string[]) : [];
           return [
             {
               type: 'text',
@@ -169,6 +177,9 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
                 `缺失：${list(o.missing)}`,
                 `有标题但无正文：${list(o.empty)}`,
                 `未填占位符：${list(o.placeholder)}`,
+                ...(details.length > 0
+                  ? ['', '问题详情：', ...details.map((d) => `- ${d}`)]
+                  : []),
               ].join('\n'),
             },
           ];
@@ -335,25 +346,7 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
   ctx.systemPrompt.section({
     name: 'sdlc:artifact-policy',
     order: 680,
-    text: [
-      '## 制品撰写（AI 原生 SDLC）',
-      '',
-      '手册给每种制品规定了必需章节，而这些章节**都是下游的输入**——缺一节，下游就少一个输入：',
-      '',
-      '- `intent.md`：Problem / Proposed outcome / Affected users and systems / Constraints / **Open questions**',
-      '  （Open questions 是规格阶段的输入：spec 必须逐条回答或延续）',
-      '- `spec.md`：Requirements / Design / **Areas of concern** / **Acceptance Criteria**',
-      '  验收章节每项单独一行：- AC-001: 明确要求。编号唯一，全部必验；程序不从正文猜测清单。',
-      '  首次进入 PLANNED 或更后续阶段登记整个 Spec；登记后包括说明文字的修改都要回到 SPEC 重新登记。',
-      '  （关注点是产品负责人转交策略负责人的清单）',
-      '- `plan.md`：Files that change / Order of work / Risks / **Proof**',
-      '  （Proof 是验证阶段对账的依据——"计划里承诺的证据"要能对得上）',
-      '',
-      '用 `sdlc_artifact_write` 写、`sdlc_artifact_check` 先查草稿（不写盘）。',
-      '',
-      '⚠️ 这两个工具**只查结构，不查质量**。结构合规的废话照样通过。',
-      '把这个检查当成"少写了没有"，不是"写得好不好"。',
-    ].join('\n'),
+    text: ARTIFACT_POLICY_TEXT,
   });
 }
 

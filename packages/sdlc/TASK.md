@@ -70,6 +70,38 @@ history:
 | `sdlc_task_advance` | 状态迁移，**先校验准入门槛**，并把迁移追加进 history |
 | `sdlc_task_issue` | 登记审核问题、记录退回、提交处理证据、说明延期或取消中断的验证 |
 
+## 交付契约（Delivery Contract）
+
+Spec 在 `## Acceptance Criteria` 之前必须有一个唯一的 `## Delivery Contract`，固定五个各自唯一的 `###` 子节：
+
+```markdown
+## Delivery Contract
+
+### Source
+原始需求/Issue/文档的可追溯引用或摘录；不可取得或含糊时写“待确认”，不编造。
+
+### Outcome
+- O-1: 最终消费者可观察的结果（不是“实现某函数”）
+
+### Boundary
+- 承诺：本次交付包含什么
+- 排除：明确不包含什么，依据是什么
+- 假设：依赖的前提；范围变化要有依据
+
+### Oracle
+- O-1: 代表性真实调用命令 + 预期结果
+
+### AC mapping
+- O-1 → AC-001, AC-002
+```
+
+- `## Acceptance Criteria` 仍是**唯一权威** AC 清单；`AC mapping` 只引用它的 AC ID，不复制第二份清单。
+- `sdlc_artifact_check` 检查 Delivery Contract 唯一且位于 AC 之前、五个子节各自唯一且缺失/空正文/占位符（含段首与骨架注释）；**不检查语义**。Source 是否真实、Outcome 是否充分、AC mapping 是否完整，由独立验证者（#21）和人核对。
+- **不是状态推进硬门禁**：`sdlc_task_advance` 不调用 `checkArtifact`；Actor 直接写 `spec.md` 仍可绕过。
+- hidden tests / 外部 Grader 不是用户承诺，除非 Source 明确引用；范围冲突写进 `Areas of concern`，不要偷偷扩 AC。
+- 旧任务不自动重写；旧 Spec 在 `sdlc_artifact_check` 下会报缺章。更新在途 Spec 需 `overwrite: true`，并因 Spec 指纹变化记录退回 SPEC、重新登记 AC。旧骨架不再匹配 `isUnmodifiedSkeleton`，同样需要显式 overwrite。
+- 示例（含 Source 只承诺接口 / Source 承诺真实构建两种对照）见 [`docs/artifact-delivery-contract.md`](../../docs/artifact-delivery-contract.md)。
+
 ## 0.6.0：完整验收范围从 Spec 登记
 
 Spec 必须有且只有一个 `## Acceptance Criteria`（也接受 `## 验收标准`）章节。所有条目都是必选项，每项单独一行，使用明确的 ID 和正文：
@@ -82,7 +114,7 @@ Spec 必须有且只有一个 `## Acceptance Criteria`（也接受 `## 验收标
 - AC-003: 优惠失败不能生成错误订单
 ```
 
-ID 使用 `AC-` 前缀、英文大写字母或数字，可用连字符分段。编号必须唯一，正文不能为空；不接受代码块、子标题或无法解析的续行，避免悄悄漏掉要求。Requirements、Design、Areas of concern 章节仍然必需。结构检查不判断需求是否写全、标准质量或证据真假。
+ID 使用 `AC-` 前缀、英文大写字母或数字，可用连字符分段。编号必须唯一，正文不能为空；不接受代码块、子标题或无法解析的续行，避免悄悄漏掉要求。Delivery Contract、Requirements、Design、Areas of concern 章节仍然必需。结构检查不判断需求是否写全、标准质量或证据真假。
 
 从 INTENT / SPEC 首次进入 **PLANNED 或任意更后续阶段**时，状态迁移会同时在 `state.yaml.acceptance` 登记清单、Spec 相对路径、整个文件的 SHA-256、登记 ID、时间和执行会话。跳阶段也执行这道检查。登记代表本次流程采用了这版规格，不代表独立人员审批。
 

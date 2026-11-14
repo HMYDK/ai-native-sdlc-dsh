@@ -256,10 +256,101 @@ console.log('\n== 6. 结构不合格时的行为 ==');
     if (r.value.structure_ok === false) ok('不合格制品被判结构不通过');
     else bad('不合格制品被判通过');
     const missingCount = r.value.findings.length;
-    if (missingCount === 3) ok('报出 3 项缺失（Acceptance Criteria / Design / Areas of concern）');
-    else bad(`应报 3 项，实际 ${missingCount}: ${JSON.stringify(r.value.findings)}`);
+    if (missingCount === 4) ok('报出 4 项缺失（Delivery Contract / Acceptance Criteria / Design / Areas of concern）');
+    else bad(`应报 4 项，实际 ${missingCount}: ${JSON.stringify(r.value.findings)}`);
     if (/未登记/.test(r.value.registration)) ok('结构不通过时不登记（状态机不会看到半成品）');
     else bad(`结构不通过却登记了: ${r.value.registration}`);
+  }
+
+  // 含 Delivery Contract 的合格 spec：结构通过并登记
+  const goodSpec = [
+    '# Spec: 冒烟',
+    '',
+    '## Delivery Contract',
+    '',
+    '### Source',
+    'Issue #20 冒烟夹具。',
+    '',
+    '### Outcome',
+    '- O-1: 结构检查可用。',
+    '',
+    '### Boundary',
+    '- 只验证结构；不验证语义。',
+    '',
+    '### Oracle',
+    '- O-1: node --test 通过。',
+    '',
+    '### AC mapping',
+    '- O-1 → AC-001',
+    '',
+    '## Acceptance Criteria',
+    '- AC-001: 冒烟夹具通过',
+    '',
+    '## Requirements',
+    '有需求。',
+    '',
+    '## Design',
+    '有设计。',
+    '',
+    '## Areas of concern',
+    '无。',
+    '',
+  ].join('\n');
+  const okSpec = await dispatch('sdlc_artifact_write', {
+    task_id: TASK,
+    kind: 'spec',
+    content: goodSpec,
+    overwrite: true,
+  });
+  if (okSpec.isError) bad(`合格 spec 写入失败: ${JSON.stringify(okSpec.error)}`);
+  else if (okSpec.value.structure_ok === true) {
+    ok('含 Delivery Contract 的 spec 结构通过');
+    if (/制品登记：spec/.test(okSpec.value.registration)) ok('合格 spec 已登记');
+    else bad(`合格 spec 未登记: ${okSpec.value.registration}`);
+  } else {
+    bad(`含 Delivery Contract 的 spec 被判不通过: ${JSON.stringify(okSpec.value.findings)}`);
+  }
+
+  // 缺子节必须被点名（不是只报顶层 Delivery Contract）
+  const missingSource = goodSpec.replace(/### Source[\s\S]*?(?=### Outcome)/, '');
+  const missingCheck = await dispatch('sdlc_artifact_check', {
+    kind: 'spec',
+    content: missingSource,
+  });
+  if (missingCheck.isError) bad(`缺子节检查报错: ${JSON.stringify(missingCheck.error)}`);
+  else if (
+    missingCheck.value.ok === false &&
+    Array.isArray(missingCheck.value.missing) &&
+    missingCheck.value.missing.includes('Delivery Contract / Source')
+  ) {
+    ok('缺 Source 子节时点名 Delivery Contract / Source');
+  } else {
+    bad(`缺 Source 子节未被点名: ${JSON.stringify(missingCheck.value)}`);
+  }
+
+  // 重复子节必须被拒绝；check 的文本 render 还要让 Agent 看到原因
+  const dupSourceSpec = goodSpec.replace(
+    '### Outcome',
+    '### Source\n\n重复来源。\n\n### Outcome',
+  );
+  const dupSource = await dispatch('sdlc_artifact_check', {
+    kind: 'spec',
+    content: dupSourceSpec,
+  });
+  if (dupSource.isError) bad(`重复子节检查报错: ${JSON.stringify(dupSource.error)}`);
+  else {
+    const rendered = JSON.stringify(dupSource.content ?? '');
+    if (
+      dupSource.value.ok === false &&
+      Array.isArray(dupSource.value.details) &&
+      dupSource.value.details.some((d) => /只允许一个/.test(d)) &&
+      /问题详情/.test(rendered) &&
+      /只允许一个/.test(rendered)
+    ) {
+      ok('重复子节被拒绝，check 文本展示原因');
+    } else {
+      bad(`重复子节未被正确报告/渲染: ${JSON.stringify(dupSource.value)} / ${rendered.slice(0, 500)}`);
+    }
   }
 
   // 骨架必须是"明显没写完"的状态
