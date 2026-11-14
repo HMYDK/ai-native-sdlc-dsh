@@ -159,7 +159,9 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval \
 ## 自检 / 归档 / 验证者分析
 
 - `sanity_check.py --structural`：CI 用的清单结构校验（不连 Docker/网络）；
-  `--control --task-id <id> --image fb-eval-base:<repo> --execute`：gold/empty 官方评分正负对照。
+  `--control --task-id <id> --image fb-eval-base:<repo> --execute`：gold/empty 官方评分正负对照
+  （每个 control 用独立输出根；共用根会让 `fb eval` 命中前一个 control 的
+  `eval_outputs` 缓存，实测 empty 曾误报 resolved=1）。
 - `archive_runs.py --runs-root <dir> --out <tar.gz>`：把 runs 归档（默认不含 session，带 sha256）。
 - `analyze_verifier.py --data <report-data.json>`：B 组验证者裁决 vs 官方评分的混淆矩阵。
 
@@ -199,7 +201,7 @@ issue #12 把历史实验收口为「可审计、可离线复算」的基线。�
 
 | 命令 | 作用 |
 |---|---|
-| `sanity_check.py --structural` | 清单结构 + runtime group + 镜像 digest；递归含 `manifests/regression-0.6.1/*.yml` |
+| `sanity_check.py --structural` | 清单结构 + runtime group + 镜像 digest；递归含 `manifests/regression-0.6.1/*.yml` 与 `manifests/verify-01/*.yml`（VERIFY-01 两臂唯一差异校验） |
 | `sanity_check.py --index` | 校验 `docs/evals/featurebench-baseline-index.json` 里所有文件 sha256、版本分组、计数 |
 | `audit_runs.py --check` | 校验 canonical `featurebench-runs.jsonl`：唯一性、状态枚举、版本混用、分母对账、快照映射、泄漏/证据/验证者摘要 |
 | `reaggregate.py --check` | 从已提交机读数据离线重算全部统计，与 `featurebench-baseline-metrics.json` 逐项比对，并交叉校验 `featurebench-verifier-confusion.json` |

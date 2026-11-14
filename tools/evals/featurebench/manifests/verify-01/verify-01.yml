@@ -1,0 +1,223 @@
+# VERIFY-01（issue #16 Step 4）预注册清单 —— FeatureBench A/B 链路验证。
+#
+# 目的：验证「AI 原生 SDLC preset 内 verifier prompt 改动」的 A/B 链路可跑，
+# 并给出一组未参与此前调优的任务上的方向性读数。
+# 本文件在 2026-11-12（首次运行前）固定；之后修改任务、arm 或规则必须单独提交并
+# 在报告里说明，否则无法排除「按结果挑样本」。
+#
+# 这是 VERIFY-01，不是 EVAL-01：**两臂都使用「AI 原生 SDLC」preset**，唯一受控差异是
+# verifier 策略（lib/verify/verdict.js 中的 prompt），不是 preset。
+#
+# 与历史基线的关系：
+#   - runtime 与 V2 基线（manifests/regression-0.6.1/mvp.yml）同构：
+#     DSH 0.2.2-rc.1 / plugin 0.6.1 / 官方镜像 fb-eval-base-061:*。
+#   - sdlc_baseline 臂：复用 2026-11-08 V2 基线 tarball（sha256 da201253…）。
+#   - sdlc_candidate 臂：prompt-only 改动（仅 lib/verify/verdict.js 与 baseline 不同；
+#     sha256 761d7688…，2026-11-12 冻结版），版本号同为 0.6.1。
+#   - 两臂的 preset、prompt_suffix、model、runtime、image、timeout、token 上限完全相同。
+#
+# ⚠️ 诊断任务（diagnostics）仅作回归样本与链路证据，不用于任何效果宣称：
+#   - sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1（历史 unresolved，A/B 均应
+#     复现低分，作为「评分器/镜像/mask 未坏」的回归锚点）；
+#   - sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1。
+#   两者都在 2026-11-06~08 的 V1/V2 历史运行中出现过，因此不能算「未参与调优的独立任务」。
+#
+# 独立任务（independent_tasks）：3 个未参与任何历史运行的 astropy lv1 任务，
+# 待 fb-eval-base-061:astropy 镜像就绪、候选 gold/empty control 通过后填入。
+#
+# 运行顺序（预注册）：pilot（不计入）→ 2 诊断 × 2 臂 → 3 独立 × 2 臂 = 10 scored runs。
+# 每任务每臂 1 rep，不做显著性宣称，只报告观测与成本。
+
+version: 1
+date: "2026-11-12"
+
+benchmark:
+  name: FeatureBench
+  package: "featurebench==0.3.0"          # PyPI；官方 fb eval
+  dataset: LiberCoders/FeatureBench
+  revision: "76b4a4566e04f4bcc13c35125d4f301791efa736"   # v1.1；split fast 100 条
+  split: fast
+  # 官方评分命令（每个 run 一次，见 scoring.command_template）：
+  #   fb eval -p <predictions.jsonl> --split fast --task-id <id> --n-concurrent 1 \
+  #     --data-version v1.1 --config-path <config.toml>
+  # 环境：env -u all_proxy -u ALL_PROXY；HF_DATASETS_CACHE 指向 /tmp 独立缓存；
+  #       FEATUREBENCH_IMAGE_PREFIX=docker.io。
+
+runtime:
+  # 与 V2 基线同构：容器内 DSH CLI 与派生镜像（fb-eval-base-061:*）。
+  dsh_cli: "0.2.2-rc.1"
+  plugin_package: "@ai-native-sdlc-plugin/dsh-sdlc"
+  plugin_version: "0.6.1"
+  # baseline 臂默认 tarball；candidate 臂候选 tarball 见 arms.sdlc_candidate。
+  plugin_tarball_sha256: "da201253cd412beed5e49f1e1830171a608c39d1ea37140b755f0c780203e0b7"
+  base_os: "Ubuntu 22.04.5 / Python 3.11 / conda testbed env"
+  node_in_container: "v24.21.0 (linux-x64 tarball, baked into fb-eval-base-061)"
+  image_tag_scheme: "fb-eval-base-061:<repo>"
+  provider: "deepseek-account"
+  model: "deepseek-flash"
+  reasoning_effort: "max"
+
+# 两臂都选中「AI 原生 SDLC」preset；两臂 prompt_suffix 逐字相同（与 base manifest 的
+# sdlc 臂一致）。treatment 只在 arm.plugin_tarball_sha256 对应的插件构建里的
+# lib/verify/verdict.js（verifier prompt）。运行时应以 --plugin-dir 传入对应解包目录：
+#   sdlc_baseline  -> /tmp/fb-verify01/plugin（解包自 da201253… tarball）
+#   sdlc_candidate -> /tmp/fb-verify01/plugin-b（解包自 761d7688… tarball）
+arms:
+  sdlc_baseline:
+    preset: "AI 原生 SDLC"
+    prompt_suffix: |
+
+      ## Evaluation requirement
+
+      Use the AI-native SDLC workflow for this task before you finish:
+      1. create a task with `sdlc_task_create`;
+      2. write intent/spec/plan via `sdlc_artifact_write` and advance stages with `sdlc_task_advance`;
+      3. run `sdlc_verify` before claiming completion and address its findings.
+    plugin_tarball_sha256: "da201253cd412beed5e49f1e1830171a608c39d1ea37140b755f0c780203e0b7"
+    role: "baseline"
+  sdlc_candidate:
+    preset: "AI 原生 SDLC"
+    prompt_suffix: |
+
+      ## Evaluation requirement
+
+      Use the AI-native SDLC workflow for this task before you finish:
+      1. create a task with `sdlc_task_create`;
+      2. write intent/spec/plan via `sdlc_artifact_write` and advance stages with `sdlc_task_advance`;
+      3. run `sdlc_verify` before claiming completion and address its findings.
+    plugin_tarball_sha256: "761d76884807ba1429faa591f3cf31bc95fc4ac471ec8e777b721cdc2472cf8f"
+    role: "candidate"
+
+run_policy:
+  timeout_seconds: 2700          # 单 run 墙钟上限 45 分钟（与历史一致）
+  max_tokens_per_run: 40000000   # 单 run 上限 40M tok（UI 口径），超限中止并记录
+  total_token_budget: 160000000  # 本轮全部 scored runs 累计 ≤160M token
+  infra_retries: 1               # 仅基础设施错误重试 1 次
+  agent_retries: 0               # agent 失败/超时/unresolved 不重试
+  reps_per_arm: 1
+  order: alternating             # 奇数任务先 baseline，偶数任务先 candidate；记录顺序
+  # 允许出现在结果目录里的失败分类（全部计入分母，不静默剔除）
+  failure_classes: [timeout, over_budget, infra_error, empty_patch, agent_error, unresolved]
+
+# 指标口径（运行前固定）：
+metrics:
+  primary: "official_resolved —— 官方 fb eval report.json attempt_1.resolved_instances（0/1）"
+  secondary:
+    - "official_pass_rate —— report.json attempt_1.pass_rate（F2P 通过比例）"
+    - "verify_verdicts —— sdlc_verify 裁决序列（approve/reject/needs_human/none），仅描述"
+    - "tokens —— driver usage_tokens（UI 口径；缺失时用 session 汇总兜底并标注来源）"
+    - "elapsed_seconds —— run_arm meta.json"
+    - "agent_failure / aborted —— 失败分类与是否超时/超预算"
+  denominator: "ITT：所有实际启动且进入 agent 的 run 都计入（含失败、超时、超预算、空补丁）；
+                缺官方 report 的 run 在 ITT 下按 unresolved 计入，并单独标 unscoreable 数。
+                任何 run 不因结果不理想而剔除。"
+  censoring:
+    - "infra_error 仅在策略允许（1 次）时重试；重试前后都记录，最终状态计入分母"
+    - "pilot 运行（非预注册）单独记录、不计入任何指标"
+    - "诊断任务（diagnostics）只作回归证据，不并入独立任务的任何效果宣称"
+  statistics: "每任务每臂 1 rep；不计算显著性、不外推；方向性读数须带 n 与删失/失败数"
+
+scoring:
+  engine: "官方 featurebench==0.3.0 `fb eval`"
+  command_template: >-
+    env -u all_proxy -u ALL_PROXY HF_DATASETS_CACHE=/tmp/fb-verify01/hf-datasets-cache
+    FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval -p <predictions.jsonl> --split fast
+    --task-id <task_id> --n-concurrent 1 --data-version v1.1 --config-path /tmp/fb-verify01/config.toml
+  predictions_source: "make_predictions.py --arm-dir <arm>=<run 目录>（由 patch.diff 生成）"
+  pass_criteria: "gold 补丁在官方评分下 resolved=1 且 empty 补丁 resolved=0（control 通过）
+                  才认为该任务的评分链路可用"
+
+# 诊断回归任务（仅回归样本；不用于效果宣称）。
+diagnostics:
+  - "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+  - "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1"
+
+# 任务选择规则（运行前固定，禁止按结果挑）：
+#   - 独立任务：3 个，来自 fast split 中「不在 docs/evals/featurebench-runs.jsonl 的
+#     27 个 canonical task_id 里、且不属于 2 个诊断任务」的 lv1 任务；
+#   - 因 5 个有本地镜像的 repo 在 fast split 的任务已被历史运行全部覆盖，本轮改用
+#     新 repo 镜像：选「fast split 未用 lv1 任务 ≥5」的 repo 中镜像体积最小且留有余量者
+#     （astropy 10.67GB / 15 个未用 lv1）；task_id 按 instance_id 字典序取前 3 个可用任务；
+#   - F2P 测试数 ≥3；任务说明含 Interface Description；
+#   - 每任务每臂 1 次；臂顺序交替。
+selection_rule: "独立任务从 astropy 的未用 lv1 任务中取 F2P≥3 且 interface 完整者 3 个，按 instance_id 字典序；diagnostics 固定为 2 个 sphinx 回归任务"
+# 镜像可用性替换（预注册后、跑独立任务前允许，不构成按结果挑样本）：
+#   astropy 镜像若经 dockerproxy.net 拉取失败/过慢，按 Lead 授权替换为 pandas（12.06GB / 18 个
+#   未用 lv1）或 mlflow（14.07GB / 21 个未用 lv1），任务选择规则不变。当前实际使用 astropy。
+
+# 独立任务（2026-11-12 预注册时选定；镜像 fb-eval-base-061:astropy 就绪 + control 通过后执行）。
+independent_tasks:
+  - "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1"
+  - "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1"
+  - "astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1"
+
+tasks:
+  # ---- 诊断回归任务（仅回归样本，不用于效果宣称）----
+  - id: "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1"
+    repo: "sphinx-doc/sphinx"
+    level: 1
+    image: "libercoders/featurebench-specs_sphinx-instance_6191afb1"
+    image_digest: "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268"
+    derived_image: "fb-eval-base-061:sphinx"
+    role: "diagnostic_regression"
+    notes: "历史 A/B 均 unresolved（A resolved=0、pass_rate=0.0769）；只作回归锚点。F2P 文件
+            tests/test_builders/test_build_gettext.py（13 个 F2P 测试）。"
+  - id: "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1"
+    repo: "sphinx-doc/sphinx"
+    level: 1
+    image: "libercoders/featurebench-specs_sphinx-instance_6191afb1"
+    image_digest: "sha256:15b434473e16386e33c864d8b7f4a3bddb9c5585961758c0ed0f06b51b3f0268"
+    derived_image: "fb-eval-base-061:sphinx"
+    role: "diagnostic_regression"
+    notes: "历史 A 臂 token 最低的 sphinx 任务之一（约 130k）；只作回归锚点。F2P 文件
+            tests/test_extensions/test_ext_doctest.py（8 个 F2P 测试）。"
+  # ---- 独立任务（未参与任何历史运行）----
+  - id: "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1"
+    repo: "astropy/astropy"
+    level: 1
+    image: "libercoders/featurebench-specs_astropy-instance_493bb78b"
+    image_digest: "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2"
+    derived_image: "fb-eval-base-061:astropy"
+    role: "independent"
+    notes: "F2P 文件 astropy/visualization/tests/test_basic_rgb.py（15 个 F2P 测试）；
+            ps=11.6K，1 个 Interface Description；字典序第 1 个可用 astropy 未用 lv1。"
+  - id: "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1"
+    repo: "astropy/astropy"
+    level: 1
+    image: "libercoders/featurebench-specs_astropy-instance_493bb78b"
+    image_digest: "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2"
+    derived_image: "fb-eval-base-061:astropy"
+    role: "independent"
+    notes: "F2P 文件 astropy/cosmology/_src/tests/funcs/test_comparison.py（20 个 F2P 测试）；
+            ps=20.4K，2 个 Interface Description；字典序第 2 个可用 astropy 未用 lv1。"
+  - id: "astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1"
+    repo: "astropy/astropy"
+    level: 1
+    image: "libercoders/featurebench-specs_astropy-instance_493bb78b"
+    image_digest: "sha256:4b5e7489d8bee8e20b53f94c74833e6d9ee0163673ac4a36eecb0372ef01fda2"
+    derived_image: "fb-eval-base-061:astropy"
+    role: "independent"
+    notes: "F2P 文件 astropy/io/fits/hdu/compressed/tests/test_compressed.py（60 个 F2P 测试）；
+            ps=36.3K，6 个 Interface Description；字典序第 3 个可用 astropy 未用 lv1。"
+  # 备选（不预注册进运行集；仅当上述任务镜像/评分链路不可用时按同一规则替换）：
+  #   astropy__astropy.b0db0daa.test_compression_failures.48dc420b.lv1（16 个 F2P 测试）
+  #   astropy__astropy.b0db0daa.test_containers.6079987d.lv1（16 个 F2P 测试）
+
+# 每 run 必须记录（run_arm.py 的 meta.json + 官方 report.json）：
+record_per_run:
+  - task_id, arm, preset, role
+  - model_provider, model, reasoning_effort
+  - dsh_cli (请求值/实际值), plugin_version (请求值/实际值), plugin_tarball_sha256
+  - plugin_imported_from（--plugin-dir 实际路径，A/B 不同解包目录）
+  - image, image_digest, derived_image
+  - started_at, elapsed_seconds, token_usage (+ token_usage_source)
+  - agent_completed, agent_failure, aborted
+  - patch_chars, patch_sha256
+  - official: report_sha256, resolved, pass_rate, errors, not_applied_empty
+  - verify_verdicts（sdlc_verify 裁决序列；无裁决记 none）
+  - leak_scan_hits
+
+# pilot（2026-11-12 01:52-01:58，非预注册、不计入指标）：
+#   临时 manifest + arm standard，task=mwaskom__seaborn.7001ebe7.test_statistics.0f2ae277.lv1，
+#   image=fb-eval-base-061:seaborn；agent el=245s / tok=1.1M / agent_failure=turn_error，
+#   patch 8007 chars → 官方 fb eval resolved=1、pass_rate=1.0。仅作 burn-in 链路证据。
