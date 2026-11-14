@@ -70,6 +70,11 @@ jobs:
       - name: Redaction check (host paths / credentials)
         run: python3 tools/evals/featurebench/check_redaction.py
 
+      # 回归：缺官方 resolved 的配对不能被算成 A_only/B_only/neither
+      # （Codex review 2026-11-11 P2；不读 runs、不需要 zstandard/网络/模型）。
+      - name: VERIFY-01 A/B aggregator self-test
+        run: python3 tools/evals/verify01/summarize_ab.py --self-test
+
       - name: Dry-run single arm
         run: |
           python3 tools/evals/featurebench/run_arm.py \

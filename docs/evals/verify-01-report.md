@@ -177,7 +177,8 @@ A/B 定义：
 - **回归与数据检查（AC-007，本地实测 2026-11-12）**：`npm run verify`（build + typecheck +
   test + smoke）通过——库单测 **267 pass / 0 fail**、客户端 **45 pass / 0 fail**、运行时冒烟
   12 组脚本全过（含 verify/workflow 组件断言）；`sanity_check --structural/--index`、
-  `audit_runs --check`、`reaggregate --check`、`check_redaction` 与两个 CI dry-run 全部通过。
+  `audit_runs --check`、`reaggregate --check`、`check_redaction`、`summarize_ab.py --self-test`
+  与两个 CI dry-run 全部通过。
   CI 不触发任何付费模型实验（`--execute` 仅人工路径）。
 
 ## 7. Step 4 结果（AC-005 / AC-006）
@@ -318,6 +319,10 @@ A/B 定义：
 ~/.local/share/uv/tools/featurebench/bin/python tools/evals/verify01/summarize_ab.py \
   --runs-root <runs-root> --out docs/evals/verify-01-experiment-data.json \
   --md docs/evals/verify-01-experiment.md
+
+# 配对分母口径自检（CI 同款；不需要 runs/zstandard/网络）：
+#   缺官方 resolved 的配对不得计入 A_only/B_only/neither
+python3 tools/evals/verify01/summarize_ab.py --self-test
 
 # Step 4 上游检索/预算混淆分析（数据来自本机归档 readings.json + upstream-analysis.json，
 # 由 docs/evals/verify-01-upstream-analysis.json 固化；离开归档不能完整重放）

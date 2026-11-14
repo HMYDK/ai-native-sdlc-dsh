@@ -8,7 +8,8 @@
     "decided": "主会话有结构化 sdlc_verify 最终裁决的 run",
     "no_verdict": "decided 的补集；其中 agent_failure/timeout 是删失，不当通过或失败",
     "tokens": "只对 meta.token_usage 非空的 run 求和/取中位数，不对缺失值插补",
-    "verdict_bucket": "verifier 最终裁决 × 官方 resolved；approve_unresolved 为假阳性"
+    "verdict_bucket": "verifier 最终裁决 × 官方 resolved；approve_unresolved 为假阳性",
+    "paired_outcomes": "A/B 配对胜平负只统计**两臂官方 resolved 都已知**的配对（complete_pairs）；缺官方结果的配对列入 incomplete_pairs，绝不算作 A_only/B_only/neither"
   },
   "arms": {
     "sdlc_baseline": {
@@ -70,7 +71,10 @@
     }
   },
   "paired": {
+    "n_pair_candidates": 4,
     "n_pairs": 4,
+    "n_incomplete_pairs": 0,
+    "incomplete_pairs": [],
     "official_resolved": {
       "A": 1,
       "B": 3,
@@ -88,6 +92,8 @@
         "task_id": "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1",
         "arm_a": "sdlc_baseline",
         "arm_b": "sdlc_candidate",
+        "official_complete": true,
+        "missing_official": [],
         "A": {
           "resolved": true,
           "final_verdict": "approve",
@@ -107,6 +113,8 @@
         "task_id": "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1",
         "arm_a": "sdlc_baseline",
         "arm_b": "sdlc_candidate",
+        "official_complete": true,
+        "missing_official": [],
         "A": {
           "resolved": false,
           "final_verdict": "approve",
@@ -126,6 +134,8 @@
         "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
         "arm_a": "sdlc_baseline",
         "arm_b": "sdlc_candidate",
+        "official_complete": true,
+        "missing_official": [],
         "A": {
           "resolved": false,
           "final_verdict": "approve",
@@ -145,6 +155,8 @@
         "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
         "arm_a": "sdlc_baseline",
         "arm_b": "sdlc_candidate",
+        "official_complete": true,
+        "missing_official": [],
         "A": {
           "resolved": false,
           "final_verdict": "approve",

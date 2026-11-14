@@ -16,6 +16,10 @@ token/耗时/失败分类与分母口径整理成可复算的 JSON，并可输�
 - 分母显式给出：attempts / scoreable（有官方 report）/ decided（有裁决）/
   approve / reject / needs_human / no_verdict；不对缺失值做插补。
 
+自检（CI evals-check 执行，不读 runs/不需要 zstandard）::
+
+    python3 tools/evals/verify01/summarize_ab.py --self-test
+
 用法::
 
     PY=~/.local/share/uv/tools/featurebench/bin/python
@@ -43,7 +47,13 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import attribute_cases as ac  # noqa: E402  (同目录复用会话解析/官方报告提取)
+
+
+def _ac():
+    """惰性导入同目录的 attribute_cases（它需要 zstandard；--self-test/--help 不需要）。"""
+    import attribute_cases as ac  # noqa: PLC0415  (lazy: zstandard 只在实际解析 session 时需要)
+
+    return ac
 
 EXPERIMENT = "verify-01"
 ARMS = ("A", "B")  # 展示顺序；实际 arm 名从 run 目录读取
@@ -154,9 +164,10 @@ def collect_run(runs_root: Path, arm_dir: Path, task_id: str | None = None) -> d
 
     report_path, official = find_official_report(arm_dir, task_id)
     official["report_rel"] = rel(report_path) if report_path else None
-    official["report_sha256"] = ac.sha256_file(str(report_path)) if report_path else None
+    official["report_sha256"] = _ac().sha256_file(str(report_path)) if report_path else None
     row["official"] = official
 
+    ac = _ac()
     main_session, children = ac.session_paths(str(arm_dir))
     main_events = ac.read_session(main_session) if main_session else []
     verify_calls, unmatched_results, calls_without_result = ac.extract_verify_calls(main_events)
@@ -240,6 +251,8 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "no_verdict": "decided 的补集；其中 agent_failure/timeout 是删失，不当通过或失败",
             "tokens": "只对 meta.token_usage 非空的 run 求和/取中位数，不对缺失值插补",
             "verdict_bucket": "verifier 最终裁决 × 官方 resolved；approve_unresolved 为假阳性",
+            "paired_outcomes": "A/B 配对胜平负只统计**两臂官方 resolved 都已知**的配对（complete_pairs）；"
+                               "缺官方结果的配对列入 incomplete_pairs，绝不算作 A_only/B_only/neither",
         },
         "arms": {},
         "paired": {},
@@ -297,51 +310,125 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         a_name, b_name = arm_names
         a, b = arms_map[a_name], arms_map[b_name]
+        a_resolved = a["official"].get("resolved")
+        b_resolved = b["official"].get("resolved")
+        missing = [
+            side
+            for side, value in (("A", a_resolved), ("B", b_resolved))
+            if not isinstance(value, bool)
+        ]
         pairs.append({
             "task_id": task_id,
             "arm_a": a_name,
             "arm_b": b_name,
+            # 只有两臂官方 resolved 都已知才算"可判定配对"。缺一侧时不能按 False 计，
+            # 否则未评分的一侧会被当成"对手失败"，把评分失败变成 treatment difference
+            # （Codex review P2，2026-11-11）。
+            "official_complete": not missing,
+            "missing_official": missing,
             "A": {
-                "resolved": a["official"].get("resolved"),
+                "resolved": a_resolved,
                 "final_verdict": a["verifier"]["final_verdict"],
                 "bucket": a["verdict_bucket"],
                 "token_usage": a["meta"].get("token_usage"),
                 "elapsed_seconds": a["meta"].get("elapsed_seconds"),
             },
             "B": {
-                "resolved": b["official"].get("resolved"),
+                "resolved": b_resolved,
                 "final_verdict": b["verifier"]["final_verdict"],
                 "bucket": b["verdict_bucket"],
                 "token_usage": b["meta"].get("token_usage"),
                 "elapsed_seconds": b["meta"].get("elapsed_seconds"),
             },
         })
-    out["paired"] = {
-        "n_pairs": len(pairs),
-        "official_resolved": {
-            "A": sum(1 for p in pairs if p["A"]["resolved"]),
-            "B": sum(1 for p in pairs if p["B"]["resolved"]),
-            "both": sum(1 for p in pairs if p["A"]["resolved"] and p["B"]["resolved"]),
-            "A_only": sum(1 for p in pairs if p["A"]["resolved"] and not p["B"]["resolved"]),
-            "B_only": sum(1 for p in pairs if not p["A"]["resolved"] and p["B"]["resolved"]),
-            "neither": sum(1 for p in pairs if not p["A"]["resolved"] and not p["B"]["resolved"]),
-        },
-        "verdict_transitions": {
-            f"{p['A']['final_verdict']}->{p['B']['final_verdict']}": 1 for p in pairs
-        },
-        "pairs": pairs,
-    }
+    complete = [p for p in pairs if p["official_complete"]]
+    incomplete = [p for p in pairs if not p["official_complete"]]
     transitions: dict[str, int] = {}
     for p in pairs:
         key = f"{p['A']['final_verdict']}->{p['B']['final_verdict']}"
         transitions[key] = transitions.get(key, 0) + 1
-    out["paired"]["verdict_transitions"] = dict(sorted(transitions.items()))
+    out["paired"] = {
+        "n_pair_candidates": len(pairs),
+        # n_pairs 是配对胜平负的分母：只含两臂官方 resolved 都已知的配对。
+        "n_pairs": len(complete),
+        "n_incomplete_pairs": len(incomplete),
+        "incomplete_pairs": [
+            {
+                "task_id": p["task_id"],
+                "arm_a": p["arm_a"],
+                "arm_b": p["arm_b"],
+                "missing_official": p["missing_official"],
+                "A_resolved": p["A"]["resolved"],
+                "B_resolved": p["B"]["resolved"],
+            }
+            for p in incomplete
+        ],
+        "official_resolved": {
+            "A": sum(1 for p in complete if p["A"]["resolved"]),
+            "B": sum(1 for p in complete if p["B"]["resolved"]),
+            "both": sum(1 for p in complete if p["A"]["resolved"] and p["B"]["resolved"]),
+            "A_only": sum(1 for p in complete if p["A"]["resolved"] and not p["B"]["resolved"]),
+            "B_only": sum(1 for p in complete if not p["A"]["resolved"] and p["B"]["resolved"]),
+            "neither": sum(1 for p in complete if not p["A"]["resolved"] and not p["B"]["resolved"]),
+        },
+        "verdict_transitions": dict(sorted(transitions.items())),
+        "pairs": pairs,
+    }
     return out
 
 
 # ---------------------------------------------------------------------------
 # markdown 渲染
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# 自检：配对胜平负只统计两臂官方 resolved 都已知的配对
+# ---------------------------------------------------------------------------
+def _self_test() -> int:
+    """Codex review（2026-11-11）P2 的回归检查：缺官方结果的配对不能被算成胜/负。
+
+    构造 5 个 task 的合成 rows（不读文件、不需要 zstandard）：
+    - t1 完整配对 A=True  B=False  → A_only
+    - t2 不完整     A=True  B=None  → 不得计入 A_only
+    - t3 不完整     A=None  B=None  → 不得计入 neither
+    - t4 完整配对 A=False B=False  → neither
+    - t5 完整配对 A=False B=True   → B_only
+    期望：complete n=3；A_only=1、B_only=1、neither=1、both=0；
+    incomplete n=2（t2 缺 B、t3 缺 A+B），且不进入任何胜平负桶。
+    """
+    def row(task: str, arm: str, resolved):
+        return {
+            "task_id": task,
+            "arm": arm,
+            "run_status": "complete",
+            "meta": {"token_usage": 1, "elapsed_seconds": 1, "agent_failure": None},
+            "official": {"resolved": resolved},
+            "verifier": {"final_verdict": "approve", "ran_real_build": False},
+            "verdict_bucket": bucket_for("approve", resolved),
+        }
+
+    rows = [
+        row("t1", "sdlc_baseline", True), row("t1", "sdlc_candidate", False),
+        row("t2", "sdlc_baseline", True), row("t2", "sdlc_candidate", None),
+        row("t3", "sdlc_baseline", None), row("t3", "sdlc_candidate", None),
+        row("t4", "sdlc_baseline", False), row("t4", "sdlc_candidate", False),
+        row("t5", "sdlc_baseline", False), row("t5", "sdlc_candidate", True),
+    ]
+    paired = aggregate(rows)["paired"]
+    assert paired["n_pair_candidates"] == 5, paired["n_pair_candidates"]
+    assert paired["n_pairs"] == 3, paired["n_pairs"]
+    assert paired["n_incomplete_pairs"] == 2, paired["n_incomplete_pairs"]
+    outcomes = paired["official_resolved"]
+    expected = {"A": 1, "B": 1, "both": 0, "A_only": 1, "B_only": 1, "neither": 1}
+    assert outcomes == expected, outcomes
+    missing = {item["task_id"]: item["missing_official"] for item in paired["incomplete_pairs"]}
+    assert missing == {"t2": ["B"], "t3": ["A", "B"]}, missing
+    # 缺官方结果的臂不能出现在胜平负分母里：complete_pairs 的 A 只应来自 t1。
+    assert sum(1 for p in paired["pairs"] if p["official_complete"]) == 3
+    print("self-test OK: missing official results are excluded from paired outcome buckets")
+    return 0
+
 def render_markdown(data: dict[str, Any]) -> str:
     lines = [
         "# VERIFY-01 真实模型 A/B 数据（由脚本生成）",
@@ -370,6 +457,14 @@ def render_markdown(data: dict[str, Any]) -> str:
         f"- 配对数 = {data['paired']['n_pairs']}；官方 resolved：A {paired['A']}、B {paired['B']}、"
         f"双过 {paired['both']}、仅 A {paired['A_only']}、仅 B {paired['B_only']}、双败 {paired['neither']}"
     )
+    lines.append(
+        f"- 可判定配对 = {data['paired']['n_pairs']}；"
+        f"缺官方结果的配对 = {data['paired']['n_incomplete_pairs']}（不参与胜平负统计）"
+    )
+    for item in data["paired"].get("incomplete_pairs") or []:
+        lines.append(
+            f"  - incomplete: {item['task_id']}（缺 {', '.join(item['missing_official'])} 官方结果）"
+        )
     lines.append(f"- 裁决迁移：`{json.dumps(data['paired']['verdict_transitions'], ensure_ascii=False)}`")
     lines += ["", "## 逐 run", "",
               "| task_id | arm | run_status | 裁决 | 官方 resolved | pass_rate | bucket | token | 耗时(s) |",
@@ -387,10 +482,17 @@ def render_markdown(data: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runs-root", required=True, help="run_arm/run_matrix 的输出根目录")
+    parser.add_argument("--runs-root", help="run_arm/run_matrix 的输出根目录")
     parser.add_argument("--out", help="写出机器可读 JSON（默认 stdout）")
     parser.add_argument("--md", help="写出 markdown 表")
+    parser.add_argument("--self-test", action="store_true",
+                        help="只跑配对分母口径的合成自检（不需要 runs/网络/zstandard）")
     args = parser.parse_args(argv)
+
+    if args.self_test:
+        return _self_test()
+    if not args.runs_root:
+        parser.error("--runs-root 是必需的（除非使用 --self-test）")
 
     runs_root = Path(args.runs_root).expanduser().resolve()
     discovered = discover_runs(runs_root)
