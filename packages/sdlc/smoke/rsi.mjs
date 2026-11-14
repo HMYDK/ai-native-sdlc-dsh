@@ -44,7 +44,7 @@ try {
     return {...source,[Symbol.dispose]:()=>{}};
   }});
   ctx.provide('subagents',{startActivation:async(spec)=>{
-    const request=spec.request;const signal=spec.signal;
+    const request=spec;const signal=spec.signal;
     calls++; const id=randomUUID();const text=request.prompt.map(p=>p.text??'').join('\n');prompts.push(text);
     const session={id,header:{id,cwd:root,parentSession:'parent',origin:'subagent'}};
     const events=[];sessionSources.set(id,{header:session.header,events});

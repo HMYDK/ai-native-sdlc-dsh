@@ -558,7 +558,7 @@ console.log('\n== 5d-4. criteria 强制策略（由 harness 执行，不靠提�
   {
     const original = subagentsStub.impl;
     subagentsStub.impl = async (spec) => {
-      const txt = (spec.request.prompt ?? []).map((b) => b.text ?? '').join('\n');
+      const txt = (spec.prompt ?? []).map((b) => b.text ?? '').join('\n');
       // 顺手断言：criteria 必须真的进了提示词
       capturedCriteriaPrompt = txt;
       return craftVerdict({
@@ -806,7 +806,9 @@ if (started.length < 1) {
   // 断言**第 5 节**那次调用（started[0]）——它带 artifacts。
   // 后面 5c/7 节还会各发起一次，所以这里不假设总数为 1。
   const spec = started[0];
-  const { provider, request } = spec;
+  const provider = spec.provider;
+  // 0.2.2-rc.2 起激活 spec 是扁平的：请求字段直接铺在 spec 上，没有 `request` 包装。
+  const request = spec;
   const preset = presetRegistrations[0];
   const presetRows = preset?.plugins ?? [];
   const presetNames = presetRows.map((row) => row.name);
@@ -819,6 +821,10 @@ if (started.length < 1) {
     ['label 在外层 spec 上', spec.label === 'sdlc-verify'],
     ['delivery 为 caller（不再把结果投递回父会话）', spec.delivery === 'caller'],
     ['signal 在外层 spec 上', typeof spec.signal?.aborted === 'boolean'],
+    // 0.2.2-rc.2 的破坏性变更：请求字段拍平到 spec 顶层。保留这条断言，防止
+    // 有人改回 `{ request }`——冒烟桩若跟着改回去，类型检查也会在 build 时拦下。
+    ['spec 是扁平形状（无 request 包装，parent/prompt 在顶层）',
+      spec.request === undefined && Array.isArray(spec.prompt) && spec.parent !== undefined],
     // 0.2.1 的核心迁移：只读工具面靠 preset，不再靠请求上的 toolFilter。
     ['请求选中只读 preset', request.agentPreset === 'sdlc-verifier'],
     ['旧字段 toolFilter 已不再发送', request.toolFilter === undefined],
@@ -888,7 +894,7 @@ console.log('\n== 7. 提供测试证据时的条件渲染 ==');
   if (r.isError) {
     bad(`带 test_evidence 的调用报错: ${JSON.stringify(r.error)}`);
   } else {
-    const req = started[started.length - 1].request;
+    const req = started[started.length - 1];
     const txt = req.prompt.map((b) => b.text ?? '').join('\n');
     if (txt.includes('需要你自己复核') && txt.includes('1 passed')) {
       ok('提供测试证据时，该段落出现且含证据原文');
@@ -985,7 +991,7 @@ console.log('\n== 7b. 每次验证都留下成对记录，失败不能伪装成�
     const prep = records.find((r) => r.kind === 'prepared')?.data;
     check('有效 needs_human 裁决算结构化完成', complete.value?.verification_complete === true && records.at(-1)?.data.outcome === 'completed');
     check('prepared 留下制品原文哈希与读取失败', prep?.artifact_snapshots?.spec?.content === '可复核的制品正文' && /^[a-f0-9]{64}$/.test(prep?.artifact_snapshots?.spec?.sha256 ?? '') && typeof prep?.artifact_snapshots?.missing?.error === 'string');
-    check('实验指导只追加提示词，判据/schema/工具权限保留', prep?.prompt?.includes('EXPERIMENT-ONLY-GUIDANCE') && JSON.stringify(prep?.criteria) === JSON.stringify(['判据原文']) && prep?.outputSchema?.type === 'object' && started.at(-1)?.request.agentPreset === 'sdlc-verifier');
+    check('实验指导只追加提示词，判据/schema/工具权限保留', prep?.prompt?.includes('EXPERIMENT-ONLY-GUIDANCE') && JSON.stringify(prep?.criteria) === JSON.stringify(['判据原文']) && prep?.outputSchema?.type === 'object' && started.at(-1)?.agentPreset === 'sdlc-verifier');
     check('父会话身份来自 session.id', records[0]?.data.parent_session_id === 'actual-parent-session');
     check('started 保留有效配置、请求模型标记与导入时指纹', records[0]?.data.config.verifierProvider === 'spawn' && records[0]?.data.requested_model?.source === 'requested' && /^[a-f0-9]{64}$/.test(records[0]?.data.verifier_fingerprint ?? ''));
   } finally {
@@ -1004,8 +1010,8 @@ if (disposeCalls.length === runHandles && runHandles > 0) {
 }
 // 第 7 节在断言前清空过 started，这里顺便记录该次请求确实带了测试证据
 {
-  const last = started.find((entry) => entry.request.prompt?.some((b) => b.text?.includes('1 passed')));
-  const txt = (last?.request?.prompt ?? []).map((b) => b.text ?? '').join('\n');
+  const last = started.find((entry) => entry.prompt?.some((b) => b.text?.includes('1 passed')));
+  const txt = (last?.prompt ?? []).map((b) => b.text ?? '').join('\n');
   if (txt.includes('1 passed')) ok('第 7 节请求确实携带了测试证据原文');
   else bad('第 7 节请求缺少测试证据原文');
 }

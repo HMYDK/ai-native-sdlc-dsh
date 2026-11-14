@@ -810,3 +810,39 @@ CI 能跑的检查有上限：
 | 本机桌面 | 备份后安装并重启；自动界面操作成功点选「AI 原生 SDLC」，打开侧栏看板并看到任务列表和详情 |
 
 本轮未调用真实模型跑完整任务，也未重跑模型基准、隔离测试场或 Windows。修复包只安装在本机，没有发布 npm；保留原安装备份，仓库不收录 profile、备份、认证地址或原始本机日志。
+
+## 11. 0.2.2-rc.2 的未记录破坏：激活 spec 拍平（2026-11-14）
+
+本机 App 自动升到 DSH `0.2.2-rc.3` 后，`npm run compat` 接受、宿主两条行 active、12 组冒烟全过，但 `sdlc_verify` 一旦真派发验证者就会失败。根因不在 preset：`0.2.2-rc.2` 把 `SubagentActivationSpec` 从「`{ provider, label, request, signal, delivery }`，请求放在 `request` 里」改成 `extends Omit<SubagentStartRequest,'label'|'signal'>`，字段全部拍平到 spec 顶层。运行时同步改为读 `spec.maxDepth` / `spec.parent.id` / `spec.outputSchema`。
+
+插件的 `dispatchVerifier` 仍按旧形状传 `request`，在 rc.3 上 `startActivation` 读 `spec.parent.id` 时抛 `TypeError: Cannot read properties of undefined (reading 'id')`。**这条变更没有出现在安装包的升级指南里**：`docs/upgrade-guide` 只到 `v0.2.2-rc.1`，那 19 条里没有 activation 相关条目。
+
+为什么三件套门禁都没抓到：
+
+- 冒烟的 `ctx.provide('subagents', …)` 桩把旧形状写死了（`const { provider, request } = spec`），「冒烟全过」只证明桩还认得旧形状；
+- `tools/profile-runtime-check.mjs` 的 VERIFIER_* 只注册/挂载 preset，不派发，不碰 `startActivation`；
+- `npm run compat` 只验版本范围。
+
+抓法（已固化）：
+
+1. devDeps 对齐真实 App（`0.2.2-rc.3`），让 `tsc` 在编译期抓 spec 形状——这次报 `TS2769: 'request' does not exist in type 'SubagentActivationSpec'`；
+2. 在隔离 profile 里用**真实 subagents 服务**打一次「插件真实会发的形状」，假 parent 应得 `UNAUTHORIZED`（形状被接受），而不是 `TypeError`；`profile-runtime-check` 新增 `SUBAGENT_SPEC_SHAPE`；
+3. 冒烟桩改成扁平形状，并加一条断言：`spec.request === undefined && Array.isArray(spec.prompt) && spec.parent !== undefined`。
+
+教训：**升级指南不是契约的完整清单**。内部/相邻包的类型变更可能只体现在 `.d.ts` 和运行时源码里；compat + 冒烟 + preset 三件套全绿，也不代表真实服务的调用形状没变。验证外部契约要用目标版本的**真实类型和真实服务**，不要只信自己写的桩。
+
+## 12. 真实全流程复验：DONE + approve，但看板说“未验证”（2026-11-14）
+
+在隔离 web profile（0.6.2 tarball，DSH `0.2.2-rc.3`）里用真实模型 `deepseek-v4-pro` 跑了一个真实小任务（仓库外的临时项目：gold 折扣封顶 50）。链路 `INTENT→SPEC→PLANNED→IMPLEMENTING→VERIFYING→DONE`，独立裁决 **approve**，AC-001~AC-004 全 met，1 条 minor 按非阻塞 defer；38 次工具调用、0 次工具错误，`node --test` 5/5。验证者做了基线对照（把新测试放到 `git show HEAD` 的旧实现上，封顶用例确实变红）、diff 审查和真实测试执行——不是只看作者证据。
+
+这一轮首先证明 §11 的修复有效：`sdlc_verify` 在真实 rc.3 服务上成功派发并拿回裁决；旧代码会在 `startActivation` 直接 TypeError。
+
+同时抓到一个与 rc.2 无关的既有 bug：任务已 DONE、`verification.json` 是 approve，`sdlc_status` 却报「裁决: 未验证 / 已答 0 项」，模型为此多花了约 10 次工具调用。根因在 `src/status/index.ts` 的 `collectScanInput`：它先把 `state.artifacts.verification`（0.6.0 起是 `verifications/<run>.json`）的正文读进缓存，随后“嵌套制品存在性”循环又把同一个 key 覆成空串哨兵；`scanTasks` 解析空串失败，裁决就成了 undefined。顶层 `verification.json` 的旧夹具永远测不到它。
+
+修法：哨兵只在 key 缺失/为 undefined 时写；`smoke/status.mjs` 的 PROJ-1 改成登记 `verifications/run-1.json` 的真实 v3 布局。两侧对照：旧 `lib/` 上 68/69（漏报 PROJ-1），新 `lib/` 上 69/69。装回修复后的 tarball，同一个 DONE 任务现在显示「裁决: approve (met 4 / not_met 0 / cannot_tell 0)；应验 4 / 已答 4 / 满足 4」。
+
+教训：
+
+- **“任务到 DONE”不是验证的终点。** 人或 agent 的下一步靠看板/`sdlc_status` 决策；裁决读不出来，等于流程状态不可信。端到端验证必须包含只读读数。
+- 纯函数 `scanTasks` 的单测测不到宿主侧缓存组装；这类 bug 只有“真实 fs + 真实 v3 布局”的冒烟能抓。`smoke/status.mjs` 已改成这种夹具。
+- 真实模型会绕路：它花了约 10 次调用自己确认裁决文件没问题。读数错了，成本是模型的时间，不是零。

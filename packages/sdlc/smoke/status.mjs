@@ -109,14 +109,18 @@ const stateYaml = (task, status, artifacts, updated) =>
 
 // A：齐备且验证通过
 mk('PROJ-1');
-write('PROJ-1/state.yaml', stateYaml('PROJ-1', 'VERIFYING', { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md', evidence: 'evidence/check.json' }));
+// 0.6.0 起 `sdlc_verify` 把裁决写进 `verifications/<run>.json` 并在 state.yaml 里登记。
+// 这条夹具刻意用**子目录 + 登记**的形态：2026-11-14 的真实任务 E2E-1 上，
+// 看板把这种任务报成“裁决: 未验证 / 已答 0 项”（collectScanInput 把已读到的
+// 正文又覆成了存在性哨兵）。顶层 verification.json 的旧夹具测不到这个 bug。
+write('PROJ-1/state.yaml', stateYaml('PROJ-1', 'VERIFYING', { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md', evidence: 'evidence/check.json', verification: 'verifications/run-1.json' }));
 write('PROJ-1/intent.md', '# Intent\n');
 write('PROJ-1/spec.md', '# Spec\n');
 write('PROJ-1/plan.md', '# Plan\n');
 // 嵌套制品：看板曾只列顶层文件，把 `evidence/check.json` 误报成“文件不在”。
 write('PROJ-1/evidence/check.json', '{}\n');
 write(
-  'PROJ-1/verification.json',
+  'PROJ-1/verifications/run-1.json',
   JSON.stringify({
     task: 'PROJ-1',
     at: '2026-10-07T12:00:00.000Z',

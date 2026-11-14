@@ -173,7 +173,12 @@ async function collectScanInput(
           try {
             const target = await ctx.fs.resolve(`${tasksRoot}/${task}/${rel}`, resolveOptions(exec));
             if ((await ctx.fs.stat(target, exec.signal)) !== undefined) {
-              cache.set(`${task}\u0000${rel}`, '');
+              // ⚠️ 不要把已经读到的正文覆成哨兵：`verification` 现在登记在子目录里
+              // （`verifications/<run>.json`），覆盖后 scan 读到空串，裁决会显示成
+              // "未验证 / 已答 0 项"。2026-11-14 的真实任务 E2E-1 上实测到：
+              // DONE + approve + 4 条 AC 全 met，看板却报"未验证"。
+              const key = `${task}\u0000${rel}`;
+              if (!cache.has(key) || cache.get(key) === undefined) cache.set(key, '');
             }
           } catch {
             // 读不到的制品就是"不在"；单个坏路径不能拖垮整个看板。

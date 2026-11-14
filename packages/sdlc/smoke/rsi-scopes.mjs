@@ -50,8 +50,8 @@ try {
     return {...source,[Symbol.dispose]:()=>{}};
   }});
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture verifier'})});
-  ctx.provide('subagents',{startActivation:async({request})=>{
-    const criterion_id=(request.prompt??[]).map(p=>p.text??'').join(' ').match(/AC-[A-Za-z0-9-]+/)?.[0];
+  ctx.provide('subagents',{startActivation:async(spec)=>{
+    const criterion_id=(spec.prompt??[]).map(p=>p.text??'').join(' ').match(/AC-[A-Za-z0-9-]+/)?.[0];
     const id=`child-${++childCounter}`,session={id,header:{cwd:root,parentSession:'author',origin:'subagent'}};
     const child={},scope=createScope(ctx,child,{parent:verifierKey}),events=[];
     sources.set(id,{header:session.header,events});

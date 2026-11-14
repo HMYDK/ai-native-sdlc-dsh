@@ -28,7 +28,7 @@
 在 App 的 **Plugin Manager** 中搜索并安装 `@ai-native-sdlc-plugin/dsh-sdlc`。已配置 `dsh` 命令时，也可以运行：
 
 ```sh
-dsh plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.1
+dsh plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.2
 ```
 
 App 自带 CLI、Release 安装包、源码构建与排查步骤见[安装指南](docs/installation.md)。
