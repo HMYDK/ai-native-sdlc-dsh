@@ -1,24 +1,28 @@
 {
   "status": "approve",
-  "summary": "AC-VALIDITY-01A：Spec 增加 Delivery Contract（Source/Outcome/Boundary/Oracle/AC mapping），artifact check 增加五子节、段首占位符/骨架注释、重复与顺序检查；指导、模板、单测、smoke、TASK.md 与三个示例文档同步。不修改状态机、AC 解析/登记或裁决 Schema。",
-  "verification_run": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3",
+  "summary": "PR #23 外部审查修复完成：示例 3 拆成 3A/3B（Source 只承诺接口行为 vs 承诺真实构建）、五个固定子节唯一性检查、sdlc_artifact_check 文本 render 展示问题详情、修正 Delivery Contract 顺序因果说明、示例 2 补 AC-003 映射。独立复验 approve，review issue resolved，AC-001..AC-005 全 met。",
+  "verification_run": "c88de612-5e21-490e-9dec-f14869de2159",
   "criteria": "AC-001..AC-005 met（独立复验 approve）",
   "deferred": [
     {
-      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F1",
-      "reason": "文档的 DC 顺序因果解释不准确；顺序检查本身正确并报 invalid。后续文档措辞清理。"
+      "id": "c88de612-5e21-490e-9dec-f14869de2159:F1",
+      "reason": "五个子节唯一性的单测只显式覆盖 Source/来源；通用循环已用独立探针验证五个子节（含中文别名）都报 invalid。后续改为循环生成测试。"
     },
     {
-      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F2",
-      "reason": "局部解析未做 fenced code block 感知；DC 模板代码块是边缘场景，AC 解析器同样刻意不支持代码块。后续按需加 fence 状态。"
+      "id": "c88de612-5e21-490e-9dec-f14869de2159:F2",
+      "reason": "docs 开头摘要漏写唯一性/重复/顺序；同文件结构检查边界一节已写全。后续文档同步。"
     },
     {
-      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F3",
-      "reason": "sdlc_artifact_check 的文本 render 未列 details；结构化 details 已返回，后续做 render 一致性改进。"
+      "id": "c88de612-5e21-490e-9dec-f14869de2159:F3",
+      "reason": "fence 感知仍是已知边界；DC 正文里引用带 ### 的代码块会误报重复。当前解析器不建 AST，后续按需加 fence 状态。"
     },
     {
-      "id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3:F4",
+      "id": "c88de612-5e21-490e-9dec-f14869de2159:F4",
       "reason": "PLACEHOLDER_RE 的 80 字符上限仍可被超长尖括号占位符绕过；骨架注释已显式覆盖。后续放宽正则或在文档写明边界。"
+    },
+    {
+      "id": "c88de612-5e21-490e-9dec-f14869de2159:F5",
+      "reason": "顺序检查行为正确；错误消息中仍有一句“AC mapping 是 AC 清单的来源”措辞不准确，后续文案清理。"
     }
   ]
 }

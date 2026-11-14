@@ -286,7 +286,7 @@ function matches(spec: NamedSection, heading: string): boolean {
   return spec.aliases.some((a) => a.toLowerCase() === h) || spec.name.toLowerCase() === h;
 }
 
-/** 检查固定子节：存在、正文非空、无占位符。只查结构，不查语义。 */
+/** 检查固定子节：存在、唯一、正文非空、无占位符。只查结构，不查语义。 */
 function checkSubsections(
   sectionName: string,
   body: string,
@@ -295,9 +295,9 @@ function checkSubsections(
   const findings: SectionFinding[] = [];
   const parsed = extractSubsections(body);
   for (const sub of subsections) {
-    const found = parsed.find((s) => matches(sub, s.heading));
+    const candidates = parsed.filter((s) => matches(sub, s.heading));
     const label = `${sectionName} / ${sub.name}`;
-    if (found === undefined) {
+    if (candidates.length === 0) {
       findings.push({
         kind: 'missing',
         section: label,
@@ -305,6 +305,18 @@ function checkSubsections(
       });
       continue;
     }
+    if (candidates.length > 1) {
+      findings.push({
+        kind: 'invalid',
+        section: label,
+        detail:
+          `只允许一个「### ${sub.name}」子章节，实际有 ${candidates.length} 个：` +
+          `${candidates.map((s) => `### ${s.heading}`).join(' / ')}。` +
+          '重复会让下游引用到不确定的锚点。',
+      });
+      continue;
+    }
+    const found = candidates[0]!;
     if (found.body === '') {
       findings.push({
         kind: 'empty',
@@ -336,8 +348,10 @@ function checkSubsections(
 /**
  * Delivery Contract 必须唯一，且排在 Acceptance Criteria 之前。
  *
- * 顺序不只是可读性：它在 AC 章节后面时，`###` 子标题会落进验收章节，
- * `parseSpecAcceptance` 会把它们当成“无法解析的续行”而拒绝整份 Spec。
+ * 顺序是契约要求：保证 AC 从 Outcome 推导、下游引用稳定。
+ * 注意：结构完整的 Delivery Contract 即使排在 AC 之后，它的 `##` 标题也会结束
+ * AC 章节，`parseSpecAcceptance` **不会**把其 `###` 当成 AC 续行；只有把
+ * `###` 子标题直接写进 AC 章节（没有独立 `## Delivery Contract`）时才会被拒。
  * 重复时下游只会读到第一个，第二个被静默忽略——所以这里显式拒绝。
  */
 function checkDeliveryContractStructure(kind: ArtifactKind, heads: readonly string[]): SectionFinding[] {
@@ -365,8 +379,9 @@ function checkDeliveryContractStructure(kind: ArtifactKind, heads: readonly stri
       section: 'Delivery Contract',
       detail:
         '`## Delivery Contract` 必须放在 `## Acceptance Criteria` 之前：' +
-        'AC mapping 是 AC 清单的来源；而且 `###` 子标题落在验收章节内时，' +
-        '验收解析器会把它们当成无法解析的续行。',
+        'AC mapping 是 AC 清单的来源，顺序保证下游引用稳定。' +
+        '若把 `###` 子标题直接写进验收章节（没有独立 `## Delivery Contract`），' +
+        '验收解析器才会把它们当成无法解析的续行。',
     });
   }
   return findings;
@@ -382,7 +397,7 @@ function checkDeliveryContractStructure(kind: ArtifactKind, heads: readonly stri
  *   · `invalid`     —— 章节顺序或验收解析非法
  *
  * ⚠️ 只查结构：Source 是否真实、Outcome 是否充分、AC mapping 是否完整，
- * 这里都**不判断**。带 `subsections` 的章节会逐个检查子节的存在/空/占位符。
+ * 这里都**不判断**。带 `subsections` 的章节会逐个检查子节的存在/唯一/空/占位符。
  */
 export function checkArtifact(kind: ArtifactKind, markdown: string): ArtifactCheck {
   const heads = extractSections(markdown);

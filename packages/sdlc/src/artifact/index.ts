@@ -167,6 +167,7 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
           const o = v as Record<string, unknown>;
           const list = (x: unknown) =>
             Array.isArray(x) && x.length > 0 ? (x as string[]).join(', ') : '（无）';
+          const details = Array.isArray(o.details) ? (o.details as string[]) : [];
           return [
             {
               type: 'text',
@@ -176,6 +177,9 @@ export function apply(ctx: Context, config: SdlcArtifactConfig): void {
                 `缺失：${list(o.missing)}`,
                 `有标题但无正文：${list(o.empty)}`,
                 `未填占位符：${list(o.placeholder)}`,
+                ...(details.length > 0
+                  ? ['', '问题详情：', ...details.map((d) => `- ${d}`)]
+                  : []),
               ].join('\n'),
             },
           ];

@@ -110,6 +110,7 @@
 
 ### AC mapping
 - O-1 → AC-001, AC-002
+- 公共回归约束（不来自单一 Outcome）：AC-003
 
 ## Acceptance Criteria
 - AC-001: `parse_date('')` 返回 `None`，不抛异常。
@@ -128,58 +129,96 @@
 
 ---
 
-## 示例 3：原始需求 vs 外部评分冲突
-
-这个例子对应 VERIFY-01 里的 sphinx gettext 假阳性：任务说明只要求恢复列出的接口，而官方隐藏测试还要求其他被剥离的符号。
+## 示例 3A：Source 只承诺四个接口行为（不承诺完整构建）
 
 ```markdown
-# Spec: 恢复 gettext builder 的列出的接口
+# Spec: 恢复 gettext builder 的四个接口
 
 ## Delivery Contract
 
 ### Source
-- 任务说明原文：“恢复以下四个接口，使最小 gettext 构建可用：A、B、C、D。”
+- 任务说明原文：“恢复以下四个接口的行为：A、B、C、D；不要求完整 gettext 构建。”
 - 可追溯：任务说明/Issue 摘录（见任务目录的 source 引用）。
 
 ### Outcome
-- O-1: 四个列出的接口可导入，且最小文档夹具的 gettext builder 可运行。
+- O-1: A、B、C、D 四个接口可导入，并分别返回约定行为。
 
 ### Boundary
-- 承诺：只恢复 A、B、C、D 四个接口。
-- 排除：`add_uids`、`extract_messages` 及其他被剥离符号；依据是 Source 只列出四个接口。
-- 假设：官方隐藏测试可能要求更多符号；这是范围冲突，不是本任务已确认的需求。
-- 范围变化：如果把官方隐藏测试的要求加入 AC，必须有 Source 依据或人类确认。
+- 承诺：只恢复 A、B、C、D 的接口行为。
+- 排除：完整 `python -m sphinx -b gettext` 构建、`add_uids`、`extract_messages` 等；依据是 Source 明确不要求完整构建。
+- 假设：现有调用方只需要这四个接口。
 
 ### Oracle
-- O-1: 在最小文档夹具上运行 `python -m sphinx -b gettext docs /tmp/out`；四个接口的导入与最小构建路径可执行。
+- O-1: 四个接口的导入和约定行为测试通过；不把完整 builder 作为验收条件。
 
 ### AC mapping
 - O-1 → AC-001, AC-002, AC-003, AC-004
-- 未映射：`add_uids`、`extract_messages`（在 Boundary 中排除，不偷偷加成 AC）
 
 ## Acceptance Criteria
-- AC-001: A 可导入并可调用。
-- AC-002: B 可导入并可调用。
-- AC-003: C 可导入并可调用。
-- AC-004: D 可导入并可调用。
+- AC-001: A 可导入并返回约定行为。
+- AC-002: B 可导入并返回约定行为。
+- AC-003: C 可导入并返回约定行为。
+- AC-004: D 可导入并返回约定行为。
 
 ## Requirements
-恢复 Source 列出的四个接口，使最小 gettext 构建可用。
+只恢复 Source 明确列出的四个接口行为，不承诺完整构建。
 
 ## Design
 按接口逐个恢复；不扩大符号范围。
 
 ## Areas of concern
-官方隐藏测试要求 `add_uids` 等未列出的符号；若真实构建入口因这些符号失败，按 #16 记录为交付路径风险，并按 #21 的范围冲突规则使用 needs_human。不要把隐藏测试直接当成用户承诺。
+如果后来发现完整 builder 才是真实目标，需要回到 Source 澄清；不能从本 Spec 自行扩成完整构建。
+```
+
+---
+
+## 示例 3B：Source 承诺最小 gettext 构建可用
+
+```markdown
+# Spec: 让最小 gettext 构建可用
+
+## Delivery Contract
+
+### Source
+- 任务说明原文：“恢复必要的接口，使最小 gettext 构建可用。”
+- 可追溯：任务说明/Issue 摘录（见任务目录的 source 引用）。
+
+### Outcome
+- O-1: 在最小文档夹具上运行 `python -m sphinx -b gettext docs /tmp/out` 成功。
+
+### Boundary
+- 承诺：最小文档夹具的 gettext 构建可用。
+- 不排除构建所需的任何依赖：不能因为某个符号没被点名，就把它当成 out-of-scope。
+- 假设：最小夹具使用现有 docs 目录；构建需要的符号要恢复或修复。
+- 范围变化：如果修复范围与外部评分冲突，记录冲突并请求澄清；不得自行宣称明确排除。
+
+### Oracle
+- O-1: 运行 `python -m sphinx -b gettext docs /tmp/out`，退出码 0；失败时保留异常和缺失符号作为证据。
+
+### AC mapping
+- O-1 → AC-001, AC-002
+
+## Acceptance Criteria
+- AC-001: 最小 gettext 构建命令退出码 0。
+- AC-002: 构建产物包含预期 gettext 文件。
+
+## Requirements
+让 Source 承诺的最小 gettext 构建可用。
+
+## Design
+先跑真实构建，按缺失符号逐个恢复；不预设「未列出 = 排除」。
+
+## Areas of concern
+如果官方隐藏测试还要求 Source 未承诺的更大范围，属于范围冲突：按 #21 用 needs_human，不能偷偷扩 AC，也不能用「没列出」把真实构建失败说成 out-of-scope。
 ```
 
 ---
 
 ## 结构检查与迁移边界
 
-- 检查器验证 `## Delivery Contract` 唯一、位于 `## Acceptance Criteria` 之前、五个 `###` 子节存在、非空、无占位符/骨架注释；不做语义判断。
-- 第一个 `###` 之前的段首也会检查占位符/骨架注释；重复的 Delivery Contract 直接报错，避免下游只读到第一个。
-- `Delivery Contract` 必须放在 `## Acceptance Criteria` 之前；否则 `###` 子标题会落进验收章节，`parseSpecAcceptance` 会把它们当成非法续行。
+- 检查器验证 `## Delivery Contract` 唯一、位于 `## Acceptance Criteria` 之前、五个 `###` 子节各自唯一、存在、非空、无占位符/骨架注释；不做语义判断。
+- 第一个 `###` 之前的段首也会检查占位符/骨架注释；重复的 Delivery Contract 或重复子节直接报错，避免下游只读到第一个。
+- `Delivery Contract` 必须放在 `## Acceptance Criteria` 之前：这是契约结构要求，保证 AC 从 Outcome 推导、下游引用稳定。若把 `###` 子标题直接写进验收章节（没有独立 `## Delivery Contract`），`parseSpecAcceptance` 才会把它们当成非法续行；结构完整的独立 DC 章节即使排在 AC 后，解析器也不会误读。
 - 旧任务不会被自动重写。旧 Spec 在 `sdlc_artifact_check` 下会报缺章；更新在途 Spec 需要 `overwrite: true`，并因 Spec 指纹变化记录退回 SPEC、重新登记 AC。
 - 旧骨架不再匹配 `isUnmodifiedSkeleton`，同样需要显式 `overwrite: true`。
-- 三个示例是人工评审材料，不是自动化行为测试；真实模型是否遵守 Source/Boundary 由 #22 的评测检验，不在本项宣称。
+- 这些示例是人工评审材料，不是自动化行为测试；真实模型是否遵守 Source/Boundary 由 #22 的评测检验，不在本项宣称。

@@ -228,6 +228,38 @@ test('重复 Delivery Contract 被拒绝（不能只读第一个）', () => {
   );
 });
 
+test('五个固定子节各自唯一：重复 Source / 来源 被拒绝', () => {
+  const doc = wellFormed('spec').replace(
+    '### Outcome',
+    '### Source\n\n第二个来源\n\n### Outcome',
+  );
+  const r = checkArtifact('spec', doc);
+  assert.ok(
+    r.findings.some(
+      (f) =>
+        f.kind === 'invalid' &&
+        f.section === 'Delivery Contract / Source' &&
+        /只允许一个/.test(f.detail),
+    ),
+    `重复 Source 应报 invalid：${JSON.stringify(r.findings)}`,
+  );
+
+  const aliasDoc = wellFormed('spec').replace(
+    '### Outcome',
+    '### 来源\n\n第二个来源\n\n### Outcome',
+  );
+  const aliasR = checkArtifact('spec', aliasDoc);
+  assert.ok(
+    aliasR.findings.some(
+      (f) =>
+        f.kind === 'invalid' &&
+        f.section === 'Delivery Contract / Source' &&
+        /只允许一个/.test(f.detail),
+    ),
+    `中英文别名重复 Source 应报 invalid：${JSON.stringify(aliasR.findings)}`,
+  );
+});
+
 test('长骨架注释不能绕过占位符检查（AC mapping 的 why 超过 80 字符）', () => {
   const dc = REQUIRED_SECTIONS.spec.find((s) => s.name === 'Delivery Contract');
   const acMapping = dc?.subsections?.find((s) => s.name === 'AC mapping');

@@ -72,7 +72,7 @@ history:
 
 ## 交付契约（Delivery Contract）
 
-Spec 在 `## Acceptance Criteria` 之前必须有一个唯一的 `## Delivery Contract`，固定五个 `###` 子节：
+Spec 在 `## Acceptance Criteria` 之前必须有一个唯一的 `## Delivery Contract`，固定五个各自唯一的 `###` 子节：
 
 ```markdown
 ## Delivery Contract
@@ -96,11 +96,11 @@ Spec 在 `## Acceptance Criteria` 之前必须有一个唯一的 `## Delivery Co
 ```
 
 - `## Acceptance Criteria` 仍是**唯一权威** AC 清单；`AC mapping` 只引用它的 AC ID，不复制第二份清单。
-- `sdlc_artifact_check` 检查 Delivery Contract 唯一且位于 AC 之前、五个子节的缺失/空正文/占位符（含段首与骨架注释）；**不检查语义**。Source 是否真实、Outcome 是否充分、AC mapping 是否完整，由独立验证者（#21）和人核对。
+- `sdlc_artifact_check` 检查 Delivery Contract 唯一且位于 AC 之前、五个子节各自唯一且缺失/空正文/占位符（含段首与骨架注释）；**不检查语义**。Source 是否真实、Outcome 是否充分、AC mapping 是否完整，由独立验证者（#21）和人核对。
 - **不是状态推进硬门禁**：`sdlc_task_advance` 不调用 `checkArtifact`；Actor 直接写 `spec.md` 仍可绕过。
 - hidden tests / 外部 Grader 不是用户承诺，除非 Source 明确引用；范围冲突写进 `Areas of concern`，不要偷偷扩 AC。
 - 旧任务不自动重写；旧 Spec 在 `sdlc_artifact_check` 下会报缺章。更新在途 Spec 需 `overwrite: true`，并因 Spec 指纹变化记录退回 SPEC、重新登记 AC。旧骨架不再匹配 `isUnmodifiedSkeleton`，同样需要显式 overwrite。
-- 三个完整示例见 [`docs/artifact-delivery-contract.md`](../../docs/artifact-delivery-contract.md)。
+- 示例（含 Source 只承诺接口 / Source 承诺真实构建两种对照）见 [`docs/artifact-delivery-contract.md`](../../docs/artifact-delivery-contract.md)。
 
 ## 0.6.0：完整验收范围从 Spec 登记
 

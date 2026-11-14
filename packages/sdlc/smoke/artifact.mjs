@@ -328,6 +328,31 @@ console.log('\n== 6. 结构不合格时的行为 ==');
     bad(`缺 Source 子节未被点名: ${JSON.stringify(missingCheck.value)}`);
   }
 
+  // 重复子节必须被拒绝；check 的文本 render 还要让 Agent 看到原因
+  const dupSourceSpec = goodSpec.replace(
+    '### Outcome',
+    '### Source\n\n重复来源。\n\n### Outcome',
+  );
+  const dupSource = await dispatch('sdlc_artifact_check', {
+    kind: 'spec',
+    content: dupSourceSpec,
+  });
+  if (dupSource.isError) bad(`重复子节检查报错: ${JSON.stringify(dupSource.error)}`);
+  else {
+    const rendered = JSON.stringify(dupSource.content ?? '');
+    if (
+      dupSource.value.ok === false &&
+      Array.isArray(dupSource.value.details) &&
+      dupSource.value.details.some((d) => /只允许一个/.test(d)) &&
+      /问题详情/.test(rendered) &&
+      /只允许一个/.test(rendered)
+    ) {
+      ok('重复子节被拒绝，check 文本展示原因');
+    } else {
+      bad(`重复子节未被正确报告/渲染: ${JSON.stringify(dupSource.value)} / ${rendered.slice(0, 500)}`);
+    }
+  }
+
   // 骨架必须是"明显没写完"的状态
   const sk = await dispatch('sdlc_artifact_write', {
     task_id: TASK,

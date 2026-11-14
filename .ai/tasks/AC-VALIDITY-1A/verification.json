@@ -1,9 +1,9 @@
 {
   "schema_version": 3,
   "task": "AC-VALIDITY-1A",
-  "at": "2026-11-14T16:22:16.710Z",
-  "intent_of_change": "在 spec.md 增加可被下游引用的 Delivery Contract（Source/Outcome/Boundary/Oracle/AC mapping），并让 sdlc_artifact_check 检查其五个子节的缺失/空/占位符、段首占位符/骨架注释、重复与顺序；同步写作指导、模板、单测、smoke 和文档。不修改状态机、AC 解析/登记或裁决 Schema，也不声称这是状态推进硬门禁。",
-  "test_evidence": "在 .agents/worktrees/dsh-fb0f0629-439a/packages/sdlc 执行：\n1) npm run build → exit 0。\n2) node --test lib/artifact/artifact.test.js → tests 31, pass 31, fail 0；新增用例：段首占位符/骨架注释、重复 Delivery Contract、长骨架注释（84 字符）不被 80 字符上限绕过。\n3) npm test → lib/host tests 275/pass 275/fail 0；client 45/pass 45/fail 0。\n4) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run smoke → 12/12 脚本全部通过；smoke/artifact.mjs 输出「报出 4 项缺失」「含 Delivery Contract 的 spec 结构通过」「缺 Source 子节时点名 Delivery Contract / Source」。\n5) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify → exit 0。\n6) 自检：新 lib 的 checkArtifact('spec', 任务 spec.md) → {ok:true, findings:[]}。",
+  "at": "2026-11-14T17:01:21.721Z",
+  "intent_of_change": "按 PR #23 外部审查修复：示例 3 拆成「Source 只承诺接口行为」与「Source 承诺真实构建」两种语义；五个固定子节增加唯一性检查；sdlc_artifact_check 文本 render 展示 details/invalid；修正 Delivery Contract 顺序的因果说明；示例 2 补 AC-003 映射。保持原有 Delivery Contract/AC/状态机边界不变。",
+  "test_evidence": "在 .agents/worktrees/dsh-fb0f0629-439a/packages/sdlc 执行：\n1) npm run build → exit 0。\n2) node --test lib/artifact/artifact.test.js → tests 32, pass 32, fail 0；新增「五个固定子节各自唯一：重复 Source / 来源 被拒绝」。\n3) npm test → lib/host tests 276/pass 276/fail 0；client 45/pass 45/fail 0。\n4) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run smoke → 12/12 脚本通过；smoke/artifact.mjs 新增「重复子节被拒绝，check 文本展示原因」通过，另有「含 Delivery Contract 的 spec 结构通过」「缺 Source 子节点名」。\n5) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify → exit 0。",
   "criteria": [
     "AC-001: `spec.md` 必需章节增加唯一的 `## Delivery Contract`，位于 `## Acceptance Criteria` 之前；五个 `###` 子节固定为 Source / Outcome / Boundary / Oracle / AC mapping；不新增制品文件、任务阶段、`state.yaml` 或裁决 Schema。",
     "AC-002: `checkArtifact('spec', ...)` 检查 Delivery Contract 及五个子节的缺失、空正文、占位符；空 `###` 标题不能被当作正文；复用现有 findings 与局部解析，不建设通用 Markdown AST / 新 DSL；现有 `parseSpecAcceptance`、AC 注册和 Spec 指纹规则不回归。",
@@ -44,178 +44,176 @@
   "additional_criteria": [],
   "verdict": {
     "status": "approve",
-    "summary": "结论：approve。上一轮 3 条 minor 均已修复：段首占位符/骨架注释、重复 Delivery Contract、AC mapping 84 字符骨架注释均由新 lib 报出，禁用对应修复后三条单测分别变红（mutation A/B/C fail=1）。AC-001..AC-005 全部 met；`DSH_APP='/Applications/DeepSeek Harness.app' npm run verify` exit 0（275/275 + 45/45，12/12 smoke），真实 Cordis+ToolRuntime 的 smoke/artifact.mjs 输出「含 Delivery Contract 的 spec 结构通过」「缺 Source 子节时点名 Delivery Contract / Source」。目标消费路径已跑通；仍有 4 条 minor 边界（文档顺序理由、fence 感知、check 渲染未显示 details、>80 字符 `<...>` 占位符），不影响三条修复与五条 AC。",
+    "summary": "结论：approve。独立复跑 build exit 0、artifact.test 32/32、npm test 276/276 + 45/45、12/12 smoke、npm run verify exit 0。目标入口 smoke/artifact.mjs（真实 Cordis + ToolRuntime）输出「重复子节被拒绝，check 文本展示原因」。基线对照证明新测试非恒真：HEAD 的 artifact.ts 上新单测失败「重复 Source 应报 invalid：[]」；旧 render 与旧 duplicate 检查的 smoke 各 42/43，失败在同一断言。五项 PR #23 修复均可复核：docs 3A/3B、五子节含别名重复、check render 的「问题详情」、DC 顺序探针、示例 2 的 AC-003。未覆盖真实模型/UI，按任务范围。仅有 5 条 minor（测试只覆盖 Source、docs:5 摘要未更新、fence/长占位符为上一轮已知边界、顺序错误话术仍有一句不严谨），无 blocking。",
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "`cd packages/sdlc && npm run build` → EXIT=0；`node /tmp/probe-spec.mjs` → `checkArtifact: {\"ok\":true,\"findings\":[]}`、`parseSpecAcceptance` 返回 5 个 AC。\n`nl -ba packages/sdlc/src/artifact/artifact.ts | sed -n '108,158p'` → `Delivery Contract` 在 `Acceptance Criteria` 之前，五个 subsections 固定为 Source/Outcome/Boundary/Oracle/AC mapping。\n`git diff --name-only HEAD` → 7 个文件；`git diff --name-only HEAD -- packages/sdlc/src/task packages/sdlc/src/verify packages/sdlc/src/shared/acceptance.ts packages/sdlc/cordis.patch.yml packages/sdlc/package.json` → 空（无状态机/裁决 Schema 改动）。"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "`cd packages/sdlc && npm test` → 276/276 + 45/45；`node --test lib/artifact/artifact.test.js` → tests 32/pass 32/fail 0。\n`node /tmp/probe-empty.mjs` → 五个空 `###` 全部报 `empty:Delivery Contract / ...`。\n`node /tmp/probe-dup2.mjs` → Source/Outcome/Boundary/Oracle/AC mapping（含中文别名）重复均 `ok=false invalid`。\n`node /tmp/probe-order.mjs` → 完整独立 DC 排在 AC 后：`ok=false invalid` 但 `parseSpecAcceptance` 不抛；把 `###` 直接写进 AC：parse THROW，符合修正后的因果说明。"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "`node /tmp/probe-docs.mjs` → 5 个 fenced block；示例 1/2/3A/3B 全 `ok=true`，AC mapping 引用均无 dangling（模板块不完整，属模板）。\n`nl -ba docs/artifact-delivery-contract.md | sed -n '111,118p;132p;175p;219,224p'` → 示例 2 AC-003 映射、3A/3B 标题、结构/迁移边界与 #22。\n`grep -n 'hidden tests\\|Grader\\|待确认\\|只引用' docs/artifact-delivery-contract.md packages/sdlc/src/artifact/policy.ts packages/sdlc/TASK.md` → 均命中。"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "`cd packages/sdlc && DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify` → EXIT=0；`tests 276/pass 276`、`tests 45/pass 45`、`全部冒烟通过（12 个脚本）`。\n`git diff --name-only HEAD` → 7 个文件；`grep -n 'Delivery Contract' packages/sdlc/smoke/acceptance.mjs` → `20: '## Delivery Contract'`，该 smoke 通过。\n`node /tmp/probe-compat.mjs` → old spec no DC `missing:Delivery Contract`、old skeleton `false`；`grep -n 'Spec 与已登记版本不同' packages/sdlc/src/shared/acceptance.ts` → line 75。"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "`grep -rn 'checkArtifact' packages/sdlc/src/task` → 无匹配；`nl -ba packages/sdlc/src/task/state.ts | sed -n '471,475p'` → `checkAdvance` 只调 `requireAcceptance`。\n`nl -ba docs/artifact-delivery-contract.md | sed -n '41p;222,224p'` → 结构完整≠语义充分 / 不自动重写 / 示例是人工评审、真实模型 #22。\n`grep -n 'checkAdvance\\|结构完整' packages/sdlc/TASK.md packages/sdlc/src/artifact/policy.ts` → 均命中。"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "issue-e391716e-4f4f-44d0-96b3-b493bf917fbd",
+        "result": "resolved",
+        "evidence": "`node /tmp/probe-docs.mjs` → 3A/3B `ok=true`、AC refs dangling=none；`nl -ba docs/artifact-delivery-contract.md | sed -n '132p;175p'` → 两个明确示例。\n`node /tmp/probe-dup2.mjs` → 五个子节含中文别名重复均 `invalid`；`node --test lib/artifact/artifact.test.js` → 32/32。\n`DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run smoke` → `✓ 重复子节被拒绝，check 文本展示原因`；`node /tmp/probe-order.mjs` → DC after AC invalid、parse 不抛，`###` 在 AC 内 THROW。\n`nl -ba docs/artifact-delivery-contract.md | sed -n '111,118p'` → 示例 2 AC mapping 含 AC-003，AC 列表定义 AC-003。"
+      }
+    ],
     "findings": [
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/artifact/artifact.test.ts",
+        "line": 231,
+        "reason": "新增测试名为「五个固定子节各自唯一」，实际只对 Source/来源 做重复断言；Outcome/Boundary/Oracle/AC mapping 没有对应单测。实现是通用循环，探针证明五者都工作，但若单独回归某个子节，现有 32 条测试不会变红。",
+        "evidence": "`nl -ba packages/sdlc/src/artifact/artifact.test.ts | sed -n '231,261p'` → 只有 `### Source`/`### 来源` 替换。\n`node /tmp/probe-dup2.mjs` → Source/Outcome/Boundary/Oracle/AC mapping（含中文别名）全部 `ok=false invalid`。",
+        "suggestion": "用 `REQUIRED_SECTIONS.spec[0].subsections` 循环生成五个重复用例，smoke/artifact.mjs 也做同样循环。"
+      },
       {
         "severity": "minor",
         "category": "spec_mismatch",
         "file": "docs/artifact-delivery-contract.md",
-        "line": 182,
-        "reason": "文档称 Delivery Contract 放在 Acceptance Criteria 之后会让 ### 子标题落进验收章节并被 parseSpecAcceptance 拒绝；对结构完整的 DC-after-AC 探针不成立。顺序检查本身仍正确报 invalid，只是理由写错了。",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `DC after AC => ok=false [invalid] Delivery Contract`、`parse order doc => no throw`；`docs/artifact-delivery-contract.md:182` 与 `artifact.ts:336-340` 的注释给出相反的因果。",
-        "suggestion": "把理由改成「顺序是契约要求；若把 ### 子标题直接写进 AC 章节（没有独立 ## Delivery Contract），AC 解析器才会拒绝」，或删掉 parseSpecAcceptance 的因果断言。"
+        "line": 5,
+        "reason": "文档开头仍说 `sdlc_artifact_check` 只检查五个子节存在/为空/占位符，漏掉本轮新增的唯一性（以及重复 DC/顺序）；同文件 219 行才写各自唯一，摘要与细节不一致。",
+        "evidence": "`nl -ba docs/artifact-delivery-contract.md | sed -n '5p;219p'` → 5 行无“唯一”，219 行有“各自唯一/顺序”。",
+        "suggestion": "在第 5 行补“各自唯一、重复与顺序”，或直接链接到 219 行的完整边界。"
       },
       {
         "severity": "minor",
         "category": "logic_error",
         "file": "packages/sdlc/src/artifact/artifact.ts",
-        "line": 349,
-        "reason": "新的重复 DC 检查直接把 extractSections 的所有 ## 标题计数，未跳过 fenced code block；合法 spec 若在 Requirements/Design 里放一份 DC 模板代码块，会被误报 duplicate/invalid。introduction 的 split 也不跳过 fence，fenced ### 后面的段首占位符会漏报。",
-        "evidence": "`node /tmp/probe_edges.mjs` -> `fenced DC template in Requirements => ok=false [invalid] Delivery Contract`；同脚本 `fenced ### then intro placeholder => ok=true`；`extractSections` 见 artifact.ts:229，intro split 见 417。",
-        "suggestion": "在局部行扫描里维护 fence 状态，跳过代码块内的 ##/### 与 split 边界。"
+        "line": 265,
+        "reason": "`extractSubsections`/`extractSections` 不维护 fence 状态；DC 正文里若引用带 `### Source` 的代码块，会被新唯一性检查误报 duplicate/invalid。上一轮 F2 已登记同类边界，本轮未处理。",
+        "evidence": "`node /tmp/probe-edges.mjs` → `fenced ### Source in DC => ok=false invalid:Delivery Contract / Source`。\n`nl -ba packages/sdlc/src/artifact/artifact.ts | sed -n '265,278p'` → 逐行匹配 `###`，无 fence 分支。",
+        "suggestion": "在局部行扫描中维护 fence 状态，跳过代码块内标题；不引入通用 AST。"
       },
       {
         "severity": "minor",
-        "category": "spec_mismatch",
-        "file": "packages/sdlc/src/artifact/index.ts",
-        "line": 166,
-        "reason": "sdlc_artifact_check 的 render 只列 found/missing/empty/placeholder，不含 details；新顺序/重复检查产生的唯一 invalid findings 只存在于结构化 details（line 195），模型看到的文本是「不通过」加四个空列表。sdlc_artifact_write 的 render 会列出所有 findings，check 这条路径没有。",
-        "evidence": "`sed -n '166,196p' packages/sdlc/src/artifact/index.ts` -> render 文本无 details，`execute` 返回 `details: r.findings.map(...)`；`smoke/artifact.mjs` 的缺 Source 断言读 `value.missing`，未覆盖 invalid 渲染。",
-        "suggestion": "把 details（或 invalid 列表）加进 check 的 render，和 write 的 findings 渲染保持一致。"
+        "category": "logic_error",
+        "file": "packages/sdlc/src/artifact/artifact.ts",
+        "line": 211,
+        "reason": "`PLACEHOLDER_RE` 仍是 `{2,80}`；100 字符的 `<...>` 占位符在 Source 内返回 ok=true，和 docs 219 行“无占位符”不一致。上一轮 F4 已登记，本轮未处理。",
+        "evidence": "`node /tmp/probe-edges.mjs` → `100-char <...> in Source => ok=true`。\n`grep -n 'PLACEHOLDER_RE' packages/sdlc/src/artifact/artifact.ts` → `211: ... {2,80} ...`。",
+        "suggestion": "放宽或去掉长度上限，或在文档写明 80 字符边界。"
       },
       {
         "severity": "minor",
         "category": "spec_mismatch",
         "file": "packages/sdlc/src/artifact/artifact.ts",
-        "line": 211,
-        "reason": "PLACEHOLDER_RE 的 80 字符上限仍可被长 <...> 占位符绕过；新 DC 子节/段首检查对 100 字符 <...> 返回 ok=true，而 docs:180 说检查器验证无占位符。F3 的骨架注释 84 字符已被显式匹配覆盖，但同一长度边界没有一般化。",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `long placeholder 100 chars => ok=true`；`grep -n PLACEHOLDER_RE packages/sdlc/src/artifact/artifact.ts` -> `211: {2,80}`；docs/artifact-delivery-contract.md:180。",
-        "suggestion": "在子节里对 <...> 使用不封顶或更大的长度，或在 docs/TASK 明确写出 80 字符边界。"
-      }
-    ],
-    "criteria_results": [
-      {
-        "criterion_id": "AC-001",
-        "result": "met",
-        "evidence": "`node -e ...` -> `spec sections: Delivery Contract / Acceptance Criteria / Requirements / Design / Areas of concern`；`DC subsections: Source / Outcome / Boundary / Oracle / AC mapping`；`grep -n '^## Delivery Contract$\\|^## Acceptance Criteria$' /Users/work/company/mine/AI Native SDLC/.ai/tasks/AC-VALIDITY-1A/spec.md` -> `3:## Delivery Contract`, `36:## Acceptance Criteria`；`git diff HEAD --name-only -- packages/sdlc/src/task packages/sdlc/src/shared packages/sdlc/src/verify packages/sdlc/cordis.patch.yml packages/sdlc/package.json packages/sdlc/src/ui | wc -l` -> 0。"
-      },
-      {
-        "criterion_id": "AC-002",
-        "result": "met",
-        "evidence": "`cd packages/sdlc && node --test lib/artifact/artifact.test.js` -> `tests 31 / pass 31 / fail 0`；`node /tmp/probe_fixes.mjs` -> baseline ok=true、缺 DC missing、5 个空子节 empty、占位符 placeholder、F1/F2/F3 全部被报出；`bash /tmp/mutate_run.sh` -> A-E 各 `fail=1`；`npm test` -> 275/275 + 45/45。"
-      },
-      {
-        "criterion_id": "AC-003",
-        "result": "met",
-        "evidence": "`node /tmp/probe_docs.mjs` -> `example 1/2/3 ok=true`、各例 unknown AC IDs 均为 none；`grep -n '^## 示例' docs/artifact-delivery-contract.md` -> 45/88/131；`grep -n '待确认\\|hidden tests\\|只引用 Acceptance Criteria' packages/sdlc/src/artifact/policy.ts docs/artifact-delivery-contract.md packages/sdlc/TASK.md` -> policy 23/29/27、docs 16/39/38、TASK 81/101/34。"
-      },
-      {
-        "criterion_id": "AC-004",
-        "result": "met",
-        "evidence": "`DSH_APP='/Applications/DeepSeek Harness.app' npm run verify` -> `EXIT=0`、`tests 275/pass 275`、`tests 45/pass 45`、`全部冒烟通过（12 个脚本）`；`git status --short` -> 6 个修改文件 + 新增 `docs/artifact-delivery-contract.md` 与 `src/artifact/policy.ts`；`node /tmp/probe_old_skeleton.mjs` -> `old skeleton matches? false`；docs:183-184、TASK.md:102 已记录迁移与重新登记。"
-      },
-      {
-        "criterion_id": "AC-005",
-        "result": "met",
-        "evidence": "`grep -rn 'checkArtifact' packages/sdlc/src/task | wc -l` -> 0；`grep -n '结构完整 ≠ 语义充分\\|旧任务不会被自动重写\\|#22' docs/artifact-delivery-contract.md` -> 41/183/185；`grep -n 'checkAdvance' packages/sdlc/src/artifact/policy.ts` -> 10/37；docs:5 与 TASK.md:100 均写明不是状态推进硬门禁，docs:185 把真实模型行为交给 #22。"
-      }
-    ],
-    "issue_results": [
-      {
-        "issue_id": "7afb4121-4df6-48bc-8f02-a0667f52fefb:F1",
-        "result": "resolved",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `F1 intro placeholder => ok=false [placeholder] Delivery Contract`、`F1b intro skeleton => ok=false`；`bash /tmp/mutate_run.sh` -> `[A disable intro check] fail=1 pass=0`；新单测「Delivery Contract 段首的占位符/骨架注释也要检查」通过（31/31）。"
-      },
-      {
-        "issue_id": "7afb4121-4df6-48bc-8f02-a0667f52fefb:F2",
-        "result": "resolved",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `F2 duplicate DC => ok=false [invalid] Delivery Contract`、`F2b duplicate alias DC => ok=false`；`bash /tmp/mutate_run.sh` -> `[B disable duplicate DC] fail=1 pass=0`；新单测「重复 Delivery Contract 被拒绝」通过。"
-      },
-      {
-        "issue_id": "7afb4121-4df6-48bc-8f02-a0667f52fefb:F3",
-        "result": "resolved",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `F3 skeleton AC mapping (len 84) => hit=true ok=false`（五个子节逐一命中）；`bash /tmp/mutate_run.sh` -> `[C disable skeletonComment] fail=1 pass=0`；新单测「长骨架注释不能绕过占位符检查」通过。"
+        "line": 381,
+        "reason": "顺序错误的 detail 仍写“AC mapping 是 AC 清单的来源”，与 spec 的 `## Acceptance Criteria` 唯一权威清单、AC mapping 只引用 AC ID 的规则相反；review ④ 的 parseSpecAcceptance 因果已修正，但同一句的理由仍可能误导。",
+        "evidence": "`nl -ba packages/sdlc/src/artifact/artifact.ts | sed -n '381,384p'` → “AC mapping 是 AC 清单的来源”。\n`sed -n '51p' .ai/tasks/AC-VALIDITY-1A/spec.md` → `AC mapping` 只引用 `Acceptance Criteria` 的 AC ID；`nl -ba docs/artifact-delivery-contract.md | sed -n '38p'` → 唯一权威 AC 清单。",
+        "suggestion": "改成“DC 在 AC 前保证 AC ID 先定义/引用稳定；只有把 ### 直接写进 AC 才会被 parseSpecAcceptance 拒绝”。"
       }
     ],
     "unverified": [],
-    "verifier_session": "647a8ee0-d9e8-4cc3-9a6a-b65a0bc404df",
+    "verifier_session": "5170066f-3b64-455c-ad01-b46b85efa039",
     "raw_status": "approve",
     "verification_complete": true,
-    "verification_run_id": "32b62ab3-b5d4-4792-a519-3e6eda6bcbc3"
+    "verification_run_id": "c88de612-5e21-490e-9dec-f14869de2159"
   },
   "raw_verdict": {
     "status": "approve",
-    "summary": "结论：approve。上一轮 3 条 minor 均已修复：段首占位符/骨架注释、重复 Delivery Contract、AC mapping 84 字符骨架注释均由新 lib 报出，禁用对应修复后三条单测分别变红（mutation A/B/C fail=1）。AC-001..AC-005 全部 met；`DSH_APP='/Applications/DeepSeek Harness.app' npm run verify` exit 0（275/275 + 45/45，12/12 smoke），真实 Cordis+ToolRuntime 的 smoke/artifact.mjs 输出「含 Delivery Contract 的 spec 结构通过」「缺 Source 子节时点名 Delivery Contract / Source」。目标消费路径已跑通；仍有 4 条 minor 边界（文档顺序理由、fence 感知、check 渲染未显示 details、>80 字符 `<...>` 占位符），不影响三条修复与五条 AC。",
+    "summary": "结论：approve。独立复跑 build exit 0、artifact.test 32/32、npm test 276/276 + 45/45、12/12 smoke、npm run verify exit 0。目标入口 smoke/artifact.mjs（真实 Cordis + ToolRuntime）输出「重复子节被拒绝，check 文本展示原因」。基线对照证明新测试非恒真：HEAD 的 artifact.ts 上新单测失败「重复 Source 应报 invalid：[]」；旧 render 与旧 duplicate 检查的 smoke 各 42/43，失败在同一断言。五项 PR #23 修复均可复核：docs 3A/3B、五子节含别名重复、check render 的「问题详情」、DC 顺序探针、示例 2 的 AC-003。未覆盖真实模型/UI，按任务范围。仅有 5 条 minor（测试只覆盖 Source、docs:5 摘要未更新、fence/长占位符为上一轮已知边界、顺序错误话术仍有一句不严谨），无 blocking。",
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "`cd packages/sdlc && npm run build` → EXIT=0；`node /tmp/probe-spec.mjs` → `checkArtifact: {\"ok\":true,\"findings\":[]}`、`parseSpecAcceptance` 返回 5 个 AC。\n`nl -ba packages/sdlc/src/artifact/artifact.ts | sed -n '108,158p'` → `Delivery Contract` 在 `Acceptance Criteria` 之前，五个 subsections 固定为 Source/Outcome/Boundary/Oracle/AC mapping。\n`git diff --name-only HEAD` → 7 个文件；`git diff --name-only HEAD -- packages/sdlc/src/task packages/sdlc/src/verify packages/sdlc/src/shared/acceptance.ts packages/sdlc/cordis.patch.yml packages/sdlc/package.json` → 空（无状态机/裁决 Schema 改动）。"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "`cd packages/sdlc && npm test` → 276/276 + 45/45；`node --test lib/artifact/artifact.test.js` → tests 32/pass 32/fail 0。\n`node /tmp/probe-empty.mjs` → 五个空 `###` 全部报 `empty:Delivery Contract / ...`。\n`node /tmp/probe-dup2.mjs` → Source/Outcome/Boundary/Oracle/AC mapping（含中文别名）重复均 `ok=false invalid`。\n`node /tmp/probe-order.mjs` → 完整独立 DC 排在 AC 后：`ok=false invalid` 但 `parseSpecAcceptance` 不抛；把 `###` 直接写进 AC：parse THROW，符合修正后的因果说明。"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "`node /tmp/probe-docs.mjs` → 5 个 fenced block；示例 1/2/3A/3B 全 `ok=true`，AC mapping 引用均无 dangling（模板块不完整，属模板）。\n`nl -ba docs/artifact-delivery-contract.md | sed -n '111,118p;132p;175p;219,224p'` → 示例 2 AC-003 映射、3A/3B 标题、结构/迁移边界与 #22。\n`grep -n 'hidden tests\\|Grader\\|待确认\\|只引用' docs/artifact-delivery-contract.md packages/sdlc/src/artifact/policy.ts packages/sdlc/TASK.md` → 均命中。"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "`cd packages/sdlc && DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify` → EXIT=0；`tests 276/pass 276`、`tests 45/pass 45`、`全部冒烟通过（12 个脚本）`。\n`git diff --name-only HEAD` → 7 个文件；`grep -n 'Delivery Contract' packages/sdlc/smoke/acceptance.mjs` → `20: '## Delivery Contract'`，该 smoke 通过。\n`node /tmp/probe-compat.mjs` → old spec no DC `missing:Delivery Contract`、old skeleton `false`；`grep -n 'Spec 与已登记版本不同' packages/sdlc/src/shared/acceptance.ts` → line 75。"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "`grep -rn 'checkArtifact' packages/sdlc/src/task` → 无匹配；`nl -ba packages/sdlc/src/task/state.ts | sed -n '471,475p'` → `checkAdvance` 只调 `requireAcceptance`。\n`nl -ba docs/artifact-delivery-contract.md | sed -n '41p;222,224p'` → 结构完整≠语义充分 / 不自动重写 / 示例是人工评审、真实模型 #22。\n`grep -n 'checkAdvance\\|结构完整' packages/sdlc/TASK.md packages/sdlc/src/artifact/policy.ts` → 均命中。"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "issue-e391716e-4f4f-44d0-96b3-b493bf917fbd",
+        "result": "resolved",
+        "evidence": "`node /tmp/probe-docs.mjs` → 3A/3B `ok=true`、AC refs dangling=none；`nl -ba docs/artifact-delivery-contract.md | sed -n '132p;175p'` → 两个明确示例。\n`node /tmp/probe-dup2.mjs` → 五个子节含中文别名重复均 `invalid`；`node --test lib/artifact/artifact.test.js` → 32/32。\n`DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run smoke` → `✓ 重复子节被拒绝，check 文本展示原因`；`node /tmp/probe-order.mjs` → DC after AC invalid、parse 不抛，`###` 在 AC 内 THROW。\n`nl -ba docs/artifact-delivery-contract.md | sed -n '111,118p'` → 示例 2 AC mapping 含 AC-003，AC 列表定义 AC-003。"
+      }
+    ],
     "findings": [
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/artifact/artifact.test.ts",
+        "line": 231,
+        "reason": "新增测试名为「五个固定子节各自唯一」，实际只对 Source/来源 做重复断言；Outcome/Boundary/Oracle/AC mapping 没有对应单测。实现是通用循环，探针证明五者都工作，但若单独回归某个子节，现有 32 条测试不会变红。",
+        "evidence": "`nl -ba packages/sdlc/src/artifact/artifact.test.ts | sed -n '231,261p'` → 只有 `### Source`/`### 来源` 替换。\n`node /tmp/probe-dup2.mjs` → Source/Outcome/Boundary/Oracle/AC mapping（含中文别名）全部 `ok=false invalid`。",
+        "suggestion": "用 `REQUIRED_SECTIONS.spec[0].subsections` 循环生成五个重复用例，smoke/artifact.mjs 也做同样循环。"
+      },
       {
         "severity": "minor",
         "category": "spec_mismatch",
         "file": "docs/artifact-delivery-contract.md",
-        "line": 182,
-        "reason": "文档称 Delivery Contract 放在 Acceptance Criteria 之后会让 ### 子标题落进验收章节并被 parseSpecAcceptance 拒绝；对结构完整的 DC-after-AC 探针不成立。顺序检查本身仍正确报 invalid，只是理由写错了。",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `DC after AC => ok=false [invalid] Delivery Contract`、`parse order doc => no throw`；`docs/artifact-delivery-contract.md:182` 与 `artifact.ts:336-340` 的注释给出相反的因果。",
-        "suggestion": "把理由改成「顺序是契约要求；若把 ### 子标题直接写进 AC 章节（没有独立 ## Delivery Contract），AC 解析器才会拒绝」，或删掉 parseSpecAcceptance 的因果断言。"
+        "line": 5,
+        "reason": "文档开头仍说 `sdlc_artifact_check` 只检查五个子节存在/为空/占位符，漏掉本轮新增的唯一性（以及重复 DC/顺序）；同文件 219 行才写各自唯一，摘要与细节不一致。",
+        "evidence": "`nl -ba docs/artifact-delivery-contract.md | sed -n '5p;219p'` → 5 行无“唯一”，219 行有“各自唯一/顺序”。",
+        "suggestion": "在第 5 行补“各自唯一、重复与顺序”，或直接链接到 219 行的完整边界。"
       },
       {
         "severity": "minor",
         "category": "logic_error",
         "file": "packages/sdlc/src/artifact/artifact.ts",
-        "line": 349,
-        "reason": "新的重复 DC 检查直接把 extractSections 的所有 ## 标题计数，未跳过 fenced code block；合法 spec 若在 Requirements/Design 里放一份 DC 模板代码块，会被误报 duplicate/invalid。introduction 的 split 也不跳过 fence，fenced ### 后面的段首占位符会漏报。",
-        "evidence": "`node /tmp/probe_edges.mjs` -> `fenced DC template in Requirements => ok=false [invalid] Delivery Contract`；同脚本 `fenced ### then intro placeholder => ok=true`；`extractSections` 见 artifact.ts:229，intro split 见 417。",
-        "suggestion": "在局部行扫描里维护 fence 状态，跳过代码块内的 ##/### 与 split 边界。"
+        "line": 265,
+        "reason": "`extractSubsections`/`extractSections` 不维护 fence 状态；DC 正文里若引用带 `### Source` 的代码块，会被新唯一性检查误报 duplicate/invalid。上一轮 F2 已登记同类边界，本轮未处理。",
+        "evidence": "`node /tmp/probe-edges.mjs` → `fenced ### Source in DC => ok=false invalid:Delivery Contract / Source`。\n`nl -ba packages/sdlc/src/artifact/artifact.ts | sed -n '265,278p'` → 逐行匹配 `###`，无 fence 分支。",
+        "suggestion": "在局部行扫描中维护 fence 状态，跳过代码块内标题；不引入通用 AST。"
       },
       {
         "severity": "minor",
-        "category": "spec_mismatch",
-        "file": "packages/sdlc/src/artifact/index.ts",
-        "line": 166,
-        "reason": "sdlc_artifact_check 的 render 只列 found/missing/empty/placeholder，不含 details；新顺序/重复检查产生的唯一 invalid findings 只存在于结构化 details（line 195），模型看到的文本是「不通过」加四个空列表。sdlc_artifact_write 的 render 会列出所有 findings，check 这条路径没有。",
-        "evidence": "`sed -n '166,196p' packages/sdlc/src/artifact/index.ts` -> render 文本无 details，`execute` 返回 `details: r.findings.map(...)`；`smoke/artifact.mjs` 的缺 Source 断言读 `value.missing`，未覆盖 invalid 渲染。",
-        "suggestion": "把 details（或 invalid 列表）加进 check 的 render，和 write 的 findings 渲染保持一致。"
+        "category": "logic_error",
+        "file": "packages/sdlc/src/artifact/artifact.ts",
+        "line": 211,
+        "reason": "`PLACEHOLDER_RE` 仍是 `{2,80}`；100 字符的 `<...>` 占位符在 Source 内返回 ok=true，和 docs 219 行“无占位符”不一致。上一轮 F4 已登记，本轮未处理。",
+        "evidence": "`node /tmp/probe-edges.mjs` → `100-char <...> in Source => ok=true`。\n`grep -n 'PLACEHOLDER_RE' packages/sdlc/src/artifact/artifact.ts` → `211: ... {2,80} ...`。",
+        "suggestion": "放宽或去掉长度上限，或在文档写明 80 字符边界。"
       },
       {
         "severity": "minor",
         "category": "spec_mismatch",
         "file": "packages/sdlc/src/artifact/artifact.ts",
-        "line": 211,
-        "reason": "PLACEHOLDER_RE 的 80 字符上限仍可被长 <...> 占位符绕过；新 DC 子节/段首检查对 100 字符 <...> 返回 ok=true，而 docs:180 说检查器验证无占位符。F3 的骨架注释 84 字符已被显式匹配覆盖，但同一长度边界没有一般化。",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `long placeholder 100 chars => ok=true`；`grep -n PLACEHOLDER_RE packages/sdlc/src/artifact/artifact.ts` -> `211: {2,80}`；docs/artifact-delivery-contract.md:180。",
-        "suggestion": "在子节里对 <...> 使用不封顶或更大的长度，或在 docs/TASK 明确写出 80 字符边界。"
-      }
-    ],
-    "criteria_results": [
-      {
-        "criterion_id": "AC-001",
-        "result": "met",
-        "evidence": "`node -e ...` -> `spec sections: Delivery Contract / Acceptance Criteria / Requirements / Design / Areas of concern`；`DC subsections: Source / Outcome / Boundary / Oracle / AC mapping`；`grep -n '^## Delivery Contract$\\|^## Acceptance Criteria$' /Users/work/company/mine/AI Native SDLC/.ai/tasks/AC-VALIDITY-1A/spec.md` -> `3:## Delivery Contract`, `36:## Acceptance Criteria`；`git diff HEAD --name-only -- packages/sdlc/src/task packages/sdlc/src/shared packages/sdlc/src/verify packages/sdlc/cordis.patch.yml packages/sdlc/package.json packages/sdlc/src/ui | wc -l` -> 0。"
-      },
-      {
-        "criterion_id": "AC-002",
-        "result": "met",
-        "evidence": "`cd packages/sdlc && node --test lib/artifact/artifact.test.js` -> `tests 31 / pass 31 / fail 0`；`node /tmp/probe_fixes.mjs` -> baseline ok=true、缺 DC missing、5 个空子节 empty、占位符 placeholder、F1/F2/F3 全部被报出；`bash /tmp/mutate_run.sh` -> A-E 各 `fail=1`；`npm test` -> 275/275 + 45/45。"
-      },
-      {
-        "criterion_id": "AC-003",
-        "result": "met",
-        "evidence": "`node /tmp/probe_docs.mjs` -> `example 1/2/3 ok=true`、各例 unknown AC IDs 均为 none；`grep -n '^## 示例' docs/artifact-delivery-contract.md` -> 45/88/131；`grep -n '待确认\\|hidden tests\\|只引用 Acceptance Criteria' packages/sdlc/src/artifact/policy.ts docs/artifact-delivery-contract.md packages/sdlc/TASK.md` -> policy 23/29/27、docs 16/39/38、TASK 81/101/34。"
-      },
-      {
-        "criterion_id": "AC-004",
-        "result": "met",
-        "evidence": "`DSH_APP='/Applications/DeepSeek Harness.app' npm run verify` -> `EXIT=0`、`tests 275/pass 275`、`tests 45/pass 45`、`全部冒烟通过（12 个脚本）`；`git status --short` -> 6 个修改文件 + 新增 `docs/artifact-delivery-contract.md` 与 `src/artifact/policy.ts`；`node /tmp/probe_old_skeleton.mjs` -> `old skeleton matches? false`；docs:183-184、TASK.md:102 已记录迁移与重新登记。"
-      },
-      {
-        "criterion_id": "AC-005",
-        "result": "met",
-        "evidence": "`grep -rn 'checkArtifact' packages/sdlc/src/task | wc -l` -> 0；`grep -n '结构完整 ≠ 语义充分\\|旧任务不会被自动重写\\|#22' docs/artifact-delivery-contract.md` -> 41/183/185；`grep -n 'checkAdvance' packages/sdlc/src/artifact/policy.ts` -> 10/37；docs:5 与 TASK.md:100 均写明不是状态推进硬门禁，docs:185 把真实模型行为交给 #22。"
-      }
-    ],
-    "issue_results": [
-      {
-        "issue_id": "7afb4121-4df6-48bc-8f02-a0667f52fefb:F1",
-        "result": "resolved",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `F1 intro placeholder => ok=false [placeholder] Delivery Contract`、`F1b intro skeleton => ok=false`；`bash /tmp/mutate_run.sh` -> `[A disable intro check] fail=1 pass=0`；新单测「Delivery Contract 段首的占位符/骨架注释也要检查」通过（31/31）。"
-      },
-      {
-        "issue_id": "7afb4121-4df6-48bc-8f02-a0667f52fefb:F2",
-        "result": "resolved",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `F2 duplicate DC => ok=false [invalid] Delivery Contract`、`F2b duplicate alias DC => ok=false`；`bash /tmp/mutate_run.sh` -> `[B disable duplicate DC] fail=1 pass=0`；新单测「重复 Delivery Contract 被拒绝」通过。"
-      },
-      {
-        "issue_id": "7afb4121-4df6-48bc-8f02-a0667f52fefb:F3",
-        "result": "resolved",
-        "evidence": "`node /tmp/probe_fixes.mjs` -> `F3 skeleton AC mapping (len 84) => hit=true ok=false`（五个子节逐一命中）；`bash /tmp/mutate_run.sh` -> `[C disable skeletonComment] fail=1 pass=0`；新单测「长骨架注释不能绕过占位符检查」通过。"
+        "line": 381,
+        "reason": "顺序错误的 detail 仍写“AC mapping 是 AC 清单的来源”，与 spec 的 `## Acceptance Criteria` 唯一权威清单、AC mapping 只引用 AC ID 的规则相反；review ④ 的 parseSpecAcceptance 因果已修正，但同一句的理由仍可能误导。",
+        "evidence": "`nl -ba packages/sdlc/src/artifact/artifact.ts | sed -n '381,384p'` → “AC mapping 是 AC 清单的来源”。\n`sed -n '51p' .ai/tasks/AC-VALIDITY-1A/spec.md` → `AC mapping` 只引用 `Acceptance Criteria` 的 AC ID；`nl -ba docs/artifact-delivery-contract.md | sed -n '38p'` → 唯一权威 AC 清单。",
+        "suggestion": "改成“DC 在 AC 前保证 AC ID 先定义/引用稳定；只有把 ### 直接写进 AC 才会被 parseSpecAcceptance 拒绝”。"
       }
     ],
     "unverified": []
@@ -225,8 +223,8 @@
     "roots": [
       ".agents/worktrees/dsh-fb0f0629-439a"
     ],
-    "fingerprint": "22e32bf8a4f101acaca3a788f41f5f3043426338af6456417d12de725be53bed",
-    "code_fingerprint": "74e5f369b54bdd419fff61c9dd4b5f962043785bd89fcdef3a8c45289efec8e9",
+    "fingerprint": "b02da3bff41912d0a769a44fe49a411b08c9094ec6e9a845ff10fd0f68c57b45",
+    "code_fingerprint": "81504fdc962285b98245fa519d5369f300220bf0b99444b66f5ff1eb8fce518a",
     "files": 252,
     "artifacts": {
       "intent": {
