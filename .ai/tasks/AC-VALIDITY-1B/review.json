@@ -1,0 +1,20 @@
+{
+  "status": "approve",
+  "summary": "按 PR #25 复核意见修复两项语义冲突：在既有交付路径规则中统一 out-of-scope 官方测试失败的裁决（已承诺真实入口/必要依赖失败不得 approve；仅明确排除且与承诺路径无关的独立功能记录风险但不单独阻断；依赖不确定 needs_human），新小节同步；离线场景 3 增加「CLI 是唯一真实路径→场景 2」对照；场景 6 改为真正的范围/验收歧义并对照 #20 3A/3B；新增组合 prompt 回归。独立复验 8e6c63ee approve，AC-001..AC-006 全 met。",
+  "verification_run": "8e6c63ee-f90a-4929-a8a9-a8e3881710e4",
+  "criteria": "AC-001..AC-006 met（独立复验 approve；回退新增统一规则时定向测试 16/18，2 fail）",
+  "deferred": [
+    {
+      "id": "8e6c63ee-f90a-4929-a8a9-a8e3881710e4:F1",
+      "reason": "旧测试标题措辞「失败不得 approve」与新统一规则不一致；测试体未断言该绝对规则，行为由新组合测试覆盖。后续测试命名清理。"
+    },
+    {
+      "id": "b8941160-2534-41d3-a85b-3d7793edca18:F1",
+      "reason": "残余 M20/M21/M22 测试打磨（needs_human+unverified 映射、finding 详情、intent_of_change 顺序）。AC-006 已 met；后续按需补更细测试。"
+    }
+  ],
+  "limitations": [
+    "真实模型对新增 prompt 的遵循度未取得：付费 spot check 预算未批准；本轮只做离线 fixture、Prompt 回归和人工 Review，不宣称行为已验证；独立 A/B 与统计结论留 #22。",
+    "未验证 UI；未修改状态机/AC 解析/裁决 Schema/checkAdvance。"
+  ]
+}

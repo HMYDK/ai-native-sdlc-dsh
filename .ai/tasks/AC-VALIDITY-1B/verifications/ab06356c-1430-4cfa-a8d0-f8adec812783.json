@@ -1,0 +1,239 @@
+{
+  "schema_version": 3,
+  "task": "AC-VALIDITY-1B",
+  "at": "2026-11-14T18:12:29.674Z",
+  "intent_of_change": "按上一轮独立验证的 3 条 finding 修复 #21 的 prompt：旧任务回退推导不影响结论时只写 summary、不写 unverified、不阻断 approve；issue 生命周期与 issue_results 枚举分离（issue_results 只能 resolved/unresolved/cannot_tell）；离线场景 2 改成自洽的 AC 全 met、真实 CLI 失败。补独立回归测试。",
+  "test_evidence": "在 .agents/worktrees/dsh-fb0f0629-439a/packages/sdlc 执行：\n1) npm run build → exit 0。\n2) node --test lib/verify/verdict.test.js → tests 17, pass 17, fail 0（新增「旧任务回退不自动阻断 approve；只有实质影响时才 needs_human」，并更新幂等/issue_results 枚举断言）。\n3) npm test → lib/host tests 284/pass 284/fail 0；client 45/pass 45/fail 0。\n4) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run smoke → 12/12 脚本通过。\n5) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify → exit 0。\n6) 自检：新 lib 的 checkArtifact('spec', 任务 spec.md) → {ok:true, findings:[]}。\n离线场景 2 已改为：AC mapping 明确 O-1 无 AC、O-2 → AC-001、AC-002 回归；AC-001/AC-002 可满足而真实 CLI 抛 AttributeError；预期 reject。",
+  "criteria": [
+    "AC-001: `buildVerificationPrompt()` 优先读取已登记 Spec 的 `## Delivery Contract` 五子节，提取 1–3 个关键 Outcome；缺少契约的旧任务回退 Intent/Spec 散文并明确标注“推导/不确定”；`## Acceptance Criteria` 仍是唯一权威清单，`AC mapping` 只用于充分性反查，不能缩减必验 AC。",
+    "AC-002: Prompt 区分查找顺序与事实权威：可核对的原始需求/Issue 原文 > Actor 撰写的 Delivery Contract > `intent_of_change`；Source 字段只是引用、不是已验证事实，Source 与 Outcome/Boundary 冲突时指出矛盾，不采纳自洽改写；hidden tests / 官方 Grader 不进入 Outcome 列表，除非 Source 明确引用。",
+    "AC-003: Prompt 要求每个关键 Outcome 反查支撑 AC，并给出“这些 AC 全部 `met`、该 Outcome 仍失败”的最小具体反例；反例必须落在已确认 Boundary 内且可实现；说不出来就不报缺口；关键真实入口无法执行或决定性交付证据缺失时写进 `unverified`，影响交付结论时用 `needs_human`，不得默认 `approve`。",
+    "AC-004: Prompt 明确状态矩阵：已证实真实消费入口/已确认 Outcome 失败且属本次承诺 → `reject`（命令/输出/来源/影响）；已证实 AC 不足但未证实际交付失败 → `needs_human`（顶层，不得用 `approve` + blocking finding 代替）；Source/Boundary 实质歧义或关键证据无法确认 → `needs_human` + `unverified`（仅在影响交付结论时阻断）；无关既有失败留证不阻断；已确认范围外的独立功能不能因 hidden tests 失败而扩需求。",
+    "AC-005: Prompt 复用现有 issue / `issue_results` 做幂等复验：前轮同一问题没有新证据时不得重复创建 finding 或无意义返工，但也不得因“此前提过”自动放行；必须确认 resolved / clarified / deferred / unresolved；AC 缺口建议经 `sdlc_task_issue` 退回 SPEC、补 AC/证据后复验；不修改状态机、AC 解析或 Verdict Schema。",
+    "AC-006: 定向单测覆盖上述 prompt 规则；`docs/evals/ac-validity-1b-counterexamples.md` 至少 5 个离线反例（正向交付、明确遗漏、明确局部范围、关键证据缺失、无关历史失败）及预期 verdict；`npm run verify` 通过；由于付费预算未批准，AC-002/003 的真实模型行为证据未取得，任务不得宣称已行为验证；独立 A/B 留 #22。"
+  ],
+  "acceptance": {
+    "version": 1,
+    "id": "38c1ce9b-333c-46d8-9e19-4cb9e83eccd7",
+    "spec_path": "spec.md",
+    "spec_sha256": "8c975f265f781568d8017afc18ace7b94d7e4205a9e77566fc519de2dc6b87f6",
+    "criteria": [
+      {
+        "id": "AC-001",
+        "text": "`buildVerificationPrompt()` 优先读取已登记 Spec 的 `## Delivery Contract` 五子节，提取 1–3 个关键 Outcome；缺少契约的旧任务回退 Intent/Spec 散文并明确标注“推导/不确定”；`## Acceptance Criteria` 仍是唯一权威清单，`AC mapping` 只用于充分性反查，不能缩减必验 AC。"
+      },
+      {
+        "id": "AC-002",
+        "text": "Prompt 区分查找顺序与事实权威：可核对的原始需求/Issue 原文 > Actor 撰写的 Delivery Contract > `intent_of_change`；Source 字段只是引用、不是已验证事实，Source 与 Outcome/Boundary 冲突时指出矛盾，不采纳自洽改写；hidden tests / 官方 Grader 不进入 Outcome 列表，除非 Source 明确引用。"
+      },
+      {
+        "id": "AC-003",
+        "text": "Prompt 要求每个关键 Outcome 反查支撑 AC，并给出“这些 AC 全部 `met`、该 Outcome 仍失败”的最小具体反例；反例必须落在已确认 Boundary 内且可实现；说不出来就不报缺口；关键真实入口无法执行或决定性交付证据缺失时写进 `unverified`，影响交付结论时用 `needs_human`，不得默认 `approve`。"
+      },
+      {
+        "id": "AC-004",
+        "text": "Prompt 明确状态矩阵：已证实真实消费入口/已确认 Outcome 失败且属本次承诺 → `reject`（命令/输出/来源/影响）；已证实 AC 不足但未证实际交付失败 → `needs_human`（顶层，不得用 `approve` + blocking finding 代替）；Source/Boundary 实质歧义或关键证据无法确认 → `needs_human` + `unverified`（仅在影响交付结论时阻断）；无关既有失败留证不阻断；已确认范围外的独立功能不能因 hidden tests 失败而扩需求。"
+      },
+      {
+        "id": "AC-005",
+        "text": "Prompt 复用现有 issue / `issue_results` 做幂等复验：前轮同一问题没有新证据时不得重复创建 finding 或无意义返工，但也不得因“此前提过”自动放行；必须确认 resolved / clarified / deferred / unresolved；AC 缺口建议经 `sdlc_task_issue` 退回 SPEC、补 AC/证据后复验；不修改状态机、AC 解析或 Verdict Schema。"
+      },
+      {
+        "id": "AC-006",
+        "text": "定向单测覆盖上述 prompt 规则；`docs/evals/ac-validity-1b-counterexamples.md` 至少 5 个离线反例（正向交付、明确遗漏、明确局部范围、关键证据缺失、无关历史失败）及预期 verdict；`npm run verify` 通过；由于付费预算未批准，AC-002/003 的真实模型行为证据未取得，任务不得宣称已行为验证；独立 A/B 留 #22。"
+      }
+    ],
+    "registered_at": "2026-11-14T17:47:30.196Z",
+    "registered_by": "session-fb0f0629-2caf-4228-a678-b5b65b57c27a"
+  },
+  "additional_criteria": [],
+  "verdict": {
+    "status": "reject",
+    "summary": "F1/F2/F3/C4 的 prompt/doc 修复本身成立：verdict.ts:618 已改为推导清晰且不影响结论时只写 summary、不写 unverified、不阻断 approve；verdict.ts:627 把 issue 生命周期与 issue_results 枚举分开；docs 场景 2 已改成 O-1 无 AC、O-2→AC-001、AC-002 回归且真实 CLI 抛 AttributeError，预期 reject。`npm run verify` exit 0（284+45 单测，12/12 smoke），verdict.test 17 pass；任务 spec 的 Delivery Contract/AC 结构检查 ok。但 AC-006 未满足：新增定向单测没有断言 AC-001 的「提取 1–3 个关键 Outcome」、AC-003 的「每个 Outcome 列出支撑 AC」、AC-001 的「AC mapping 只用于反查充分性」、AC-003 的「关键真实入口无法执行→unverified / 影响结论→needs_human」、AC-004 的「reject evidence 命令+输出+来源+影响」；这些规则只存在于 prompt，测试删除它们仍会全绿。新增的 F1 回归测试与前一测试的 4 条断言逐字重复，不是独立回归，也未断言旧矛盾句的缺席。真实模型行为未运行（预算未批，AC-006 声明不宣称行为验证）。",
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 90,
+        "reason": "AC-006 要求定向单测覆盖上述 prompt 规则，但新增测试只覆盖了一部分：测试中找不到「提取 1–3 个关键 Outcome」「支撑它的 AC」「AC mapping 只用于反查」「关键真实入口无法执行」「把原因写进 unverified」「命令 + 关键输出」等断言，而这些规则都写在 verdict.ts:619-623 的新小节里。prompt 规则被删除或改写时，测试仍会 17/17 全绿，无法证明 AC-001/AC-003/AC-004 的完整规则。",
+        "evidence": "cd packages/sdlc && grep -nE \"1–3|支撑它的 AC|AC mapping 只用于|关键真实入口无法执行|把原因写进|命令 \\+ 关键输出\" src/verify/verdict.test.ts  → no matches (exit 1)\n同一组模式在 src/verify/verdict.ts 命中 619-623 行\nnode --test lib/verify/verdict.test.js → tests 17 / pass 17 / fail 0（测试通过但覆盖不全）",
+        "suggestion": "为 AC-001 补断言「提取 1–3 个关键 Outcome」和「AC mapping 只用于反查充分性」；为 AC-003 补「对每个 Outcome 列出支撑 AC ID」「不能执行→写在 unverified」「影响结论→needs_human」；为 AC-004 补 reject evidence 的命令/关键输出/来源/影响断言。"
+      },
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 106,
+        "reason": "作者声称新增了独立的 F1 回归测试，但该测试的 4 条断言与前一测试（line 98-101）逐字相同，没有提供独立覆盖；它也没有断言旧矛盾句（「在 unverified 里写明目标来自推导、来源不确定」）的缺席，因此若旧句与新句同时存在，测试仍会通过，F1 的组合回归风险未被测试锁住。",
+        "evidence": "cd packages/sdlc && sed -n '98,101p;108,111p' src/verify/verdict.test.ts  → 两段输出逐行相同\n grep -n '在 `unverified` 里写明' src/verify/verdict.test.ts  → no match；测试只用了 assert.match，没有旧句的 assert.doesNotMatch",
+        "suggestion": "把该测试改成真正的组合回归：断言新回退句存在且旧句不存在，或断言回退句与输出规则（直接相关 unverified 不得 approve）的组合；否则删除重复断言，避免把重复测试说成独立回归。"
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '611,619p' src/verify/verdict.ts → 新小节含五个 `###` 子节、`提取 1–3 个关键 Outcome`、旧任务散文回退与 `唯一权威 AC 清单`/`不能缩减必验 AC`\nnode --test lib/verify/verdict.test.js → tests 17 / pass 17 / fail 0"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '616,619p' src/verify/verdict.ts → 查找顺序、事实权威链、`Source 只是引用，不是已验证事实`、不采纳自洽改写、hidden tests/官方 Grader 边界\nnode --test lib/verify/verdict.test.js → 17 pass；测试「区分查找顺序与事实权威」通过"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '620,621p' src/verify/verdict.ts → 每个 Outcome 支撑 AC、`全部 met、该 Outcome 仍失败` 的最小反例、Boundary 内/可实现、说不出来不报、决定性证据缺失→unverified/needs_human\nnode --test lib/verify/verdict.test.js → 17 pass"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '618p;622,626p' src/verify/verdict.ts → 旧任务回退不自动阻断 + reject/needs_human/无关失败/hidden tests 状态矩阵\nsed -n '196,197p' src/verify/verdict.ts → approve + blocking finding 被改成 reject；npm run verify exit 0（284+45，12/12 smoke）"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '627p' src/verify/verdict.ts → 幂等/不复报不放行、issue 生命周期与 issue_results 分离、`resolved/unresolved/cannot_tell`、sdlc_task_issue 退回 SPEC\nsed -n '112p;261p' src/verify/verdict.ts 与 sed -n '7p' src/task/flow.ts → issue_results 三值、IssueStatus 五状态；git diff --name-only HEAD 只有 verdict.ts/test + 新 docs"
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "not_met",
+        "evidence": "cd packages/sdlc && grep -nE \"1–3|支撑它的 AC|AC mapping 只用于|关键真实入口无法执行|把原因写进|命令 \\+ 关键输出\" src/verify/verdict.test.ts → no matches (exit 1)；同组模式在 verdict.ts 命中 619-623\nnode --test lib/verify/verdict.test.js → 17 pass；npm run verify → exit 0（284/45，12/12 smoke）；docs/evals 有 6 个场景、旧矛盾句已消失（grep 命令存在且不抛异常 → 0）\n但 AC-006 的「定向单测覆盖上述 prompt 规则」不成立：上述关键规则没有被测试断言；另见 blocking/minor 两条 finding"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:F1",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '618p' src/verify/verdict.ts → 「如果推导清晰且不影响交付结论...不要写进 `unverified`，也不要因此阻断 `approve`」\ngrep -rn '在 `unverified` 里写明' packages/sdlc/src → no match；node --test lib/verify/verdict.test.js → 17 pass。补充的 F1 测试是重复覆盖（见 minor finding），但 prompt 缺陷本身已修复。"
+      },
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:F2",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '627p' src/verify/verdict.ts → 「issue_results.result 只能填 resolved / unresolved / cannot_tell；不要把 clarified / deferred 写进 issue_results」\nsed -n '112p;261p' src/verify/verdict.ts → result enum 只有 resolved/unresolved/cannot_tell；sed -n '7p' src/task/flow.ts → IssueStatus 为 open/working/submitted/resolved/deferred；测试 148-158 断言该区分并通过"
+      },
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:F3",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '85,98p' ../docs/evals/ac-validity-1b-counterexamples.md → O-1 没有 AC、O-2→AC-001、AC-002 回归；AC-001/AC-002 可满足而 mycli run 抛 AttributeError；预期 reject\ngrep -c '^## 场景' ../docs/evals/ac-validity-1b-counterexamples.md → 6；grep -c '命令存在且不抛异常' → 0"
+      },
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:C4",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '618p;622,626p' src/verify/verdict.ts → 旧任务回退不自动阻断，且 reject（命令/输出/来源/影响）、顶层 needs_human、Source/Boundary 歧义、无关失败、hidden tests 不扩需求均在\nnode --test lib/verify/verdict.test.js → 17 pass；sed -n '196,197p' src/verify/verdict.ts → approve + blocking finding 被改成 reject，prompt 的机械语义与代码一致"
+      }
+    ],
+    "unverified": [
+      "真实模型对新增 prompt 的遵循度未取得：付费预算未批，AC-006 只要求离线证据且不得宣称行为验证；独立 A/B 留 #22。该限制不影响本轮对 prompt 文本与测试的判定。"
+    ],
+    "verifier_session": "aa070eb0-f4c3-4f68-a40a-1e3c1b61140a",
+    "raw_status": "reject",
+    "verification_complete": true,
+    "verification_run_id": "ab06356c-1430-4cfa-a8d0-f8adec812783"
+  },
+  "raw_verdict": {
+    "status": "reject",
+    "summary": "F1/F2/F3/C4 的 prompt/doc 修复本身成立：verdict.ts:618 已改为推导清晰且不影响结论时只写 summary、不写 unverified、不阻断 approve；verdict.ts:627 把 issue 生命周期与 issue_results 枚举分开；docs 场景 2 已改成 O-1 无 AC、O-2→AC-001、AC-002 回归且真实 CLI 抛 AttributeError，预期 reject。`npm run verify` exit 0（284+45 单测，12/12 smoke），verdict.test 17 pass；任务 spec 的 Delivery Contract/AC 结构检查 ok。但 AC-006 未满足：新增定向单测没有断言 AC-001 的「提取 1–3 个关键 Outcome」、AC-003 的「每个 Outcome 列出支撑 AC」、AC-001 的「AC mapping 只用于反查充分性」、AC-003 的「关键真实入口无法执行→unverified / 影响结论→needs_human」、AC-004 的「reject evidence 命令+输出+来源+影响」；这些规则只存在于 prompt，测试删除它们仍会全绿。新增的 F1 回归测试与前一测试的 4 条断言逐字重复，不是独立回归，也未断言旧矛盾句的缺席。真实模型行为未运行（预算未批，AC-006 声明不宣称行为验证）。",
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 90,
+        "reason": "AC-006 要求定向单测覆盖上述 prompt 规则，但新增测试只覆盖了一部分：测试中找不到「提取 1–3 个关键 Outcome」「支撑它的 AC」「AC mapping 只用于反查」「关键真实入口无法执行」「把原因写进 unverified」「命令 + 关键输出」等断言，而这些规则都写在 verdict.ts:619-623 的新小节里。prompt 规则被删除或改写时，测试仍会 17/17 全绿，无法证明 AC-001/AC-003/AC-004 的完整规则。",
+        "evidence": "cd packages/sdlc && grep -nE \"1–3|支撑它的 AC|AC mapping 只用于|关键真实入口无法执行|把原因写进|命令 \\+ 关键输出\" src/verify/verdict.test.ts  → no matches (exit 1)\n同一组模式在 src/verify/verdict.ts 命中 619-623 行\nnode --test lib/verify/verdict.test.js → tests 17 / pass 17 / fail 0（测试通过但覆盖不全）",
+        "suggestion": "为 AC-001 补断言「提取 1–3 个关键 Outcome」和「AC mapping 只用于反查充分性」；为 AC-003 补「对每个 Outcome 列出支撑 AC ID」「不能执行→写在 unverified」「影响结论→needs_human」；为 AC-004 补 reject evidence 的命令/关键输出/来源/影响断言。"
+      },
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 106,
+        "reason": "作者声称新增了独立的 F1 回归测试，但该测试的 4 条断言与前一测试（line 98-101）逐字相同，没有提供独立覆盖；它也没有断言旧矛盾句（「在 unverified 里写明目标来自推导、来源不确定」）的缺席，因此若旧句与新句同时存在，测试仍会通过，F1 的组合回归风险未被测试锁住。",
+        "evidence": "cd packages/sdlc && sed -n '98,101p;108,111p' src/verify/verdict.test.ts  → 两段输出逐行相同\n grep -n '在 `unverified` 里写明' src/verify/verdict.test.ts  → no match；测试只用了 assert.match，没有旧句的 assert.doesNotMatch",
+        "suggestion": "把该测试改成真正的组合回归：断言新回退句存在且旧句不存在，或断言回退句与输出规则（直接相关 unverified 不得 approve）的组合；否则删除重复断言，避免把重复测试说成独立回归。"
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '611,619p' src/verify/verdict.ts → 新小节含五个 `###` 子节、`提取 1–3 个关键 Outcome`、旧任务散文回退与 `唯一权威 AC 清单`/`不能缩减必验 AC`\nnode --test lib/verify/verdict.test.js → tests 17 / pass 17 / fail 0"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '616,619p' src/verify/verdict.ts → 查找顺序、事实权威链、`Source 只是引用，不是已验证事实`、不采纳自洽改写、hidden tests/官方 Grader 边界\nnode --test lib/verify/verdict.test.js → 17 pass；测试「区分查找顺序与事实权威」通过"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '620,621p' src/verify/verdict.ts → 每个 Outcome 支撑 AC、`全部 met、该 Outcome 仍失败` 的最小反例、Boundary 内/可实现、说不出来不报、决定性证据缺失→unverified/needs_human\nnode --test lib/verify/verdict.test.js → 17 pass"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '618p;622,626p' src/verify/verdict.ts → 旧任务回退不自动阻断 + reject/needs_human/无关失败/hidden tests 状态矩阵\nsed -n '196,197p' src/verify/verdict.ts → approve + blocking finding 被改成 reject；npm run verify exit 0（284+45，12/12 smoke）"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "cd packages/sdlc && sed -n '627p' src/verify/verdict.ts → 幂等/不复报不放行、issue 生命周期与 issue_results 分离、`resolved/unresolved/cannot_tell`、sdlc_task_issue 退回 SPEC\nsed -n '112p;261p' src/verify/verdict.ts 与 sed -n '7p' src/task/flow.ts → issue_results 三值、IssueStatus 五状态；git diff --name-only HEAD 只有 verdict.ts/test + 新 docs"
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "not_met",
+        "evidence": "cd packages/sdlc && grep -nE \"1–3|支撑它的 AC|AC mapping 只用于|关键真实入口无法执行|把原因写进|命令 \\+ 关键输出\" src/verify/verdict.test.ts → no matches (exit 1)；同组模式在 verdict.ts 命中 619-623\nnode --test lib/verify/verdict.test.js → 17 pass；npm run verify → exit 0（284/45，12/12 smoke）；docs/evals 有 6 个场景、旧矛盾句已消失（grep 命令存在且不抛异常 → 0）\n但 AC-006 的「定向单测覆盖上述 prompt 规则」不成立：上述关键规则没有被测试断言；另见 blocking/minor 两条 finding"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:F1",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '618p' src/verify/verdict.ts → 「如果推导清晰且不影响交付结论...不要写进 `unverified`，也不要因此阻断 `approve`」\ngrep -rn '在 `unverified` 里写明' packages/sdlc/src → no match；node --test lib/verify/verdict.test.js → 17 pass。补充的 F1 测试是重复覆盖（见 minor finding），但 prompt 缺陷本身已修复。"
+      },
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:F2",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '627p' src/verify/verdict.ts → 「issue_results.result 只能填 resolved / unresolved / cannot_tell；不要把 clarified / deferred 写进 issue_results」\nsed -n '112p;261p' src/verify/verdict.ts → result enum 只有 resolved/unresolved/cannot_tell；sed -n '7p' src/task/flow.ts → IssueStatus 为 open/working/submitted/resolved/deferred；测试 148-158 断言该区分并通过"
+      },
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:F3",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '85,98p' ../docs/evals/ac-validity-1b-counterexamples.md → O-1 没有 AC、O-2→AC-001、AC-002 回归；AC-001/AC-002 可满足而 mycli run 抛 AttributeError；预期 reject\ngrep -c '^## 场景' ../docs/evals/ac-validity-1b-counterexamples.md → 6；grep -c '命令存在且不抛异常' → 0"
+      },
+      {
+        "issue_id": "a0b2d619-c029-485b-9d4d-9fc322ff4311:C4",
+        "result": "resolved",
+        "evidence": "cd packages/sdlc && sed -n '618p;622,626p' src/verify/verdict.ts → 旧任务回退不自动阻断，且 reject（命令/输出/来源/影响）、顶层 needs_human、Source/Boundary 歧义、无关失败、hidden tests 不扩需求均在\nnode --test lib/verify/verdict.test.js → 17 pass；sed -n '196,197p' src/verify/verdict.ts → approve + blocking finding 被改成 reject，prompt 的机械语义与代码一致"
+      }
+    ],
+    "unverified": [
+      "真实模型对新增 prompt 的遵循度未取得：付费预算未批，AC-006 只要求离线证据且不得宣称行为验证；独立 A/B 留 #22。该限制不影响本轮对 prompt 文本与测试的判定。"
+    ]
+  },
+  "binding": {
+    "version": 1,
+    "roots": [
+      ".agents/worktrees/dsh-fb0f0629-439a"
+    ],
+    "fingerprint": "4fa960475632720fcad8d57e03ff690cbdb505248f09b83ec2070fc7dc5c3642",
+    "code_fingerprint": "6e9af6e80928ab43498126c0aea85582b24a225ce59524dabe8fa9a8886939d7",
+    "files": 253,
+    "artifacts": {
+      "intent": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/intent.md",
+        "sha256": "8de01b0da149fbd1a8b8e0b7fd8a7b921bf54f1297d3af5b4e3346c447037bd2"
+      },
+      "spec": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/spec.md",
+        "sha256": "8c975f265f781568d8017afc18ace7b94d7e4205a9e77566fc519de2dc6b87f6"
+      },
+      "plan": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/plan.md",
+        "sha256": "62a1aea4c404fe5dcb6bad00986f649285efc4467f429732b267c7c030fd2fbe"
+      }
+    }
+  }
+}

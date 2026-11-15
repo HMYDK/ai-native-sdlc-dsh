@@ -1,0 +1,229 @@
+{
+  "schema_version": 3,
+  "task": "AC-VALIDITY-1B",
+  "at": "2026-11-14T18:25:44.070Z",
+  "intent_of_change": "按上一轮独立验证的 AC-006 覆盖缺口修复：定向测试补齐提取 1–3 个 Outcome、支撑 AC、AC mapping 只用于反查、关键真实入口无法执行、把原因写进 unverified、命令 + 关键输出、Source 位置等断言；F1 测试去重并加旧矛盾句 doesNotMatch 与输出规则组合断言。prompt 和离线文档不变。",
+  "test_evidence": "在 .agents/worktrees/dsh-fb0f0629-439a/packages/sdlc 执行：\n1) npm run build → exit 0。\n2) node --test lib/verify/verdict.test.js → tests 17, pass 17, fail 0。\n3) npm test → lib/host tests 284/pass 284/fail 0；client 45/pass 45/fail 0。\n4) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run smoke → 12/12 脚本通过。\n5) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify → exit 0。\n6) 覆盖检查：grep -nE \"1–3|支撑它的 AC|AC mapping.*只用于|关键真实入口无法执行|把原因写进|命令 \\+ 关键输出|Source 位置\" src/verify/verdict.test.ts 命中；F1 测试含 assert.doesNotMatch 旧句 + 输出规则组合断言。\n未运行真实模型付费 spot check（预算未批准）。",
+  "criteria": [
+    "AC-001: `buildVerificationPrompt()` 优先读取已登记 Spec 的 `## Delivery Contract` 五子节，提取 1–3 个关键 Outcome；缺少契约的旧任务回退 Intent/Spec 散文并明确标注“推导/不确定”；`## Acceptance Criteria` 仍是唯一权威清单，`AC mapping` 只用于充分性反查，不能缩减必验 AC。",
+    "AC-002: Prompt 区分查找顺序与事实权威：可核对的原始需求/Issue 原文 > Actor 撰写的 Delivery Contract > `intent_of_change`；Source 字段只是引用、不是已验证事实，Source 与 Outcome/Boundary 冲突时指出矛盾，不采纳自洽改写；hidden tests / 官方 Grader 不进入 Outcome 列表，除非 Source 明确引用。",
+    "AC-003: Prompt 要求每个关键 Outcome 反查支撑 AC，并给出“这些 AC 全部 `met`、该 Outcome 仍失败”的最小具体反例；反例必须落在已确认 Boundary 内且可实现；说不出来就不报缺口；关键真实入口无法执行或决定性交付证据缺失时写进 `unverified`，影响交付结论时用 `needs_human`，不得默认 `approve`。",
+    "AC-004: Prompt 明确状态矩阵：已证实真实消费入口/已确认 Outcome 失败且属本次承诺 → `reject`（命令/输出/来源/影响）；已证实 AC 不足但未证实际交付失败 → `needs_human`（顶层，不得用 `approve` + blocking finding 代替）；Source/Boundary 实质歧义或关键证据无法确认 → `needs_human` + `unverified`（仅在影响交付结论时阻断）；无关既有失败留证不阻断；已确认范围外的独立功能不能因 hidden tests 失败而扩需求。",
+    "AC-005: Prompt 复用现有 issue / `issue_results` 做幂等复验：前轮同一问题没有新证据时不得重复创建 finding 或无意义返工，但也不得因“此前提过”自动放行；必须确认 resolved / clarified / deferred / unresolved；AC 缺口建议经 `sdlc_task_issue` 退回 SPEC、补 AC/证据后复验；不修改状态机、AC 解析或 Verdict Schema。",
+    "AC-006: 定向单测覆盖上述 prompt 规则；`docs/evals/ac-validity-1b-counterexamples.md` 至少 5 个离线反例（正向交付、明确遗漏、明确局部范围、关键证据缺失、无关历史失败）及预期 verdict；`npm run verify` 通过；由于付费预算未批准，AC-002/003 的真实模型行为证据未取得，任务不得宣称已行为验证；独立 A/B 留 #22。"
+  ],
+  "acceptance": {
+    "version": 1,
+    "id": "38c1ce9b-333c-46d8-9e19-4cb9e83eccd7",
+    "spec_path": "spec.md",
+    "spec_sha256": "8c975f265f781568d8017afc18ace7b94d7e4205a9e77566fc519de2dc6b87f6",
+    "criteria": [
+      {
+        "id": "AC-001",
+        "text": "`buildVerificationPrompt()` 优先读取已登记 Spec 的 `## Delivery Contract` 五子节，提取 1–3 个关键 Outcome；缺少契约的旧任务回退 Intent/Spec 散文并明确标注“推导/不确定”；`## Acceptance Criteria` 仍是唯一权威清单，`AC mapping` 只用于充分性反查，不能缩减必验 AC。"
+      },
+      {
+        "id": "AC-002",
+        "text": "Prompt 区分查找顺序与事实权威：可核对的原始需求/Issue 原文 > Actor 撰写的 Delivery Contract > `intent_of_change`；Source 字段只是引用、不是已验证事实，Source 与 Outcome/Boundary 冲突时指出矛盾，不采纳自洽改写；hidden tests / 官方 Grader 不进入 Outcome 列表，除非 Source 明确引用。"
+      },
+      {
+        "id": "AC-003",
+        "text": "Prompt 要求每个关键 Outcome 反查支撑 AC，并给出“这些 AC 全部 `met`、该 Outcome 仍失败”的最小具体反例；反例必须落在已确认 Boundary 内且可实现；说不出来就不报缺口；关键真实入口无法执行或决定性交付证据缺失时写进 `unverified`，影响交付结论时用 `needs_human`，不得默认 `approve`。"
+      },
+      {
+        "id": "AC-004",
+        "text": "Prompt 明确状态矩阵：已证实真实消费入口/已确认 Outcome 失败且属本次承诺 → `reject`（命令/输出/来源/影响）；已证实 AC 不足但未证实际交付失败 → `needs_human`（顶层，不得用 `approve` + blocking finding 代替）；Source/Boundary 实质歧义或关键证据无法确认 → `needs_human` + `unverified`（仅在影响交付结论时阻断）；无关既有失败留证不阻断；已确认范围外的独立功能不能因 hidden tests 失败而扩需求。"
+      },
+      {
+        "id": "AC-005",
+        "text": "Prompt 复用现有 issue / `issue_results` 做幂等复验：前轮同一问题没有新证据时不得重复创建 finding 或无意义返工，但也不得因“此前提过”自动放行；必须确认 resolved / clarified / deferred / unresolved；AC 缺口建议经 `sdlc_task_issue` 退回 SPEC、补 AC/证据后复验；不修改状态机、AC 解析或 Verdict Schema。"
+      },
+      {
+        "id": "AC-006",
+        "text": "定向单测覆盖上述 prompt 规则；`docs/evals/ac-validity-1b-counterexamples.md` 至少 5 个离线反例（正向交付、明确遗漏、明确局部范围、关键证据缺失、无关历史失败）及预期 verdict；`npm run verify` 通过；由于付费预算未批准，AC-002/003 的真实模型行为证据未取得，任务不得宣称已行为验证；独立 A/B 留 #22。"
+      }
+    ],
+    "registered_at": "2026-11-14T17:47:30.196Z",
+    "registered_by": "session-fb0f0629-2caf-4228-a678-b5b65b57c27a"
+  },
+  "additional_criteria": [],
+  "verdict": {
+    "status": "reject",
+    "summary": "结论：reject。提示词与离线文档内容与上一轮一致；旧任务回退测试已独立并含旧句 doesNotMatch，F2 去重成立；npm run verify 通过（284+45，12/12 smoke，smoke/verify 103/103）。但 AC-006 仍未满足：删掉 reject evidence 的「+ 影响」、AC-004 的 AC 不足触发条件或「关键证据无法确认」后，定向测试仍 17/17 全绿；新测试并非恒真（HEAD prompt 下 8/17 失败），但对这些规则没有锁定。\n仍有问题未确认修复。",
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 143,
+        "reason": "AC-006 仍未满足：verdict.ts:623 要求 reject evidence 写「命令 + 关键输出 + Source 位置 + 影响」，但测试 143-144 只断言前两项；删掉 ` + 影响` 后定向测试仍 17/17 通过。line 135 的「影响」属于 AC-003 的另一条规则，不能替代 623 行的 reject evidence 影响。",
+        "evidence": "cd /tmp/ac-validity-1b-verify && python3 /tmp/mutation_run.py\nM08 evidence-impact: pass (test=0); M01-M07: fail (test=1)\ngrep -n '影响' packages/sdlc/src/verify/verdict.test.ts → 105/107/110/135/149，无 reject evidence 行\n/tmp/ac-validity-1b-M08-diff.txt 只删了 prompt 623 的 ` + 影响`；/tmp/ac-validity-1b-M08-test.log: tests 17/pass 17/fail 0；temp src 与 worktree diff 为空",
+        "suggestion": "在 verdict.test.ts 加一个绑定 623 行的断言，要求同时包含 Source 位置 与 影响；重跑 mutation 和定向测试。"
+      },
+      {
+        "severity": "important",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 145,
+        "reason": "「状态矩阵」测试只断言输出标签，未锁触发条件：删掉 verdict.ts:624 的「已证实 AC 不足以证明 Outcome、但尚未证明实际交付失败」或 625 的「关键证据无法确认」，测试仍 17/17 绿；617 的「Source 原文与 Outcome/Boundary 冲突时指出矛盾」删除也绿。",
+        "evidence": "cd /tmp/ac-validity-1b-verify && python3 /tmp/mutation_run.py\nM09 conflict-point-out: pass; M10 ac-insufficient-condition: pass; M11 key-evidence-unconfirmed: pass (test=0)\n/tmp/mutation-results.txt；同轮 M01-M07 test=1，说明 mutation harness 能区分",
+        "suggestion": "为上述条件加原文断言（条件 + 顶层 needs_human；关键证据无法确认 + unverified；冲突时指出矛盾），再跑 mutation。"
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "buildVerificationPrompt({intentOfChange:'x'}) 的输出在 /tmp/ac-validity-1b-prompt-worktree.txt:23-39：含 `## Delivery Contract` 五子节、`提取 1–3 个关键 Outcome`、旧任务散文回退、`唯一权威 AC 清单`、`不能缩减必验 AC`\ncd packages/sdlc && node --test lib/verify/verdict.test.js → tests 17/pass 17/fail 0"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "sed -n '616,619p' packages/sdlc/src/verify/verdict.ts → 查找顺序、事实权威链、Source 只是引用、不采纳 Actor 的自洽改写、hidden tests / 官方 Grader 不进入 Outcome 列表\ncd packages/sdlc && node --test lib/verify/verdict.test.js → 17 pass；测试「区分查找顺序与事实权威」通过"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "sed -n '620,621p' packages/sdlc/src/verify/verdict.ts → 每个 Outcome、最小具体反例、全部 met 该 Outcome 仍失败、Boundary 内/可实现、关键真实入口无法执行→unverified、影响结论→needs_human\ncd packages/sdlc && node --test lib/verify/verdict.test.js → 17 pass；测试「具体反例门槛」通过"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "sed -n '622,626p' packages/sdlc/src/verify/verdict.ts → reject/顶层 needs_human/Source-Boundary 歧义/无关失败/hidden tests 不扩需求矩阵\ncd packages/sdlc && node --test lib/verify/verdict.test.js → 17 pass；测试「状态矩阵」通过（覆盖缺口见 AC-006）"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "sed -n '627p' packages/sdlc/src/verify/verdict.ts → 幂等、issue 生命周期与 issue_results 分离、resolved/unresolved/cannot_tell、sdlc_task_issue 退回 SPEC\nsed -n '105p;261p' src/verify/verdict.ts → issue_results enum 三值；sed -n '7p' src/task/flow.ts → IssueStatus 五值；node --test lib/verify/verdict.test.js → 17 pass"
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "not_met",
+        "evidence": "cd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify → exit 0；284+45 pass；12/12 smoke；smoke/verify.mjs 103/103（/tmp/ac-validity-1b-npm-verify.log）\ngrep -c '^## 场景' docs/evals/ac-validity-1b-counterexamples.md → 6；docs/evals/ac-validity-1b-counterexamples.md:5,256 标注真实模型未取得/预算未批/#22\ncd /tmp/ac-validity-1b-verify && python3 /tmp/mutation_run.py → M08/M09/M10/M11 pass (test=0)；M01-M07 fail (test=1)；/tmp/mutation-results.txt"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "ab06356c-1430-4cfa-a8d0-f8adec812783:F1",
+        "result": "unresolved",
+        "evidence": "verdict.test.ts:143-144 只断言 命令+关键输出 / Source 位置；删除 verdict.ts:623 的 + 影响 后 node --test lib/verify/verdict.test.js → tests 17/pass 17/fail 0（/tmp/ac-validity-1b-M08-test.log）\nM09/M10/M11 同类删除也 pass（/tmp/mutation-results.txt）；prior issue 的「prompt 规则删除时测试变红」不成立"
+      },
+      {
+        "issue_id": "ab06356c-1430-4cfa-a8d0-f8adec812783:F2",
+        "result": "resolved",
+        "evidence": "verdict.test.ts:90-103 与 105-113 的断言不重复；line 111 有 assert.doesNotMatch(/在 `unverified` 里写明「目标来自推导/)\n把旧句加回 prompt（M29）→ tests fail；node --test lib/verify/verdict.test.js → 17 pass（/tmp/mutation-results.txt）"
+      },
+      {
+        "issue_id": "ab06356c-1430-4cfa-a8d0-f8adec812783:C6",
+        "result": "unresolved",
+        "evidence": "cd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify → exit 0；284+45 pass；12/12 smoke（/tmp/ac-validity-1b-npm-verify.log）\nmutation M08/M09/M10/M11 删除 prompt 规则后仍 17/17 pass（/tmp/mutation-results.txt）；AC-006 的定向单测覆盖不成立"
+      }
+    ],
+    "unverified": [
+      "AC-002/003 的真实模型行为证据未取得：付费预算未批，未运行真实模型 spot check；docs/evals/ac-validity-1b-counterexamples.md:5,256 与作者提交均只声明离线/待预算，未宣称行为验证；独立 A/B 留 #22。"
+    ],
+    "verifier_session": "fbbbe472-971d-4b0d-bed9-f5348a5cef91",
+    "raw_status": "reject",
+    "verification_complete": true,
+    "verification_run_id": "a081fe2f-2b9e-4129-abbb-7645a527e865"
+  },
+  "raw_verdict": {
+    "status": "reject",
+    "summary": "结论：reject。提示词与离线文档内容与上一轮一致；旧任务回退测试已独立并含旧句 doesNotMatch，F2 去重成立；npm run verify 通过（284+45，12/12 smoke，smoke/verify 103/103）。但 AC-006 仍未满足：删掉 reject evidence 的「+ 影响」、AC-004 的 AC 不足触发条件或「关键证据无法确认」后，定向测试仍 17/17 全绿；新测试并非恒真（HEAD prompt 下 8/17 失败），但对这些规则没有锁定。",
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 143,
+        "reason": "AC-006 仍未满足：verdict.ts:623 要求 reject evidence 写「命令 + 关键输出 + Source 位置 + 影响」，但测试 143-144 只断言前两项；删掉 ` + 影响` 后定向测试仍 17/17 通过。line 135 的「影响」属于 AC-003 的另一条规则，不能替代 623 行的 reject evidence 影响。",
+        "evidence": "cd /tmp/ac-validity-1b-verify && python3 /tmp/mutation_run.py\nM08 evidence-impact: pass (test=0); M01-M07: fail (test=1)\ngrep -n '影响' packages/sdlc/src/verify/verdict.test.ts → 105/107/110/135/149，无 reject evidence 行\n/tmp/ac-validity-1b-M08-diff.txt 只删了 prompt 623 的 ` + 影响`；/tmp/ac-validity-1b-M08-test.log: tests 17/pass 17/fail 0；temp src 与 worktree diff 为空",
+        "suggestion": "在 verdict.test.ts 加一个绑定 623 行的断言，要求同时包含 Source 位置 与 影响；重跑 mutation 和定向测试。"
+      },
+      {
+        "severity": "important",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 145,
+        "reason": "「状态矩阵」测试只断言输出标签，未锁触发条件：删掉 verdict.ts:624 的「已证实 AC 不足以证明 Outcome、但尚未证明实际交付失败」或 625 的「关键证据无法确认」，测试仍 17/17 绿；617 的「Source 原文与 Outcome/Boundary 冲突时指出矛盾」删除也绿。",
+        "evidence": "cd /tmp/ac-validity-1b-verify && python3 /tmp/mutation_run.py\nM09 conflict-point-out: pass; M10 ac-insufficient-condition: pass; M11 key-evidence-unconfirmed: pass (test=0)\n/tmp/mutation-results.txt；同轮 M01-M07 test=1，说明 mutation harness 能区分",
+        "suggestion": "为上述条件加原文断言（条件 + 顶层 needs_human；关键证据无法确认 + unverified；冲突时指出矛盾），再跑 mutation。"
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "buildVerificationPrompt({intentOfChange:'x'}) 的输出在 /tmp/ac-validity-1b-prompt-worktree.txt:23-39：含 `## Delivery Contract` 五子节、`提取 1–3 个关键 Outcome`、旧任务散文回退、`唯一权威 AC 清单`、`不能缩减必验 AC`\ncd packages/sdlc && node --test lib/verify/verdict.test.js → tests 17/pass 17/fail 0"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "sed -n '616,619p' packages/sdlc/src/verify/verdict.ts → 查找顺序、事实权威链、Source 只是引用、不采纳 Actor 的自洽改写、hidden tests / 官方 Grader 不进入 Outcome 列表\ncd packages/sdlc && node --test lib/verify/verdict.test.js → 17 pass；测试「区分查找顺序与事实权威」通过"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "sed -n '620,621p' packages/sdlc/src/verify/verdict.ts → 每个 Outcome、最小具体反例、全部 met 该 Outcome 仍失败、Boundary 内/可实现、关键真实入口无法执行→unverified、影响结论→needs_human\ncd packages/sdlc && node --test lib/verify/verdict.test.js → 17 pass；测试「具体反例门槛」通过"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "sed -n '622,626p' packages/sdlc/src/verify/verdict.ts → reject/顶层 needs_human/Source-Boundary 歧义/无关失败/hidden tests 不扩需求矩阵\ncd packages/sdlc && node --test lib/verify/verdict.test.js → 17 pass；测试「状态矩阵」通过（覆盖缺口见 AC-006）"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "sed -n '627p' packages/sdlc/src/verify/verdict.ts → 幂等、issue 生命周期与 issue_results 分离、resolved/unresolved/cannot_tell、sdlc_task_issue 退回 SPEC\nsed -n '105p;261p' src/verify/verdict.ts → issue_results enum 三值；sed -n '7p' src/task/flow.ts → IssueStatus 五值；node --test lib/verify/verdict.test.js → 17 pass"
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "not_met",
+        "evidence": "cd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify → exit 0；284+45 pass；12/12 smoke；smoke/verify.mjs 103/103（/tmp/ac-validity-1b-npm-verify.log）\ngrep -c '^## 场景' docs/evals/ac-validity-1b-counterexamples.md → 6；docs/evals/ac-validity-1b-counterexamples.md:5,256 标注真实模型未取得/预算未批/#22\ncd /tmp/ac-validity-1b-verify && python3 /tmp/mutation_run.py → M08/M09/M10/M11 pass (test=0)；M01-M07 fail (test=1)；/tmp/mutation-results.txt"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "ab06356c-1430-4cfa-a8d0-f8adec812783:F1",
+        "result": "unresolved",
+        "evidence": "verdict.test.ts:143-144 只断言 命令+关键输出 / Source 位置；删除 verdict.ts:623 的 + 影响 后 node --test lib/verify/verdict.test.js → tests 17/pass 17/fail 0（/tmp/ac-validity-1b-M08-test.log）\nM09/M10/M11 同类删除也 pass（/tmp/mutation-results.txt）；prior issue 的「prompt 规则删除时测试变红」不成立"
+      },
+      {
+        "issue_id": "ab06356c-1430-4cfa-a8d0-f8adec812783:F2",
+        "result": "resolved",
+        "evidence": "verdict.test.ts:90-103 与 105-113 的断言不重复；line 111 有 assert.doesNotMatch(/在 `unverified` 里写明「目标来自推导/)\n把旧句加回 prompt（M29）→ tests fail；node --test lib/verify/verdict.test.js → 17 pass（/tmp/mutation-results.txt）"
+      },
+      {
+        "issue_id": "ab06356c-1430-4cfa-a8d0-f8adec812783:C6",
+        "result": "unresolved",
+        "evidence": "cd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify → exit 0；284+45 pass；12/12 smoke（/tmp/ac-validity-1b-npm-verify.log）\nmutation M08/M09/M10/M11 删除 prompt 规则后仍 17/17 pass（/tmp/mutation-results.txt）；AC-006 的定向单测覆盖不成立"
+      }
+    ],
+    "unverified": [
+      "AC-002/003 的真实模型行为证据未取得：付费预算未批，未运行真实模型 spot check；docs/evals/ac-validity-1b-counterexamples.md:5,256 与作者提交均只声明离线/待预算，未宣称行为验证；独立 A/B 留 #22。"
+    ]
+  },
+  "binding": {
+    "version": 1,
+    "roots": [
+      ".agents/worktrees/dsh-fb0f0629-439a"
+    ],
+    "fingerprint": "b735017b692d63e5f3f6684ce487a2c0eff119c7e92af488055b32dadc19a01c",
+    "code_fingerprint": "2c76dd8a3f3546bb42a14feb4956a0400268315a5c7faa1d2d168f5213446da5",
+    "files": 253,
+    "artifacts": {
+      "intent": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/intent.md",
+        "sha256": "8de01b0da149fbd1a8b8e0b7fd8a7b921bf54f1297d3af5b4e3346c447037bd2"
+      },
+      "spec": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/spec.md",
+        "sha256": "8c975f265f781568d8017afc18ace7b94d7e4205a9e77566fc519de2dc6b87f6"
+      },
+      "plan": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/plan.md",
+        "sha256": "62a1aea4c404fe5dcb6bad00986f649285efc4467f429732b267c7c030fd2fbe"
+      }
+    }
+  }
+}

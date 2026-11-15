@@ -1,0 +1,187 @@
+{
+  "schema_version": 3,
+  "task": "AC-VALIDITY-1B",
+  "at": "2026-11-15T02:11:17.968Z",
+  "intent_of_change": "按 PR #25 复核意见修复两个语义冲突：① 在既有交付路径规则中统一 out-of-scope 官方测试失败的裁决（已承诺真实入口/必要依赖失败→不得 approve；仅明确排除且与承诺路径无关的独立功能→风险但不单独阻断；依赖不确定→needs_human），新小节同步；新增组合 prompt 回归。② 离线场景 6 改成真正的范围/验收歧义，并加 #20 3A/3B 对照；场景 3 增加「若 CLI 是唯一真实路径则按场景 2」对照。",
+  "test_evidence": "在 .agents/worktrees/dsh-fb0f0629-439a/packages/sdlc 执行：\n1) npm run build → exit 0。\n2) node --test lib/verify/verdict.test.js → tests 18, pass 18, fail 0（新增「范围外独立测试与已承诺真实入口失败使用同一套裁决」）。\n3) npm test → lib/host tests 285/pass 285/fail 0；client 45/pass 45/fail 0。\n4) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run smoke → 12/12 脚本通过。\n5) DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify → exit 0。\n6) 文档：场景 3 有「若 CLI 是唯一真实路径则按场景 2」对照；场景 6 Source 改为真正的范围/验收歧义并有 #20 3A/3B 对照。\n未运行真实模型付费 spot check（预算未批准）。",
+  "criteria": [
+    "AC-001: `buildVerificationPrompt()` 优先读取已登记 Spec 的 `## Delivery Contract` 五子节，提取 1–3 个关键 Outcome；缺少契约的旧任务回退 Intent/Spec 散文并明确标注“推导/不确定”；`## Acceptance Criteria` 仍是唯一权威清单，`AC mapping` 只用于充分性反查，不能缩减必验 AC。",
+    "AC-002: Prompt 区分查找顺序与事实权威：可核对的原始需求/Issue 原文 > Actor 撰写的 Delivery Contract > `intent_of_change`；Source 字段只是引用、不是已验证事实，Source 与 Outcome/Boundary 冲突时指出矛盾，不采纳自洽改写；hidden tests / 官方 Grader 不进入 Outcome 列表，除非 Source 明确引用。",
+    "AC-003: Prompt 要求每个关键 Outcome 反查支撑 AC，并给出“这些 AC 全部 `met`、该 Outcome 仍失败”的最小具体反例；反例必须落在已确认 Boundary 内且可实现；说不出来就不报缺口；关键真实入口无法执行或决定性交付证据缺失时写进 `unverified`，影响交付结论时用 `needs_human`，不得默认 `approve`。",
+    "AC-004: Prompt 明确状态矩阵：已证实真实消费入口/已确认 Outcome 失败且属本次承诺 → `reject`（命令/输出/来源/影响）；已证实 AC 不足但未证实际交付失败 → `needs_human`（顶层，不得用 `approve` + blocking finding 代替）；Source/Boundary 实质歧义或关键证据无法确认 → `needs_human` + `unverified`（仅在影响交付结论时阻断）；无关既有失败留证不阻断；已确认范围外的独立功能不能因 hidden tests 失败而扩需求。",
+    "AC-005: Prompt 复用现有 issue / `issue_results` 做幂等复验：前轮同一问题没有新证据时不得重复创建 finding 或无意义返工，但也不得因“此前提过”自动放行；必须确认 resolved / clarified / deferred / unresolved；AC 缺口建议经 `sdlc_task_issue` 退回 SPEC、补 AC/证据后复验；不修改状态机、AC 解析或 Verdict Schema。",
+    "AC-006: 定向单测覆盖上述 prompt 规则；`docs/evals/ac-validity-1b-counterexamples.md` 至少 5 个离线反例（正向交付、明确遗漏、明确局部范围、关键证据缺失、无关历史失败）及预期 verdict；`npm run verify` 通过；由于付费预算未批准，AC-002/003 的真实模型行为证据未取得，任务不得宣称已行为验证；独立 A/B 留 #22。"
+  ],
+  "acceptance": {
+    "version": 1,
+    "id": "38c1ce9b-333c-46d8-9e19-4cb9e83eccd7",
+    "spec_path": "spec.md",
+    "spec_sha256": "8c975f265f781568d8017afc18ace7b94d7e4205a9e77566fc519de2dc6b87f6",
+    "criteria": [
+      {
+        "id": "AC-001",
+        "text": "`buildVerificationPrompt()` 优先读取已登记 Spec 的 `## Delivery Contract` 五子节，提取 1–3 个关键 Outcome；缺少契约的旧任务回退 Intent/Spec 散文并明确标注“推导/不确定”；`## Acceptance Criteria` 仍是唯一权威清单，`AC mapping` 只用于充分性反查，不能缩减必验 AC。"
+      },
+      {
+        "id": "AC-002",
+        "text": "Prompt 区分查找顺序与事实权威：可核对的原始需求/Issue 原文 > Actor 撰写的 Delivery Contract > `intent_of_change`；Source 字段只是引用、不是已验证事实，Source 与 Outcome/Boundary 冲突时指出矛盾，不采纳自洽改写；hidden tests / 官方 Grader 不进入 Outcome 列表，除非 Source 明确引用。"
+      },
+      {
+        "id": "AC-003",
+        "text": "Prompt 要求每个关键 Outcome 反查支撑 AC，并给出“这些 AC 全部 `met`、该 Outcome 仍失败”的最小具体反例；反例必须落在已确认 Boundary 内且可实现；说不出来就不报缺口；关键真实入口无法执行或决定性交付证据缺失时写进 `unverified`，影响交付结论时用 `needs_human`，不得默认 `approve`。"
+      },
+      {
+        "id": "AC-004",
+        "text": "Prompt 明确状态矩阵：已证实真实消费入口/已确认 Outcome 失败且属本次承诺 → `reject`（命令/输出/来源/影响）；已证实 AC 不足但未证实际交付失败 → `needs_human`（顶层，不得用 `approve` + blocking finding 代替）；Source/Boundary 实质歧义或关键证据无法确认 → `needs_human` + `unverified`（仅在影响交付结论时阻断）；无关既有失败留证不阻断；已确认范围外的独立功能不能因 hidden tests 失败而扩需求。"
+      },
+      {
+        "id": "AC-005",
+        "text": "Prompt 复用现有 issue / `issue_results` 做幂等复验：前轮同一问题没有新证据时不得重复创建 finding 或无意义返工，但也不得因“此前提过”自动放行；必须确认 resolved / clarified / deferred / unresolved；AC 缺口建议经 `sdlc_task_issue` 退回 SPEC、补 AC/证据后复验；不修改状态机、AC 解析或 Verdict Schema。"
+      },
+      {
+        "id": "AC-006",
+        "text": "定向单测覆盖上述 prompt 规则；`docs/evals/ac-validity-1b-counterexamples.md` 至少 5 个离线反例（正向交付、明确遗漏、明确局部范围、关键证据缺失、无关历史失败）及预期 verdict；`npm run verify` 通过；由于付费预算未批准，AC-002/003 的真实模型行为证据未取得，任务不得宣称已行为验证；独立 A/B 留 #22。"
+      }
+    ],
+    "registered_at": "2026-11-14T17:47:30.196Z",
+    "registered_by": "session-fb0f0629-2caf-4228-a678-b5b65b57c27a"
+  },
+  "additional_criteria": [],
+  "verdict": {
+    "status": "approve",
+    "summary": "两项语义冲突已修：verdict.ts:626-627 与 645-649 对 out-of-scope 失败采用同一裁决（承诺真实路径/必要依赖失败不得 approve；明确排除且无关的独立功能只记风险；来源/范围/依赖不确定 needs_human），回退这些规则时定向测试 16/18（2 fail）。docs 场景 3 增加「CLI 是唯一真实路径→场景 2」对照，场景 6 Source 改为范围/验收歧义并对照 #20 3A/3B。`npm run verify` exit 0（285 host + 45 client，12/12 smoke，smoke/verify 103/103），定向 18/18；真实模型行为未运行（预算未批，AC-006 接受，#22）。唯一 minor：verdict.test.ts:49 旧标题「官方验收测试失败不得 approve」与新统一规则不符。",
+    "findings": [
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 49,
+        "reason": "旧测试标题仍写「上游/重建的官方验收测试：失败不得 approve」，但本次统一规则只禁止已承诺真实路径/必要依赖失败 approve；已确认范围外且无关的独立功能可只记风险、不阻断 approve。标题与新规则不符，且该测试本身未断言这个绝对规则，容易误导后续维护者。",
+        "evidence": "`sed -n '49,54p' packages/sdlc/src/verify/verdict.test.ts` -> test('上游/重建的官方验收测试：失败不得 approve，但冲突时不能仅凭它 reject（防反向误判）', ...)；`sed -n '647p' packages/sdlc/src/verify/verdict.ts` -> 已确认...不单独阻断 `approve`",
+        "suggestion": "把标题改成「已承诺路径失败不得 approve；范围外独立失败只记风险」，或在该测试中断言这一区分。"
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "`sed -n '616,619p' packages/sdlc/src/verify/verdict.ts` -> Delivery Contract 五子节 + 提取 1–3 个 Outcome + 旧任务散文回退 + AC 唯一权威/AC mapping 只反查；`node --test lib/verify/verdict.test.js` -> tests 18/pass 18/fail 0（含测试 90–113）"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "`sed -n '615,619p' packages/sdlc/src/verify/verdict.ts` -> 查找顺序 vs 事实权威链（原始 Issue > Delivery Contract > Actor 自述）、Source 只是引用、冲突指出矛盾、hidden tests/Grader 不进 Outcome；测试 115–124；18/18"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "`sed -n '620,621p' packages/sdlc/src/verify/verdict.ts` -> 每个 Outcome 反查 AC、最小具体反例、Boundary 内/可实现、说不出来不报、缺证据进 unverified/影响结论 needs_human；测试 126–139；18/18"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "`sed -n '622,627p;644,649p' packages/sdlc/src/verify/verdict.ts` -> reject evidence、顶层 needs_human、Source/Boundary 歧义、无关失败、out-of-scope 独立功能不阻断、依赖不确定 needs_human；`/tmp/ac1b-baseline-revert.log` -> 16 pass/2 fail（回退新规则）；18/18"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "`sed -n '628p' packages/sdlc/src/verify/verdict.ts` -> 幂等/issue 生命周期 vs issue_results/sdlc_task_issue；测试 169–179；`git diff HEAD --name-only` -> 仅 verdict.ts/verdict.test.ts/docs（无状态机/AC 解析/Schema）"
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "met",
+        "evidence": "`node --test lib/verify/verdict.test.js` -> 18/18；`grep -c '^## 场景' docs/evals/ac-validity-1b-counterexamples.md` -> 6；`DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify` -> exit 0（285+45，12/12 smoke；/tmp/ac1b-verify.log）；docs:5,260-268 明确真实模型未取得/预算未批/#22"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "issue-a357acb6-3414-4946-bdb8-98befc0b825e",
+        "result": "resolved",
+        "evidence": "`git diff HEAD -- packages/sdlc/src/verify/verdict.ts docs/evals/ac-validity-1b-counterexamples.md` -> verdict.ts:626-627/645-649 统一 out-of-scope 裁决；新测试 158–167；`/tmp/ac1b-baseline-revert.log` -> 16/18（2 fail）；docs:136 场景 3 对照、docs:219-244 场景 6 重写 + #20 3A/3B"
+      }
+    ],
+    "unverified": [],
+    "verifier_session": "e98e7e49-701f-4dd9-87f0-7a04bab41c38",
+    "raw_status": "approve",
+    "verification_complete": true,
+    "verification_run_id": "8e6c63ee-f90a-4929-a8a9-a8e3881710e4"
+  },
+  "raw_verdict": {
+    "status": "approve",
+    "summary": "两项语义冲突已修：verdict.ts:626-627 与 645-649 对 out-of-scope 失败采用同一裁决（承诺真实路径/必要依赖失败不得 approve；明确排除且无关的独立功能只记风险；来源/范围/依赖不确定 needs_human），回退这些规则时定向测试 16/18（2 fail）。docs 场景 3 增加「CLI 是唯一真实路径→场景 2」对照，场景 6 Source 改为范围/验收歧义并对照 #20 3A/3B。`npm run verify` exit 0（285 host + 45 client，12/12 smoke，smoke/verify 103/103），定向 18/18；真实模型行为未运行（预算未批，AC-006 接受，#22）。唯一 minor：verdict.test.ts:49 旧标题「官方验收测试失败不得 approve」与新统一规则不符。",
+    "findings": [
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "packages/sdlc/src/verify/verdict.test.ts",
+        "line": 49,
+        "reason": "旧测试标题仍写「上游/重建的官方验收测试：失败不得 approve」，但本次统一规则只禁止已承诺真实路径/必要依赖失败 approve；已确认范围外且无关的独立功能可只记风险、不阻断 approve。标题与新规则不符，且该测试本身未断言这个绝对规则，容易误导后续维护者。",
+        "evidence": "`sed -n '49,54p' packages/sdlc/src/verify/verdict.test.ts` -> test('上游/重建的官方验收测试：失败不得 approve，但冲突时不能仅凭它 reject（防反向误判）', ...)；`sed -n '647p' packages/sdlc/src/verify/verdict.ts` -> 已确认...不单独阻断 `approve`",
+        "suggestion": "把标题改成「已承诺路径失败不得 approve；范围外独立失败只记风险」，或在该测试中断言这一区分。"
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "`sed -n '616,619p' packages/sdlc/src/verify/verdict.ts` -> Delivery Contract 五子节 + 提取 1–3 个 Outcome + 旧任务散文回退 + AC 唯一权威/AC mapping 只反查；`node --test lib/verify/verdict.test.js` -> tests 18/pass 18/fail 0（含测试 90–113）"
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "`sed -n '615,619p' packages/sdlc/src/verify/verdict.ts` -> 查找顺序 vs 事实权威链（原始 Issue > Delivery Contract > Actor 自述）、Source 只是引用、冲突指出矛盾、hidden tests/Grader 不进 Outcome；测试 115–124；18/18"
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "`sed -n '620,621p' packages/sdlc/src/verify/verdict.ts` -> 每个 Outcome 反查 AC、最小具体反例、Boundary 内/可实现、说不出来不报、缺证据进 unverified/影响结论 needs_human；测试 126–139；18/18"
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "`sed -n '622,627p;644,649p' packages/sdlc/src/verify/verdict.ts` -> reject evidence、顶层 needs_human、Source/Boundary 歧义、无关失败、out-of-scope 独立功能不阻断、依赖不确定 needs_human；`/tmp/ac1b-baseline-revert.log` -> 16 pass/2 fail（回退新规则）；18/18"
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "`sed -n '628p' packages/sdlc/src/verify/verdict.ts` -> 幂等/issue 生命周期 vs issue_results/sdlc_task_issue；测试 169–179；`git diff HEAD --name-only` -> 仅 verdict.ts/verdict.test.ts/docs（无状态机/AC 解析/Schema）"
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "met",
+        "evidence": "`node --test lib/verify/verdict.test.js` -> 18/18；`grep -c '^## 场景' docs/evals/ac-validity-1b-counterexamples.md` -> 6；`DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify` -> exit 0（285+45，12/12 smoke；/tmp/ac1b-verify.log）；docs:5,260-268 明确真实模型未取得/预算未批/#22"
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "issue-a357acb6-3414-4946-bdb8-98befc0b825e",
+        "result": "resolved",
+        "evidence": "`git diff HEAD -- packages/sdlc/src/verify/verdict.ts docs/evals/ac-validity-1b-counterexamples.md` -> verdict.ts:626-627/645-649 统一 out-of-scope 裁决；新测试 158–167；`/tmp/ac1b-baseline-revert.log` -> 16/18（2 fail）；docs:136 场景 3 对照、docs:219-244 场景 6 重写 + #20 3A/3B"
+      }
+    ],
+    "unverified": []
+  },
+  "binding": {
+    "version": 1,
+    "roots": [
+      ".agents/worktrees/dsh-fb0f0629-439a"
+    ],
+    "fingerprint": "d41aba0009549357b1e755a61c9887279ea7c7ebd6288bcd147a52c31f043f63",
+    "code_fingerprint": "d575bc002491613d0491fd398790f7da25d67777821777557ffad063267b1d70",
+    "files": 253,
+    "artifacts": {
+      "intent": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/intent.md",
+        "sha256": "8de01b0da149fbd1a8b8e0b7fd8a7b921bf54f1297d3af5b4e3346c447037bd2"
+      },
+      "spec": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/spec.md",
+        "sha256": "8c975f265f781568d8017afc18ace7b94d7e4205a9e77566fc519de2dc6b87f6"
+      },
+      "plan": {
+        "path": ".ai/tasks/AC-VALIDITY-1B/plan.md",
+        "sha256": "62a1aea4c404fe5dcb6bad00986f649285efc4467f429732b267c7c030fd2fbe"
+      }
+    }
+  }
+}
