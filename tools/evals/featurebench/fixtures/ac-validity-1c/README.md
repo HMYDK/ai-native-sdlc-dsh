@@ -5,9 +5,13 @@ builder/checker, **not** an evaluation Runner; no model, Docker, network, or
 FeatureBench call is made.
 
 ```bash
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
   --workdir /tmp/validity-1c-fixtures
 ```
+
+`--self-test` checks the workdir guard: only a dedicated `ac-validity-1c-fixtures` /
+`validity-1c-fixtures` directory may be cleaned; arbitrary `/tmp` paths are refused.
 
 The script creates six git repos (fixed author/date; base and head commits) under
 the workdir, then runs their real entry points with the standard library

@@ -29,6 +29,8 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import run_arm  # noqa: E402
 
 
 def arm_cmd(args, manifest_path: Path, task_id: str, arm: str, image: str, out: Path,
@@ -171,6 +173,10 @@ def main() -> int:
     only = set(args.only_task)
     only_arms = set(args.only_arm)
     all_arms = [a for a in manifest["arms"].keys() if not only_arms or a in only_arms]
+    if not all_arms:
+        print(f"no arms selected: --only-arm={sorted(only_arms)} not in manifest arms "
+              f"{sorted(manifest['arms'])}", file=sys.stderr)
+        return 2
     if arm_dirs:
         absent = [a for a in all_arms if a not in arm_dirs]
         if absent:
@@ -212,6 +218,11 @@ def main() -> int:
                 return 2
             if not t:
                 print(f"arm {arm} 缺少 --arm-plugin-tarball（strict preflight 要求 hash 绑定）", file=sys.stderr)
+                return 2
+            bind_errors = run_arm.verify_plugin_dir_matches_tarball(d, t)
+            if bind_errors:
+                print(f"arm {arm} plugin dir 与 tarball 不绑定:\n"
+                      + "\n".join(" - " + e for e in bind_errors), file=sys.stderr)
                 return 2
         print(f"[preflight] OK: {len(plan)} tasks, arms={all_arms}, "
               f"plugin_sha={ {a: arm_sha_cache.get(a, '') for a in all_arms} }")

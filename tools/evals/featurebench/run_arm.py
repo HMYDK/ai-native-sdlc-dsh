@@ -52,6 +52,48 @@ def find_chrome() -> str:
     return shutil.which("google-chrome") or shutil.which("chromium") or ""
 
 
+def verify_plugin_dir_matches_tarball(plugin_dir: Path, tarball: Path) -> list[str]:
+    """Bind the unpacked plugin dir to the npm pack tarball.
+
+    The three arms all report version 0.6.2, so package.json alone cannot prove
+    which build is in a directory. Compare every regular file in the tarball's
+    package/ prefix against plugin_dir/dsh-sdlc, and fail on missing/extra files
+    or content differences.
+    """
+    import tarfile
+
+    errors: list[str] = []
+    root = plugin_dir / "dsh-sdlc"
+    if not root.is_dir():
+        return [f"plugin dir {plugin_dir} 缺少 dsh-sdlc/"]
+    try:
+        with tarfile.open(tarball, "r:gz") as tf:
+            members = [m for m in tf.getmembers() if m.isfile()]
+            if not members:
+                return [f"tarball {tarball} 没有文件成员"]
+            for member in members:
+                rel = member.name.split("/", 1)[1] if member.name.startswith("package/") else member.name
+                target = root / rel
+                if not target.is_file():
+                    errors.append(f"plugin dir 缺少 tarball 文件: {rel}")
+                    continue
+                src = tf.extractfile(member)
+                if src is None:
+                    errors.append(f"tarball 成员不可读: {member.name}")
+                    continue
+                a = hashlib.sha256(src.read()).hexdigest()
+                b = sha256_file(target)
+                if a != b:
+                    errors.append(f"plugin dir 与 tarball 内容不一致: {rel}")
+            actual = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
+            expected = {m.name.split("/", 1)[1] if m.name.startswith("package/") else m.name for m in members}
+            for rel in sorted(actual - expected):
+                errors.append(f"plugin dir 有 tarball 之外的文件: {rel}")
+    except Exception as exc:
+        return [f"读取 tarball 失败: {exc}"]
+    return errors
+
+
 def load_manifest(path: Path) -> dict:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -277,6 +319,13 @@ def main() -> int:
     elif expected_sha:
         print("--expected-plugin-sha256 requires --plugin-tarball", file=sys.stderr)
         return 2
+
+    if args.plugin_dir and args.plugin_tarball:
+        bind_errors = verify_plugin_dir_matches_tarball(Path(args.plugin_dir), Path(args.plugin_tarball))
+        if bind_errors:
+            print("plugin dir/tarball 绑定失败:\n" + "\n".join(" - " + e for e in bind_errors),
+                  file=sys.stderr)
+            return 2
 
     policy = manifest.get("run_policy", {})
     timeout = args.timeout or int(policy.get("timeout_seconds", 2700))

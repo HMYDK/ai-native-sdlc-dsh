@@ -97,17 +97,34 @@ def _build(name: str, base: dict[str, str], head: dict[str, str]) -> tuple[Path,
     return repo, base_sha, head_sha
 
 
+def _workdir_allowed(path: Path) -> bool:
+    """Only a dedicated AC-VALIDITY-1C fixture workdir may be created/deleted."""
+    name = path.resolve().name
+    return name in {"ac-validity-1c-fixtures", "validity-1c-fixtures"}         or name.startswith("ac-validity-1c-fixtures-")
+
+
 def _clean_workdir(path: Path) -> None:
     """Refuse to delete anything that is not our dedicated fixture workdir."""
     resolved = path.resolve()
-    tmp_root = str(Path("/tmp").resolve()) + "/"
-    allowed = (str(resolved).startswith(tmp_root)
-               or "ac-validity-1c-fixtures" in resolved.name)
-    if not allowed:
+    if not _workdir_allowed(resolved):
         raise SystemExit(f"refusing to clean unexpected workdir: {resolved}")
     if resolved.exists():
         shutil.rmtree(resolved)
     resolved.mkdir(parents=True)
+
+
+def _workdir_guard_selftest() -> int:
+    if _workdir_allowed(Path("/tmp/mydata")):
+        print("FAIL: /tmp/mydata incorrectly allowed", file=sys.stderr)
+        return 1
+    if not _workdir_allowed(Path("/tmp/ac-validity-1c-fixtures")):
+        print("FAIL: dedicated workdir incorrectly rejected", file=sys.stderr)
+        return 1
+    if not _workdir_allowed(Path("/tmp/validity-1c-fixtures")):
+        print("FAIL: legacy dedicated workdir incorrectly rejected", file=sys.stderr)
+        return 1
+    print("WORKDIR GUARD OK: only dedicated AC-VALIDITY-1C fixture workdirs may be cleaned")
+    return 0
 
 
 def _unittest(repo: Path, target: str = "tests") -> subprocess.CompletedProcess:
@@ -632,7 +649,11 @@ def main() -> int:
     ap.add_argument("--workdir", default=DEFAULT_WORKDIR)
     ap.add_argument("--keep", action="store_true", help="保留 fixture 工作区（默认保留；仅为兼容旧调用）")
     ap.add_argument("--clean", action="store_true", help="先清理 workdir（默认清理）")
+    ap.add_argument("--self-test", action="store_true", help="只检查 workdir 清理安全门")
     args = ap.parse_args()
+
+    if args.self_test:
+        return _workdir_guard_selftest()
 
     global WORKDIR
     WORKDIR = Path(args.workdir)

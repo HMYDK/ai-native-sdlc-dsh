@@ -18,7 +18,11 @@ import argparse
 import copy
 import hashlib
 import json
+import shutil
+import subprocess
 import sys
+import tarfile
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -26,6 +30,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import sanity_check as s  # noqa: E402
+import run_arm  # noqa: E402
 
 MAIN_MANIFEST = HERE / "manifests" / "ac-validity-1c" / "ac-validity-1c.yml"
 B1_MANIFEST = HERE / "manifests" / "ac-validity-1c" / "ac-validity-1c-b1.yml"
@@ -232,6 +237,9 @@ def validate_artifacts(errors: list[str], main: dict, b1: dict, root: Path) -> N
             if got_sha != cfg.get("plugin_tarball_sha256"):
                 errors.append(f"{name}.{arm}: tarball sha256={got_sha!r}，"
                               f"manifest={cfg.get('plugin_tarball_sha256')!r}")
+            bind_errors = run_arm.verify_plugin_dir_matches_tarball(pdir, tpath)
+            for err in bind_errors:
+                errors.append(f"{name}.{arm}: {err}")
 
 
 def self_test() -> int:
@@ -303,6 +311,48 @@ def self_test() -> int:
             print(f"[FAIL] mutation rejected for wrong reason: {label}: {errs[:2]}", file=sys.stderr)
         else:
             print(f"[ok] rejected: {label}")
+    # Plugin dir must be bound to the tarball, not just package.json version.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        pkg = root / "package"
+        pkg.mkdir(parents=True)
+        (pkg / "package.json").write_text('{"version":"0.6.2"}', encoding="utf-8")
+        tarball = root / "plugin.tgz"
+        with tarfile.open(tarball, "w:gz") as tf:
+            tf.add(pkg, arcname="package")
+        good = root / "good"
+        (good / "dsh-sdlc").mkdir(parents=True)
+        shutil.copy2(pkg / "package.json", good / "dsh-sdlc" / "package.json")
+        bad = root / "bad"
+        (bad / "dsh-sdlc").mkdir(parents=True)
+        (bad / "dsh-sdlc" / "package.json").write_text('{"version":"0.6.2","extra":1}', encoding="utf-8")
+        good_ok = not run_arm.verify_plugin_dir_matches_tarball(good, tarball)
+        bad_rejected = bool(run_arm.verify_plugin_dir_matches_tarball(bad, tarball))
+        if not (good_ok and bad_rejected):
+            failed += 1
+            print("[FAIL] plugin dir/tarball binding: good_ok=%s bad_rejected=%s"
+                  % (good_ok, bad_rejected), file=sys.stderr)
+        else:
+            print("[ok] rejected: plugin dir not matching tarball contents")
+
+    # Empty/unknown --only-arm selection must fail closed, not ZeroDivisionError.
+    with tempfile.TemporaryDirectory() as td:
+        cp = subprocess.run(
+            [sys.executable, str(HERE / "run_matrix.py"),
+             "--manifest", str(MAIN_MANIFEST),
+             "--runs-root", td,
+             "--credentials", str(Path(td) / "creds.yaml"),
+             "--only-arm", "B1"],
+            capture_output=True, text=True,
+        )
+        text = cp.stdout + cp.stderr
+        if cp.returncode == 0 or "no arms selected" not in text:
+            failed += 1
+            print(f"[FAIL] empty --only-arm selection not rejected: rc={cp.returncode} text={text[-300:]}",
+                  file=sys.stderr)
+        else:
+            print("[ok] rejected: unknown --only-arm selection")
+
     if failed:
         return 1
     print("SELF-TEST OK: all negative mutations fail closed")

@@ -33,7 +33,7 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
 
 | # | repo | 类别 | 固定输入 | 真正执行的检查 | 预期 verdict |
 |---|---|---|---|---|---|
-| S1 | `S1_positive` | 正向完成 | Issue #130：CSV 导出、固定字段、缺 amount 非零退出 | `python -m unittest discover -s tests -v`；`python -m app.cli export --format csv --orders orders_ok.json --out out.csv`；缺 amount 用 `orders_missing.json` | `approve` |
+| S1 | `S1_positive` | 正向完成 | Issue #130：CSV 导出、固定字段、缺 amount 非零退出 | `python3 -m unittest discover -s tests -v`；`python3 -m app.cli export --format csv --orders orders_ok.json --out out.csv`；缺 amount 用 `orders_missing.json` | `approve` |
 | S2 | `S2_gap` | AC 全 met 但真实 Outcome 失败 | Issue #131：`mycli run --date ""` 正常退出 + `parse_date('')` 返回 None | 作者 AC 测试通过；真实 CLI 仍抛 `AttributeError: 'NoneType' object has no attribute 'isoformat'` | `reject` |
 | S3 | `S3_out_of_scope` | 明确范围外独立失败 | Issue #132：只修 `parse_date`；不改调用方/CLI | 目标 AC 测试通过；`tests_external.test_full_cli` 因独立旧 bug `Settings.verbose` 失败，且失败文本不含 `parse_date` | `approve`（附风险说明） |
 | S4 | `S4_missing_evidence` | 关键证据缺失 | Issue #133：恢复 `foo()` 并让 `mycli run` 调用 | 静态测试通过；真实入口因 `missing_native_dep` 无法运行（不是语法错误） | `needs_human` + `unverified` |
@@ -71,11 +71,11 @@ Phase 1 要比较的是 **verifier prompt**（A=`085c8fd` / B=`5ee68cd`），不
 {
   "intent_of_change": "Deliver Source issue #130: `mycli export --format csv` writes a CSV with header id,amount,status and one row per order; an order missing amount exits 2 with an error naming the order id.",
   "criteria": [
-    "AC-001: `python -m app.cli export --format csv --orders orders_ok.json --out out.csv` exits 0 and writes a 4-line file with header id,amount,status.",
-    "AC-002: `python -m app.cli export --format csv --orders orders_missing.json --out out.csv` exits 2 and the error contains `ord-3`."
+    "AC-001: `python3 -m app.cli export --format csv --orders orders_ok.json --out out.csv` exits 0 and writes a 4-line file with header id,amount,status.",
+    "AC-002: `python3 -m app.cli export --format csv --orders orders_missing.json --out out.csv` exits 2 and the error contains `ord-3`."
   ],
   "diff": "git diff HEAD~1..HEAD",
-  "test_evidence": "python -m unittest discover -s tests -v -> 2 tests OK; export command -> exit 0; missing amount -> exit 2 with 'error: order ord-3 missing amount'",
+  "test_evidence": "python3 -m unittest discover -s tests -v -> 2 tests OK; export command -> exit 0; missing amount -> exit 2 with 'error: order ord-3 missing amount'",
   "scope": "Phase 1 fixture S1 only; judge this repository snapshot; no network."
 }
 ```
@@ -84,9 +84,9 @@ Phase 1 要比较的是 **verifier prompt**（A=`085c8fd` / B=`5ee68cd`），不
 
 ```bash
 cd /tmp/validity-1c-fixtures/S1_positive
-python -m unittest discover -s tests -v
-python -m app.cli export --format csv --orders orders_ok.json --out /tmp/s1.csv; echo "exit=$?"; wc -l /tmp/s1.csv
-python -m app.cli export --format csv --orders orders_missing.json --out /tmp/s1-bad.csv; echo "exit=$?"
+python3 -m unittest discover -s tests -v
+python3 -m app.cli export --format csv --orders orders_ok.json --out /tmp/s1.csv; echo "exit=$?"; wc -l /tmp/s1.csv
+python3 -m app.cli export --format csv --orders orders_missing.json --out /tmp/s1-bad.csv; echo "exit=$?"
 ```
 
 ### 3.2 S2（gap）
@@ -102,7 +102,7 @@ python -m app.cli export --format csv --orders orders_missing.json --out /tmp/s1
     "AC-002: Parsing non-empty valid dates is unchanged."
   ],
   "diff": "git diff HEAD~1..HEAD",
-  "test_evidence": "python -m unittest discover -s tests -v -> 2 tests OK; real CLI `python -m app.cli run --date \"\"` -> exit 1 with AttributeError: 'NoneType' object has no attribute 'isoformat'",
+  "test_evidence": "python3 -m unittest discover -s tests -v -> 2 tests OK; real CLI `python3 -m app.cli run --date \"\"` -> exit 1 with AttributeError: 'NoneType' object has no attribute 'isoformat'",
   "scope": "Phase 1 fixture S2 only; judge this repository snapshot; no network."
 }
 ```
@@ -111,8 +111,8 @@ python -m app.cli export --format csv --orders orders_missing.json --out /tmp/s1
 
 ```bash
 cd /tmp/validity-1c-fixtures/S2_gap
-python -m unittest discover -s tests -v          # 2 tests OK
-python -m app.cli run --date ""; echo "exit=$?"  # 预期非零；不是 import error
+python3 -m unittest discover -s tests -v          # 2 tests OK
+python3 -m app.cli run --date ""; echo "exit=$?"  # 预期非零；不是 import error
 ```
 
 ### 3.3 S3（out-of-scope）
@@ -130,7 +130,7 @@ python -m app.cli run --date ""; echo "exit=$?"  # 预期非零；不是 import 
     "AC-003: Existing date tests remain green."
   ],
   "diff": "git diff HEAD~1..HEAD",
-  "test_evidence": "python -m unittest discover -s tests -v -> 2 tests OK; python -m unittest tests_external.test_full_cli -v -> failure from independent legacy Settings.verbose bug; failure text does not mention parse_date",
+  "test_evidence": "python3 -m unittest discover -s tests -v -> 2 tests OK; python3 -m unittest tests_external.test_full_cli -v -> failure from independent legacy Settings.verbose bug; failure text does not mention parse_date",
   "scope": "Phase 1 fixture S3 only; judge this repository snapshot; no network."
 }
 ```
@@ -139,8 +139,8 @@ python -m app.cli run --date ""; echo "exit=$?"  # 预期非零；不是 import 
 
 ```bash
 cd /tmp/validity-1c-fixtures/S3_out_of_scope
-python -m unittest discover -s tests -v                 # 2 tests OK
-python -m unittest tests_external.test_full_cli -v; echo "external_exit=$?"  # 失败：Settings.verbose
+python3 -m unittest discover -s tests -v                 # 2 tests OK
+python3 -m unittest tests_external.test_full_cli -v; echo "external_exit=$?"  # 失败：Settings.verbose
 ```
 
 ---
@@ -236,7 +236,7 @@ WEB_PORT=59611 node tools/evals/featurebench/driver.mjs \
 
 ## 7. 审核意见对应
 
-- **F3**：六类 fixture 已从文本变成可执行脚本；`python -m app.cli` 有 `__main__`，repo 由脚本创建；S1 补了订单 ID 断言。
+- **F3**：六类 fixture 已从文本变成可执行脚本；`python3 -m app.cli` 有 `__main__`，repo 由脚本创建；S1 补了订单 ID 断言。
 - **F4**：Phase 1 的插件 identity、DSH 启动与 driver 命令写清；Phase 2 的 manifest/image-map/preflight 见 [preregistration](ac-validity-1c-preregistration.md) 和 [handoff](ac-validity-1c-handoff.md)。
 - **F5**：S1 AC-002/复核命令包含 `ord-3`。
 - 本文件不宣称 fixture 已经过真实模型验证；Phase 1 未运行。

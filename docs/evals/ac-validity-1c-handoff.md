@@ -3,7 +3,7 @@
 - **更新时间**：2026-11-15
 - **基线**：`HMYDK/ai-native-sdlc-dsh`，`dev@5ee68cd`
 - **交付分支**：`evals/ac-validity-1c-phase0`（从 `dev@5ee68cd` 建；Draft PR，不直接合入 `dev`）
-- **状态**：首次 `sdlc_verify` 为 **reject**（run `760afaff-1138-43ed-a80a-2436bcd7fc5b`），已保留为历史事实；按 [审核整改要求](https://github.com/HMYDK/ai-native-sdlc-dsh/issues/22#issuecomment-6895299706) 修复 F1–F7 后，**第二次独立验证已获用户批准**（1 call / ≤2M / ≤30min / 不重试）。Phase 1/2/B1 仍未批准、未运行。
+- **状态**：首次 `sdlc_verify` 为 **reject**（run `760afaff-1138-43ed-a80a-2436bcd7fc5b`）；按 [审核整改要求](https://github.com/HMYDK/ai-native-sdlc-dsh/issues/22#issuecomment-6895299706) 修复 F1–F7 后，第二次独立验证（用户批准的 1 call / ≤2M / ≤30min / 不重试）已运行并返回 **reject**（run `0553a496-8a5f-423d-9a23-a1e9a5140c1e`）：F1–F7 全部 resolved，但 AC-006 未 met，并发现 handoff 缺 F1–F7/Phase 1 命令、Phase 2 无 `--execute`、fixture 命令用 `python`、workdir 清理过宽、空 `--only-arm`、plugin dir 未绑定 tarball。上述已在本分支修复；**第三次验证未运行，需单独批准**。Phase 1/2/B1 仍未批准、未运行。
 - **用途**：让审查者/下一台执行机器知道已经确认什么、环境有什么、Phase 0 产出了什么、Phase 1/2 怎么跑、哪些事不能做。
 
 ---
@@ -89,6 +89,7 @@
 ```bash
 python3 tools/evals/featurebench/sanity_check.py --structural
 python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/validity-1c-fixtures
 ```
 
@@ -102,11 +103,23 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 
 - `cd packages/sdlc && DSH_APP="/Applications/DeepSeek Harness.app" npm run verify`：exit 0；库单测 285 pass / 0 fail，客户端 45 pass / 0 fail，运行时冒烟 12 个脚本全过。
 - `sanity_check.py --structural`：现有 base/V1/V2/verify-01 清单通过。
-- `check_ac_validity_1c.py --self-test`：base 计划 5×2=10 / 3×1=3，10 个负例全部 fail closed。
+- `check_ac_validity_1c.py --self-test`：base 计划 5×2=10 / 3×1=3，12 个负例全部 fail closed（含 plugin dir/tarball 绑定、空 --only-arm）。
 - `check_fixtures.py`：六类 fixture 全部 `[ok]`，最后 `FIXTURES OK`。
 - 主/B1 strict dry-run：主 5 条 `[plan]` + `[preflight] OK`；B1 3 条 + `[preflight] OK`。
 - `git diff --name-only`：不含 `packages/sdlc/src` 插件代码。
 - **未运行**：真实模型、FeatureBench 评分、Docker 容器、无头 Chrome、sympy 镜像拉取。
+
+### 5.3 F1–F7 整改对照（审核者 2026-11-15）
+
+| 项 | 修改 | 复核命令 / 结果 |
+|---|---|---|
+| F1 主/B1 混跑 | 主 manifest 只 A/B2（5×2=10）；B1 单独 manifest（3×1=3，无 sphinx） | `check_ac_validity_1c.py --self-test` 拒绝 B1 回主 arms；主/B1 strict dry-run 5/3 条 plan |
+| F2 单 plugin-dir | `--arm-plugin-dir` / `--arm-plugin-tarball` / `--strict-preflight`；`run_arm.py` 绑定 dir 与 tarball 内容 | 主 strict dry-run 输出 A/B2 不同 hash；错 hash/共享 dir/空 `--only-arm` 均非 0 |
+| F3 fixture | `fixtures/ac-validity-1c/check_fixtures.py` 物化六类 repo + `unittest`；补 `__main__`、S1 订单 ID | `FIXTURES OK`；S1 `ord-3`、S2 `NoneType`、S3 `Settings.verbose`/无 `parse_date` |
+| F4 handoff/preflight | 本节 §7.2/§8 给主/B1 命令、image-map、per-arm dir/tarball；`--execute` 见获批后说明 | 主/B1 strict dry-run `[preflight] OK`，无 `image=MISSING` |
+| F5 S1 Oracle | fixtures doc §3.1 AC-002 与 fixture check 要求 `ord-3` | 见 F3 |
+| F6 arm key | B1 manifest key=`B1`；phase1 分 `commit` 字段 | `check_ac_validity_1c.py` 校验 |
+| F7 Draft PR | 本 handoff 指向 `evals/ac-validity-1c-phase0` + Draft PR；不写“工作区干净” | PR #26；base `dev@5ee68cd` |
 
 ---
 
@@ -116,8 +129,41 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 - 锁死输入：同一场景的 Source、criteria、diff、test_evidence、scope、代码快照、环境与工具面完全一致；只替换 `A_phase1=085c8fd` / `B_phase1=5ee68cd` 的 verifier prompt。
 - 记录：run_id、verdict、findings、工具执行、Token、耗时；人工核对 finding 是否可复现。
 - 预算：≤8M Token / 2h；单次 ≤2M；超限停止，不重试。
-- Fixture 的单一物化/行为检查命令、`sdlc_verify` 参数与 DSH 运行面见 [offline fixtures](ac-validity-1c-offline-fixtures.md)。
-- 只有维护者明确批准后才运行。
+- Fixture 的单一物化/行为检查命令、`sdlc_verify` 参数见 [offline fixtures](ac-validity-1c-offline-fixtures.md) §3；完整 DSH 命令见该文 §4。
+
+**Phase 1 关键启动/驱动命令（获批后；完整版见 offline fixtures §4）：**
+
+```bash
+# 1) 物化六类 fixture（不调模型）
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
+  --workdir /tmp/validity-1c-fixtures
+
+# 2) 两臂插件（A=085c8fd，B=5ee68cd；离线打包/核对 hash）
+git worktree add /tmp/phase1/src/A 085c8fd
+git worktree add /tmp/phase1/src/B 5ee68cd
+for X in A B; do
+  npm ci --prefix /tmp/phase1/src/$X
+  npm run build --prefix /tmp/phase1/src/$X/packages/sdlc
+  mkdir -p /tmp/phase1/pkgs/$X /tmp/phase1/plugins/$X
+  (cd /tmp/phase1/src/$X/packages/sdlc && npm pack --pack-destination /tmp/phase1/pkgs/$X)
+  tar -xzf /tmp/phase1/pkgs/$X/*.tgz -C /tmp/phase1/plugins/$X
+  mv /tmp/phase1/plugins/$X/package /tmp/phase1/plugins/$X/dsh-sdlc
+  cp -r node_modules/js-yaml /tmp/phase1/plugins/$X/js-yaml
+done
+
+# 3) DSH web + 无头 Chrome + 现有 driver（示例 S2；A/B 各一次）
+export DSH_HOME=/tmp/phase1/dsh-home-A
+ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
+cd /tmp/validity-1c-fixtures/S2_gap
+nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh-home-A/web.log 2>&1 &
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --headless=new --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
+WEB_PORT=59611 node tools/evals/featurebench/driver.mjs \
+  9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt
+```
+
+- 只有维护者明确批准后才运行；A/B 的 prompt 文件、`sdlc_verify` 参数逐字相同，只换插件构建。
 
 ---
 
@@ -155,6 +201,8 @@ python3 tools/evals/featurebench/run_matrix.py \
 
 预期：5 条 `[plan]`、`[preflight] OK: 5 tasks, arms=['A', 'B2']`、退出 0。`--strict-preflight` 缺 image-map/plugin dir/tarball/hash 时非 0；`--only-arm` 不能代替本清单。
 
+**获批后执行**：在上面的命令末尾追加 `--execute`（不要改其他参数）；未批准不得加。执行前再核对三份 tarball sha256 与 §7.1 一致；`--allow-version-mismatch` 不能绕过 hash/目录绑定。
+
 ---
 
 ## 8. Phase 2 B1（条件性消融；单独 manifest；未批准）
@@ -176,6 +224,8 @@ python3 tools/evals/featurebench/run_matrix.py \
 
 预期：3 条 `[plan]`、`[preflight] OK: 3 tasks, arms=['B1']`、退出 0；不得出现 sphinx。
 
+**获批后执行**：在 B1 命令末尾追加 `--execute`；未批准不得加。B1 只在主实验触发阈值满足且预算批准后运行。
+
 ---
 
 ## 9. 审批边界
@@ -191,7 +241,7 @@ python3 tools/evals/featurebench/run_matrix.py \
 
 ## 10. 已知限制 / 风险
 
-- 首次 `sdlc_verify=reject`；F1–F7 修复后需第二次独立验证才能关闭 AC-002/AC-003。
+- 两次 `sdlc_verify` 均为 reject：首次的 F1–F7 已 resolved；第二次新增 AC-006 与 6 条 findings 已修复，但**未复验**；第三次验证需单独批准，不能宣称 DONE。
 - 历史 8 个官方 FP 只有 2 个任务；V1/V2 不能混算；全部 conflict，Source 层 FP 0 confirmed。
 - 3 个 FN 是 censored（timeout），不能当 FN 基线。
 - A vs B2 同时改变 Actor 写作与 Verifier 判断；只能报联合效果；B1 才隔离 Verifier。
@@ -211,7 +261,8 @@ python3 tools/evals/featurebench/run_matrix.py \
 - [x] 主 10 runs / B1 3 runs 两份 manifest + preflight 负例自检。
 - [x] 三份插件 tarball sha256 + per-arm plugin dir/hash 校验。
 - [x] `npm run verify`、`sanity_check --structural`、fixture/preflight 全过。
-- [ ] 第二次独立 `sdlc_verify`（已批准；待运行）。
+- [x] 第二次独立 `sdlc_verify` 已运行（reject；run `0553a496…`）；新 findings 已修复。
+- [ ] 第三次独立 `sdlc_verify`（未批准；需单独授权）。
 - [ ] 审查者核对 8 个官方 FP 的 provisional Source 层标签。
 - [ ] Phase 1 / Phase 2 / B1 预算批准。
 
@@ -220,6 +271,6 @@ python3 tools/evals/featurebench/run_matrix.py \
 ## 12. 需要维护者/审查者决定的问题
 
 1. 8 个官方 FP 的 Source 层标签：approve（接受 Source 排除句）/ needs_human（排除句不足）/ reject（缺失符号属于承诺路径）。
-2. 第二次 `sdlc_verify` 的 verdict 是否接受；如 reject，是否批准下一轮修复（超出当前两次 verify 预算）。
+2. 第二次 `sdlc_verify` 已 reject；是否批准第三次验证（超出当前两次 verify 预算），或接受剩余未复验项。
 3. Phase 1（8M/2h/6 calls/2M）与 Phase 2 主实验（120M/8h）、B1（30M/2h）的最终授权。
 4. sympy 镜像 rebake / Phase 2 环境准备是否批准。

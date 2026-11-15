@@ -174,6 +174,7 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test
 
 # 4) 六类 fixture 物化 + 行为检查（git + unittest，不需要 pytest）
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
   --workdir /tmp/validity-1c-fixtures
 ```
