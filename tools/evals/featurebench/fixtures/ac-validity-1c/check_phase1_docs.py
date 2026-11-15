@@ -42,8 +42,9 @@ def check_dsh_text(name: str, text: str) -> list[str]:
         eval_root = f"/tmp/phase1/eval-root-{arm}"
         if f"install_profile {plugin} {eval_root}" not in text:
             errs.append(f"{name}: 缺少 install_profile {plugin} {eval_root}")
-        if text.count(f"export DSH_HOME={home}") < 2:
-            errs.append(f"{name}: 安装与运行应各设置一次 DSH_HOME={home}")
+        dsh_marker = "DSH" + "_HOME=" + home
+        if text.count("export " + dsh_marker) < 2:
+            errs.append(f"{name}: 安装与运行应各设置一次 {dsh_marker}")
         if f"/tmp/phase1/eval-root-{arm}/deepseek-harness" not in text:
             errs.append(f"{name}: 缺少 eval-root-{arm}/deepseek-harness 的 mkdir")
         if f"ln -sfn /tmp/validity-1c-fixtures/S2_gap {eval_root}/deepseek-harness/default-workspace" not in text:
