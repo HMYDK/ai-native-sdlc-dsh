@@ -23,7 +23,7 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
 
 它不调用模型、Docker、网络或 FeatureBench；`/tmp/validity-1c-fixtures` 由脚本自己创建，不是文档里凭空出现的路径。
 
-**目录所有权**：脚本会在 workdir 写一个 `.ac-validity-1c-fixtures-owner` marker。下次复跑时，只有带 marker 的既有目录才会被清理；同名但缺 marker 的目录（或不在临时根下的同名目录）会被拒绝并原样保留。首次使用前若机器上已有旧的无 marker 目录，请人工确认后自行移除。`--self-test` 覆盖：临时根之外的同名目录不删、缺 marker 的既有目录不删、带 marker 的目录可重复清理。
+**目录所有权**：脚本会在 workdir 写一个 `.ac-validity-1c-fixtures-owner` marker。下次复跑时，只有带 marker 的既有目录才会被清理；同名但缺 marker 的目录（或不在临时根下的同名目录）会被拒绝并原样保留。首次使用前若机器上已有旧的无 marker 目录，请人工确认后自行移除。`--self-test` 覆盖：临时根之外的同名目录不删、缺 marker 的既有目录不删、符号链接路径拒绝、带 marker 的目录可重复清理；自测目录全部用 `mkdtemp`/`TemporaryDirectory` 唯一创建，不在准备阶段对固定名字调用 `rmtree`，连续运行两遍无残留。
 
 预期最后一行：`FIXTURES OK: six scenarios materialized and their observable behavior matches`。
 

@@ -140,8 +140,9 @@ def _clean_workdir(path: Path) -> None:
 
 def _workdir_guard_selftest() -> int:
     import os
+    import uuid
+
     temp_root = Path(tempfile.gettempdir()).resolve()
-    suffix = f"selftest-{os.getpid()}"
     if _workdir_allowed(temp_root / "mydata"):
         print("FAIL: arbitrary temp name incorrectly allowed", file=sys.stderr)
         return 1
@@ -149,11 +150,11 @@ def _workdir_guard_selftest() -> int:
         print("FAIL: dedicated workdir incorrectly rejected", file=sys.stderr)
         return 1
 
-    # 1) Same name outside the temp roots must not be deleted.
-    outside = Path.cwd() / "ac-validity-1c-fixtures-outside"
+    # 1) Same name outside the temp roots: a unique parent is created by mkdtemp,
+    #    so the test never pre-deletes a fixed user path.
+    parent = Path(tempfile.mkdtemp(prefix="ac1c-outside-", dir=Path.cwd()))
     try:
-        if outside.exists():
-            shutil.rmtree(outside)
+        outside = parent / "ac-validity-1c-fixtures-outside"
         outside.mkdir()
         (outside / "keep.txt").write_text("keep", encoding="utf-8")
         if _workdir_allowed(outside):
@@ -170,15 +171,12 @@ def _workdir_guard_selftest() -> int:
             print("FAIL: outside-temp dir was modified", file=sys.stderr)
             return 1
     finally:
-        if outside.exists():
-            shutil.rmtree(outside)
+        shutil.rmtree(parent, ignore_errors=True)
 
-    # 2) Same name under temp root but without marker must not be deleted.
-    unmarked = temp_root / f"ac-validity-1c-fixtures-unmarked-{suffix}"
+    # 2) Same name directly under temp root but without marker: mkdtemp creates it
+    #    uniquely, so there is no pre-clean of a guessed path.
+    unmarked = Path(tempfile.mkdtemp(prefix="ac-validity-1c-fixtures-unmarked-", dir=temp_root))
     try:
-        if unmarked.exists():
-            shutil.rmtree(unmarked)
-        unmarked.mkdir()
         (unmarked / "keep.txt").write_text("keep", encoding="utf-8")
         try:
             _clean_workdir(unmarked)
@@ -191,15 +189,11 @@ def _workdir_guard_selftest() -> int:
             print("FAIL: unmarked workdir was modified", file=sys.stderr)
             return 1
     finally:
-        if unmarked.exists():
-            shutil.rmtree(unmarked)
+        shutil.rmtree(unmarked, ignore_errors=True)
 
-    # 3) A marked dir is repeatable: clean deletes and recreates it with marker.
-    owned = temp_root / f"ac-validity-1c-fixtures-owned-{suffix}"
+    # 3) A marked directory created by this test is repeatable.
+    owned = Path(tempfile.mkdtemp(prefix="ac-validity-1c-fixtures-owned-", dir=temp_root))
     try:
-        if owned.exists():
-            shutil.rmtree(owned)
-        owned.mkdir()
         (owned / WORKDIR_MARKER).write_text("owned", encoding="utf-8")
         (owned / "old.txt").write_text("old", encoding="utf-8")
         _clean_workdir(owned)
@@ -207,9 +201,36 @@ def _workdir_guard_selftest() -> int:
             print("FAIL: marked workdir was not cleaned/recreated correctly", file=sys.stderr)
             return 1
     finally:
-        if owned.exists():
-            shutil.rmtree(owned)
-    print("WORKDIR GUARD OK: outside-temp/unmarked refused; marked workdir repeatable")
+        shutil.rmtree(owned, ignore_errors=True)
+
+    # 4) Symlink paths are refused; the symlink target stays intact.
+    target = Path(tempfile.mkdtemp(prefix="ac1c-link-target-", dir=temp_root))
+    link = temp_root / f"ac-validity-1c-fixtures-link-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+    try:
+        try:
+            os.symlink(target, link)
+        except OSError as exc:
+            print(f"SKIP symlink test: {exc}", file=sys.stderr)
+        else:
+            if _workdir_allowed(link):
+                print("FAIL: symlink workdir incorrectly allowed", file=sys.stderr)
+                return 1
+            try:
+                _clean_workdir(link)
+            except SystemExit:
+                pass
+            else:
+                print("FAIL: symlink workdir was not refused", file=sys.stderr)
+                return 1
+            if not target.is_dir():
+                print("FAIL: symlink target was modified", file=sys.stderr)
+                return 1
+    finally:
+        if link.is_symlink() or link.exists():
+            link.unlink(missing_ok=True)
+        shutil.rmtree(target, ignore_errors=True)
+
+    print("WORKDIR GUARD OK: outside/unmarked/symlink refused; marked repeatable; no residue")
     return 0
 
 

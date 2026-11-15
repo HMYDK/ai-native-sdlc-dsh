@@ -93,7 +93,7 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --sel
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/validity-1c-fixtures
 ```
 
-`--self-test` 覆盖：临时根之外的同名目录不删、缺 `.ac-validity-1c-fixtures-owner` marker 的既有目录不删、带 marker 的目录可重复清理；正常六类 fixture 复跑见下一行。
+`--self-test` 覆盖：临时根之外的同名目录不删、缺 `.ac-validity-1c-fixtures-owner` marker 的既有目录不删、符号链接路径拒绝、带 marker 的目录可重复清理；自测目录只用唯一 `mkdtemp`/`TemporaryDirectory` 创建，连续运行两遍无残留。正常六类 fixture 复跑见下一行。
 
 补充离线命令（需要已构建的 `/tmp/ac1c/artifacts`）：
 

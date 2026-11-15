@@ -63,8 +63,10 @@ jobs:
       - name: AC-VALIDITY-1C preflight self-test
         run: python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test
 
-      - name: AC-VALIDITY-1C fixture workdir guard
-        run: python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
+      - name: AC-VALIDITY-1C fixture workdir guard (twice)
+        run: |
+          python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
+          python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
 
       - name: AC-VALIDITY-1C offline fixtures
         run: python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/ac-validity-1c-fixtures

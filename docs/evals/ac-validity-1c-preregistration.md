@@ -179,7 +179,7 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
   --workdir /tmp/validity-1c-fixtures
 ```
 
-`--self-test` 检查 workdir 所有权：临时根之外的同名目录、缺 marker 的既有目录都拒绝删除；带 marker 的目录可重复清理。正常六类 fixture 由上面的第二行物化。
+`--self-test` 检查 workdir 所有权：临时根之外的同名目录、缺 marker 的既有目录、符号链接路径都拒绝删除；带 marker 的目录可重复清理。自测目录只用唯一 `mkdtemp`/`TemporaryDirectory` 创建，连续运行两遍无残留。正常六类 fixture 由上面的第二行物化。
 
 `--artifact-root` 需要以下布局（离线打包后可核对）：
 
