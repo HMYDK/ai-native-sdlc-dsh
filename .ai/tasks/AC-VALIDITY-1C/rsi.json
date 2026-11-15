@@ -7,9 +7,9 @@
     "采集开始晚于任务创建，起点证据不完整",
     "任务历史缺少阶段快照: 1/INTENT"
   ],
-  "run_count": 2,
-  "session_count": 3,
+  "run_count": 4,
+  "session_count": 4,
   "review_status": "collecting",
   "proposal_count": 0,
-  "updated_at": "2026-11-15T15:48:47.937Z"
+  "updated_at": "2026-11-15T16:49:18.792Z"
 }
