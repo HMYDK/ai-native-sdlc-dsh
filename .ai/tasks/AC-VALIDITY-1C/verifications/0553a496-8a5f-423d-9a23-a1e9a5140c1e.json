@@ -1,0 +1,402 @@
+{
+  "schema_version": 3,
+  "task": "AC-VALIDITY-1C",
+  "at": "2026-11-15T14:16:37.995Z",
+  "intent_of_change": "按 #22 审核整改 F1–F7：主实验只 A/B2（5 任务 × 2 臂 = 10 runs），B1 单独 manifest（3 sympy × 1 臂 = 3 runs，无 sphinx）；每臂固定 commit→tarball sha256→解包目录并用 hash 校验；六类 fixture 可在仓库内物化并执行；handoff 给出 image-map/per-arm plugin dir/strict preflight；首次 reject 记录保留，提交第二次独立验证。",
+  "test_evidence": "1) `python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac1c/artifacts` -> `AC-VALIDITY-1C preflight OK: main 5 tasks x A/B2 = 10; B1 3 tasks x B1 = 3`.\n2) `python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test` -> `SELF-TEST OK: all negative mutations fail closed`（含 B1 加回主 arms、缺 image-map、同 hash、改 commit、B1 含 sphinx、TBD hash）。\n3) 主 strict dry-run -> 5 条 `[plan]` + `[preflight] OK: 5 tasks, arms=['A', 'B2']`；B1 strict -> 3 条 + `[preflight] OK: 3 tasks, arms=['B1']`；缺 image-map exit 2、错 hash exit 1、共享 dir exit 1。\n4) `python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/validity-1c-fixtures` -> exit 0；六类 `[ok]`；末行 `FIXTURES OK`；S1 stderr 含 `ord-3`，S2 `NoneType`，S3 `Settings.verbose` 且无 `parse_date`，S4 `missing_native_dep`，S5 base/head 都失败，S6 `app.versioning`。\n5) `python3 tools/evals/featurebench/sanity_check.py --structural` -> `structural check OK`；`check_redaction.py` -> `OK（84 files）`。\n6) `cd packages/sdlc && DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify` -> exit 0；`ℹ pass 285` / `ℹ fail 0`、`ℹ pass 45` / `ℹ fail 0`；`全部冒烟通过（12 个脚本）`。\n7) `git diff --name-only 5ee68cd...HEAD` 不含 `packages/sdlc/src|test|smoke`；Draft PR #26 base `dev@5ee68cd` head `dcc5d93`（第二次验证后可能追加 verification commit）。\n8) 未运行 Phase 1/2/B1；未拉 sympy 镜像；未启动 Docker/无头 Chrome/FeatureBench。",
+  "criteria": [
+    "AC-001: 产出独立 case table / ground truth（MD + JSON），覆盖历史诊断与局部接口 vs 外部扩需、正向完成、无关既有失败、原始需求歧义、关键证据缺失；每例含 Source 原文/位置、Outcome/Boundary/Oracle、官方分数（如适用）、Source 与 Grader 一致性、人工预期裁决与不确定性、task/scenario 去重键、unavailable/censored 原因；历史 11 个案例按数据修正为官方 FP 8 runs / 2 任务、官方 FN 3 runs / 2 任务，官方 FP 与 Source 层错误放行分开；gettext/doctest 标 Source/Grader conflict 且 provisional 待审查者；3 个 FN 标 censored；含 Source 依赖核验，且**不写“Source 层已证实 FP=0/FN=0”**。",
+    "AC-002: 产出可执行离线 fixture，覆盖至少 6 类场景；Phase 1 固定使用 #21 场景 1/2/3（正向通过、明确缺口、范围外独立失败），其余 3 类保留；`check_fixtures.py` 用单一命令物化 repo 并运行真实入口/`unittest`，S1 补“错误包含订单 ID”，S2 失败不是 import error，S3 外部失败不指向目标路径；不新增 Runner，不调用付费模型。",
+    "AC-003: 产出预注册方案与两份 manifest：主实验 A=`master@920b0eb` vs B2=`dev@5ee68cd`、5 任务 × 2 臂 = **10 runs**；B1=`085c8fd` **单独 manifest**、3 个 sympy × 1 臂 = **3 runs**、不含 sphinx；3 个 sympy 新任务（test_inverse / test_nullspace / test_puiseux）+ 2 个诊断任务；deepseek-flash、DSH 0.2.2-rc.3、ITT/decided/task/run 分母、失败/超时、停止/决策；每臂固定 commit → tarball sha256 → 解包目录 → preset/DSH/镜像；`run_matrix.py`/`run_arm.py` 支持 per-arm plugin dir 与 hash 校验；`check_ac_validity_1c.py --self-test` 负例 fail closed；B1 触发阈值 Phase 0 起草、Phase 2 前批准。",
+    "AC-004: 产出分阶段预算申请：Phase 0 第二次 verify 1 call / ≤2M / ≤30min / 不重试；Phase 1 3 场景 × 2 臂 = 6 次 verifier 调用 / ≤8M / 2h / 单次 ≤2M；Phase 2 主实验 10 runs / ≤120M / 8h；B1 3 runs / ≤30M / 2h；写清 route/model、调用/run 数、停止条件、费用/墙钟口径；`--only-arm` 不能代替预注册计划。",
+    "AC-005: 人工 gold label 由审查者最终核对；标签独立于 A/B Actor 生成的 Spec/Delivery Contract/Verifier 裁决；历史 raw 存在时列出归档路径与 sha256，缺失时标 unavailable，不用模型推断补齐；8 个官方 FP 的 Source 层标签为 provisional + conflict，3 个 FN 为 censored；Source 依赖核验只给“未证明是承诺路径必要依赖”，不代替审查者签字；不把官方 resolved 直接当 Source 层结论。",
+    "AC-006: 产出/更新另一台机器的交接文档，包含已确认决策、Phase 0 成果清单、环境/镜像/归档位置（含 sympy 10.65GB 未拉取）、**两份 manifest**、每臂 commit/tarball sha256/解包目录、image-map、主/B1 strict preflight 命令、Phase 1 fixture/DSH 运行面、Phase 2 命令、预算与审批边界、禁止事项、独立分支 + Draft PR（base `dev@5ee68cd`，不直接合入 dev）、F1–F7 对应。",
+    "AC-007: 本轮只改文档/案例表/manifest/任务制品，以及 `tools/evals/featurebench` 的 runner/preflight/fixture 与 CI 确定性检查；不改 `packages/sdlc` 插件代码；在 `packages/sdlc/` 运行 `DSH_APP=\"$DSH_APP\" npm run verify`（build + test + smoke）通过；`check_ac_validity_1c.py --self-test`、`check_fixtures.py`、`sanity_check.py --structural` 通过；CI `evals-check` 包含这些确定性检查；不运行 Phase 1/2 付费评测；不宣称减少错误放行或行为已验证，任务不宣称 DONE。"
+  ],
+  "acceptance": {
+    "version": 1,
+    "id": "fb0975c9-ec9d-481e-be73-196fb654d267",
+    "spec_path": "spec.md",
+    "spec_sha256": "6a331c20378d79ce3d15e049eb9e6b2f97c7de9d117143af5eb5f676acf9a64c",
+    "criteria": [
+      {
+        "id": "AC-001",
+        "text": "产出独立 case table / ground truth（MD + JSON），覆盖历史诊断与局部接口 vs 外部扩需、正向完成、无关既有失败、原始需求歧义、关键证据缺失；每例含 Source 原文/位置、Outcome/Boundary/Oracle、官方分数（如适用）、Source 与 Grader 一致性、人工预期裁决与不确定性、task/scenario 去重键、unavailable/censored 原因；历史 11 个案例按数据修正为官方 FP 8 runs / 2 任务、官方 FN 3 runs / 2 任务，官方 FP 与 Source 层错误放行分开；gettext/doctest 标 Source/Grader conflict 且 provisional 待审查者；3 个 FN 标 censored；含 Source 依赖核验，且**不写“Source 层已证实 FP=0/FN=0”**。"
+      },
+      {
+        "id": "AC-002",
+        "text": "产出可执行离线 fixture，覆盖至少 6 类场景；Phase 1 固定使用 #21 场景 1/2/3（正向通过、明确缺口、范围外独立失败），其余 3 类保留；`check_fixtures.py` 用单一命令物化 repo 并运行真实入口/`unittest`，S1 补“错误包含订单 ID”，S2 失败不是 import error，S3 外部失败不指向目标路径；不新增 Runner，不调用付费模型。"
+      },
+      {
+        "id": "AC-003",
+        "text": "产出预注册方案与两份 manifest：主实验 A=`master@920b0eb` vs B2=`dev@5ee68cd`、5 任务 × 2 臂 = **10 runs**；B1=`085c8fd` **单独 manifest**、3 个 sympy × 1 臂 = **3 runs**、不含 sphinx；3 个 sympy 新任务（test_inverse / test_nullspace / test_puiseux）+ 2 个诊断任务；deepseek-flash、DSH 0.2.2-rc.3、ITT/decided/task/run 分母、失败/超时、停止/决策；每臂固定 commit → tarball sha256 → 解包目录 → preset/DSH/镜像；`run_matrix.py`/`run_arm.py` 支持 per-arm plugin dir 与 hash 校验；`check_ac_validity_1c.py --self-test` 负例 fail closed；B1 触发阈值 Phase 0 起草、Phase 2 前批准。"
+      },
+      {
+        "id": "AC-004",
+        "text": "产出分阶段预算申请：Phase 0 第二次 verify 1 call / ≤2M / ≤30min / 不重试；Phase 1 3 场景 × 2 臂 = 6 次 verifier 调用 / ≤8M / 2h / 单次 ≤2M；Phase 2 主实验 10 runs / ≤120M / 8h；B1 3 runs / ≤30M / 2h；写清 route/model、调用/run 数、停止条件、费用/墙钟口径；`--only-arm` 不能代替预注册计划。"
+      },
+      {
+        "id": "AC-005",
+        "text": "人工 gold label 由审查者最终核对；标签独立于 A/B Actor 生成的 Spec/Delivery Contract/Verifier 裁决；历史 raw 存在时列出归档路径与 sha256，缺失时标 unavailable，不用模型推断补齐；8 个官方 FP 的 Source 层标签为 provisional + conflict，3 个 FN 为 censored；Source 依赖核验只给“未证明是承诺路径必要依赖”，不代替审查者签字；不把官方 resolved 直接当 Source 层结论。"
+      },
+      {
+        "id": "AC-006",
+        "text": "产出/更新另一台机器的交接文档，包含已确认决策、Phase 0 成果清单、环境/镜像/归档位置（含 sympy 10.65GB 未拉取）、**两份 manifest**、每臂 commit/tarball sha256/解包目录、image-map、主/B1 strict preflight 命令、Phase 1 fixture/DSH 运行面、Phase 2 命令、预算与审批边界、禁止事项、独立分支 + Draft PR（base `dev@5ee68cd`，不直接合入 dev）、F1–F7 对应。"
+      },
+      {
+        "id": "AC-007",
+        "text": "本轮只改文档/案例表/manifest/任务制品，以及 `tools/evals/featurebench` 的 runner/preflight/fixture 与 CI 确定性检查；不改 `packages/sdlc` 插件代码；在 `packages/sdlc/` 运行 `DSH_APP=\"$DSH_APP\" npm run verify`（build + test + smoke）通过；`check_ac_validity_1c.py --self-test`、`check_fixtures.py`、`sanity_check.py --structural` 通过；CI `evals-check` 包含这些确定性检查；不运行 Phase 1/2 付费评测；不宣称减少错误放行或行为已验证，任务不宣称 DONE。"
+      }
+    ],
+    "registered_at": "2026-11-15T14:02:18.974Z",
+    "registered_by": "session-febe6c27-5def-49f9-b213-bc02e2a9e63e"
+  },
+  "additional_criteria": [],
+  "verdict": {
+    "status": "reject",
+    "summary": "Core F1–F7 fixes are independently reproduced: main 5 tasks x A/B2 = 10 and B1 3 x B1 = 3 strict preflights pass; self-test rejects 10 negative mutations; six fixtures pass (S1 ord-3, S2 NoneType, S3 Settings.verbose/no parse_date); 84/84 archive hashes; npm run verify 285+45 tests and 12 smoke; no packages/sdlc changes; PR #26 is draft base dev head dcc5d93. But AC-006 is not met: the named handoff has no F1–F7 mapping (only generic mentions at lines 6/40/194; the mapping is in prereg §11 and the PR body) and its Phase 2 command is a strict preflight with no --execute; Phase 1 DSH run surface is only a link. Also found fixture recheck commands using an absent 'python', an over-broad /tmp cleanup, and an unpacked-plugin-dir/tarball binding gap. Phase 1/2/B1 were correctly not run; the task is not DONE.",
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "spec_mismatch",
+        "file": "docs/evals/ac-validity-1c-handoff.md",
+        "line": 6,
+        "reason": "AC-006 requires F1–F7 correspondence and the Phase 1 fixture/DSH run surface in the handoff; the handoff only mentions F1–F7 generically and links to offline fixtures; the mapping is in prereg §11/PR #26 body, not the named handoff.",
+        "evidence": "grep -nE 'F1|F2|F3|F4|F5|F6|F7' docs/evals/ac-validity-1c-handoff.md -> only lines 6,40,194 (generic); grep -n 'dsh web|driver.mjs|sdlc_verify' docs/evals/ac-validity-1c-handoff.md -> no output",
+        "suggestion": "Add a 7-row F1–F7 table and the Phase 1 fixture/DSH commands (or an explicit section pointer) to the handoff file."
+      },
+      {
+        "severity": "important",
+        "category": "missing_evidence",
+        "file": "docs/evals/ac-validity-1c-handoff.md",
+        "line": 140,
+        "reason": "AC-006 asks for a Phase 2 command; §7.2 gives only a dry-run strict preflight (no --execute), and §8 B1 likewise; after approval a machine following only the handoff cannot execute the paid runs.",
+        "evidence": "grep -n -- '--execute' docs/evals/ac-validity-1c-handoff.md -> no output; sed -n '140,156p' docs/evals/ac-validity-1c-handoff.md -> run_matrix ... --strict-preflight (no --execute)",
+        "suggestion": "Add the exact --execute Phase 2/B1 command behind the approval boundary, or state explicitly that --execute must be appended after approval."
+      },
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "docs/evals/ac-validity-1c-offline-fixtures.md",
+        "line": 87,
+        "reason": "The S1/S2/S3 recheck commands use 'python', which is absent on this host; exact commands fail with 127 even though the fixture works under python3.",
+        "evidence": "cd /tmp/verify1c-fixtures-2/S1_positive && python -m unittest discover -s tests -> bash: python: command not found (exit 127); same with python3 -> Ran 2 tests, OK; python3 -m app.cli missing amount -> exit 2 with ord-3",
+        "suggestion": "Use python3 or sys.executable in the documented recheck commands and rerun them on this host."
+      },
+      {
+        "severity": "important",
+        "category": "security",
+        "file": "tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py",
+        "line": 104,
+        "reason": "_clean_workdir claims to refuse anything outside the dedicated fixture workdir but accepts any path under /tmp and then rmtree's it; --workdir /tmp/mydata would delete user data.",
+        "evidence": "sed -n '100,110p' tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py -> allowed = str(resolved).startswith(tmp_root) or 'ac-validity-1c-fixtures' in resolved.name; then shutil.rmtree(resolved)",
+        "suggestion": "Require a dedicated name (for example ac-validity-1c-fixtures) and refuse other /tmp paths; add a negative test."
+      },
+      {
+        "severity": "minor",
+        "category": "logic_error",
+        "file": "tools/evals/featurebench/run_matrix.py",
+        "line": 196,
+        "reason": "--only-arm B1 on the main manifest yields an empty all_arms list and a ZeroDivisionError instead of fail-closed; the strict preflight does not guard an empty arm list.",
+        "evidence": "python3 tools/evals/featurebench/run_matrix.py --manifest tools/evals/featurebench/manifests/ac-validity-1c/ac-validity-1c.yml ... --strict-preflight --only-arm B1 -> ZeroDivisionError at line 196, exit 1",
+        "suggestion": "Reject unknown or empty --only-arm selections with a clear error before the plan loop; add a negative test."
+      },
+      {
+        "severity": "important",
+        "category": "architecture",
+        "file": "tools/evals/featurebench/run_arm.py",
+        "line": 350,
+        "reason": "The per-arm plugin dir is only checked for package.json version (0.6.2 for all three builds); the tarball sha256 is checked separately and the dir is never bound to the tarball. A copied A dir passed as B2 with the correct B2 tarball would pass strict preflight and erase the treatment.",
+        "evidence": "sed -n '350,362p' tools/evals/featurebench/run_arm.py -> only package.json version; sed -n '211,235p' tools/evals/featurebench/check_ac_validity_1c.py -> dir package version + tarball sha256, no dir content hash",
+        "suggestion": "Bind the unpacked directory to the tarball (hash the dir contents or compare against the extracted tarball) and add a negative test that copies the A dir as B2."
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "criterion": "AC-001 case table",
+        "result": "met",
+        "evidence": "python3 recompute from docs/evals/featurebench-runs.jsonl -> FP 8 runs / 2 tasks, FN 3 runs / 2 tasks; case-table JSON summary matches. python3 evidence-hash loop over 84 archive paths -> 84/84 present and hash-matching; 8 FP conflict/pending_reviewer, 3 FN censored; source_dependency_analysis present with no confirmed-zero claim."
+      },
+      {
+        "criterion_id": "AC-002",
+        "criterion": "AC-002 executable fixtures",
+        "result": "met",
+        "evidence": "python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/verify1c-fixtures-2 -> exit 0; six [ok] lines and FIXTURES OK. S1 stderr 'error: order ord-3 missing amount'; S2 'NoneType'/'isoformat'; S3 'Settings'/'verbose' and no 'parse_date'. The single checker command and its real entry/unittest checks pass; the documented recheck commands still use absent python (finding 3)."
+      },
+      {
+        "criterion_id": "AC-003",
+        "criterion": "AC-003 manifests/identity",
+        "result": "met",
+        "evidence": "Main strict preflight -> 5 [plan] lines order A/B2 + [preflight] OK; B1 strict preflight -> 3 lines order B1 + [preflight] OK; manifests plan.runs 10/3 and B1 has no sphinx. check_ac_validity_1c.py --self-test -> 10 [ok] mutations and SELF-TEST OK; tarball hashes match actual /tmp/ac1c tarballs (40172.../8bb7.../1062...). Residual: the unpacked plugin dir is not hash-bound to the tarball (finding 6); runtime effective preset remains Phase 2."
+      },
+      {
+        "criterion_id": "AC-004",
+        "criterion": "AC-004 budget",
+        "result": "met",
+        "evidence": "sed -n '13,17p' docs/evals/ac-validity-1c-budget.md -> Phase 0 1 call/2M/30min; Phase 1 6 calls/8M/2h/2M; Phase 2 10 runs/120M/8h; B1 3 runs/30M/2h. grep -n 'deepseek-account|--only-arm|停止条件' docs/evals/ac-validity-1c-budget.md -> route/model, only-arm limitation, stop rules present."
+      },
+      {
+        "criterion_id": "AC-005",
+        "criterion": "AC-005 labels/raw evidence",
+        "result": "met",
+        "evidence": "python3 evidence-hash loop over docs/evals/ac-validity-1c-case-table.json -> 84/84 archive paths exist and sha256 match. JSON: 8 FP source_grader_agreement=conflict, expected_verdict=provisional, label_status=pending_reviewer; 3 FN label_status=censored; source_dependency_analysis says not_proven_necessary_dependency and reviewer must decide."
+      },
+      {
+        "criterion_id": "AC-006",
+        "criterion": "AC-006 handoff completeness",
+        "result": "not_met",
+        "evidence": "grep -nE 'F1|F2|F3|F4|F5|F6|F7' docs/evals/ac-validity-1c-handoff.md -> only generic lines 6,40,194; no F1–F7 mapping table. grep -n -- '--execute' docs/evals/ac-validity-1c-handoff.md -> no output; §7.2 ends at --strict-preflight; Phase 1 DSH commands are only linked from offline fixtures."
+      },
+      {
+        "criterion_id": "AC-007",
+        "criterion": "AC-007 scope/verify",
+        "result": "met",
+        "evidence": "git diff --name-only 5ee68cd...HEAD | grep packages/sdlc/src -> no output; lib is ignored build output. cd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -> exit 0; grep '^[#ℹ] (pass|fail)' -> pass 285/fail 0 and pass 45/fail 0; smoke '全部冒烟通过（12 个脚本）'. check_ac_validity_1c --self-test, check_fixtures, sanity_check --structural -> exit 0; CI evals-check includes all three; state.yaml status VERIFYING (not DONE)."
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F1",
+        "result": "resolved",
+        "evidence": "main manifest arms only A/B2 and plan.runs=10; B1 manifest arms only B1, 3 sympy tasks, plan.runs=3, no sphinx. python3 run_matrix main --strict-preflight -> 5 plan lines order ['A','B2'] + [preflight] OK; B1 -> 3 lines order ['B1'] + [preflight] OK."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F2",
+        "result": "resolved",
+        "evidence": "run_matrix main strict -> plugin_sha A=40172..., B2=8bb7...; wrong B2 tarball -> exit 1; one shared dir with distinct tarballs -> exit 1. run_arm with mismatched tarball -> exit 2; --allow-version-mismatch does not bypass the hash."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F3",
+        "result": "resolved",
+        "evidence": "check_fixtures.py --workdir /tmp/verify1c-fixtures-2 -> exit 0, six [ok], FIXTURES OK; S1 'error: order ord-3 missing amount'; S2 'NoneType'/'isoformat'; S3 'Settings.verbose' with no 'parse_date'; app/cli.py now has __main__. The documented recheck commands still use absent python (minor finding 3)."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F4",
+        "result": "resolved",
+        "evidence": "handoff §7.2/§8 contain run_matrix invocations with --image-map sphinx/sympy, --arm-plugin-dir, --arm-plugin-tarball and --strict-preflight. Independent main/B1 strict dry-runs -> [preflight] OK with no image=MISSING."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F5",
+        "result": "resolved",
+        "evidence": "check_fixtures.py S1 test asserts 'ord-3' in stderr; docs/evals/ac-validity-1c-offline-fixtures.md §3.1 AC-002 requires 'error contains ord-3'; observed stderr 'error: order ord-3 missing amount'."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F6",
+        "result": "resolved",
+        "evidence": "B1 manifest arms key is B1 with commit 085c8fd in a separate field; main b1_ablation has arm_key=B1 and commit=085c8fd; phase1 has A_phase1.commit/B_phase1.commit. check_ac_validity_1c.py --self-test passes and validates those fields."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F7",
+        "result": "resolved",
+        "evidence": "grep -n '工作区干净' docs/evals/ac-validity-1c-handoff.md -> no output; handoff names branch evals/ac-validity-1c-phase0 and a Draft PR. gh pr view 26 -> OPEN, isDraft=true, baseRefName=dev, headRefName=evals/ac-validity-1c-phase0, headRefOid=dcc5d93; git status --short shows only modified state.yaml."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:C2",
+        "result": "resolved",
+        "evidence": "check_fixtures.py materializes six independent git repos and runs unittest/real entry points; Phase 1 scenarios [1,2,3] in manifest/doc; S1 ord-3, S2 non-import failure, S3 external Settings.verbose with no parse_date; no model/network/Docker call. The python-vs-python3 doc issue is minor finding 3."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:C3",
+        "result": "resolved",
+        "evidence": "main 5 tasks x A/B2 = 10 runs and B1 3 sympy x B1 = 3 runs are in separate manifests; A/B2/B1 commits and tarball hashes are fixed; strict preflights and 10 negative mutations fail closed; targeted sanity_check.check_manifest check passes."
+      }
+    ],
+    "unverified": [
+      "Phase 1/2/B1 paid runs were correctly not executed; there are no real-model verdicts, token usage, or wall-clock measurements.",
+      "The sympy image 10.65GB and its digest could not be independently verified because pulling/starting Docker was forbidden.",
+      "Actual container injection and the effective preset/plugin build in the container remain unverified; Phase 0 only checked offline identity/tarballs.",
+      "The unpacked plugin directories are not cryptographically bound to the tarballs; only tarball sha256 and package.json version are checked (see finding 6).",
+      "The F1–F7 mapping exists in prereg §11 and the PR #26 body but not in the named handoff; if the handoff package includes those, AC-006 could be met (see finding 1).",
+      "The Phase 2/B1 execution commands are absent; if the strict preflight counts as the Phase 2 command, that sub-item could be met (see finding 2).",
+      "FeatureBench 0.3.0 is installed at ~/.local/bin but is not on PATH; it was not exercised. The DSH App version was not read from app.asar, although npm smoke used the app successfully."
+    ],
+    "verifier_session": "9f644432-952d-44da-a85a-2fd6a70febd6",
+    "raw_status": "reject",
+    "verification_complete": true,
+    "verification_run_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e"
+  },
+  "raw_verdict": {
+    "status": "reject",
+    "summary": "Core F1–F7 fixes are independently reproduced: main 5 tasks x A/B2 = 10 and B1 3 x B1 = 3 strict preflights pass; self-test rejects 10 negative mutations; six fixtures pass (S1 ord-3, S2 NoneType, S3 Settings.verbose/no parse_date); 84/84 archive hashes; npm run verify 285+45 tests and 12 smoke; no packages/sdlc changes; PR #26 is draft base dev head dcc5d93. But AC-006 is not met: the named handoff has no F1–F7 mapping (only generic mentions at lines 6/40/194; the mapping is in prereg §11 and the PR body) and its Phase 2 command is a strict preflight with no --execute; Phase 1 DSH run surface is only a link. Also found fixture recheck commands using an absent 'python', an over-broad /tmp cleanup, and an unpacked-plugin-dir/tarball binding gap. Phase 1/2/B1 were correctly not run; the task is not DONE.",
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "spec_mismatch",
+        "file": "docs/evals/ac-validity-1c-handoff.md",
+        "line": 6,
+        "reason": "AC-006 requires F1–F7 correspondence and the Phase 1 fixture/DSH run surface in the handoff; the handoff only mentions F1–F7 generically and links to offline fixtures; the mapping is in prereg §11/PR #26 body, not the named handoff.",
+        "evidence": "grep -nE 'F1|F2|F3|F4|F5|F6|F7' docs/evals/ac-validity-1c-handoff.md -> only lines 6,40,194 (generic); grep -n 'dsh web|driver.mjs|sdlc_verify' docs/evals/ac-validity-1c-handoff.md -> no output",
+        "suggestion": "Add a 7-row F1–F7 table and the Phase 1 fixture/DSH commands (or an explicit section pointer) to the handoff file."
+      },
+      {
+        "severity": "important",
+        "category": "missing_evidence",
+        "file": "docs/evals/ac-validity-1c-handoff.md",
+        "line": 140,
+        "reason": "AC-006 asks for a Phase 2 command; §7.2 gives only a dry-run strict preflight (no --execute), and §8 B1 likewise; after approval a machine following only the handoff cannot execute the paid runs.",
+        "evidence": "grep -n -- '--execute' docs/evals/ac-validity-1c-handoff.md -> no output; sed -n '140,156p' docs/evals/ac-validity-1c-handoff.md -> run_matrix ... --strict-preflight (no --execute)",
+        "suggestion": "Add the exact --execute Phase 2/B1 command behind the approval boundary, or state explicitly that --execute must be appended after approval."
+      },
+      {
+        "severity": "minor",
+        "category": "test_integrity",
+        "file": "docs/evals/ac-validity-1c-offline-fixtures.md",
+        "line": 87,
+        "reason": "The S1/S2/S3 recheck commands use 'python', which is absent on this host; exact commands fail with 127 even though the fixture works under python3.",
+        "evidence": "cd /tmp/verify1c-fixtures-2/S1_positive && python -m unittest discover -s tests -> bash: python: command not found (exit 127); same with python3 -> Ran 2 tests, OK; python3 -m app.cli missing amount -> exit 2 with ord-3",
+        "suggestion": "Use python3 or sys.executable in the documented recheck commands and rerun them on this host."
+      },
+      {
+        "severity": "important",
+        "category": "security",
+        "file": "tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py",
+        "line": 104,
+        "reason": "_clean_workdir claims to refuse anything outside the dedicated fixture workdir but accepts any path under /tmp and then rmtree's it; --workdir /tmp/mydata would delete user data.",
+        "evidence": "sed -n '100,110p' tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py -> allowed = str(resolved).startswith(tmp_root) or 'ac-validity-1c-fixtures' in resolved.name; then shutil.rmtree(resolved)",
+        "suggestion": "Require a dedicated name (for example ac-validity-1c-fixtures) and refuse other /tmp paths; add a negative test."
+      },
+      {
+        "severity": "minor",
+        "category": "logic_error",
+        "file": "tools/evals/featurebench/run_matrix.py",
+        "line": 196,
+        "reason": "--only-arm B1 on the main manifest yields an empty all_arms list and a ZeroDivisionError instead of fail-closed; the strict preflight does not guard an empty arm list.",
+        "evidence": "python3 tools/evals/featurebench/run_matrix.py --manifest tools/evals/featurebench/manifests/ac-validity-1c/ac-validity-1c.yml ... --strict-preflight --only-arm B1 -> ZeroDivisionError at line 196, exit 1",
+        "suggestion": "Reject unknown or empty --only-arm selections with a clear error before the plan loop; add a negative test."
+      },
+      {
+        "severity": "important",
+        "category": "architecture",
+        "file": "tools/evals/featurebench/run_arm.py",
+        "line": 350,
+        "reason": "The per-arm plugin dir is only checked for package.json version (0.6.2 for all three builds); the tarball sha256 is checked separately and the dir is never bound to the tarball. A copied A dir passed as B2 with the correct B2 tarball would pass strict preflight and erase the treatment.",
+        "evidence": "sed -n '350,362p' tools/evals/featurebench/run_arm.py -> only package.json version; sed -n '211,235p' tools/evals/featurebench/check_ac_validity_1c.py -> dir package version + tarball sha256, no dir content hash",
+        "suggestion": "Bind the unpacked directory to the tarball (hash the dir contents or compare against the extracted tarball) and add a negative test that copies the A dir as B2."
+      }
+    ],
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "criterion": "AC-001 case table",
+        "result": "met",
+        "evidence": "python3 recompute from docs/evals/featurebench-runs.jsonl -> FP 8 runs / 2 tasks, FN 3 runs / 2 tasks; case-table JSON summary matches. python3 evidence-hash loop over 84 archive paths -> 84/84 present and hash-matching; 8 FP conflict/pending_reviewer, 3 FN censored; source_dependency_analysis present with no confirmed-zero claim."
+      },
+      {
+        "criterion_id": "AC-002",
+        "criterion": "AC-002 executable fixtures",
+        "result": "met",
+        "evidence": "python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/verify1c-fixtures-2 -> exit 0; six [ok] lines and FIXTURES OK. S1 stderr 'error: order ord-3 missing amount'; S2 'NoneType'/'isoformat'; S3 'Settings'/'verbose' and no 'parse_date'. The single checker command and its real entry/unittest checks pass; the documented recheck commands still use absent python (finding 3)."
+      },
+      {
+        "criterion_id": "AC-003",
+        "criterion": "AC-003 manifests/identity",
+        "result": "met",
+        "evidence": "Main strict preflight -> 5 [plan] lines order A/B2 + [preflight] OK; B1 strict preflight -> 3 lines order B1 + [preflight] OK; manifests plan.runs 10/3 and B1 has no sphinx. check_ac_validity_1c.py --self-test -> 10 [ok] mutations and SELF-TEST OK; tarball hashes match actual /tmp/ac1c tarballs (40172.../8bb7.../1062...). Residual: the unpacked plugin dir is not hash-bound to the tarball (finding 6); runtime effective preset remains Phase 2."
+      },
+      {
+        "criterion_id": "AC-004",
+        "criterion": "AC-004 budget",
+        "result": "met",
+        "evidence": "sed -n '13,17p' docs/evals/ac-validity-1c-budget.md -> Phase 0 1 call/2M/30min; Phase 1 6 calls/8M/2h/2M; Phase 2 10 runs/120M/8h; B1 3 runs/30M/2h. grep -n 'deepseek-account|--only-arm|停止条件' docs/evals/ac-validity-1c-budget.md -> route/model, only-arm limitation, stop rules present."
+      },
+      {
+        "criterion_id": "AC-005",
+        "criterion": "AC-005 labels/raw evidence",
+        "result": "met",
+        "evidence": "python3 evidence-hash loop over docs/evals/ac-validity-1c-case-table.json -> 84/84 archive paths exist and sha256 match. JSON: 8 FP source_grader_agreement=conflict, expected_verdict=provisional, label_status=pending_reviewer; 3 FN label_status=censored; source_dependency_analysis says not_proven_necessary_dependency and reviewer must decide."
+      },
+      {
+        "criterion_id": "AC-006",
+        "criterion": "AC-006 handoff completeness",
+        "result": "not_met",
+        "evidence": "grep -nE 'F1|F2|F3|F4|F5|F6|F7' docs/evals/ac-validity-1c-handoff.md -> only generic lines 6,40,194; no F1–F7 mapping table. grep -n -- '--execute' docs/evals/ac-validity-1c-handoff.md -> no output; §7.2 ends at --strict-preflight; Phase 1 DSH commands are only linked from offline fixtures."
+      },
+      {
+        "criterion_id": "AC-007",
+        "criterion": "AC-007 scope/verify",
+        "result": "met",
+        "evidence": "git diff --name-only 5ee68cd...HEAD | grep packages/sdlc/src -> no output; lib is ignored build output. cd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -> exit 0; grep '^[#ℹ] (pass|fail)' -> pass 285/fail 0 and pass 45/fail 0; smoke '全部冒烟通过（12 个脚本）'. check_ac_validity_1c --self-test, check_fixtures, sanity_check --structural -> exit 0; CI evals-check includes all three; state.yaml status VERIFYING (not DONE)."
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F1",
+        "result": "resolved",
+        "evidence": "main manifest arms only A/B2 and plan.runs=10; B1 manifest arms only B1, 3 sympy tasks, plan.runs=3, no sphinx. python3 run_matrix main --strict-preflight -> 5 plan lines order ['A','B2'] + [preflight] OK; B1 -> 3 lines order ['B1'] + [preflight] OK."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F2",
+        "result": "resolved",
+        "evidence": "run_matrix main strict -> plugin_sha A=40172..., B2=8bb7...; wrong B2 tarball -> exit 1; one shared dir with distinct tarballs -> exit 1. run_arm with mismatched tarball -> exit 2; --allow-version-mismatch does not bypass the hash."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F3",
+        "result": "resolved",
+        "evidence": "check_fixtures.py --workdir /tmp/verify1c-fixtures-2 -> exit 0, six [ok], FIXTURES OK; S1 'error: order ord-3 missing amount'; S2 'NoneType'/'isoformat'; S3 'Settings.verbose' with no 'parse_date'; app/cli.py now has __main__. The documented recheck commands still use absent python (minor finding 3)."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F4",
+        "result": "resolved",
+        "evidence": "handoff §7.2/§8 contain run_matrix invocations with --image-map sphinx/sympy, --arm-plugin-dir, --arm-plugin-tarball and --strict-preflight. Independent main/B1 strict dry-runs -> [preflight] OK with no image=MISSING."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F5",
+        "result": "resolved",
+        "evidence": "check_fixtures.py S1 test asserts 'ord-3' in stderr; docs/evals/ac-validity-1c-offline-fixtures.md §3.1 AC-002 requires 'error contains ord-3'; observed stderr 'error: order ord-3 missing amount'."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F6",
+        "result": "resolved",
+        "evidence": "B1 manifest arms key is B1 with commit 085c8fd in a separate field; main b1_ablation has arm_key=B1 and commit=085c8fd; phase1 has A_phase1.commit/B_phase1.commit. check_ac_validity_1c.py --self-test passes and validates those fields."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:F7",
+        "result": "resolved",
+        "evidence": "grep -n '工作区干净' docs/evals/ac-validity-1c-handoff.md -> no output; handoff names branch evals/ac-validity-1c-phase0 and a Draft PR. gh pr view 26 -> OPEN, isDraft=true, baseRefName=dev, headRefName=evals/ac-validity-1c-phase0, headRefOid=dcc5d93; git status --short shows only modified state.yaml."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:C2",
+        "result": "resolved",
+        "evidence": "check_fixtures.py materializes six independent git repos and runs unittest/real entry points; Phase 1 scenarios [1,2,3] in manifest/doc; S1 ord-3, S2 non-import failure, S3 external Settings.verbose with no parse_date; no model/network/Docker call. The python-vs-python3 doc issue is minor finding 3."
+      },
+      {
+        "issue_id": "760afaff-1138-43ed-a80a-2436bcd7fc5b:C3",
+        "result": "resolved",
+        "evidence": "main 5 tasks x A/B2 = 10 runs and B1 3 sympy x B1 = 3 runs are in separate manifests; A/B2/B1 commits and tarball hashes are fixed; strict preflights and 10 negative mutations fail closed; targeted sanity_check.check_manifest check passes."
+      }
+    ],
+    "unverified": [
+      "Phase 1/2/B1 paid runs were correctly not executed; there are no real-model verdicts, token usage, or wall-clock measurements.",
+      "The sympy image 10.65GB and its digest could not be independently verified because pulling/starting Docker was forbidden.",
+      "Actual container injection and the effective preset/plugin build in the container remain unverified; Phase 0 only checked offline identity/tarballs.",
+      "The unpacked plugin directories are not cryptographically bound to the tarballs; only tarball sha256 and package.json version are checked (see finding 6).",
+      "The F1–F7 mapping exists in prereg §11 and the PR #26 body but not in the named handoff; if the handoff package includes those, AC-006 could be met (see finding 1).",
+      "The Phase 2/B1 execution commands are absent; if the strict preflight counts as the Phase 2 command, that sub-item could be met (see finding 2).",
+      "FeatureBench 0.3.0 is installed at ~/.local/bin but is not on PATH; it was not exercised. The DSH App version was not read from app.asar, although npm smoke used the app successfully."
+    ]
+  },
+  "binding": {
+    "version": 1,
+    "roots": [
+      "."
+    ],
+    "fingerprint": "1b3f4f2a992db9cced68e058df9ae9c9be65f86df6173c1de7821b8b330ab663",
+    "code_fingerprint": "14516e090bfbf1ed1a5f8dbe40a6d9c26105cee757d2cb0076fc4a54f9857659",
+    "files": 264,
+    "artifacts": {
+      "intent": {
+        "path": ".ai/tasks/AC-VALIDITY-1C/intent.md",
+        "sha256": "4daf50c9bf8f7377e1e6036ad0a9cfe36368d7796abb0dbe27b5bd26d479c755"
+      },
+      "spec": {
+        "path": ".ai/tasks/AC-VALIDITY-1C/spec.md",
+        "sha256": "6a331c20378d79ce3d15e049eb9e6b2f97c7de9d117143af5eb5f676acf9a64c"
+      },
+      "plan": {
+        "path": ".ai/tasks/AC-VALIDITY-1C/plan.md",
+        "sha256": "e11f306ec167d5572e66843e11297a6daaccaf3413fc1bce111f760d5e929460"
+      }
+    }
+  }
+}

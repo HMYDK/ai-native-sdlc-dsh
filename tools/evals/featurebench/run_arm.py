@@ -52,9 +52,59 @@ def find_chrome() -> str:
     return shutil.which("google-chrome") or shutil.which("chromium") or ""
 
 
+def verify_plugin_dir_matches_tarball(plugin_dir: Path, tarball: Path) -> list[str]:
+    """Bind the unpacked plugin dir to the npm pack tarball.
+
+    The three arms all report version 0.6.2, so package.json alone cannot prove
+    which build is in a directory. Compare every regular file in the tarball's
+    package/ prefix against plugin_dir/dsh-sdlc, and fail on missing/extra files
+    or content differences.
+    """
+    import tarfile
+
+    errors: list[str] = []
+    root = plugin_dir / "dsh-sdlc"
+    if not root.is_dir():
+        return [f"plugin dir {plugin_dir} 缺少 dsh-sdlc/"]
+    try:
+        with tarfile.open(tarball, "r:gz") as tf:
+            members = [m for m in tf.getmembers() if m.isfile()]
+            if not members:
+                return [f"tarball {tarball} 没有文件成员"]
+            for member in members:
+                rel = member.name.split("/", 1)[1] if member.name.startswith("package/") else member.name
+                target = root / rel
+                if not target.is_file():
+                    errors.append(f"plugin dir 缺少 tarball 文件: {rel}")
+                    continue
+                src = tf.extractfile(member)
+                if src is None:
+                    errors.append(f"tarball 成员不可读: {member.name}")
+                    continue
+                a = hashlib.sha256(src.read()).hexdigest()
+                b = sha256_file(target)
+                if a != b:
+                    errors.append(f"plugin dir 与 tarball 内容不一致: {rel}")
+            actual = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
+            expected = {m.name.split("/", 1)[1] if m.name.startswith("package/") else m.name for m in members}
+            for rel in sorted(actual - expected):
+                errors.append(f"plugin dir 有 tarball 之外的文件: {rel}")
+    except Exception as exc:
+        return [f"读取 tarball 失败: {exc}"]
+    return errors
+
+
 def load_manifest(path: Path) -> dict:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def load_instance(task_id: str):
@@ -220,6 +270,9 @@ def main() -> int:
     ap.add_argument("--image", required=True, help="派生镜像，例如 fb-eval-base:sympy")
     ap.add_argument("--out", required=True, help="结果目录（不提交）")
     ap.add_argument("--plugin-dir", help="解包后的插件目录（含 dsh-sdlc/ 与 js-yaml/）")
+    ap.add_argument("--plugin-tarball", help="该臂的插件 npm pack 产物（用于身份校验）")
+    ap.add_argument("--expected-plugin-sha256",
+                    help="期望的插件 tarball sha256；与 manifest arms.<arm>.plugin_tarball_sha256 对账")
     ap.add_argument("--credentials", help="隔离的 .credentials.yaml")
     ap.add_argument("--web-port", type=int, default=3115)
     ap.add_argument("--cdp-port", type=int, default=9400)
@@ -241,6 +294,39 @@ def main() -> int:
         print(f"arm {args.arm!r} 不在 manifest arms {list(manifest['arms'])} 里", file=sys.stderr)
         return 2
     arm_cfg = manifest["arms"][args.arm]
+
+    # 每臂插件身份：commit 不能只靠 version 字符串区分（A/B1/B2 都是 0.6.2）。
+    # 只要给了 tarball/expected hash，就必须与 manifest 的 arm 绑定一致；不允许
+    # --allow-version-mismatch 绕过这一层（版本宽松只影响容器内 version 探测）。
+    manifest_sha = str(arm_cfg.get("plugin_tarball_sha256") or "").strip().lower()
+    expected_sha = str(args.expected_plugin_sha256 or "").strip().lower()
+    if manifest_sha and not manifest_sha.startswith("tbd") and expected_sha and manifest_sha != expected_sha:
+        print(f"plugin hash mismatch: --expected-plugin-sha256={expected_sha!r} "
+              f"manifest arms.{args.arm}.plugin_tarball_sha256={manifest_sha!r}", file=sys.stderr)
+        return 2
+    actual_sha = ""
+    if args.plugin_tarball:
+        tarball = Path(args.plugin_tarball)
+        if not tarball.exists():
+            print(f"plugin tarball not found: {tarball}", file=sys.stderr)
+            return 2
+        actual_sha = sha256_file(tarball)
+        want = expected_sha or manifest_sha
+        if want and not want.startswith("tbd") and actual_sha != want:
+            print(f"plugin tarball sha256 mismatch: actual={actual_sha!r} expected={want!r} "
+                  f"(arm {args.arm}, tarball {tarball})", file=sys.stderr)
+            return 2
+    elif expected_sha:
+        print("--expected-plugin-sha256 requires --plugin-tarball", file=sys.stderr)
+        return 2
+
+    if args.plugin_dir and args.plugin_tarball:
+        bind_errors = verify_plugin_dir_matches_tarball(Path(args.plugin_dir), Path(args.plugin_tarball))
+        if bind_errors:
+            print("plugin dir/tarball 绑定失败:\n" + "\n".join(" - " + e for e in bind_errors),
+                  file=sys.stderr)
+            return 2
+
     policy = manifest.get("run_policy", {})
     timeout = args.timeout or int(policy.get("timeout_seconds", 2700))
     max_tokens = args.max_tokens or int(policy.get("max_tokens_per_run", 0))
@@ -268,6 +354,7 @@ def main() -> int:
     if not args.execute:
         print("[dry-run] task:", args.task_id, "arm:", args.arm, "mode:", args.mode)
         print("[dry-run] image:", args.image, "preset:", arm_cfg["preset"])
+        print("[dry-run] plugin_dir:", args.plugin_dir, "tarball_sha256:", actual_sha or "(not checked)")
         print("[dry-run] policy: timeout=%ss max_tokens=%s" % (timeout, max_tokens))
         print("[dry-run] prompt suffix chars:", len(arm_cfg.get("prompt_suffix") or ""))
         print("[dry-run] add --execute to actually run")
@@ -482,6 +569,10 @@ def main() -> int:
             "dsh_cli_actual": dsh_actual,
             "plugin_version": manifest["runtime"].get("plugin_version"),
             "plugin_version_actual": plugin_actual,
+            "plugin_dir": str(Path(args.plugin_dir).resolve()) if args.plugin_dir else None,
+            "plugin_tarball": str(Path(args.plugin_tarball).resolve()) if args.plugin_tarball else None,
+            "plugin_tarball_sha256_expected": expected_sha or manifest_sha or None,
+            "plugin_tarball_sha256_actual": actual_sha or None,
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "elapsed_seconds": run_meta.get("elapsed_s"),
             "token_usage": token_usage,

@@ -134,6 +134,27 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval \
 - 默认 dry-run：`run_arm.py`/`make_predictions.py` 不建立容器、不调模型；
   只有 `--execute` 才运行，保证 CI/`npm test` 不会误触发昂贵调用（AC-007）。
 
+## AC-VALIDITY-1C preflight / fixtures（2026-11-15）
+
+`#22` 的 Phase 0 整改增加了不调模型、不起容器的确定性检查：
+
+| 命令 | 作用 |
+|---|---|
+| `check_ac_validity_1c.py --self-test` | 主实验 5 任务 × A/B2 = 10、B1 3 任务 × B1 = 3；三臂 commit/tarball hash/预算/触发指针；负例（B1 回主 arms、缺 image-map、同 hash、改预算等）必须 fail closed |
+| `check_ac_validity_1c.py --artifact-root <root>` | 核对 `plugins/<arm>/dsh-sdlc/package.json` 版本与 `pkgs/<arm>/*.tgz` sha256 是否与 manifest 绑定 |
+| `fixtures/ac-validity-1c/check_fixtures.py --workdir <tmp>` | 物化六类离线 git repo，用标准库 `unittest` 检查真实入口；六例行为对照 |
+| `fixtures/ac-validity-1c/check_phase1_docs.py [--self-test]` | Phase 1 的 A/B DSH_HOME/mkdir/log/hash 与文档链接/锚点一致性；负例应非 0 |
+
+Runner 新增（旧用法兼容）：
+
+- `run_matrix.py --arm-plugin-dir ARM=DIR`、`--arm-plugin-tarball ARM=TGZ`、`--strict-preflight`；
+  多个不同 tarball 共用一个 plugin dir、缺映射、hash 不匹配、`TBD` 未填都会失败；
+- `run_arm.py --plugin-tarball`、`--expected-plugin-sha256`；`--allow-version-mismatch`
+  **不能**绕过 tarball hash/身份不一致。
+
+主实验与 B1 是两份 manifest（`manifests/ac-validity-1c/ac-validity-1c.yml` 与
+`...-b1.yml`）；`--only-arm` 只是筛选工具，不能替代预注册计划。
+
 ## 已知限制
 
 - **驱动是 Web GUI**：DSH 的 `sdk`/`headless` 组合没有 `agentPresets` 服务，

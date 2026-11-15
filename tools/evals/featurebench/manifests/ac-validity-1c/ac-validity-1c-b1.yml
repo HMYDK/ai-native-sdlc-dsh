@@ -1,0 +1,141 @@
+# AC-VALIDITY-1C（issue #22）B1 条件性消融预注册清单。
+#
+# B1 = 只有 #20 Delivery Contract、旧 verifier（085c8fd）。
+# 本清单**只**包含事前固定的 3 个独立 sympy 任务 × 1 臂 = **3 个计划 run**；
+# 不包含 sphinx 诊断任务，也不包含 A/B2 主实验。
+#
+# 触发条件：见主 manifest `ac-validity-1c.yml` 的 `b1_ablation.trigger_threshold`
+# 与 `docs/evals/ac-validity-1c-preregistration.md`。只有主实验满足阈值、且
+# B1 预算 ≤30M / 2h 获单独批准后，才允许 --execute；否则只保留本清单。
+#
+# 插件身份：085c8fd → npm pack → sha256 =
+#   106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784
+# 运行前必须核对 tarball hash 与解包目录；不得用 --allow-version-mismatch 绕过。
+
+version: 1
+date: "2026-11-15"
+
+benchmark:
+  name: FeatureBench
+  package: "featurebench==0.3.0"
+  dataset: LiberCoders/FeatureBench
+  revision: "76b4a4566e04f4bcc13c35125d4f301791efa736"   # v1.1；split fast 100 条
+  split: fast
+
+runtime:
+  dsh_cli: "0.2.2-rc.3"
+  plugin_package: "@ai-native-sdlc-plugin/dsh-sdlc"
+  plugin_version: "0.6.2"
+  plugin_tarball_sha256: "106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784"
+  base_os: "Ubuntu 22.04.5 / Python 3.11 / conda testbed env"
+  node_in_container: "v24.21.0 (linux-x64 tarball; rebake into fb-eval-rc3:<repo>)"
+  image_tag_scheme: "fb-eval-rc3:<repo>"
+  provider: "deepseek-account"
+  model: "deepseek-flash"
+  reasoning_effort: "max"
+
+arms:
+  B1:
+    preset: "AI 原生 SDLC"
+    role: "ablation"
+    commit: "085c8fd"
+    plugin_tarball: "pkgs/B1/ai-native-sdlc-plugin-dsh-sdlc-0.6.2.tgz"
+    plugin_tarball_sha256: "106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784"
+    plugin_dir: "plugins/B1"
+    plugin_version: "0.6.2"
+    dsh_cli: "0.2.2-rc.3"
+    notes: "只有 #20 Delivery Contract、旧 verifier；条件性消融，单独预算 ≤30M / 2h。"
+
+image_map:
+  sympy/sympy: "fb-eval-rc3:sympy"
+
+run_policy:
+  timeout_seconds: 2700
+  max_tokens_per_run: 10000000
+  total_token_budget: 30000000
+  wall_clock_budget_seconds: 7200
+  infra_retries: 1
+  agent_retries: 0
+  reps_per_arm: 1
+  order: fixed
+  failure_classes: [timeout, over_budget, infra_error, empty_patch, agent_error, unresolved]
+
+plan:
+  tasks: 3
+  arms: ["B1"]
+  runs: 3
+  diagnostics: 0
+
+metrics:
+  primary: >-
+    B1 只用于隔离 verifier 效应：比较 B1 与 B2 在主实验 3 个 sympy 任务上的
+    Source 层错误放行。B1 单独不产生效果宣称；主指标仍由审查者人工裁定。
+  secondary:
+    - "Source 层错误拒绝"
+    - "needs_human、无裁决/超时"
+    - "Token / 墙钟"
+    - "官方 resolved / pass_rate（旁证）"
+  denominator: "ITT + decided；3 个 run 全部计入，不因结果剔除。"
+  censoring:
+    - "infra_error 仅允许 1 次重试，前后都记录"
+    - "诊断任务不在本清单中"
+  statistics: "3 个任务 × 1 臂；只报原始计数与方向，不做显著性、不外推。"
+
+scoring:
+  engine: "官方 featurebench==0.3.0 `fb eval`"
+  command_template: >-
+    env -u all_proxy -u ALL_PROXY HF_DATASETS_CACHE=/tmp/fb-ac1c/hf-datasets-cache
+    FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval -p <predictions.jsonl> --split fast
+    --task-id <task_id> --n-concurrent 1 --data-version v1.1 --config-path /tmp/fb-ac1c/config.toml
+  predictions_source: "make_predictions.py --arm-dir B1=<run 目录>（由 patch.diff 生成）"
+  pass_criteria: "同主实验：gold resolved=1、empty resolved=0 才认为任务评分链路可用。"
+
+tasks:
+  - id: "sympy__sympy.c1097516.test_inverse.c240ffe7.lv1"
+    repo: "sympy/sympy"
+    level: 1
+    image: "libercoders/featurebench-specs_sympy-instance_3d889fef"
+    image_digest: "sha256:207ff124011e74d2b6abbdce2f8d3244546949cd0abfb7949d7dd414368f8935"
+    derived_image: "fb-eval-rc3:sympy"
+    role: "independent"
+    notes: "F2P 9 个 test_* 函数；P2P 5；与主实验同一 task。"
+  - id: "sympy__sympy.c1097516.test_nullspace.f14fc970.lv1"
+    repo: "sympy/sympy"
+    level: 1
+    image: "libercoders/featurebench-specs_sympy-instance_3d889fef"
+    image_digest: "sha256:207ff124011e74d2b6abbdce2f8d3244546949cd0abfb7949d7dd414368f8935"
+    derived_image: "fb-eval-rc3:sympy"
+    role: "independent"
+    notes: "F2P 7 个 test_* 函数；P2P 5；与主实验同一 task。"
+  - id: "sympy__sympy.c1097516.test_puiseux.cd575f09.lv1"
+    repo: "sympy/sympy"
+    level: 1
+    image: "libercoders/featurebench-specs_sympy-instance_3d889fef"
+    image_digest: "sha256:207ff124011e74d2b6abbdce2f8d3244546949cd0abfb7949d7dd414368f8935"
+    derived_image: "fb-eval-rc3:sympy"
+    role: "independent"
+    notes: "F2P 12 个 test_* 函数；P2P 5；与主实验同一 task。"
+
+selection_rule: >-
+  本清单不作新任务选择：固定使用主实验 3 个独立 sympy 任务，顺序按 instance_id
+  字典序；不含 sphinx 诊断任务。只有主实验触发条件满足且 B1 预算批准后才执行。
+
+b1_trigger:
+  reference: "主 manifest b1_ablation.trigger_threshold"
+  conditions:
+    - "3 个新任务完成 A/B2 配对且 control 通过"
+    - "3 个新任务 Source 与官方 Grader 无已知冲突"
+    - "A 至少 1 个已确认 Source 层错误放行，B2 为 0"
+    - "B2 未引入已确认 Source 层错误拒绝"
+    - "B1 ≤30M / 2h 预算已单独批准"
+
+stop_rules:
+  - "总 token 30M、总墙钟 2h、单 run 10M 任一达到：立即停止，不重试。"
+  - "单 run 超过 2700s：按失败记录（ITT），不重试。"
+  - "同一 task/arm 连续 2 次 infra_error：停止，先修环境。"
+  - "gold/empty control 失败：不进入效果分母，单列 unscoreable。"
+  - "未满足 b1_trigger 或预算未批准：不得启动。"
+
+approval:
+  b1: "未批准；需在 Phase 2 前批准阈值与 ≤30M / 2h。"
+  paid: "本清单不授权任何付费调用。"

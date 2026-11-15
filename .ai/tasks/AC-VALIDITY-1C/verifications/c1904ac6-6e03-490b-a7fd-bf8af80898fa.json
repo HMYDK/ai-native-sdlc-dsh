@@ -1,0 +1,312 @@
+{
+  "schema_version": 3,
+  "task": "AC-VALIDITY-1C",
+  "at": "2026-11-15T16:49:17.627Z",
+  "intent_of_change": "第三次、也是本轮最后一次 sdlc_verify：复核 PR #26 固定代码 head 401f091 的 Phase 0 整改，重点 AC-006、第二次 verify 的 6 条 findings、此前 F1–F7 的 resolved 状态、以及 fixture 自测清理边界（唯一 mkdtemp、根外/无 marker/符号链接拒绝、带 marker 可重复、两遍无残留）；不新增范围。",
+  "test_evidence": "1) 代码 head：`git rev-parse HEAD` -> 401f0911797c2d1235fee015200e72e72aad437f；`git status --short` 仅任务状态/verification 记录变化，`git diff 5ee68cd...HEAD` 的代码/文档与 401f091 一致；远端分支 head 为 401f091。\n2) `python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test` -> `SELF-TEST OK: all negative mutations fail closed`（12 个负例，含 plugin dir/tarball 内容绑定、空 --only-arm、B1 加回主 arms、缺 image-map、同 hash、TBD hash）。\n3) `python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac1c/artifacts` -> `AC-VALIDITY-1C preflight OK: main 5 tasks x A/B2 = 10; B1 3 tasks x B1 = 3`。\n4) 主 strict dry-run -> 5 条 `[plan]` + `[preflight] OK: 5 tasks, arms=['A', 'B2']`；B1 strict -> 3 条 + `[preflight] OK: 3 tasks, arms=['B1']`。负例：A dir 冒充 B2 -> exit 2（逐文件不一致）；主 manifest `--only-arm B1` -> exit 2 `no arms selected`。\n5) `python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test` 连续两遍 -> `WORKDIR GUARD OK: outside/unmarked/symlink refused; marked repeatable; no residue`；检查 cwd/temp root 无 `ac1c-outside-*`/unmarked/owned/link 残留。\n6) `python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/validity-1c-fixtures` 连续两遍 -> exit 0，`FIXTURES OK: six scenarios materialized and their observable behavior matches`；S1 stderr `error: order ord-3 missing amount`；S2 `NoneType`；S3 `Settings.verbose` 且不含 `parse_date`；S4 `missing_native_dep`；S5 legacy base/head 都失败；S6 `app.versioning`。\n7) `python3 tools/evals/featurebench/sanity_check.py --structural` -> `structural check OK`；`check_redaction.py` -> `OK（84 files）`；docs 相对链接 -> `links OK`。\n8) `cd packages/sdlc && DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify` -> exit 0；`ℹ pass 285`/`ℹ fail 0`、`ℹ pass 45`/`ℹ fail 0`；`全部冒烟通过（12 个脚本）`。\n9) CI run 43732833050（head 401f091）-> success；PR #26 为 Draft，base `dev@5ee68cd`，head `401f091`。\n10) 未运行 Phase 1/2/B1；未拉 sympy 镜像；未启动 Docker/无头 Chrome/FeatureBench 评分；除本轮 1 次 sdlc_verify 外无其他付费调用。",
+  "criteria": [
+    "AC-001: 产出独立 case table / ground truth（MD + JSON），覆盖历史诊断与局部接口 vs 外部扩需、正向完成、无关既有失败、原始需求歧义、关键证据缺失；每例含 Source 原文/位置、Outcome/Boundary/Oracle、官方分数（如适用）、Source 与 Grader 一致性、人工预期裁决与不确定性、task/scenario 去重键、unavailable/censored 原因；历史 11 个案例按数据修正为官方 FP 8 runs / 2 任务、官方 FN 3 runs / 2 任务，官方 FP 与 Source 层错误放行分开；gettext/doctest 标 Source/Grader conflict 且 provisional 待审查者；3 个 FN 标 censored；含 Source 依赖核验，且**不写“Source 层已证实 FP=0/FN=0”**。",
+    "AC-002: 产出可执行离线 fixture，覆盖至少 6 类场景；Phase 1 固定使用 #21 场景 1/2/3（正向通过、明确缺口、范围外独立失败），其余 3 类保留；`check_fixtures.py` 用单一命令物化 repo 并运行真实入口/`unittest`，S1 补“错误包含订单 ID”，S2 失败不是 import error，S3 外部失败不指向目标路径；不新增 Runner，不调用付费模型。",
+    "AC-003: 产出预注册方案与两份 manifest：主实验 A=`master@920b0eb` vs B2=`dev@5ee68cd`、5 任务 × 2 臂 = **10 runs**；B1=`085c8fd` **单独 manifest**、3 个 sympy × 1 臂 = **3 runs**、不含 sphinx；3 个 sympy 新任务（test_inverse / test_nullspace / test_puiseux）+ 2 个诊断任务；deepseek-flash、DSH 0.2.2-rc.3、ITT/decided/task/run 分母、失败/超时、停止/决策；每臂固定 commit → tarball sha256 → 解包目录 → preset/DSH/镜像；`run_matrix.py`/`run_arm.py` 支持 per-arm plugin dir 与 hash 校验；`check_ac_validity_1c.py --self-test` 负例 fail closed；B1 触发阈值 Phase 0 起草、Phase 2 前批准。",
+    "AC-004: 产出分阶段预算申请：Phase 0 第二次 verify 1 call / ≤2M / ≤30min / 不重试；Phase 1 3 场景 × 2 臂 = 6 次 verifier 调用 / ≤8M / 2h / 单次 ≤2M；Phase 2 主实验 10 runs / ≤120M / 8h；B1 3 runs / ≤30M / 2h；写清 route/model、调用/run 数、停止条件、费用/墙钟口径；`--only-arm` 不能代替预注册计划。",
+    "AC-005: 人工 gold label 由审查者最终核对；标签独立于 A/B Actor 生成的 Spec/Delivery Contract/Verifier 裁决；历史 raw 存在时列出归档路径与 sha256，缺失时标 unavailable，不用模型推断补齐；8 个官方 FP 的 Source 层标签为 provisional + conflict，3 个 FN 为 censored；Source 依赖核验只给“未证明是承诺路径必要依赖”，不代替审查者签字；不把官方 resolved 直接当 Source 层结论。",
+    "AC-006: 产出/更新另一台机器的交接文档，包含已确认决策、Phase 0 成果清单、环境/镜像/归档位置（含 sympy 10.65GB 未拉取）、**两份 manifest**、每臂 commit/tarball sha256/解包目录、image-map、主/B1 strict preflight 命令、Phase 1 fixture/DSH 运行面、Phase 2 命令、预算与审批边界、禁止事项、独立分支 + Draft PR（base `dev@5ee68cd`，不直接合入 dev）、F1–F7 对应。",
+    "AC-007: 本轮只改文档/案例表/manifest/任务制品，以及 `tools/evals/featurebench` 的 runner/preflight/fixture 与 CI 确定性检查；不改 `packages/sdlc` 插件代码；在 `packages/sdlc/` 运行 `DSH_APP=\"$DSH_APP\" npm run verify`（build + test + smoke）通过；`check_ac_validity_1c.py --self-test`、`check_fixtures.py`、`sanity_check.py --structural` 通过；CI `evals-check` 包含这些确定性检查；不运行 Phase 1/2 付费评测；不宣称减少错误放行或行为已验证，任务不宣称 DONE。"
+  ],
+  "acceptance": {
+    "version": 1,
+    "id": "fb0975c9-ec9d-481e-be73-196fb654d267",
+    "spec_path": "spec.md",
+    "spec_sha256": "6a331c20378d79ce3d15e049eb9e6b2f97c7de9d117143af5eb5f676acf9a64c",
+    "criteria": [
+      {
+        "id": "AC-001",
+        "text": "产出独立 case table / ground truth（MD + JSON），覆盖历史诊断与局部接口 vs 外部扩需、正向完成、无关既有失败、原始需求歧义、关键证据缺失；每例含 Source 原文/位置、Outcome/Boundary/Oracle、官方分数（如适用）、Source 与 Grader 一致性、人工预期裁决与不确定性、task/scenario 去重键、unavailable/censored 原因；历史 11 个案例按数据修正为官方 FP 8 runs / 2 任务、官方 FN 3 runs / 2 任务，官方 FP 与 Source 层错误放行分开；gettext/doctest 标 Source/Grader conflict 且 provisional 待审查者；3 个 FN 标 censored；含 Source 依赖核验，且**不写“Source 层已证实 FP=0/FN=0”**。"
+      },
+      {
+        "id": "AC-002",
+        "text": "产出可执行离线 fixture，覆盖至少 6 类场景；Phase 1 固定使用 #21 场景 1/2/3（正向通过、明确缺口、范围外独立失败），其余 3 类保留；`check_fixtures.py` 用单一命令物化 repo 并运行真实入口/`unittest`，S1 补“错误包含订单 ID”，S2 失败不是 import error，S3 外部失败不指向目标路径；不新增 Runner，不调用付费模型。"
+      },
+      {
+        "id": "AC-003",
+        "text": "产出预注册方案与两份 manifest：主实验 A=`master@920b0eb` vs B2=`dev@5ee68cd`、5 任务 × 2 臂 = **10 runs**；B1=`085c8fd` **单独 manifest**、3 个 sympy × 1 臂 = **3 runs**、不含 sphinx；3 个 sympy 新任务（test_inverse / test_nullspace / test_puiseux）+ 2 个诊断任务；deepseek-flash、DSH 0.2.2-rc.3、ITT/decided/task/run 分母、失败/超时、停止/决策；每臂固定 commit → tarball sha256 → 解包目录 → preset/DSH/镜像；`run_matrix.py`/`run_arm.py` 支持 per-arm plugin dir 与 hash 校验；`check_ac_validity_1c.py --self-test` 负例 fail closed；B1 触发阈值 Phase 0 起草、Phase 2 前批准。"
+      },
+      {
+        "id": "AC-004",
+        "text": "产出分阶段预算申请：Phase 0 第二次 verify 1 call / ≤2M / ≤30min / 不重试；Phase 1 3 场景 × 2 臂 = 6 次 verifier 调用 / ≤8M / 2h / 单次 ≤2M；Phase 2 主实验 10 runs / ≤120M / 8h；B1 3 runs / ≤30M / 2h；写清 route/model、调用/run 数、停止条件、费用/墙钟口径；`--only-arm` 不能代替预注册计划。"
+      },
+      {
+        "id": "AC-005",
+        "text": "人工 gold label 由审查者最终核对；标签独立于 A/B Actor 生成的 Spec/Delivery Contract/Verifier 裁决；历史 raw 存在时列出归档路径与 sha256，缺失时标 unavailable，不用模型推断补齐；8 个官方 FP 的 Source 层标签为 provisional + conflict，3 个 FN 为 censored；Source 依赖核验只给“未证明是承诺路径必要依赖”，不代替审查者签字；不把官方 resolved 直接当 Source 层结论。"
+      },
+      {
+        "id": "AC-006",
+        "text": "产出/更新另一台机器的交接文档，包含已确认决策、Phase 0 成果清单、环境/镜像/归档位置（含 sympy 10.65GB 未拉取）、**两份 manifest**、每臂 commit/tarball sha256/解包目录、image-map、主/B1 strict preflight 命令、Phase 1 fixture/DSH 运行面、Phase 2 命令、预算与审批边界、禁止事项、独立分支 + Draft PR（base `dev@5ee68cd`，不直接合入 dev）、F1–F7 对应。"
+      },
+      {
+        "id": "AC-007",
+        "text": "本轮只改文档/案例表/manifest/任务制品，以及 `tools/evals/featurebench` 的 runner/preflight/fixture 与 CI 确定性检查；不改 `packages/sdlc` 插件代码；在 `packages/sdlc/` 运行 `DSH_APP=\"$DSH_APP\" npm run verify`（build + test + smoke）通过；`check_ac_validity_1c.py --self-test`、`check_fixtures.py`、`sanity_check.py --structural` 通过；CI `evals-check` 包含这些确定性检查；不运行 Phase 1/2 付费评测；不宣称减少错误放行或行为已验证，任务不宣称 DONE。"
+      }
+    ],
+    "registered_at": "2026-11-15T14:02:18.974Z",
+    "registered_by": "session-febe6c27-5def-49f9-b213-bc02e2a9e63e"
+  },
+  "additional_criteria": [],
+  "verdict": {
+    "status": "reject",
+    "summary": "独立复核复现了大部分 Phase 0 材料：官方 FP 8/2、FN 3/2、84/84 归档 sha256、8 个 conflict/provisional + 3 个 censored、六类 fixture（S1 ord-3、S2 NoneType、S3 Settings.verbose 且无 parse_date）、12 个 preflight 负例、主/B1 strict preflight 5/3、`npm run verify` 285+45 与 12 个 smoke、CI 43732833050 成功、PR #26 为 Draft 且 base dev@5ee68cd。第一轮 F1–F7 修复仍可复核。但 AC-006 未 met：Phase 1 的 DSH 运行面把插件装在 `DSH_HOME=/tmp/phase1/home/$X`，却用 `DSH_HOME=/tmp/phase1/dsh-home-A` 运行，A/B 臂不会加载目标插件；handoff 的 `ln` 命令缺少父目录创建也会直接失败。另有 fixture README 与 case table 锚点的文档链接问题。Phase 1/2/B1、Docker/镜像和审查者 gold label 仍未验证；任务不是 DONE。\n仍有问题未确认修复。",
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "python3 /tmp/verify3-recompute.py -> recomputed FP 8 tasks 2 / FN 3 tasks 2; JSON summary matches; archive evidence hashes ok 84 bad 0 missing 0; 17 cases (6 synthetic).\ngrep -n '已证实 FP=0\\|已证实 FN=0' docs/evals/ac-validity-1c-case-table.md -> only negated contexts at lines 14/16/30; no positive zero claim."
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/validity-1c-fixtures -> exit 0; six scenario dirs; FIXTURES OK.\ngrep -n 'S1 missing amount\\|S2 real CLI\\|S3 external' /tmp/verify3-fixtures-run1.log -> S1 error: order ord-3 missing amount; S2 NoneType/isoformat; S3 Settings.verbose with no parse_date.\nS4 missing_native_dep; S5 legacy failure on head and base; S6 app.versioning/add_uids."
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "python3 tools/evals/featurebench/run_matrix.py --manifest .../ac-validity-1c.yml ... --strict-preflight -> 5 [plan] lines, [preflight] OK: 5 tasks, arms=['A', 'B2'].\npython3 tools/evals/featurebench/run_matrix.py --manifest .../ac-validity-1c-b1.yml ... --strict-preflight -> 3 [plan] lines, [preflight] OK: 3 tasks, arms=['B1']; no sphinx.\npython3 check_ac_validity_1c.py --self-test -> SELF-TEST OK, 12 negative [ok]; repacked tarballs match manifest hashes 40172.../8bb7.../1062...."
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "sed -n '11,21p' docs/evals/ac-validity-1c-budget.md -> Phase 0 1 call/2M/30min; Phase 1 6 calls/8M/2h/2M per call; Phase 2 10 runs/120M/8h; B1 3 runs/30M/2h.\nThe same file states route/model deepseek-account/deepseek-flash and says --only-arm cannot replace the two preregistered manifests (line 21)."
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "python3 /tmp/verify3-recompute.py -> 84/84 archive hashes; FP labels {('conflict','provisional','pending_reviewer')}; FN labels {('censored','timeout')}.\ngrep -n 'not_proven_necessary_dependency' docs/evals/ac-validity-1c-case-table.json -> lines 113/141; case table and handoff leave human sign-off to the reviewer and do not treat official resolved as Source-layer truth."
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "not_met",
+        "evidence": "grep -n 'DSH_HOME' docs/evals/ac-validity-1c-offline-fixtures.md docs/evals/ac-validity-1c-handoff.md -> setup DSH_HOME=/tmp/phase1/home/$X at line 190; run DSH_HOME=/tmp/phase1/dsh-home-A at lines 198/157.\nThe profile/plugin install uses the setup home, so the run home never receives the A/B plugin; `ln -sfn .../default-workspace` also returns No such file or directory rc=1 without the missing parent mkdir.\nThe F1–F7 table is present and Phase 2/B1 --execute instructions exist (grep lines 114-124, 206, 229), but the required Phase 1 DSH run surface is not usable."
+      },
+      {
+        "criterion_id": "AC-007",
+        "result": "met",
+        "evidence": "git diff --name-only 5ee68cd...HEAD -> no packages/sdlc paths; only docs, task artifacts, tools/evals and .github/workflows/ci.yml.\ncd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -> rc=0; pass 285/45; 12 smoke scripts all pass.\ncheck_ac_validity_1c.py --self-test, check_fixtures.py, sanity_check.py --structural -> rc=0; CI job featurebench data checks/dry-run passed in run 43732833050; state.yaml remains VERIFYING, not DONE."
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F1",
+        "result": "unresolved",
+        "evidence": "The F1–F7 table and a Phase 1 command section now exist in the handoff, but the run surface is inconsistent: offline fixtures line 190 installs into DSH_HOME=/tmp/phase1/home/$X while handoff line 157 and offline line 198 run DSH_HOME=/tmp/phase1/dsh-home-A. The plugin is not present in the run home, so F1's Phase 1 DSH requirement is not satisfied."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F2",
+        "result": "resolved",
+        "evidence": "grep -n -- '--execute' docs/evals/ac-validity-1c-handoff.md -> lines 206 and 229, each after the strict preflight command; run_matrix.py:126 defines --execute and the main strict dry-run exits 0."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F3",
+        "result": "resolved",
+        "evidence": "grep -n 'python -m' docs/evals/ac-validity-1c-offline-fixtures.md -> no output; python3 -m unittest and python3 -m app.cli rechecks in S1/S2/S3 produced the expected ord-3, NoneType and Settings.verbose behavior."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F4",
+        "result": "resolved",
+        "evidence": "check_fixtures.py --self-test twice -> WORKDIR GUARD OK; --workdir /tmp/verify3-guard-mydata -> rc=1 and sentinel intact; unmarked, symlink, outside-temp and traversal cases were refused; no ac1c-outside-* or self-test residue remained."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F5",
+        "result": "resolved",
+        "evidence": "python3 run_matrix.py --manifest .../ac-validity-1c.yml ... --only-arm B1 -> rc=2, 'no arms selected: --only-arm=[B1] not in manifest arms [A, B2]'; empty --only-arm also rc=2; self-test reports the unknown --only-arm negative as [ok]."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F6",
+        "result": "resolved",
+        "evidence": "run_matrix with B2=/tmp/ac1c/plugin/B2-fake (copy of A) plus B2 tarball -> rc=2 listing lib/artifact/artifact.js and lib/verify/verdict.js content mismatches; run_arm with the wrong tarball -> rc=2 even with --allow-version-mismatch."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:C6",
+        "result": "unresolved",
+        "evidence": "AC-006 is not met: the handoff has the F1–F7 table and Phase 2/B1 --execute text, but the Phase 1 fixture/DSH surface uses setup DSH_HOME=/tmp/phase1/home/$X versus run DSH_HOME=/tmp/phase1/dsh-home-A, and the handoff ln command fails without its missing parent mkdir. The required run surface is therefore not usable."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "spec_mismatch",
+        "file": "docs/evals/ac-validity-1c-handoff.md",
+        "line": 157,
+        "reason": "AC-006 requires a usable Phase 1 fixture/DSH run surface. The setup path installs the plugin under DSH_HOME=/tmp/phase1/home/$X, but the run path uses DSH_HOME=/tmp/phase1/dsh-home-A; the A/B plugin is never loaded. The handoff command also runs ln -sfn into a parent directory that its own snippet does not create.",
+        "evidence": "grep -n 'DSH_HOME' docs/evals/ac-validity-1c-offline-fixtures.md docs/evals/ac-validity-1c-handoff.md -> setup home/$X at line 190; run dsh-home-A at lines 198/157.\nln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace -> No such file or directory rc=1.",
+        "suggestion": "Use one DSH_HOME for profile installation and dsh web (or explicitly create/copy dsh-home-A), add mkdir -p for src and eval-root before the commands, and add a path-level dry check of the Phase 1 commands."
+      },
+      {
+        "severity": "minor",
+        "category": "other",
+        "file": "tools/evals/featurebench/fixtures/ac-validity-1c/README.md",
+        "line": 36,
+        "reason": "The new fixture README link uses four parent levels and resolves to tools/docs/evals/..., which does not exist; the author's links OK claim does not cover this file.",
+        "evidence": "python3 /tmp/verify3-linkcheck.py docs/evals/ac-validity-1c-*.md tools/evals/featurebench/fixtures/ac-validity-1c/README.md -> files 6 bad 1; '../../../../docs/evals/ac-validity-1c-offline-fixtures.md' resolves to tools/docs/evals/... (missing).",
+        "suggestion": "Use five parent levels (../../../../../docs/...) or a repo-root-relative link."
+      },
+      {
+        "severity": "minor",
+        "category": "other",
+        "file": "docs/evals/ac-validity-1c-case-table.md",
+        "line": 242,
+        "reason": "The S-01..S-06 links target anchors #s21-1.. #s21-6, but the offline fixtures document defines headings 3.1..3.3 and no s21 anchors; the links only reach the document top.",
+        "evidence": "grep -n 's21-' docs/evals/ac-validity-1c-offline-fixtures.md -> no output; grep -n '^### 3' docs/evals/ac-validity-1c-offline-fixtures.md -> 3.1 S1, 3.2 S2, 3.3 S3.",
+        "suggestion": "Add explicit s21-1..s21-6 anchors or point the links at the actual 3.1/3.2/3.3 headings."
+      }
+    ],
+    "unverified": [
+      "Phase 1/2/B1 paid runs were not executed; no real-model verdicts, token usage, wall-clock, or official scores for the new sympy tasks are available.",
+      "Docker/FeatureBench scoring was not run; the 10.65GB sympy image was not pulled, and availability of the fb-eval-rc3:* image tags is unverified.",
+      "The Phase 1 DSH command chain was not executed end-to-end because the host has no dsh CLI; only path and shell-level checks were possible, and those exposed the blocking DSH_HOME mismatch.",
+      "The eight official FP Source-layer labels remain pending reviewer; no human gold-label sign-off has been recorded.",
+      "No evidence of paid Phase 1/2/B1 calls was found, but a negative cannot be proven from the repository alone.",
+      "The author's docs links OK claim is not fully reproducible: the fixture README link is broken and the case-table s21 anchors are absent (minor findings)."
+    ],
+    "verifier_session": "8276cfbe-64d1-4310-a3cb-6cfb30d1c2a5",
+    "raw_status": "reject",
+    "verification_complete": true,
+    "verification_run_id": "c1904ac6-6e03-490b-a7fd-bf8af80898fa"
+  },
+  "raw_verdict": {
+    "status": "reject",
+    "summary": "独立复核复现了大部分 Phase 0 材料：官方 FP 8/2、FN 3/2、84/84 归档 sha256、8 个 conflict/provisional + 3 个 censored、六类 fixture（S1 ord-3、S2 NoneType、S3 Settings.verbose 且无 parse_date）、12 个 preflight 负例、主/B1 strict preflight 5/3、`npm run verify` 285+45 与 12 个 smoke、CI 43732833050 成功、PR #26 为 Draft 且 base dev@5ee68cd。第一轮 F1–F7 修复仍可复核。但 AC-006 未 met：Phase 1 的 DSH 运行面把插件装在 `DSH_HOME=/tmp/phase1/home/$X`，却用 `DSH_HOME=/tmp/phase1/dsh-home-A` 运行，A/B 臂不会加载目标插件；handoff 的 `ln` 命令缺少父目录创建也会直接失败。另有 fixture README 与 case table 锚点的文档链接问题。Phase 1/2/B1、Docker/镜像和审查者 gold label 仍未验证；任务不是 DONE。",
+    "criteria_results": [
+      {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "python3 /tmp/verify3-recompute.py -> recomputed FP 8 tasks 2 / FN 3 tasks 2; JSON summary matches; archive evidence hashes ok 84 bad 0 missing 0; 17 cases (6 synthetic).\ngrep -n '已证实 FP=0\\|已证实 FN=0' docs/evals/ac-validity-1c-case-table.md -> only negated contexts at lines 14/16/30; no positive zero claim."
+      },
+      {
+        "criterion_id": "AC-002",
+        "result": "met",
+        "evidence": "python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/validity-1c-fixtures -> exit 0; six scenario dirs; FIXTURES OK.\ngrep -n 'S1 missing amount\\|S2 real CLI\\|S3 external' /tmp/verify3-fixtures-run1.log -> S1 error: order ord-3 missing amount; S2 NoneType/isoformat; S3 Settings.verbose with no parse_date.\nS4 missing_native_dep; S5 legacy failure on head and base; S6 app.versioning/add_uids."
+      },
+      {
+        "criterion_id": "AC-003",
+        "result": "met",
+        "evidence": "python3 tools/evals/featurebench/run_matrix.py --manifest .../ac-validity-1c.yml ... --strict-preflight -> 5 [plan] lines, [preflight] OK: 5 tasks, arms=['A', 'B2'].\npython3 tools/evals/featurebench/run_matrix.py --manifest .../ac-validity-1c-b1.yml ... --strict-preflight -> 3 [plan] lines, [preflight] OK: 3 tasks, arms=['B1']; no sphinx.\npython3 check_ac_validity_1c.py --self-test -> SELF-TEST OK, 12 negative [ok]; repacked tarballs match manifest hashes 40172.../8bb7.../1062...."
+      },
+      {
+        "criterion_id": "AC-004",
+        "result": "met",
+        "evidence": "sed -n '11,21p' docs/evals/ac-validity-1c-budget.md -> Phase 0 1 call/2M/30min; Phase 1 6 calls/8M/2h/2M per call; Phase 2 10 runs/120M/8h; B1 3 runs/30M/2h.\nThe same file states route/model deepseek-account/deepseek-flash and says --only-arm cannot replace the two preregistered manifests (line 21)."
+      },
+      {
+        "criterion_id": "AC-005",
+        "result": "met",
+        "evidence": "python3 /tmp/verify3-recompute.py -> 84/84 archive hashes; FP labels {('conflict','provisional','pending_reviewer')}; FN labels {('censored','timeout')}.\ngrep -n 'not_proven_necessary_dependency' docs/evals/ac-validity-1c-case-table.json -> lines 113/141; case table and handoff leave human sign-off to the reviewer and do not treat official resolved as Source-layer truth."
+      },
+      {
+        "criterion_id": "AC-006",
+        "result": "not_met",
+        "evidence": "grep -n 'DSH_HOME' docs/evals/ac-validity-1c-offline-fixtures.md docs/evals/ac-validity-1c-handoff.md -> setup DSH_HOME=/tmp/phase1/home/$X at line 190; run DSH_HOME=/tmp/phase1/dsh-home-A at lines 198/157.\nThe profile/plugin install uses the setup home, so the run home never receives the A/B plugin; `ln -sfn .../default-workspace` also returns No such file or directory rc=1 without the missing parent mkdir.\nThe F1–F7 table is present and Phase 2/B1 --execute instructions exist (grep lines 114-124, 206, 229), but the required Phase 1 DSH run surface is not usable."
+      },
+      {
+        "criterion_id": "AC-007",
+        "result": "met",
+        "evidence": "git diff --name-only 5ee68cd...HEAD -> no packages/sdlc paths; only docs, task artifacts, tools/evals and .github/workflows/ci.yml.\ncd packages/sdlc && DSH_APP='/Applications/DeepSeek Harness.app' npm run verify -> rc=0; pass 285/45; 12 smoke scripts all pass.\ncheck_ac_validity_1c.py --self-test, check_fixtures.py, sanity_check.py --structural -> rc=0; CI job featurebench data checks/dry-run passed in run 43732833050; state.yaml remains VERIFYING, not DONE."
+      }
+    ],
+    "issue_results": [
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F1",
+        "result": "unresolved",
+        "evidence": "The F1–F7 table and a Phase 1 command section now exist in the handoff, but the run surface is inconsistent: offline fixtures line 190 installs into DSH_HOME=/tmp/phase1/home/$X while handoff line 157 and offline line 198 run DSH_HOME=/tmp/phase1/dsh-home-A. The plugin is not present in the run home, so F1's Phase 1 DSH requirement is not satisfied."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F2",
+        "result": "resolved",
+        "evidence": "grep -n -- '--execute' docs/evals/ac-validity-1c-handoff.md -> lines 206 and 229, each after the strict preflight command; run_matrix.py:126 defines --execute and the main strict dry-run exits 0."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F3",
+        "result": "resolved",
+        "evidence": "grep -n 'python -m' docs/evals/ac-validity-1c-offline-fixtures.md -> no output; python3 -m unittest and python3 -m app.cli rechecks in S1/S2/S3 produced the expected ord-3, NoneType and Settings.verbose behavior."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F4",
+        "result": "resolved",
+        "evidence": "check_fixtures.py --self-test twice -> WORKDIR GUARD OK; --workdir /tmp/verify3-guard-mydata -> rc=1 and sentinel intact; unmarked, symlink, outside-temp and traversal cases were refused; no ac1c-outside-* or self-test residue remained."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F5",
+        "result": "resolved",
+        "evidence": "python3 run_matrix.py --manifest .../ac-validity-1c.yml ... --only-arm B1 -> rc=2, 'no arms selected: --only-arm=[B1] not in manifest arms [A, B2]'; empty --only-arm also rc=2; self-test reports the unknown --only-arm negative as [ok]."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:F6",
+        "result": "resolved",
+        "evidence": "run_matrix with B2=/tmp/ac1c/plugin/B2-fake (copy of A) plus B2 tarball -> rc=2 listing lib/artifact/artifact.js and lib/verify/verdict.js content mismatches; run_arm with the wrong tarball -> rc=2 even with --allow-version-mismatch."
+      },
+      {
+        "issue_id": "0553a496-8a5f-423d-9a23-a1e9a5140c1e:C6",
+        "result": "unresolved",
+        "evidence": "AC-006 is not met: the handoff has the F1–F7 table and Phase 2/B1 --execute text, but the Phase 1 fixture/DSH surface uses setup DSH_HOME=/tmp/phase1/home/$X versus run DSH_HOME=/tmp/phase1/dsh-home-A, and the handoff ln command fails without its missing parent mkdir. The required run surface is therefore not usable."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "blocking",
+        "category": "spec_mismatch",
+        "file": "docs/evals/ac-validity-1c-handoff.md",
+        "line": 157,
+        "reason": "AC-006 requires a usable Phase 1 fixture/DSH run surface. The setup path installs the plugin under DSH_HOME=/tmp/phase1/home/$X, but the run path uses DSH_HOME=/tmp/phase1/dsh-home-A; the A/B plugin is never loaded. The handoff command also runs ln -sfn into a parent directory that its own snippet does not create.",
+        "evidence": "grep -n 'DSH_HOME' docs/evals/ac-validity-1c-offline-fixtures.md docs/evals/ac-validity-1c-handoff.md -> setup home/$X at line 190; run dsh-home-A at lines 198/157.\nln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace -> No such file or directory rc=1.",
+        "suggestion": "Use one DSH_HOME for profile installation and dsh web (or explicitly create/copy dsh-home-A), add mkdir -p for src and eval-root before the commands, and add a path-level dry check of the Phase 1 commands."
+      },
+      {
+        "severity": "minor",
+        "category": "other",
+        "file": "tools/evals/featurebench/fixtures/ac-validity-1c/README.md",
+        "line": 36,
+        "reason": "The new fixture README link uses four parent levels and resolves to tools/docs/evals/..., which does not exist; the author's links OK claim does not cover this file.",
+        "evidence": "python3 /tmp/verify3-linkcheck.py docs/evals/ac-validity-1c-*.md tools/evals/featurebench/fixtures/ac-validity-1c/README.md -> files 6 bad 1; '../../../../docs/evals/ac-validity-1c-offline-fixtures.md' resolves to tools/docs/evals/... (missing).",
+        "suggestion": "Use five parent levels (../../../../../docs/...) or a repo-root-relative link."
+      },
+      {
+        "severity": "minor",
+        "category": "other",
+        "file": "docs/evals/ac-validity-1c-case-table.md",
+        "line": 242,
+        "reason": "The S-01..S-06 links target anchors #s21-1.. #s21-6, but the offline fixtures document defines headings 3.1..3.3 and no s21 anchors; the links only reach the document top.",
+        "evidence": "grep -n 's21-' docs/evals/ac-validity-1c-offline-fixtures.md -> no output; grep -n '^### 3' docs/evals/ac-validity-1c-offline-fixtures.md -> 3.1 S1, 3.2 S2, 3.3 S3.",
+        "suggestion": "Add explicit s21-1..s21-6 anchors or point the links at the actual 3.1/3.2/3.3 headings."
+      }
+    ],
+    "unverified": [
+      "Phase 1/2/B1 paid runs were not executed; no real-model verdicts, token usage, wall-clock, or official scores for the new sympy tasks are available.",
+      "Docker/FeatureBench scoring was not run; the 10.65GB sympy image was not pulled, and availability of the fb-eval-rc3:* image tags is unverified.",
+      "The Phase 1 DSH command chain was not executed end-to-end because the host has no dsh CLI; only path and shell-level checks were possible, and those exposed the blocking DSH_HOME mismatch.",
+      "The eight official FP Source-layer labels remain pending reviewer; no human gold-label sign-off has been recorded.",
+      "No evidence of paid Phase 1/2/B1 calls was found, but a negative cannot be proven from the repository alone.",
+      "The author's docs links OK claim is not fully reproducible: the fixture README link is broken and the case-table s21 anchors are absent (minor findings)."
+    ]
+  },
+  "binding": {
+    "version": 1,
+    "roots": [
+      "."
+    ],
+    "fingerprint": "4137508fe11feced1c231791403f68692b27e3779d0807f4aed09f7f3ca13879",
+    "code_fingerprint": "50ba219af3ffb9dbc98707f38a5921f06c8931958c3b90d74c9909e25f2de672",
+    "files": 264,
+    "artifacts": {
+      "intent": {
+        "path": ".ai/tasks/AC-VALIDITY-1C/intent.md",
+        "sha256": "4daf50c9bf8f7377e1e6036ad0a9cfe36368d7796abb0dbe27b5bd26d479c755"
+      },
+      "spec": {
+        "path": ".ai/tasks/AC-VALIDITY-1C/spec.md",
+        "sha256": "6a331c20378d79ce3d15e049eb9e6b2f97c7de9d117143af5eb5f676acf9a64c"
+      },
+      "plan": {
+        "path": ".ai/tasks/AC-VALIDITY-1C/plan.md",
+        "sha256": "e11f306ec167d5572e66843e11297a6daaccaf3413fc1bce111f760d5e929460"
+      }
+    }
+  }
+}
