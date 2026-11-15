@@ -133,7 +133,9 @@
 
 **预期裁决**：`approve`，在 `unverified` 里记录“外部 Grader 的完整 CLI 测试失败，但已确认超出 Source 范围，仅作风险”。不 `reject`，不偷偷加 AC。
 
-**对应 prompt 规则**：已确认范围外的独立功能不能因 hidden tests 失败而扩需求；无关/范围外失败不阻断。
+**对照**：如果该 CLI 是本任务承诺的局部接口的唯一真实消费路径，失败就不能用 out-of-scope 免除；按场景 2 处理（reject/needs_human）。本场景的 approve 只成立于「外部 CLI 与已承诺路径无关」被确认。
+
+**对应 prompt 规则**：已确认只涉及 Source/Boundary 明确排除、且与已承诺路径无关的独立功能 → 记录外部评分风险，不单独阻断 `approve`；真实入口/必要依赖失败仍不得 `approve`。
 
 ---
 
@@ -214,20 +216,20 @@
 
 **Source**
 
-- Issue #135：“恢复必要的接口，让 gettext 构建可用。”
-- 未说明是“只恢复列出的四个接口行为”，还是“完整 `python -m sphinx -b gettext` 构建必须成功”。
+- Issue #135：“恢复与 gettext 构建相关的必要符号；具体接口范围、最小构建夹具和验收口径待确认。”
+- 任务说明没有明确承诺某一个 `python -m sphinx -b gettext` 命令必须成功，也没有列出完整符号范围。
 
 **Outcome**
 
-- O-1：未明确——可能是接口行为，也可能是真实构建成功。
+- O-1：未明确——需要先澄清恢复哪些符号、用哪个最小构建夹具、是否以真实 builder 成功为验收。
 
 **Boundary**
 
-- 未明确排除 `add_uids`、`extract_messages` 等构建依赖。
+- 未明确排除/承诺哪些符号；`add_uids`、`extract_messages` 是否属于范围需要澄清。
 
 **Oracle**
 
-- 未确定：接口级测试，还是真实 builder 命令。
+- 未确定：接口级测试，还是某个真实 builder 命令。
 
 **AC mapping**
 
@@ -235,11 +237,13 @@
 
 **反例/证据**
 
-- 四个接口都 `met`；真实 builder 因 `add_uids` 缺失失败。Source 不能确定 `add_uids` 是否属于承诺。
+- 四个接口都 `met`；真实 builder 因 `add_uids` 缺失失败；但 Source 没有明确承诺该构建范围/口径，失败不能直接判为本次交付缺陷。
 
-**预期裁决**：`needs_human` + `unverified`。不自行把 `add_uids` 加成 AC（扩需求），也不因 Source 自洽而 `approve`。把歧义、失败命令和缺失符号交给人类澄清。
+**预期裁决**：`needs_human` + `unverified`。不自行把 `add_uids` 加成 AC（扩需求），也不因 Source 自洽而 `approve`。把范围、最小构建夹具、失败命令和缺失符号交给人类澄清。
 
-**对应 prompt 规则**：Source/Boundary 实质歧义 → `needs_human` + `unverified`；只在影响交付结论时阻断。
+**对照 #20 3A/3B**：如果 Source 明确承诺最小 gettext 构建可用（3B），真实构建失败就是交付缺陷，预期 `reject`；只有构建范围/环境/证据不确定时才 `needs_human`。本场景属于后者。
+
+**对应 prompt 规则**：Source/Boundary 实质歧义 → `needs_human` + `unverified`；只在影响交付结论时阻断；不能用 out-of-scope 免除真实目标功能失败。
 
 ---
 

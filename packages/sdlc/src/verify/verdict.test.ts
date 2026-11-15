@@ -150,7 +150,20 @@ test('状态矩阵：reject / needs_human / 无关失败 / 范围外不扩需求
   assert.match(prompt, /Source\/Boundary 实质歧义/);
   assert.match(prompt, /只在歧义影响本次交付结论时阻断/);
   assert.match(prompt, /无关既有失败 → 留证，不自动拒绝/);
-  assert.match(prompt, /已确认范围之外的独立功能，不能因 hidden tests 失败而扩需求/);
+  assert.match(prompt, /已确认只涉及 Source\/Boundary 明确排除、且与已承诺消费路径无关的独立功能/);
+  assert.match(prompt, /记录外部评分风险，不单独阻断 `approve`/);
+  assert.match(prompt, /测试来源、失败范围或与真实消费路径的依赖关系不确定/);
+});
+
+test('范围外独立测试与已承诺真实入口失败使用同一套裁决', () => {
+  const prompt = buildVerificationPrompt({ intentOfChange: '测试变更' });
+  assert.match(prompt, /先判断失败是否落在本次承诺的真实消费路径\/必要依赖上/);
+  assert.match(prompt, /是：\*\*不得 `approve`\*\*；可证实本次交付缺陷 → `reject`；依赖关系不确定 → `needs_human`/);
+  assert.match(prompt, /已确认只涉及 Source\/Boundary 明确排除、且与已承诺消费路径无关的独立功能/);
+  assert.match(prompt, /不单独阻断 `approve`/);
+  assert.match(prompt, /不能用一句 "out of scope" 免除真实目标功能失败/);
+  assert.match(prompt, /如果被声明排除的模块正是该功能真实消费路径的一部分且当前失败，按本条处理/);
+  assert.match(prompt, /取得\/重建官方验收测试/);
 });
 
 test('幂等：不重复报同一问题，也不因提过自动放行；AC 缺口退回 SPEC', () => {
