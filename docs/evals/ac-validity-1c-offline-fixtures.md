@@ -333,4 +333,5 @@ S1/S3 复用上面的 A/B 命令模板，只按表中替换 workspace、prompt�
 - **F4**：Phase 1 的插件 identity、DSH 启动与 driver 命令写清；Phase 2 的 manifest/image-map/preflight 见 [preregistration](ac-validity-1c-preregistration.md) 和 [handoff](ac-validity-1c-handoff.md)。
 - **F5**：S1 AC-002/复核命令包含 `ord-3`。
 - **DSH 命令一致性**：`check_phase1_docs.py --self-test` 会把运行 `DSH_HOME` 改回一个不一致的 home、删除 `eval-root` 的 `mkdir`、以及坏链接都必须拒绝；默认模式核对 A/B home、workspace、日志、hash 和链接/锚点。
+- **workspace 完整性**：`check_phase1_plan.py` 对六个实际 workspace 拒绝 tracked staged/unstaged 变更，并拒绝可能影响入口的未跟踪文件（仅放行已知生成物 `out.csv` 与 `__pycache__/*.pyc`）；`--dirty-workspace-test` 在临时副本上对 S2 `app/dates.py` 做暂存前/暂存后修改并确认拒绝。
 - 本文件不宣称 fixture 已经过真实模型验证；Phase 1 未运行。

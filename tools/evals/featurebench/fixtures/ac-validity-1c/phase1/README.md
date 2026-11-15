@@ -15,9 +15,14 @@ It does not authorize or start any paid call.
   scenario; the JSON is embedded verbatim. The main session calls
   `sdlc_verify` once (standalone, no `task_id`).
 - `check_phase1_plan.py` — offline validator: order/uniqueness, A/B identity,
-  same-scenario input identity, input/prompt/diff hashes, gold labels, paths and
-  per-call monitor settings. `--self-test` mutates order/label/hash/input and
-  asserts rejection; it never starts DSH, Chrome or a model.
+  same-scenario input identity, input/prompt/diff hashes, gold labels, paths,
+  per-call monitor settings, and the **actual `calls[].workspace`**. It rejects
+  tracked staged/unstaged changes; it allows only the known generated `out.csv`
+  and Python caches as untracked files, rejecting any other untracked file that
+  could affect test discovery or the entrypoint. `--self-test` mutates
+  order/label/hash/input/workspace and asserts rejection; `--dirty-workspace-test`
+  stages/unstages S2 `app/dates.py` in an isolated copy. Neither starts DSH,
+  Chrome or a model.
 
 ## Execution prerequisites (not execution)
 
@@ -37,6 +42,8 @@ Validation (offline):
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
   --fixtures-root /tmp/validity-1c-fixtures
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
+  --dirty-workspace-test --fixtures-root /tmp/validity-1c-fixtures
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
   --stage-prompts /tmp/phase1/prompts
 ```

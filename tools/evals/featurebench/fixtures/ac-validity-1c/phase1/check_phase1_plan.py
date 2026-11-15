@@ -17,8 +17,10 @@ import copy
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -70,6 +72,31 @@ def doc_inputs() -> dict:
             raise ValueError(f"docs missing JSON for {key}")
         out[key] = json.loads(m.group(1))
     return out
+
+
+def workspace_status_errors(ws: Path) -> list[str]:
+    """Reject tracked dirt and untracked files that could change execution inputs."""
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", str(ws), "status", "--porcelain", "--untracked-files=all"],
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        return [f"git status failed: {exc}"]
+    errs: list[str] = []
+    for line in out.splitlines():
+        if not line:
+            continue
+        if line.startswith("?? "):
+            path = line[3:].strip()
+            # out.csv is produced by the fixture's own S1 behavior check and is not
+            # imported by the entrypoint; caches are not execution inputs either.
+            if path == "out.csv" or path.startswith("__pycache__/") or path.endswith(".pyc") or "/__pycache__/" in path:
+                continue
+            errs.append(f"unexpected untracked file may affect execution: {path}")
+        else:
+            errs.append(f"tracked file has staged/unstaged changes ({line[:2].strip()}): {line[3:].strip()}")
+    return errs
 
 
 def validate(plan: dict, fixtures_root: Path | None = None) -> list[str]:
@@ -172,6 +199,8 @@ def validate(plan: dict, fixtures_root: Path | None = None) -> list[str]:
                 else:
                     if (c.get("base_commit"), c.get("head_commit"), c.get("diff_sha256")) != (base, head, sha(diff)):
                         errs.append(f"{c.get('id')}: actual workspace base/head/diff hash mismatch")
+                    for e in workspace_status_errors(ws):
+                        errs.append(f"{c.get('id')}: {e}")
     for sid in GOLD_LABELS:
         group = per_scenario.get(sid, [])
         if len(group) != 2 or {x.get("arm") for x in group} != {"A", "B"}:
@@ -211,6 +240,36 @@ def stage_prompts(target: Path) -> int:
     return 0
 
 
+def dirty_workspace_test(fixtures_root: Path) -> int:
+    src = fixtures_root / "S2_gap"
+    if not src.is_dir():
+        print(f"ERROR missing S2 fixture: {src}", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as td:
+        dst = Path(td) / "S2_gap"
+        shutil.copytree(src, dst, symlinks=True)
+        dates = dst / "app" / "dates.py"
+        orig = dates.read_bytes()
+        dates.write_bytes(orig + b"\n# dirty\n")
+        if not workspace_status_errors(dst):
+            print("DIRTY TEST FAIL: unstaged tracked change was not rejected", file=sys.stderr)
+            return 1
+        subprocess.run(["git", "-C", str(dst), "add", "app/dates.py"], check=True)
+        if not workspace_status_errors(dst):
+            print("DIRTY TEST FAIL: staged tracked change was not rejected", file=sys.stderr)
+            return 1
+        subprocess.run(["git", "-C", str(dst), "restore", "--staged", "--worktree", "app/dates.py"], check=True)
+        if workspace_status_errors(dst):
+            print("DIRTY TEST FAIL: restored workspace still reports errors", file=sys.stderr)
+            return 1
+        (dst / "unexpected_input.py").write_text("# should be rejected\n", encoding="utf-8")
+        if not workspace_status_errors(dst):
+            print("DIRTY TEST FAIL: unexpected untracked file was not rejected", file=sys.stderr)
+            return 1
+    print("PHASE1 DIRTY WORKSPACE TEST OK: unstaged/staged tracked changes and unexpected untracked files are rejected; restore is clean")
+    return 0
+
+
 def self_test(fixtures_root: Path) -> int:
     plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
     base = validate(plan, fixtures_root=fixtures_root)
@@ -242,11 +301,14 @@ def main() -> int:
     ap.add_argument("--fixtures-root", type=Path, default=Path("/tmp/validity-1c-fixtures"))
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--stage-prompts", type=Path)
+    ap.add_argument("--dirty-workspace-test", action="store_true")
     args = ap.parse_args()
     if args.self_test:
         return self_test(args.fixtures_root)
     if args.stage_prompts:
         return stage_prompts(args.stage_prompts)
+    if args.dirty_workspace_test:
+        return dirty_workspace_test(args.fixtures_root)
     plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
     errs = validate(plan, args.fixtures_root)
     if errs:
