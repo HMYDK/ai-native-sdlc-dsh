@@ -1,0 +1,1472 @@
+{
+  "schema": "ac-validity-1c-case-table",
+  "schema_version": 1,
+  "generated_at": "2026-11-15",
+  "generated_by": "Phase 0 analysis; extracted from docs/evals/verify-01-attribution-data.json; source text verified against ~/.dsh-eval-archive/2026-11-08",
+  "source_of_truth": {
+    "attribution_data": {
+      "path": "docs/evals/verify-01-attribution-data.json",
+      "sha256": "963702e853d5e81823b11d2d42311cf84f1b02754b3c042a49f97f6d29311cff"
+    },
+    "canonical_runs": {
+      "path": "docs/evals/featurebench-runs.jsonl",
+      "sha256": "8d017b21fa3a16c4b1edbcbc46d2be7a28cef0986cd2f83e4e97d2477b945dbb"
+    },
+    "canonical_confusion": {
+      "path": "docs/evals/featurebench-verifier-confusion.json",
+      "sha256": "5d049307bc40d79212e0e486e1b9029eaf8c43b88e4e361295bbf8e6d7cbd7b5"
+    },
+    "archive_root": "~/.dsh-eval-archive/2026-11-08 (raw sessions/prompts/reports; read-only; the `archive:` prefix resolves here)"
+  },
+  "recomputed_from_canonical": {
+    "command": "python3 - <<'PY' (load featurebench-runs.jsonl; last verify_verdicts status vs official.resolved)",
+    "fp_runs": 8,
+    "fp_tasks": 2,
+    "fn_runs": 3,
+    "fn_tasks": 2,
+    "fp_runs_by_task": {
+      "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1": 7,
+      "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1": 1
+    },
+    "fn_runs_by_task": {
+      "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1": 2,
+      "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1": 1
+    }
+  },
+  "summary": {
+    "historical_runs": 11,
+    "historical_tasks": 4,
+    "strata": {
+      "v1_fp": 7,
+      "v2_fp": 1,
+      "fn": 3
+    },
+    "official_fp": {
+      "runs": 8,
+      "tasks": 2,
+      "by_task": {
+        "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1": 7,
+        "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1": 1
+      }
+    },
+    "official_fn": {
+      "runs": 3,
+      "tasks": 2,
+      "by_task": {
+        "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1": 2,
+        "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1": 1
+      }
+    },
+    "source_layer_false_approvals": {
+      "confirmed": 0,
+      "not_established_conflict_provisional": 8
+    },
+    "source_layer_false_rejections": {
+      "confirmed": 0,
+      "censored": 3
+    },
+    "dedup": {
+      "fp_task_keys": [
+        "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+        "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1"
+      ],
+      "fn_task_keys": [
+        "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+        "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1"
+      ]
+    },
+    "synthetic_cases": 6,
+    "note": "Official FP (featurebench resolved=false, verifier approve) is counted separately from Source-layer false approval. 0 confirmed is not a claim that the true count is zero: all 8 official FPs are Source/Grader conflicts (gettext/doctest) pending reviewer. All 3 official FNs are censored by agent_failure=timeout and are NOT counted as confirmed Source-layer false rejections."
+  },
+  "source_dependency_analysis": {
+    "method": "Read-only archive check: prompt interface descriptions + agent patch + official F2P pass/fail lists. No model inference; no container.",
+    "gettext": {
+      "promised_interfaces": [
+        "Catalog.add",
+        "GettextRenderer.__init__",
+        "GettextRenderer.render"
+      ],
+      "missing_symbols": [
+        "add_uids",
+        "extract_messages"
+      ],
+      "prompt_path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt",
+      "prompt_mentions_missing": false,
+      "agent_patch_mentions_missing": false,
+      "official_f2p_passed": [
+        "tests/test_builders/test_build_gettext.py::test_Catalog_duplicated_message"
+      ],
+      "official_f2p_failed_full_builder": [
+        "test_build_gettext",
+        "test_msgfmt",
+        "test_gettext_index_entries",
+        "test_gettext_disable_index_entries",
+        "test_gettext_template",
+        "test_gettext_template_msgid_order_in_sphinxpot",
+        "test_gettext_custom_output_template",
+        "test_build_single_pot",
+        "test_gettext_prolog_epilog_substitution",
+        "test_gettext_prolog_epilog_substitution_excluded",
+        "test_gettext_literalblock_additional",
+        "test_gettext_trailing_backslashes"
+      ],
+      "assessment": "not_proven_necessary_dependency_of_promised_interfaces",
+      "why": "The prompt defines only Catalog.add / GettextRenderer; add_uids and extract_messages appear in neither the prompt nor the agent patch. The one passing F2P test is the Catalog helper; all 12 failures are full gettext-builder tests. The Source explicitly excludes the complete i18n builder, so this is a Source/Grader conflict, not a proven Source-layer false approval. Reviewer must decide whether the exclusion is legitimate."
+    },
+    "doctest": {
+      "promised_interfaces": [
+        "is_allowed_version"
+      ],
+      "missing_symbols": [
+        "DocTestBuilder.compile",
+        "DocTestBuilder.run"
+      ],
+      "prompt_path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/prompt.txt",
+      "prompt_mentions_missing": false,
+      "agent_patch_mentions_missing": false,
+      "official_f2p_passed": [
+        "tests/test_extensions/test_ext_doctest.py::test_is_allowed_version"
+      ],
+      "official_f2p_failed_full_extension": [
+        "test_build",
+        "test_skipif",
+        "test_reporting_with_autodoc",
+        "test_fail_fast[False]",
+        "test_fail_fast[True]",
+        "test_fail_fast[None]",
+        "test_doctest_block_group_name",
+        "test_highlight_language_default",
+        "test_highlight_language_python3"
+      ],
+      "assessment": "not_proven_necessary_dependency_of_promised_interface",
+      "why": "The prompt says restore only is_allowed_version and explicitly excludes the rest of the doctest extension; the agent patch does not touch DocTestBuilder. The one passing F2P test is is_allowed_version; all others exercise the full extension. Conflict, provisional; reviewer must decide."
+    },
+    "conclusion": "No claim that Source-layer false approvals or false rejections are zero. 0 confirmed; 8 official FPs are conflict/provisional; 3 FNs are censored. The reviewer must check whether the excluded symbols are necessary for a promised consumption path before recording a Source-layer label."
+  },
+  "cases": [
+    {
+      "case_id": "H-FP-01",
+      "source_case_key": "V1-1",
+      "group": "historical_official_fp",
+      "stratum": "v1_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt#L4-L11",
+      "source_quote": "Restore the listed `Catalog.add` and `GettextRenderer.__init__` interfaces together with the renderer's directly required `render` override described below. ... General template inheritance, theme loader construction, catalog iteration, file writing and the complete internationalization builder are outside these listed implementations.",
+      "source_sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a",
+      "outcome": "Restore the listed Catalog/GettextRenderer interfaces and their documented behavior.",
+      "boundary": "The complete internationalization builder is explicitly outside the listed implementations.",
+      "oracle": "Official F2P tests/test_builders/test_build_gettext.py; failure signature NameError: add_uids.",
+      "spec_ac_count": 10,
+      "spec_sha256": "4d4209c9aac779200452753c1f65a5cbd9047dc98f76b6417b4c79968934e904",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p": "1/13",
+        "failure_signatures": [
+          "NameError: name 'add_uids' is not defined"
+        ],
+        "report_sha256": "5f9bc4dca31befd1cef5cfd6e03981958cd31df85c4433b61b036fbb45c89752",
+        "test_output_sha256": "ed58961adba117afe387b559039f94b1157a7cf0755653b7f6de7b5a39dd2a2c"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "mvp",
+      "arm": "sdlc",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "1",
+        "2",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/sessions/sessions/--testbed--/session-c9b69e6b-a0dc-478d-b3a7-19a270ba44b0/session.v4.jsonl.zstd",
+          "sha256": "bc43824189b3fcd1ce45543b59e632fce5bc2fd6fb62429fa33469c9f9f9a437"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=278",
+          "path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/sessions/sessions/--testbed--/46a23d25-13f0-46a7-8f7f-f75836a6f0da/session.v4.jsonl.zstd",
+          "sha256": "74816b4e689dd7efb709b27caeec27d2650562fb9ef26cd0835c44cde8f0dd23"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+          "sha256": "5f9bc4dca31befd1cef5cfd6e03981958cd31df85c4433b61b036fbb45c89752"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/test_output.txt",
+          "sha256": "ed58961adba117afe387b559039f94b1157a7cf0755653b7f6de7b5a39dd2a2c"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/patch.diff",
+          "sha256": "ebfe483b47146e28c263fa2a2658c0a354564f9de706f58bfcb59d8bc5f05ed3"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt",
+          "sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs/sphinx-doc__sphinx/sdlc/meta.json",
+          "sha256": "636ec460ba3986cc6d91d7f1a29950724cfb00611402a6ec5d2d087930efd8a8"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FP-02",
+      "source_case_key": "V1-2",
+      "group": "historical_official_fp",
+      "stratum": "v1_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "2x2:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc_guidance:r1",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt#L4-L11",
+      "source_quote": "Restore the listed `Catalog.add` and `GettextRenderer.__init__` interfaces together with the renderer's directly required `render` override described below. ... General template inheritance, theme loader construction, catalog iteration, file writing and the complete internationalization builder are outside these listed implementations.",
+      "source_sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a",
+      "outcome": "Restore the listed Catalog/GettextRenderer interfaces and their documented behavior.",
+      "boundary": "The complete internationalization builder is explicitly outside the listed implementations.",
+      "oracle": "Official F2P tests/test_builders/test_build_gettext.py; failure signature NameError: add_uids.",
+      "spec_ac_count": 10,
+      "spec_sha256": "1697de63194d1ae8f568316937ff183c405cae7d3b767e42713b0da0387e357d",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p": "1/13",
+        "failure_signatures": [
+          "NameError: name 'add_uids' is not defined"
+        ],
+        "report_sha256": "96b4caef81b47bc0b30ba5370e8a0f6d1570fbb2c52b54b19feed7bf3458349e",
+        "test_output_sha256": "38cdc723af8c8b0a3ff9a19a62e913be0160e62b3f75065410c7cb689e2ea754"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "2x2",
+      "arm": "sdlc_guidance",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "approve",
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": true,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "3",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/sessions/sessions/--testbed--/session-118465f8-1fb5-412a-a051-07113673dba2/session.v4.jsonl.zstd",
+          "sha256": "1a11a273034fbc680ecb4919470f51add988b9fe0f450a310193abf83163a516"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=238",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/sessions/sessions/--testbed--/12c467dd-0a51-44e6-bddc-ef46538ec12d/session.v4.jsonl.zstd",
+          "sha256": "72a72982b0dc193d871da24d63a7bb27d24ad08be2e7a4208173a7caf20f6442"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=378",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/sessions/sessions/--testbed--/3e4d61cd-1a86-4ebd-90d9-307de73f439e/session.v4.jsonl.zstd",
+          "sha256": "96838cd61680b43018245448221e12b8c6587a784b4267ef1713c0da176d4ef1"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+          "sha256": "96b4caef81b47bc0b30ba5370e8a0f6d1570fbb2c52b54b19feed7bf3458349e"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/test_output.txt",
+          "sha256": "38cdc723af8c8b0a3ff9a19a62e913be0160e62b3f75065410c7cb689e2ea754"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/patch.diff",
+          "sha256": "bb5a23bed92d1c2236cc7014ac07d1ab6efe9929c3a607d0f701d4a381928489"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/prompt.txt",
+          "sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-2x2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc_guidance/meta.json",
+          "sha256": "1da7b05e422ad8843833dad2b43042ed1e5102b37435a0888058e753a86eea1d"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FP-03",
+      "source_case_key": "V1-3",
+      "group": "historical_official_fp",
+      "stratum": "v1_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "expanded:sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1:sdlc:r1",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/prompt.txt#L4-L8",
+      "source_quote": "Restore only `is_allowed_version(spec, version)`. It returns whether `version` belongs to the supplied PEP 440 specifier set ... Directive execution and the rest of the doctest extension are outside this interface.",
+      "source_sha256": "4f55c4cf112d8b1f53285d9d7e9751cf9ff6f7b7df06419e32d2de5f4b3b797f",
+      "outcome": "Restore only is_allowed_version(spec, version).",
+      "boundary": "Directive execution and the rest of the doctest extension are outside this interface.",
+      "oracle": "Official F2P tests/test_extensions/test_ext_doctest.py; failure signature DocTestBuilder.compile.",
+      "spec_ac_count": 12,
+      "spec_sha256": "f4a34a8477df0d50499c94cb905fa667743d33ace4aee2152ba1ee0708e11093",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0909,
+        "f2p": "1/11",
+        "failure_signatures": [
+          "AttributeError: 'DocTestBuilder' object has no attribute 'compile'",
+          "NotImplementedError: Must override run() in subclass."
+        ],
+        "report_sha256": "171eee16fa9c943be040ba921dc48daca25e921439cc4466359a8eea748351cf",
+        "test_output_sha256": "33367f7f8b382e8ea209ab75ad69c1c0d3b2cfc414595bb798a59708e819e43b"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "expanded",
+      "arm": "sdlc",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": false,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "1",
+        "2",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/sessions/sessions/--testbed--/session-aef69cf8-4ea3-4d87-be12-abe480ac5f78/session.v4.jsonl.zstd",
+          "sha256": "72f103923bbdc51d0315efa00952aa16ceddfe431f9243d56a916f2c6b9ef172"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=250",
+          "path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/sessions/sessions/--testbed--/180345dd-ee7c-4d7a-b9a3-e5717bc40859/session.v4.jsonl.zstd",
+          "sha256": "6fef596cd58ead78fac2ef35fa735eb13b1d8d7c7db1e509a79dfdb3e8c86e55"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/attempt-1/report.json",
+          "sha256": "171eee16fa9c943be040ba921dc48daca25e921439cc4466359a8eea748351cf"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/attempt-1/test_output.txt",
+          "sha256": "33367f7f8b382e8ea209ab75ad69c1c0d3b2cfc414595bb798a59708e819e43b"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/patch.diff",
+          "sha256": "ed67865e76091877e1555091774b0ea7320fe2ae82712aa2ea388662cea2e6fd"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/prompt.txt",
+          "sha256": "4f55c4cf112d8b1f53285d9d7e9751cf9ff6f7b7df06419e32d2de5f4b3b797f"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-expanded/sphinx-doc__sphinx.e347e59c.test_ext_doctest.530dec5f.lv1/sdlc/meta.json",
+          "sha256": "68bdc29c111a71e1fba550b1a8dfef4a355e91df1e13fe328768381e0b5f116e"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FP-04",
+      "source_case_key": "V1-4",
+      "group": "historical_official_fp",
+      "stratum": "v1_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "verify-stress:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt#L4-L11",
+      "source_quote": "Restore the listed `Catalog.add` and `GettextRenderer.__init__` interfaces together with the renderer's directly required `render` override described below. ... General template inheritance, theme loader construction, catalog iteration, file writing and the complete internationalization builder are outside these listed implementations.",
+      "source_sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a",
+      "outcome": "Restore the listed Catalog/GettextRenderer interfaces and their documented behavior.",
+      "boundary": "The complete internationalization builder is explicitly outside the listed implementations.",
+      "oracle": "Official F2P tests/test_builders/test_build_gettext.py; failure signature NameError: add_uids.",
+      "spec_ac_count": 12,
+      "spec_sha256": "31168ec05dcf2abcb37fda64a4a6dfba0d9707ea22f4790cc0f02b072b87f805",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p": "1/13",
+        "failure_signatures": [
+          "NameError: name 'add_uids' is not defined"
+        ],
+        "report_sha256": "25bd8e9530a596f260c1e31881bfc0b8f00a56948c9d7eea565628beb997cafd",
+        "test_output_sha256": "c7dcf924fe0ee1953de4244093cea27d74fe7c766ef6c4cbc055a7cd7682df65"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "verify-stress",
+      "arm": "sdlc",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "approve",
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "1",
+        "2",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/session-513d7c1b-0939-4fd2-9d4a-cfee3644be37/session.v4.jsonl.zstd",
+          "sha256": "f9197ce8c53530e092da83bde6b8a3206f74040f40d70ef04fba34f3067b666f"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=397",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/869c809f-ea15-4c40-a46c-50e8cd5f896a/session.v4.jsonl.zstd",
+          "sha256": "bba1a629eceb0a7bbddf85b31327a3adba938128785b90da04b2252a30da6adb"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=367",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/e26aa097-6f74-4901-86b0-440903c7b688/session.v4.jsonl.zstd",
+          "sha256": "d590a166633a59676d69e341b954f0bdf92d0210d43851a788f83cc9cb066bdc"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+          "sha256": "25bd8e9530a596f260c1e31881bfc0b8f00a56948c9d7eea565628beb997cafd"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/test_output.txt",
+          "sha256": "c7dcf924fe0ee1953de4244093cea27d74fe7c766ef6c4cbc055a7cd7682df65"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/patch.diff",
+          "sha256": "a296a5eaac3fc79cdbf6adbaf40068516955f47d8ac5de4515f494273db85402"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/prompt.txt",
+          "sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-stress/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/meta.json",
+          "sha256": "57fb94c89839e6c736032c9e8924582bce4d0ccfaced127cf48650ae43169cf0"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FP-05",
+      "source_case_key": "V1-5",
+      "group": "historical_official_fp",
+      "stratum": "v1_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt#L4-L11",
+      "source_quote": "Restore the listed `Catalog.add` and `GettextRenderer.__init__` interfaces together with the renderer's directly required `render` override described below. ... General template inheritance, theme loader construction, catalog iteration, file writing and the complete internationalization builder are outside these listed implementations.",
+      "source_sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a",
+      "outcome": "Restore the listed Catalog/GettextRenderer interfaces and their documented behavior.",
+      "boundary": "The complete internationalization builder is explicitly outside the listed implementations.",
+      "oracle": "Official F2P tests/test_builders/test_build_gettext.py; failure signature NameError: add_uids.",
+      "spec_ac_count": 9,
+      "spec_sha256": "0f9758cbaf3d76e2b6b593fa5410b1cc2c688ea4efcb074e055bfff189f55ecd",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p": "1/13",
+        "failure_signatures": [
+          "NameError: name 'add_uids' is not defined"
+        ],
+        "report_sha256": "eb6d29fe2571a4bf3cd53064d0e3fc3a43bf269d2ab3e131248033e075c31090",
+        "test_output_sha256": "7f2f5863f904185669be0cc4809a59276ca16c472605448a1138ad74854abb84"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "repeat-sampling",
+      "arm": "sdlc",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "1",
+        "2",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-repeat/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/session-9f64fa2e-1a8b-4ec7-b8aa-1c5a1406bbac/session.v4.jsonl.zstd",
+          "sha256": "0d8a0193d396a8b2c525d1f33f3b960879b5789c7d22dd7d230ecc249229d7d9"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=248",
+          "path": "archive:fb-runs-repeat/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/f015459c-5b86-4475-9495-b8b4f74cf6ed/session.v4.jsonl.zstd",
+          "sha256": "dbb4abea30272685e7f586d8b5b782dd71329b13a0ff5bdd8fbae353699c78ee"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-repeat/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+          "sha256": "eb6d29fe2571a4bf3cd53064d0e3fc3a43bf269d2ab3e131248033e075c31090"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-repeat/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/test_output.txt",
+          "sha256": "7f2f5863f904185669be0cc4809a59276ca16c472605448a1138ad74854abb84"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-repeat/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/patch.diff",
+          "sha256": "2faf6606306ca3d6a3c427e470d60c08760d34c277502bf6cb1ff5b1f1cb22ae"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-repeat/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/prompt.txt",
+          "sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-repeat/rep1/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/meta.json",
+          "sha256": "58360bd70b1a57df69a539f4ecec20a0f2befc15244f718be878c01b2fef7270"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FP-06",
+      "source_case_key": "V1-6",
+      "group": "historical_official_fp",
+      "stratum": "v1_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r2",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt#L4-L11",
+      "source_quote": "Restore the listed `Catalog.add` and `GettextRenderer.__init__` interfaces together with the renderer's directly required `render` override described below. ... General template inheritance, theme loader construction, catalog iteration, file writing and the complete internationalization builder are outside these listed implementations.",
+      "source_sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a",
+      "outcome": "Restore the listed Catalog/GettextRenderer interfaces and their documented behavior.",
+      "boundary": "The complete internationalization builder is explicitly outside the listed implementations.",
+      "oracle": "Official F2P tests/test_builders/test_build_gettext.py; failure signature NameError: add_uids.",
+      "spec_ac_count": 9,
+      "spec_sha256": "0eea367ab9050f80ab7235f423eccec393b4248448df7047731e9ec3e8d8282f",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p": "1/13",
+        "failure_signatures": [
+          "NameError: name 'add_uids' is not defined"
+        ],
+        "report_sha256": "69371515dbd65242386175e4d5bc774919fc5cf671ff5f17573492abb425cddb",
+        "test_output_sha256": "a12641623e307babea5b95a9839ea2a2179dcee618df2284095620520c86aa9e"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "repeat-sampling",
+      "arm": "sdlc",
+      "repeat": 2,
+      "main_verify_status_sequence": [
+        "approve",
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": true,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": true,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "3",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/session-c09ecccb-3f70-4849-838d-bd7234caf581/session.v4.jsonl.zstd",
+          "sha256": "8df78b6b3cbbec1731dac5e733be5d1a653bba4bb96e468bb962243ec83067e3"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=282",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/7582f2a7-02d6-4eff-bc53-a01fbf56804c/session.v4.jsonl.zstd",
+          "sha256": "836b14b5e899590e0586cd6d5e91885d5b0ef74a4c381ea0ad4323c721161f76"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=268",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/e6046190-b633-4865-b240-efbd8fa9e70d/session.v4.jsonl.zstd",
+          "sha256": "bf1c687e9f994e8b7e8d5c7f679f20ee225c58e3b1381716953c94f1d78e756d"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+          "sha256": "69371515dbd65242386175e4d5bc774919fc5cf671ff5f17573492abb425cddb"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/test_output.txt",
+          "sha256": "a12641623e307babea5b95a9839ea2a2179dcee618df2284095620520c86aa9e"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/patch.diff",
+          "sha256": "ccf543aa1a7de15811c6c4de2bf5b64e1d6867b97ada5ae0818c2ca2c3ef1972"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/prompt.txt",
+          "sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-repeat/rep2/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/meta.json",
+          "sha256": "6fade0983d50f8ec3e173d23c045315878e350cb8e835033c82fd9d5950572c2"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FP-07",
+      "source_case_key": "V1-7",
+      "group": "historical_official_fp",
+      "stratum": "v1_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "repeat-sampling:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r3",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt#L4-L11",
+      "source_quote": "Restore the listed `Catalog.add` and `GettextRenderer.__init__` interfaces together with the renderer's directly required `render` override described below. ... General template inheritance, theme loader construction, catalog iteration, file writing and the complete internationalization builder are outside these listed implementations.",
+      "source_sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a",
+      "outcome": "Restore the listed Catalog/GettextRenderer interfaces and their documented behavior.",
+      "boundary": "The complete internationalization builder is explicitly outside the listed implementations.",
+      "oracle": "Official F2P tests/test_builders/test_build_gettext.py; failure signature NameError: add_uids.",
+      "spec_ac_count": 10,
+      "spec_sha256": "2b3d8da547a055f297be48ea25ecba5855b16bfbc97ac2905216259259bcdced",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p": "1/13",
+        "failure_signatures": [
+          "NameError: name 'add_uids' is not defined"
+        ],
+        "report_sha256": "61488f3c0b321cde5acfa05609f84c0b97032d51c4865e4cecdc586bcf978363",
+        "test_output_sha256": "fc6fac0afe5634f30766a4d3b5fd867497f01658f5473edd78bf64f19a675f1a"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "repeat-sampling",
+      "arm": "sdlc",
+      "repeat": 3,
+      "main_verify_status_sequence": [
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "1",
+        "2",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-repeat/rep3/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/session-b17cc224-8303-401c-b91f-ff3d93a3566a/session.v4.jsonl.zstd",
+          "sha256": "506b2e803585ca1c97421023c10b4d94570148a646c8e71a484179d20e59fef3"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=255",
+          "path": "archive:fb-runs-repeat/rep3/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/c9a99b9c-a2e2-4f68-9a1c-58540fc02a8b/session.v4.jsonl.zstd",
+          "sha256": "f57fa2970b39826dc92e1b97fa0fce8a809a2f0f584f741b67fb47ce867d1617"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-repeat/rep3/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+          "sha256": "61488f3c0b321cde5acfa05609f84c0b97032d51c4865e4cecdc586bcf978363"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-repeat/rep3/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/test_output.txt",
+          "sha256": "fc6fac0afe5634f30766a4d3b5fd867497f01658f5473edd78bf64f19a675f1a"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-repeat/rep3/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/patch.diff",
+          "sha256": "72983a3b0df3b4b09c9941dca404d1607cfc4921214f5be604f1d19e1656535f"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-repeat/rep3/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/prompt.txt",
+          "sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-repeat/rep3/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/meta.json",
+          "sha256": "60666759db374bc6ac3e72d58c06858d43a5e14726f60c5e6f6374e80552681a"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FP-08",
+      "source_case_key": "V2",
+      "group": "historical_official_fp",
+      "stratum": "v2_fp",
+      "task_id": "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "repo": "sphinx-doc/sphinx",
+      "run_id": "version-regression-mvp:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1:sdlc:r1",
+      "dedup_key": "task:sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs/sphinx-doc__sphinx/sdlc/prompt.txt#L4-L11",
+      "source_quote": "Restore the listed `Catalog.add` and `GettextRenderer.__init__` interfaces together with the renderer's directly required `render` override described below. ... General template inheritance, theme loader construction, catalog iteration, file writing and the complete internationalization builder are outside these listed implementations.",
+      "source_sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a",
+      "outcome": "Restore the listed Catalog/GettextRenderer interfaces and their documented behavior.",
+      "boundary": "The complete internationalization builder is explicitly outside the listed implementations.",
+      "oracle": "Official F2P tests/test_builders/test_build_gettext.py; failure signature NameError: add_uids.",
+      "spec_ac_count": 11,
+      "spec_sha256": "79281270df39ccb86eb8457fec70024e9afc8423943a08cac86f4587d0cc39e0",
+      "official_fb": {
+        "resolved": false,
+        "pass_rate": 0.0769,
+        "f2p": "1/13",
+        "failure_signatures": [
+          "NameError: name 'add_uids' is not defined"
+        ],
+        "report_sha256": "e694b0c90db8541c4ede6cb30b80694bac709614745cf64a3e4200d7952ac642",
+        "test_output_sha256": "70e95c9ef8057a7564c4ae80459c84b984f1d0bab139761c97633b3a473e596a"
+      },
+      "official_vs_verdict": "false_positive",
+      "source_grader_agreement": "conflict",
+      "source_layer_assessment": "not_established_conflict",
+      "source_layer_false_approval": "not_established",
+      "source_layer_false_rejection": "not_applicable",
+      "expected_verdict": "provisional",
+      "provisional_candidates": [
+        "approve (accept explicit Source boundary)",
+        "needs_human (grading risk; missing symbols not unambiguously excluded)",
+        "reject (reviewer finds missing symbols inside promised path)"
+      ],
+      "label_status": "pending_reviewer",
+      "label_confidence": "low (provisional)",
+      "unavailable_reason": null,
+      "agent_failure": null,
+      "final_verdict": "approve",
+      "plugin_version": "0.6.1",
+      "dsh_cli": "0.2.2-rc.1",
+      "experiment": "version-regression-mvp",
+      "arm": "sdlc",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "approve",
+        "approve"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "1",
+        "2",
+        "4",
+        "5"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/session-b2e2c85a-9d00-41b9-8761-a07a1d6531c6/session.v4.jsonl.zstd",
+          "sha256": "e062998b8b81e79b6a172200db9e181dcfcb87b3f79e80cb1a8f6f87c6e97ce3"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=313",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/2695b32e-6d5f-4bd7-b407-9a51ed4afa60/session.v4.jsonl.zstd",
+          "sha256": "1935c0fef83788dbcc7da99b139ac8aa9e3edf4999fef4c6f4922dc194c3b3cc"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=287",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/sessions/sessions/--testbed--/921db2e1-bcce-41b3-afb9-8cab1ada6a35/session.v4.jsonl.zstd",
+          "sha256": "23adbe124d3aee08227ed68781b8d2a0754dfc506a60343729f9387b16890319"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/report.json",
+          "sha256": "e694b0c90db8541c4ede6cb30b80694bac709614745cf64a3e4200d7952ac642"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/eval_outputs/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/attempt-1/test_output.txt",
+          "sha256": "70e95c9ef8057a7564c4ae80459c84b984f1d0bab139761c97633b3a473e596a"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/patch.diff",
+          "sha256": "66cb635aa4206ca73437f95cc61bf93b76cd46e2ef913ee8b43a9836db331081"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/prompt.txt",
+          "sha256": "4bcd18e96fc985fd07e49a61c867882ec10bca856bd2c778ff99406c56bc7d1a"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-regression-mvp/sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1/sdlc/meta.json",
+          "sha256": "e537d12bc73a5ba46b327c48a52f8c568da2b941be45f61df2e8d95b25b39e25"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FN-01",
+      "source_case_key": "FN-1",
+      "group": "historical_censored_fn",
+      "stratum": "fn",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "repo": "mwaskom/seaborn",
+      "run_id": "version-regression-mvp:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r1",
+      "dedup_key": "task:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/prompt.txt#L1-L13",
+      "source_quote": "Implement a bootstrap resampling algorithm that performs statistical resampling with replacement on one or more input arrays ... Enables structured resampling ... Provides reproducible results through random seed control.",
+      "source_sha256": "a0ac2b52058f99a281d2a7e01ec8c7cb90e280ef9b962951519c76ff7ff66a08",
+      "outcome": "Implement bootstrap resampling with the documented arguments, warnings and reproducibility.",
+      "boundary": "Task statement covers bootstrap and its interface; no explicit official-test exclusion.",
+      "oracle": "Official F2P tests/test_algorithms.py (13/13 pass in the archived run).",
+      "spec_ac_count": 15,
+      "spec_sha256": "d44201ed000abceef04287c05d19d9388162c6bbfc6aa2133f3b127afc1029b2",
+      "official_fb": {
+        "resolved": true,
+        "pass_rate": 1.0,
+        "f2p": "13/13",
+        "failure_signatures": [],
+        "report_sha256": "2c946bcea18de3e92454f0ca3039ee5820a62f78bd880efdea672a2e2b25ef0d",
+        "test_output_sha256": "cb4dc720ead6b57adf1a099bebcd005350a1bce1c3450b1ec096f46ca5199961"
+      },
+      "official_vs_verdict": "false_negative",
+      "source_grader_agreement": "unknown",
+      "source_layer_assessment": "censored",
+      "source_layer_false_approval": "not_applicable",
+      "source_layer_false_rejection": "not_established",
+      "expected_verdict": "unknown",
+      "provisional_candidates": [],
+      "label_status": "censored",
+      "label_confidence": "high (censoring fact); unknown (label)",
+      "unavailable_reason": "agent_failure=timeout（删失）：最后一次 sdlc_verify 无 result（超时截断），官方 resolved=1.0 与 reject 矛盾，无法区分删失与误判",
+      "agent_failure": "timeout",
+      "final_verdict": "reject",
+      "plugin_version": "0.6.1",
+      "dsh_cli": "0.2.2-rc.1",
+      "experiment": "version-regression-mvp",
+      "arm": "sdlc",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "reject"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "6"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/sessions/sessions/--testbed--/session-383d5eb7-8f80-46b8-91de-398a495e986c/session.v4.jsonl.zstd",
+          "sha256": "42b41801ccac9d6518f219e77d1f1d3abd157a899f50e9e3d767f96ad388e7ac"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=123",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/sessions/sessions/--testbed--/23349af2-9631-4e16-8663-ee86b8253eda/session.v4.jsonl.zstd",
+          "sha256": "ba9196cf5e05311c7ba66b4589b085453382beb2d8abefdf8767d4d0a4797a46"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=291",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/sessions/sessions/--testbed--/7b8c4cbb-ab5c-4a70-86fe-a861299c1d4d/session.v4.jsonl.zstd",
+          "sha256": "184ef6a49ebb83c92a8d08b09e6da28426f3c880ecac2d4d747fa5520e391bc4"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/eval_outputs/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/attempt-1/report.json",
+          "sha256": "2c946bcea18de3e92454f0ca3039ee5820a62f78bd880efdea672a2e2b25ef0d"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/eval_outputs/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/attempt-1/test_output.txt",
+          "sha256": "cb4dc720ead6b57adf1a099bebcd005350a1bce1c3450b1ec096f46ca5199961"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/patch.diff",
+          "sha256": "8fa29e9f45c0782a599c51847df697c16163f53ebf0819a345f57d930e1a291a"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/prompt.txt",
+          "sha256": "a0ac2b52058f99a281d2a7e01ec8c7cb90e280ef9b962951519c76ff7ff66a08"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/meta.json",
+          "sha256": "49222bacedd7d702136c8598fba22817395a3fc426952d77fda657bde0ef2c08"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FN-02",
+      "source_case_key": "FN-2",
+      "group": "historical_censored_fn",
+      "stratum": "fn",
+      "task_id": "pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "repo": "pypa/packaging",
+      "run_id": "version-regression-mvp:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1:sdlc:r1",
+      "dedup_key": "task:pypa__packaging.013f3b03.test_metadata.e00b5801.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/prompt.txt#L1-L15",
+      "source_quote": "Python Package Metadata Processing and Validation: parse and validate Python package metadata ... handle requirement strings ... support multiple metadata versions (1.0-2.5) ... convert metadata back to RFC822 format.",
+      "source_sha256": "42ee88d831cf9fb157ef096e2b0c2c706dc31f148cfa5e5a269cdc84ba7a7225",
+      "outcome": "Implement metadata processing/validation and RFC822 serialization described by the task statement.",
+      "boundary": "Task statement covers metadata processing; no explicit official-test exclusion.",
+      "oracle": "Official F2P tests/test_metadata.py (294/294 pass in the archived run).",
+      "spec_ac_count": 11,
+      "spec_sha256": "15d95b69378e7fa216f2cc0523b6e56ea5c8d93dbe57451abc1e15ca669379f2",
+      "official_fb": {
+        "resolved": true,
+        "pass_rate": 1.0,
+        "f2p": "294/294",
+        "failure_signatures": [],
+        "report_sha256": "801e2f31e5024a0e1da0875a8dcd69dda82c751f824b70dcc82e4e4ea1e0f944",
+        "test_output_sha256": "026f3dadcaad35fc96cfb45c6b5caeba71b0337eef4568543b0774de9be0649d"
+      },
+      "official_vs_verdict": "false_negative",
+      "source_grader_agreement": "unknown",
+      "source_layer_assessment": "censored",
+      "source_layer_false_approval": "not_applicable",
+      "source_layer_false_rejection": "not_established",
+      "expected_verdict": "unknown",
+      "provisional_candidates": [],
+      "label_status": "censored",
+      "label_confidence": "high (censoring fact); unknown (label)",
+      "unavailable_reason": "agent_failure=timeout（删失）：最终 reject 依据 packaging 26.3 后置修复而非任务/官方 26.0 oracle，且第 2 次验证被插件拒绝；删失使归因不可定",
+      "agent_failure": "timeout",
+      "final_verdict": "reject",
+      "plugin_version": "0.6.1",
+      "dsh_cli": "0.2.2-rc.1",
+      "experiment": "version-regression-mvp",
+      "arm": "sdlc",
+      "repeat": 1,
+      "main_verify_status_sequence": [
+        "approve",
+        "reject"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "6"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/sessions/sessions/--testbed--/session-cf42cb61-412a-48b2-8b59-492da1e410bc/session.v4.jsonl.zstd",
+          "sha256": "9b6e2a8aac0122b2f02f9cfd1f415df32a39cbffeebe321b73dacdc1a48e7726"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=479",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/sessions/sessions/--testbed--/9cbfaa5d-df97-45d6-b3ce-ce3c2c362b00/session.v4.jsonl.zstd",
+          "sha256": "9fb5bb82989a8f8801874ab63d30a2e74a6c7ae4f2bcf576a09940c41b8f7af2"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=347",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/sessions/sessions/--testbed--/f3806c7f-bcde-47c8-9b7f-32d7b8520244/session.v4.jsonl.zstd",
+          "sha256": "6fc230a2f9883e164ce869d41a32a667ecea353ed0d69caadab4995b0602b1a7"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/eval_outputs/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/attempt-1/report.json",
+          "sha256": "801e2f31e5024a0e1da0875a8dcd69dda82c751f824b70dcc82e4e4ea1e0f944"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/eval_outputs/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/attempt-1/test_output.txt",
+          "sha256": "026f3dadcaad35fc96cfb45c6b5caeba71b0337eef4568543b0774de9be0649d"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/patch.diff",
+          "sha256": "a496e5e9fded1555d2583827c84c84baf215170f9c4faf4e520a2072b0f35c54"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/prompt.txt",
+          "sha256": "42ee88d831cf9fb157ef096e2b0c2c706dc31f148cfa5e5a269cdc84ba7a7225"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-regression-mvp/pypa__packaging.013f3b03.test_metadata.e00b5801.lv1/sdlc/meta.json",
+          "sha256": "839a0cdc41344161682d4e60082c866cc72b65d3ccb00c782f3e1ec3c2c6804d"
+        }
+      ]
+    },
+    {
+      "case_id": "H-FN-03",
+      "source_case_key": "FN-3",
+      "group": "historical_censored_fn",
+      "stratum": "fn",
+      "task_id": "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "repo": "mwaskom/seaborn",
+      "run_id": "repeat-sampling:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1:sdlc:r2",
+      "dedup_key": "task:mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+      "source_available": "archive",
+      "source_location": "archive:fb-runs-regression-mvp/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/prompt.txt#L1-L13",
+      "source_quote": "Implement a bootstrap resampling algorithm that performs statistical resampling with replacement on one or more input arrays ... Enables structured resampling ... Provides reproducible results through random seed control.",
+      "source_sha256": "a0ac2b52058f99a281d2a7e01ec8c7cb90e280ef9b962951519c76ff7ff66a08",
+      "outcome": "Implement bootstrap resampling with the documented arguments, warnings and reproducibility.",
+      "boundary": "Task statement covers bootstrap and its interface; no explicit official-test exclusion.",
+      "oracle": "Official F2P tests/test_algorithms.py (13/13 pass in the archived run).",
+      "spec_ac_count": 14,
+      "spec_sha256": "27399a9fe8475556282479ec3fab860e2442b4230591ae797848fe71786782c5",
+      "official_fb": {
+        "resolved": true,
+        "pass_rate": 1.0,
+        "f2p": "13/13",
+        "failure_signatures": [],
+        "report_sha256": "36117a1a14d3565cbc604dde33248acc3a0dc31cb10df9d4a0b88043c9befa27",
+        "test_output_sha256": "053a954dcb375a890a9f79383619f10844dab95a605bec189873b3a115cc6842"
+      },
+      "official_vs_verdict": "false_negative",
+      "source_grader_agreement": "unknown",
+      "source_layer_assessment": "censored",
+      "source_layer_false_approval": "not_applicable",
+      "source_layer_false_rejection": "not_established",
+      "expected_verdict": "unknown",
+      "provisional_candidates": [],
+      "label_status": "censored",
+      "label_confidence": "high (censoring fact); unknown (label)",
+      "unavailable_reason": "agent_failure=timeout（删失）：第 3 次 sdlc_verify 无 result（超时截断），官方 resolved=1.0 与 reject 矛盾，无法区分删失与误判",
+      "agent_failure": "timeout",
+      "final_verdict": "reject",
+      "plugin_version": "0.6.0",
+      "dsh_cli": "0.2.1-rc.5",
+      "experiment": "repeat-sampling",
+      "arm": "sdlc",
+      "repeat": 2,
+      "main_verify_status_sequence": [
+        "reject"
+      ],
+      "verifier_actions": {
+        "ran_real_build": false,
+        "ran_project_tests": true,
+        "ran_own_probe": true,
+        "read_author_evidence": true,
+        "observed_official_failure_signature": false,
+        "f2p_test_file_referenced": true
+      },
+      "attribution_label_ids": [
+        "6"
+      ],
+      "evidence_paths": [
+        {
+          "what": "main session (author + sdlc_verify tool calls/results)",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/sessions/sessions/--testbed--/session-52de4166-2174-424a-a22e-2ec9f849ddb5/session.v4.jsonl.zstd",
+          "sha256": "11db2f114be82239b8ef9a10dd45e96add03ba5464831ecb946ff7fe7190a1fb"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=380",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/sessions/sessions/--testbed--/170daed9-d264-4a65-8de5-24f2ea32b091/session.v4.jsonl.zstd",
+          "sha256": "11b7bf96351ae30dcc1038fcf091291fb234c1e33d2d250d2ab686e1f4b9e487"
+        },
+        {
+          "what": "verifier sub-session preset=sdlc-verifier events=129",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/sessions/sessions/--testbed--/203681e2-587e-4071-b7c6-654f4f6e7a79/session.v4.jsonl.zstd",
+          "sha256": "3498f371fef812bb460b2eb5919e40e82088fba400376e69e364f00b9e690a2d"
+        },
+        {
+          "what": "official per-task report",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/eval_outputs/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/attempt-1/report.json",
+          "sha256": "36117a1a14d3565cbc604dde33248acc3a0dc31cb10df9d4a0b88043c9befa27"
+        },
+        {
+          "what": "official pytest output / failure stack",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/eval_outputs/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/attempt-1/test_output.txt",
+          "sha256": "053a954dcb375a890a9f79383619f10844dab95a605bec189873b3a115cc6842"
+        },
+        {
+          "what": "agent patch",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/patch.diff",
+          "sha256": "219ff3b791ed287e2ec79620560a76592085c68bc070e42ce8acac2625082c1f"
+        },
+        {
+          "what": "task statement prompt",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/prompt.txt",
+          "sha256": "a0ac2b52058f99a281d2a7e01ec8c7cb90e280ef9b962951519c76ff7ff66a08"
+        },
+        {
+          "what": "run metadata",
+          "path": "archive:fb-runs-repeat/rep2/mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1/sdlc/meta.json",
+          "sha256": "c8f0ec79142db66bbe3f752432b0298f4ac5f446cd8c64457452b0fd25f90632"
+        }
+      ]
+    },
+    {
+      "case_id": "S-01",
+      "source_case_key": "s21-1",
+      "group": "synthetic",
+      "stratum": "positive",
+      "task_id": null,
+      "run_id": null,
+      "dedup_key": "scenario:s21-1",
+      "source_available": "design_only",
+      "source_location": "docs/evals/ac-validity-1b-counterexamples.md#L25-L59",
+      "source_quote": "Issue #130: add `mycli export --format csv` with fixed fields and non-zero exit when amount is missing.",
+      "outcome": "CSV export with header/rows; missing amount exits non-zero.",
+      "boundary": "Excel/JSON export, custom fields, pagination excluded.",
+      "oracle": "Run `mycli export --format csv --out /tmp/orders.csv`; 4 lines, header id,amount,status; missing amount exit 2.",
+      "official_fb": null,
+      "official_vs_verdict": "not_run",
+      "source_grader_agreement": "not_applicable",
+      "source_layer_assessment": "expected_pass",
+      "expected_verdict": "approve",
+      "provisional_candidates": [],
+      "label_status": "design_only",
+      "label_confidence": "high (design)",
+      "unavailable_reason": "Synthetic fixture; no paid run in Phase 0.",
+      "agent_failure": null,
+      "verifier_actions": {},
+      "attribution_label_ids": [],
+      "evidence_paths": []
+    },
+    {
+      "case_id": "S-02",
+      "source_case_key": "s21-2",
+      "group": "synthetic",
+      "stratum": "gap",
+      "task_id": null,
+      "run_id": null,
+      "dedup_key": "scenario:s21-2",
+      "source_available": "design_only",
+      "source_location": "docs/evals/ac-validity-1b-counterexamples.md#L63-L99",
+      "source_quote": "Issue #131: `mycli run --date \"\"` exits 0 with a readable warning; `parse_date('')` returns None.",
+      "outcome": "CLI empty-date path exits 0 with warning; parse_date returns None.",
+      "boundary": "Other date formats and unrelated subcommands excluded.",
+      "oracle": "`mycli run --date \"\"` exit 0 and contains `empty date`; parse_date('') is None.",
+      "official_fb": null,
+      "official_vs_verdict": "not_run",
+      "source_grader_agreement": "not_applicable",
+      "source_layer_assessment": "expected_fail",
+      "expected_verdict": "reject",
+      "provisional_candidates": [],
+      "label_status": "design_only",
+      "label_confidence": "high (design)",
+      "unavailable_reason": "Synthetic fixture; no paid run in Phase 0.",
+      "agent_failure": null,
+      "verifier_actions": {},
+      "attribution_label_ids": [],
+      "evidence_paths": []
+    },
+    {
+      "case_id": "S-03",
+      "source_case_key": "s21-3",
+      "group": "synthetic",
+      "stratum": "out_of_scope",
+      "task_id": null,
+      "run_id": null,
+      "dedup_key": "scenario:s21-3",
+      "source_available": "design_only",
+      "source_location": "docs/evals/ac-validity-1b-counterexamples.md#L102-L138",
+      "source_quote": "Issue #132: fix only `parse_date()` empty-string branch; do not change callers/API; complete CLI rewrite is out of scope.",
+      "outcome": "parse_date('') returns None; non-empty dates unchanged.",
+      "boundary": "Caller refactor, CLI rewrite, date-format expansion excluded by Source.",
+      "oracle": "parse_date('') is None; existing date tests pass. External full-CLI hidden test fails for an independent old bug.",
+      "official_fb": null,
+      "official_vs_verdict": "not_run",
+      "source_grader_agreement": "not_applicable",
+      "source_layer_assessment": "expected_pass_with_risk_note",
+      "expected_verdict": "approve",
+      "provisional_candidates": [],
+      "label_status": "design_only",
+      "label_confidence": "high (design)",
+      "unavailable_reason": "Synthetic fixture; no paid run in Phase 0.",
+      "agent_failure": null,
+      "verifier_actions": {},
+      "attribution_label_ids": [],
+      "evidence_paths": []
+    },
+    {
+      "case_id": "S-04",
+      "source_case_key": "s21-4",
+      "group": "synthetic",
+      "stratum": "evidence_missing",
+      "task_id": null,
+      "run_id": null,
+      "dedup_key": "scenario:s21-4",
+      "source_available": "design_only",
+      "source_location": "docs/evals/ac-validity-1b-counterexamples.md#L142-L174",
+      "source_quote": "Issue #133: restore `foo()` and make `mycli run` call it normally.",
+      "outcome": "mycli run completes without exception.",
+      "boundary": "Other subcommands excluded; native dependency assumed present.",
+      "oracle": "mycli run exit 0 and prints ok; cannot execute because a native dependency is missing.",
+      "official_fb": null,
+      "official_vs_verdict": "not_run",
+      "source_grader_agreement": "not_applicable",
+      "source_layer_assessment": "evidence_missing",
+      "expected_verdict": "needs_human",
+      "provisional_candidates": [],
+      "label_status": "design_only",
+      "label_confidence": "high (design)",
+      "unavailable_reason": "Synthetic fixture; no paid run in Phase 0.",
+      "agent_failure": null,
+      "verifier_actions": {},
+      "attribution_label_ids": [],
+      "evidence_paths": []
+    },
+    {
+      "case_id": "S-05",
+      "source_case_key": "s21-5",
+      "group": "synthetic",
+      "stratum": "unrelated_failure",
+      "task_id": null,
+      "run_id": null,
+      "dedup_key": "scenario:s21-5",
+      "source_available": "design_only",
+      "source_location": "docs/evals/ac-validity-1b-counterexamples.md#L178-L211",
+      "source_quote": "Issue #134: add argument validation to `foo()`; invalid input returns readable error, valid input unchanged.",
+      "outcome": "Invalid input error path; valid input unchanged.",
+      "boundary": "Other subsystems excluded; existing valid path kept compatible.",
+      "oracle": "foo(-1) exits non-zero with readable error; existing foo tests pass. An unrelated subsystem test already fails on baseline.",
+      "official_fb": null,
+      "official_vs_verdict": "not_run",
+      "source_grader_agreement": "not_applicable",
+      "source_layer_assessment": "expected_pass_with_unverified_note",
+      "expected_verdict": "approve",
+      "provisional_candidates": [],
+      "label_status": "design_only",
+      "label_confidence": "high (design)",
+      "unavailable_reason": "Synthetic fixture; no paid run in Phase 0.",
+      "agent_failure": null,
+      "verifier_actions": {},
+      "attribution_label_ids": [],
+      "evidence_paths": []
+    },
+    {
+      "case_id": "S-06",
+      "source_case_key": "s21-6",
+      "group": "synthetic",
+      "stratum": "ambiguity",
+      "task_id": null,
+      "run_id": null,
+      "dedup_key": "scenario:s21-6",
+      "source_available": "design_only",
+      "source_location": "docs/evals/ac-validity-1b-counterexamples.md#L215-L246",
+      "source_quote": "Issue #135: restore gettext-build-related symbols; exact interface scope, minimal fixture and acceptance criterion are unresolved.",
+      "outcome": "Unspecified until symbols/scope/fixture are clarified.",
+      "boundary": "Unclear whether add_uids/extract_messages are in scope.",
+      "oracle": "Undetermined: interface tests or a real builder command; four interfaces pass but real builder fails.",
+      "official_fb": null,
+      "official_vs_verdict": "not_run",
+      "source_grader_agreement": "not_applicable",
+      "source_layer_assessment": "ambiguity",
+      "expected_verdict": "needs_human",
+      "provisional_candidates": [],
+      "label_status": "design_only",
+      "label_confidence": "high (design)",
+      "unavailable_reason": "Synthetic fixture; no paid run in Phase 0.",
+      "agent_failure": null,
+      "verifier_actions": {},
+      "attribution_label_ids": [],
+      "evidence_paths": []
+    }
+  ]
+}

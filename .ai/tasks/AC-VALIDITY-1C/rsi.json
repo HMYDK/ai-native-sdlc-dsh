@@ -1,12 +1,15 @@
 {
   "task_id": "AC-VALIDITY-1C",
   "task_complete": false,
-  "evidence_complete": true,
+  "evidence_complete": false,
   "comparison_ready": false,
-  "issues": [],
-  "run_count": 0,
-  "session_count": 1,
+  "issues": [
+    "采集开始晚于任务创建，起点证据不完整",
+    "任务历史缺少阶段快照: 1/INTENT"
+  ],
+  "run_count": 1,
+  "session_count": 2,
   "review_status": "collecting",
   "proposal_count": 0,
-  "updated_at": "2026-11-15T10:31:04.882Z"
+  "updated_at": "2026-11-15T14:04:36.380Z"
 }

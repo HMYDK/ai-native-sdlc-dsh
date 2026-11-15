@@ -31,12 +31,33 @@ import yaml
 HERE = Path(__file__).resolve().parent
 
 
-def arm_cmd(args, manifest_path: Path, task_id: str, arm: str, image: str, out: Path) -> list[str]:
-    return [sys.executable, str(HERE / "run_arm.py"),
-            "--manifest", str(manifest_path.resolve()),
-            "--task-id", task_id, "--arm", arm, "--image", image,
-            "--out", str(out), "--plugin-dir", str(Path(args.plugin_dir).resolve()),
-            "--credentials", str(Path(args.credentials).resolve()), "--execute"]
+def arm_cmd(args, manifest_path: Path, task_id: str, arm: str, image: str, out: Path,
+            plugin_dir: Path | None = None, plugin_tarball: Path | None = None,
+            expected_sha: str = "") -> list[str]:
+    plugin_dir = plugin_dir or (Path(args.plugin_dir) if args.plugin_dir else None)
+    cmd = [sys.executable, str(HERE / "run_arm.py"),
+           "--manifest", str(manifest_path.resolve()),
+           "--task-id", task_id, "--arm", arm, "--image", image,
+           "--out", str(out), "--plugin-dir", str(plugin_dir.resolve()),
+           "--credentials", str(Path(args.credentials).resolve()), "--execute"]
+    if plugin_tarball:
+        cmd += ["--plugin-tarball", str(plugin_tarball.resolve())]
+    if expected_sha:
+        cmd += ["--expected-plugin-sha256", expected_sha]
+    return cmd
+
+
+def parse_arm_map(pairs: list[str], flag: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for spec in pairs:
+        arm, sep, value = spec.partition("=")
+        arm, value = arm.strip(), value.strip()
+        if not sep or not arm or not value:
+            raise SystemExit(f"{flag} 需要 ARM=PATH，收到 {spec!r}")
+        if arm in out:
+            raise SystemExit(f"{flag} 重复指定 arm {arm!r}")
+        out[arm] = value
+    return out
 
 
 def load_json(p: Path):
@@ -74,7 +95,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", default=str(HERE / "manifest.yml"))
     ap.add_argument("--runs-root", required=True)
-    ap.add_argument("--plugin-dir", required=True, help="解包后的插件目录（dsh-sdlc/ + js-yaml/）")
+    ap.add_argument("--plugin-dir", required=False,
+                    help="解包后的插件目录（dsh-sdlc/ + js-yaml/）；旧单目录用法")
+    ap.add_argument("--arm-plugin-dir", action="append", default=[],
+                    help="按 arm 指定插件目录，可重复，例如 'A=/tmp/plugin/A'（与 --plugin-dir 互斥优先）")
+    ap.add_argument("--arm-plugin-tarball", action="append", default=[],
+                    help="按 arm 指定 npm pack 产物，可重复；用于校验 manifest arms.<arm>.plugin_tarball_sha256")
+    ap.add_argument("--strict-preflight", action="store_true",
+                    help="dry-run 也做严格检查：任务 image-map、arm plugin dir/tarball hash 缺一即非 0")
     ap.add_argument("--credentials", required=True, help="隔离 .credentials.yaml")
     ap.add_argument("--image-map", action="append", default=[],
                     help="repo=派生镜像，可重复，例如 'sympy/sympy=fb-eval-base:sympy'")
@@ -102,6 +130,35 @@ def main() -> int:
     for spec in args.image_map:
         repo, _, img = spec.partition("=")
         images[repo.strip()] = img.strip()
+    arm_dirs = {arm: Path(p) for arm, p in parse_arm_map(args.arm_plugin_dir, "--arm-plugin-dir").items()}
+    arm_tarballs = {arm: Path(p) for arm, p in parse_arm_map(args.arm_plugin_tarball, "--arm-plugin-tarball").items()}
+    if args.plugin_dir and arm_dirs:
+        raise SystemExit("--plugin-dir 与 --arm-plugin-dir 不能同时使用；请二选一")
+    arm_sha_cache: dict[str, str] = {}
+
+    def arm_identity(arm: str) -> tuple[Path | None, Path | None, str]:
+        """返回 (plugin_dir, tarball, expected_sha)；只做确定性检查，不启动容器。"""
+        plugin_dir = arm_dirs.get(arm) or (Path(args.plugin_dir) if args.plugin_dir else None)
+        tarball = arm_tarballs.get(arm)
+        cfg_sha = str(((manifest.get("arms") or {}).get(arm) or {}).get("plugin_tarball_sha256") or "").strip().lower()
+        expected = "" if cfg_sha.startswith("tbd") else cfg_sha
+        if tarball:
+            if not tarball.exists():
+                raise SystemExit(f"arm {arm} plugin tarball 不存在: {tarball}")
+            import hashlib
+            h = hashlib.sha256()
+            with tarball.open("rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(chunk)
+            actual = h.hexdigest()
+            arm_sha_cache[arm] = actual
+            if not expected:
+                raise SystemExit(f"arm {arm} 的 manifest plugin_tarball_sha256 未固定（不能是 TBD）")
+            if actual != expected:
+                raise SystemExit(f"arm {arm} plugin sha256 不匹配: actual={actual!r} expected={expected!r}")
+        elif expected and args.strict_preflight:
+            raise SystemExit(f"arm {arm} 有 plugin_tarball_sha256 但未提供 --arm-plugin-tarball")
+        return plugin_dir, tarball, expected
     runs_root = Path(args.runs_root)
     runs_root.mkdir(parents=True, exist_ok=True)
     policy = manifest.get("run_policy", {})
@@ -114,6 +171,23 @@ def main() -> int:
     only = set(args.only_task)
     only_arms = set(args.only_arm)
     all_arms = [a for a in manifest["arms"].keys() if not only_arms or a in only_arms]
+    if arm_dirs:
+        absent = [a for a in all_arms if a not in arm_dirs]
+        if absent:
+            raise SystemExit(f"--arm-plugin-dir 缺少 arm 映射: {absent}")
+    if arm_tarballs:
+        absent = [a for a in all_arms if a not in arm_tarballs]
+        if absent:
+            raise SystemExit(f"--arm-plugin-tarball 缺少 arm 映射: {absent}")
+    identity = {a: arm_identity(a) for a in all_arms}
+    # 同一目录不能承载多个不同插件身份（reviewer F2：同一 --plugin-dir + 三个 commit
+    # 等于没有 treatment）。只在确实提供了 tarball hash 时检查。
+    distinct_sha = {v for v in arm_sha_cache.values() if v}
+    if len(distinct_sha) > 1:
+        distinct_dirs = {str((identity[a][0] or "").resolve()) for a in all_arms}
+        if len(distinct_dirs) == 1:
+            raise SystemExit("多个不同 plugin tarball 但只提供一个 plugin dir；"
+                             "请用 --arm-plugin-dir 为每个 arm 指定独立目录")
     plan = []
     for i, task in enumerate(manifest["tasks"]):
         if only and task["id"] not in only:
@@ -126,12 +200,30 @@ def main() -> int:
                      "cdp_port": args.cdp_port_base + i * 8})
         print(f"[plan] {task['id']} order={arms} image={plan[-1]['image'] or 'MISSING'} "
               f"ports={plan[-1]['web_port']}/{plan[-1]['cdp_port']}")
+    missing = [p["task"] for p in plan if not p["image"]]
+    if missing and args.strict_preflight:
+        print("missing --image-map for:", missing, file=sys.stderr)
+        return 2
+    if args.strict_preflight:
+        for arm in all_arms:
+            d, t, sha = identity[arm]
+            if not d:
+                print(f"arm {arm} 缺少 plugin dir（--plugin-dir 或 --arm-plugin-dir）", file=sys.stderr)
+                return 2
+            if not t:
+                print(f"arm {arm} 缺少 --arm-plugin-tarball（strict preflight 要求 hash 绑定）", file=sys.stderr)
+                return 2
+        print(f"[preflight] OK: {len(plan)} tasks, arms={all_arms}, "
+              f"plugin_sha={ {a: arm_sha_cache.get(a, '') for a in all_arms} }")
     if not args.execute:
         print("[dry-run] add --execute to actually run the matrix")
         return 0
-    missing = [p["task"] for p in plan if not p["image"]]
     if missing:
         print("missing --image-map for:", missing, file=sys.stderr)
+        return 2
+    missing_dirs = [a for a in all_arms if not identity[a][0]]
+    if missing_dirs:
+        print("missing plugin dir for arms:", missing_dirs, file=sys.stderr)
         return 2
 
     # --retry-failed 会复用同一个 runs root；必须先载入已有 matrix ledger，否则本次
@@ -195,7 +287,10 @@ def main() -> int:
                             continue
                     except Exception:
                         pass
-                cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
+                plugin_dir, plugin_tarball, plugin_sha = identity[arm]
+                cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out,
+                              plugin_dir=plugin_dir, plugin_tarball=plugin_tarball,
+                              expected_sha=plugin_sha)
                 cmd += ["--web-port", str(item["web_port"] + slot),
                         "--cdp-port", str(item["cdp_port"] + slot)]
                 print(f"[run] task={item['task']} arm={arm} start={time.strftime('%H:%M:%S')}")
@@ -223,7 +318,9 @@ def main() -> int:
                     if stop_event.is_set():
                         break
                     print(f"[retry] task={item['task']} arm={arm} infra error, attempt {attempt + 2}")
-                    cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out)
+                    cmd = arm_cmd(args, manifest_path, item["task"], arm, item["image"], out,
+                                  plugin_dir=plugin_dir, plugin_tarball=plugin_tarball,
+                                  expected_sha=plugin_sha)
                     cmd += ["--web-port", str(item["web_port"] + slot),
                             "--cdp-port", str(item["cdp_port"] + slot)]
                     code = subprocess.run(cmd).returncode
