@@ -63,6 +63,7 @@ Phase 1 要比较的是 **verifier prompt**（A=`085c8fd` / B=`5ee68cd`），不
 - 同一场景 A/B 的参数**逐字相同**；唯一变量是 DSH 里挂载的插件构建。
 - 验证者仍会执行 shell（`bash`），所以它必须能跑真实入口；这是设计的一部分。
 - 6 次调用 = 3 场景 × 2 臂；主会话的 tool-call 包装不计为第二个 verifier 调用，但其 token 计入预算。
+- **冻结清单**：`tools/evals/featurebench/fixtures/ac-validity-1c/phase1/plan.yml`（固定顺序、输入指纹、输出/日志、DSH_CLI、软预算）；gold label 见同目录 `gold-labels.md`；离线校验 `check_phase1_plan.py`。
 
 <a id="s21-1"></a>
 ### 3.1 S1（positive）
@@ -198,6 +199,7 @@ shasum -a 256 /tmp/phase1/pkgs/*/*.tgz
 ```bash
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
+DSH_CLI="${DSH_CLI:?set DSH_CLI to the DSH 0.2.2-rc.3 CLI path; do not rely on PATH}"
 mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
   /tmp/phase1/eval-root-A/deepseek-harness \
   /tmp/phase1/eval-root-B/deepseek-harness \
@@ -205,7 +207,7 @@ mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
 
 install_profile() {
   local plugin_dir="$1" eval_root="$2"
-  dsh --profile web --dump-default-config >/dev/null
+  "$DSH_CLI" --profile web --dump-default-config >/dev/null
   local profile="$DSH_HOME/profiles/web"
   mkdir -p "$profile/node_modules/@ai-native-sdlc-plugin"
   rm -rf "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
@@ -253,7 +255,7 @@ install_profile /tmp/phase1/plugins/B /tmp/phase1/eval-root-B
 export DSH_HOME=/tmp/phase1/dsh/A
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9222 \
   --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
@@ -264,7 +266,7 @@ WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
 export DSH_HOME=/tmp/phase1/dsh/B
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-B/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9223 \
   --user-data-dir=/tmp/phase1/chrome-B --no-first-run about:blank &

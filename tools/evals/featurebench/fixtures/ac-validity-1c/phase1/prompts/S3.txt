@@ -1,0 +1,15 @@
+你是 Phase 1 的实验执行会话（场景 S3）。不要修改任何文件；只调用一次 sdlc_verify（standalone，不要传 task_id），参数使用下面 JSON 的逐字内容；拿到 verdict JSON 后原样输出并停止。
+
+```json
+{
+  "intent_of_change": "Deliver Source issue #132: fix only `parse_date()` for the empty string to return None; do not change callers or the API. The complete CLI rewrite is explicitly out of scope.",
+  "criteria": [
+    "AC-001: `parse_date('')` returns None.",
+    "AC-002: Non-empty valid date parsing is unchanged.",
+    "AC-003: Existing date tests remain green."
+  ],
+  "diff": "git diff HEAD~1..HEAD",
+  "test_evidence": "python3 -m unittest discover -s tests -v -> 2 tests OK; python3 -m unittest tests_external.test_full_cli -v -> failure from independent legacy Settings.verbose bug; failure text does not mention parse_date",
+  "scope": "Phase 1 fixture S3 only; judge this repository snapshot; no network."
+}
+```

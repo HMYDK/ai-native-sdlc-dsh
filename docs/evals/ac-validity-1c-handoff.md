@@ -129,7 +129,7 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 
 ## 6. Phase 1（付费；未批准）
 
-- 固定 S-01/02/03；每场景 A/B 两臂；共 **6 次 verifier 调用**。
+- 固定 S-01/02/03；每场景 A/B 两臂；共 **6 次 verifier 调用**。冻结清单/输入指纹/输出映射见 `tools/evals/featurebench/fixtures/ac-validity-1c/phase1/plan.yml`；gold label 见 `gold-labels.md`。
 - 锁死输入：同一场景的 Source、criteria、diff、test_evidence、scope、代码快照、环境与工具面完全一致；只替换 `A_phase1=085c8fd` / `B_phase1=5ee68cd` 的 verifier prompt。
 - 记录：run_id、verdict、findings、工具执行、Token、耗时；人工核对 finding 是否可复现。
 - 预算：≤8M Token / 2h；单次 ≤2M；超限停止，不重试。
@@ -145,6 +145,7 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 ```bash
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
+DSH_CLI="${DSH_CLI:?set DSH_CLI to the DSH 0.2.2-rc.3 CLI path; do not rely on PATH}"
 mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
   /tmp/phase1/eval-root-A/deepseek-harness \
   /tmp/phase1/eval-root-B/deepseek-harness \
@@ -152,7 +153,7 @@ mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
 
 install_profile() {
   local plugin_dir="$1" eval_root="$2"
-  dsh --profile web --dump-default-config >/dev/null
+  "$DSH_CLI" --profile web --dump-default-config >/dev/null
   local profile="$DSH_HOME/profiles/web"
   mkdir -p "$profile/node_modules/@ai-native-sdlc-plugin"
   rm -rf "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
@@ -200,7 +201,7 @@ install_profile /tmp/phase1/plugins/B /tmp/phase1/eval-root-B
 export DSH_HOME=/tmp/phase1/dsh/A
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9222 \
   --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
@@ -211,7 +212,7 @@ WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
 export DSH_HOME=/tmp/phase1/dsh/B
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-B/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9223 \
   --user-data-dir=/tmp/phase1/chrome-B --no-first-run about:blank &
