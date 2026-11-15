@@ -11,7 +11,7 @@
 
 ```bash
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
-  --workdir /tmp/ac-validity-1c-fixtures
+  --workdir /tmp/validity-1c-fixtures
 ```
 
 该命令会：

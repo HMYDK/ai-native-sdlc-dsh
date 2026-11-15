@@ -174,7 +174,7 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_phase1_docs.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_phase1_docs.py
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --self-test
-python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --fixtures-root /tmp/ac-validity-1c-fixtures
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --fixtures-root /tmp/validity-1c-fixtures
 
 # 4) 负例自检：B1 放回主 manifest、删镜像映射、交换 hash、改预算等必须失败
 python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test

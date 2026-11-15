@@ -36,7 +36,7 @@ Validation (offline):
 ```bash
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
-  --fixtures-root /tmp/ac-validity-1c-fixtures
+  --fixtures-root /tmp/validity-1c-fixtures
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
   --stage-prompts /tmp/phase1/prompts
 ```

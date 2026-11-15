@@ -7,7 +7,7 @@ Chrome, Docker or a model; it only reads files and the deterministic fixture
 repos (when --fixtures-root is available).
 
 Usage:
-    python3 check_phase1_plan.py [--fixtures-root /tmp/ac-validity-1c-fixtures]
+    python3 check_phase1_plan.py [--fixtures-root /tmp/validity-1c-fixtures]
     python3 check_phase1_plan.py --self-test
 """
 from __future__ import annotations
@@ -154,15 +154,24 @@ def validate(plan: dict, fixtures_root: Path | None = None) -> list[str]:
         if not c.get("output") or not c.get("driver_log") or not c.get("web_log"):
             errs.append(f"{c.get('id')}: output/log paths required")
         if fixtures_root:
-            repo = fixtures_root / FIXTURES[sid]
-            if not repo.is_dir():
-                errs.append(f"{c.get('id')}: fixture repo missing {repo}")
+            expected = (fixtures_root / FIXTURES[sid]).resolve()
+            ws = Path(str(c.get("workspace", "")))
+            if not ws.is_absolute():
+                errs.append(f"{c.get('id')}: workspace must be absolute: {ws}")
+            elif not ws.is_dir():
+                errs.append(f"{c.get('id')}: workspace does not exist: {ws}")
+            elif ws.resolve() != expected:
+                errs.append(f"{c.get('id')}: workspace {ws.resolve()} != generated fixture {expected}")
             else:
-                head = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"]).decode().strip()
-                base = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD~1"]).decode().strip()
-                diff = subprocess.check_output(["git", "-C", str(repo), "diff", "HEAD~1..HEAD"])
-                if (c.get("base_commit"), c.get("head_commit"), c.get("diff_sha256")) != (base, head, sha(diff)):
-                    errs.append(f"{c.get('id')}: fixture base/head/diff hash mismatch")
+                try:
+                    head = subprocess.check_output(["git", "-C", str(ws), "rev-parse", "HEAD"]).decode().strip()
+                    base = subprocess.check_output(["git", "-C", str(ws), "rev-parse", "HEAD~1"]).decode().strip()
+                    diff = subprocess.check_output(["git", "-C", str(ws), "diff", "HEAD~1..HEAD"])
+                except subprocess.CalledProcessError as exc:
+                    errs.append(f"{c.get('id')}: workspace is not a valid git repo: {exc}")
+                else:
+                    if (c.get("base_commit"), c.get("head_commit"), c.get("diff_sha256")) != (base, head, sha(diff)):
+                        errs.append(f"{c.get('id')}: actual workspace base/head/diff hash mismatch")
     for sid in GOLD_LABELS:
         group = per_scenario.get(sid, [])
         if len(group) != 2 or {x.get("arm") for x in group} != {"A", "B"}:
@@ -202,9 +211,9 @@ def stage_prompts(target: Path) -> int:
     return 0
 
 
-def self_test() -> int:
+def self_test(fixtures_root: Path) -> int:
     plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
-    base = validate(plan, fixtures_root=None)
+    base = validate(plan, fixtures_root=fixtures_root)
     if base:
         print("SELF-TEST FAIL: base plan is invalid:", file=sys.stderr)
         print("\n".join(" - " + e for e in base), file=sys.stderr)
@@ -218,22 +227,24 @@ def self_test() -> int:
     m = copy.deepcopy(plan); m["calls"][4]["prompt_sha256"] = "0" * 64; mutations.append(("prompt hash", m))
     m = copy.deepcopy(plan); m["calls"].pop(); mutations.append(("missing call", m))
     m = copy.deepcopy(plan); m["calls"][0]["commit"] = "0000000"; mutations.append(("arm commit", m))
+    m = copy.deepcopy(plan); m["calls"][0]["workspace"] = "/tmp/phase1-no-such-workspace"; mutations.append(("missing workspace", m))
+    m = copy.deepcopy(plan); m["calls"][0]["workspace"] = str(fixtures_root / "S2_gap"); mutations.append(("wrong workspace", m))
     for name, mutated in mutations:
-        if not validate(mutated, fixtures_root=None):
+        if not validate(mutated, fixtures_root=fixtures_root):
             print(f"SELF-TEST FAIL: mutation '{name}' was not rejected", file=sys.stderr)
             return 1
-    print("PHASE1 PLAN SELF-TEST OK: order/id/label/hash/input/prompt/arm mutations are rejected")
+    print("PHASE1 PLAN SELF-TEST OK: order/id/label/hash/input/prompt/arm/workspace mutations are rejected")
     return 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--fixtures-root", type=Path, default=Path("/tmp/ac-validity-1c-fixtures"))
+    ap.add_argument("--fixtures-root", type=Path, default=Path("/tmp/validity-1c-fixtures"))
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--stage-prompts", type=Path)
     args = ap.parse_args()
     if args.self_test:
-        return self_test()
+        return self_test(args.fixtures_root)
     if args.stage_prompts:
         return stage_prompts(args.stage_prompts)
     plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
