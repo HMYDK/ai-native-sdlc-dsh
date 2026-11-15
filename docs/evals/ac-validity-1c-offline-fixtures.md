@@ -11,7 +11,7 @@
 
 ```bash
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
-  --workdir /tmp/ac-validity-1c-fixtures
+  --workdir /tmp/validity-1c-fixtures
 ```
 
 该命令会：
@@ -63,6 +63,7 @@ Phase 1 要比较的是 **verifier prompt**（A=`085c8fd` / B=`5ee68cd`），不
 - 同一场景 A/B 的参数**逐字相同**；唯一变量是 DSH 里挂载的插件构建。
 - 验证者仍会执行 shell（`bash`），所以它必须能跑真实入口；这是设计的一部分。
 - 6 次调用 = 3 场景 × 2 臂；主会话的 tool-call 包装不计为第二个 verifier 调用，但其 token 计入预算。
+- **冻结清单**：`tools/evals/featurebench/fixtures/ac-validity-1c/phase1/plan.yml`（固定顺序、输入指纹、输出/日志、DSH_CLI、软预算）；gold label 见同目录 `gold-labels.md`；离线校验 `check_phase1_plan.py`。
 
 <a id="s21-1"></a>
 ### 3.1 S1（positive）
@@ -198,6 +199,7 @@ shasum -a 256 /tmp/phase1/pkgs/*/*.tgz
 ```bash
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
+DSH_CLI="${DSH_CLI:?set DSH_CLI to the DSH 0.2.2-rc.3 CLI path; do not rely on PATH}"
 mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
   /tmp/phase1/eval-root-A/deepseek-harness \
   /tmp/phase1/eval-root-B/deepseek-harness \
@@ -205,7 +207,7 @@ mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
 
 install_profile() {
   local plugin_dir="$1" eval_root="$2"
-  dsh --profile web --dump-default-config >/dev/null
+  "$DSH_CLI" --profile web --dump-default-config >/dev/null
   local profile="$DSH_HOME/profiles/web"
   mkdir -p "$profile/node_modules/@ai-native-sdlc-plugin"
   rm -rf "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
@@ -249,30 +251,47 @@ install_profile /tmp/phase1/plugins/A /tmp/phase1/eval-root-A
 export DSH_HOME=/tmp/phase1/dsh/B
 install_profile /tmp/phase1/plugins/B /tmp/phase1/eval-root-B
 
+mkdir -p /tmp/phase1/prompts /tmp/phase1/out
+python3 "$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py" \
+  --stage-prompts /tmp/phase1/prompts
+
 # --- A：085c8fd，旧 verifier ---
 export DSH_HOME=/tmp/phase1/dsh/A
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/out/S2-A.web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9222 \
   --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
-WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
-  9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt
+MAX_TOKENS=2000000 MAX_WALL_S=1200 WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt \
+  > /tmp/phase1/out/S2-A.driver.log 2>&1
 
 # --- B：5ee68cd，#21 verifier ---
 export DSH_HOME=/tmp/phase1/dsh/B
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-B/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/out/S2-B.web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9223 \
   --user-data-dir=/tmp/phase1/chrome-B --no-first-run about:blank &
-WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
-  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt
+MAX_TOKENS=2000000 MAX_WALL_S=1200 WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt \
+  > /tmp/phase1/out/S2-B.driver.log 2>&1
 ```
 
-`prompts/S2.txt` 只包含“不要改文件；用第 3.2 节参数调用一次 `sdlc_verify`；输出 verdict JSON 后停止”。S1/S3 复用同一 home/port/workspace 约定，只替换 repo、prompt 和 §3 的 `sdlc_verify` 参数；同一场景 A/B 的 Source、criteria、diff、test_evidence、scope 逐字相同，只换插件构建。
+`--stage-prompts` 会把仓库冻结的 `phase1/prompts/S1.txt`、`S2.txt`、`S3.txt` 复制到 `/tmp/phase1/prompts/`，并逐份核对 `plan.yml` 中的 SHA256；不得重新手写或生成另一份 prompt。S1/S2/S3 的 A/B 两臂都读取同一份对应文件；执行前由 `check_phase1_plan.py` 校验 workspace/base/head/diff 与 plan 一致。
+
+| # | 调用 | 冻结 prompt | web / CDP | output | driver log | web log |
+|---|---|---|---|---|---|---|
+| 1 | S1-A | `/tmp/phase1/prompts/S1.txt` | 59611 / 9222 | `/tmp/phase1/out/S1-A.txt` | `S1-A.driver.log` | `S1-A.web.log` |
+| 2 | S1-B | `/tmp/phase1/prompts/S1.txt` | 59612 / 9223 | `/tmp/phase1/out/S1-B.txt` | `S1-B.driver.log` | `S1-B.web.log` |
+| 3 | S2-A | `/tmp/phase1/prompts/S2.txt` | 59611 / 9222 | `/tmp/phase1/out/S2-A.txt` | `S2-A.driver.log` | `S2-A.web.log` |
+| 4 | S2-B | `/tmp/phase1/prompts/S2.txt` | 59612 / 9223 | `/tmp/phase1/out/S2-B.txt` | `S2-B.driver.log` | `S2-B.web.log` |
+| 5 | S3-A | `/tmp/phase1/prompts/S3.txt` | 59611 / 9222 | `/tmp/phase1/out/S3-A.txt` | `S3-A.driver.log` | `S3-A.web.log` |
+| 6 | S3-B | `/tmp/phase1/prompts/S3.txt` | 59612 / 9223 | `/tmp/phase1/out/S3-B.txt` | `S3-B.driver.log` | `S3-B.web.log` |
+
+S1/S3 复用上面的 A/B 命令模板，只按表中替换 workspace、prompt、端口/输出/日志；同一场景 A/B 的 Source、criteria、diff、test_evidence、scope 逐字相同，只换插件构建。`MAX_TOKENS=2000000` / `MAX_WALL_S=1200` 是**单次监控/软停止**，不是硬预算；总 8M/2h 是软目标。UI usage 不可读或 Stop 失效时，执行者必须终止后续调用并人工处置；失败/超时保留在 6 次 ITT 分母，不自动重试。
 
 > **本机宿主 PATH 没有 `dsh`，Phase 0 没有执行本节命令。** 这里记录的是 Phase 1 获批后的可复核步骤；真实 profile 加载、模型调用仍需单独预算批准。静态一致性检查：`check_phase1_docs.py --self-test`（见 §7）。
 
@@ -314,4 +333,5 @@ WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
 - **F4**：Phase 1 的插件 identity、DSH 启动与 driver 命令写清；Phase 2 的 manifest/image-map/preflight 见 [preregistration](ac-validity-1c-preregistration.md) 和 [handoff](ac-validity-1c-handoff.md)。
 - **F5**：S1 AC-002/复核命令包含 `ord-3`。
 - **DSH 命令一致性**：`check_phase1_docs.py --self-test` 会把运行 `DSH_HOME` 改回一个不一致的 home、删除 `eval-root` 的 `mkdir`、以及坏链接都必须拒绝；默认模式核对 A/B home、workspace、日志、hash 和链接/锚点。
+- **workspace 完整性**：`check_phase1_plan.py` 对六个实际 workspace 拒绝 tracked staged/unstaged 变更，并拒绝可能影响入口的未跟踪文件（仅放行已知生成物 `out.csv` 与 `__pycache__/*.pyc`）；`--dirty-workspace-test` 在临时副本上对 S2 `app/dates.py` 做暂存前/暂存后修改并确认拒绝。
 - 本文件不宣称 fixture 已经过真实模型验证；Phase 1 未运行。

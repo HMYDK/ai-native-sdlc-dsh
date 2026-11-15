@@ -1,0 +1,232 @@
+schema: ac-validity-1c-phase1-plan/v1
+status: frozen_for_phase1_approval
+frozen_at: '2026-11-16T02:00:22+08:00'
+gold_label_source: https://github.com/HMYDK/ai-native-sdlc-dsh/issues/22#issuecomment-6898799392
+purpose: 只比较 A/B Verifier 构建；同一场景除插件构建外输入逐字一致；不对模型输出反推 gold label。
+constraints:
+  model: deepseek-account/deepseek-flash
+  reasoning_effort: max
+  dsh_version: 0.2.2-rc.3
+  max_calls: 6
+  max_tokens_per_call: 2000000
+  max_wall_s_per_call: 1200
+  total_token_target: 8000000
+  total_wall_target_s: 7200
+  retry: false
+  budget_kind: soft_target_with_per_call_monitoring
+  budget_note: 总 8M / 2h 是审批与监控目标，不是 driver 能严格保证的硬上限；现有 driver 的 MAX_TOKENS/MAX_WALL_S
+    只做单次监控，超出/无法停止时人工停止后续调用。
+  dsh_cli_env: DSH_CLI
+  dsh_cli_note: 宿主 PATH 无 dsh；执行者必须把 DSH_CLI 指向 0.2.2-rc.3 CLI（预检用 App 内置 CLI 提取到
+    /tmp），不得依赖 PATH。
+  no_auto_retry: true
+gold_labels:
+  S1:
+    label: approve
+    reason: CSV 导出与缺 amount 退出码/订单 ID 均符合承诺，正确交付不能误拒。
+  S2:
+    label: reject
+    reason: AC/单测通过，但用户承诺的 `mycli run --date ""` 路径仍失败，必须识别 Outcome 缺口。
+  S3:
+    label: approve
+    reason: Source 明确不承诺完整 CLI 改写；外部失败来自独立旧 bug `Settings.verbose`，不归因于此次 `parse_date`
+      修改。
+calls:
+- id: S1-A
+  order: 1
+  scenario: S1
+  scenario_name: S1_positive
+  gold_label: approve
+  arm: A
+  commit: 085c8fd
+  tarball_sha256: 106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784
+  plugin_dir: /tmp/phase1/plugins/A
+  dsh_home: /tmp/phase1/dsh/A
+  web_port: 59611
+  cdp_port: 9222
+  eval_root: /tmp/phase1/eval-root-A
+  workspace: /tmp/validity-1c-fixtures/S1_positive
+  base_commit: c00be087ad47031a79bef29d2a3819da60219277
+  head_commit: 6117951dfe737cb4c3e1059e324a8e42e20cdcf1
+  diff_sha256: 128eec872e9699bd74e6e3772ddd508fa43dc3d418d8185dd63679e625e78a01
+  prompt: prompts/S1.txt
+  prompt_sha256: fb92163ee704164e4a548c1d59f1d5fc6870723eb354a2f1de9efabc087b5372
+  input_sha256: 126430171fbbe8ad5439e102620ef842a43380ea52a2056dc5c2dd70d3b844de
+  inputs: &id001
+    intent_of_change: 'Deliver Source issue #130: `mycli export --format csv` writes
+      a CSV with header id,amount,status and one row per order; an order missing amount
+      exits 2 with an error naming the order id.'
+    criteria:
+    - 'AC-001: `python3 -m app.cli export --format csv --orders orders_ok.json --out
+      out.csv` exits 0 and writes a 4-line file with header id,amount,status.'
+    - 'AC-002: `python3 -m app.cli export --format csv --orders orders_missing.json
+      --out out.csv` exits 2 and the error contains `ord-3`.'
+    diff: git diff HEAD~1..HEAD
+    test_evidence: 'python3 -m unittest discover -s tests -v -> 2 tests OK; export
+      command -> exit 0; missing amount -> exit 2 with ''error: order ord-3 missing
+      amount'''
+    scope: Phase 1 fixture S1 only; judge this repository snapshot; no network.
+  output: /tmp/phase1/out/S1-A.txt
+  driver_log: /tmp/phase1/out/S1-A.driver.log
+  web_log: /tmp/phase1/out/S1-A.web.log
+  max_tokens: 2000000
+  max_wall_s: 1200
+  retry: false
+- id: S1-B
+  order: 2
+  scenario: S1
+  scenario_name: S1_positive
+  gold_label: approve
+  arm: B
+  commit: 5ee68cd
+  tarball_sha256: 8bb74f3a8bc20be10b2b2cd704cdf6f081e64fa70a812c6d124c4823faedb404
+  plugin_dir: /tmp/phase1/plugins/B
+  dsh_home: /tmp/phase1/dsh/B
+  web_port: 59612
+  cdp_port: 9223
+  eval_root: /tmp/phase1/eval-root-B
+  workspace: /tmp/validity-1c-fixtures/S1_positive
+  base_commit: c00be087ad47031a79bef29d2a3819da60219277
+  head_commit: 6117951dfe737cb4c3e1059e324a8e42e20cdcf1
+  diff_sha256: 128eec872e9699bd74e6e3772ddd508fa43dc3d418d8185dd63679e625e78a01
+  prompt: prompts/S1.txt
+  prompt_sha256: fb92163ee704164e4a548c1d59f1d5fc6870723eb354a2f1de9efabc087b5372
+  input_sha256: 126430171fbbe8ad5439e102620ef842a43380ea52a2056dc5c2dd70d3b844de
+  inputs: *id001
+  output: /tmp/phase1/out/S1-B.txt
+  driver_log: /tmp/phase1/out/S1-B.driver.log
+  web_log: /tmp/phase1/out/S1-B.web.log
+  max_tokens: 2000000
+  max_wall_s: 1200
+  retry: false
+- id: S2-A
+  order: 3
+  scenario: S2
+  scenario_name: S2_gap
+  gold_label: reject
+  arm: A
+  commit: 085c8fd
+  tarball_sha256: 106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784
+  plugin_dir: /tmp/phase1/plugins/A
+  dsh_home: /tmp/phase1/dsh/A
+  web_port: 59611
+  cdp_port: 9222
+  eval_root: /tmp/phase1/eval-root-A
+  workspace: /tmp/validity-1c-fixtures/S2_gap
+  base_commit: 1f26cf0dc778dc0cb6371b794e8ac4328db1ea7d
+  head_commit: 882a0840c6e6daad18a4e2a687c5ba3c780d00ca
+  diff_sha256: 089321c1732374e6511f9f08aea0c987e48643eac368a2d61f47771443d5305a
+  prompt: prompts/S2.txt
+  prompt_sha256: baa6030309013f2efcdb6203c2f8ca3b380c87ef672294916b791af35142c098
+  input_sha256: d04984f3d3d8c09c5a3d96aacb3a00a97249fca31c7d92cf64d8dfa594d8e3f5
+  inputs: &id002
+    intent_of_change: 'Deliver Source issue #131: `mycli run --date ""` exits 0 with
+      a readable warning, and `parse_date('''')` returns None. The user-visible CLI
+      path is part of the promised outcome.'
+    criteria:
+    - 'AC-001: `parse_date('''')` returns None.'
+    - 'AC-002: Parsing non-empty valid dates is unchanged.'
+    diff: git diff HEAD~1..HEAD
+    test_evidence: 'python3 -m unittest discover -s tests -v -> 2 tests OK; real CLI
+      `python3 -m app.cli run --date ""` -> exit 1 with AttributeError: ''NoneType''
+      object has no attribute ''isoformat'''
+    scope: Phase 1 fixture S2 only; judge this repository snapshot; no network.
+  output: /tmp/phase1/out/S2-A.txt
+  driver_log: /tmp/phase1/out/S2-A.driver.log
+  web_log: /tmp/phase1/out/S2-A.web.log
+  max_tokens: 2000000
+  max_wall_s: 1200
+  retry: false
+- id: S2-B
+  order: 4
+  scenario: S2
+  scenario_name: S2_gap
+  gold_label: reject
+  arm: B
+  commit: 5ee68cd
+  tarball_sha256: 8bb74f3a8bc20be10b2b2cd704cdf6f081e64fa70a812c6d124c4823faedb404
+  plugin_dir: /tmp/phase1/plugins/B
+  dsh_home: /tmp/phase1/dsh/B
+  web_port: 59612
+  cdp_port: 9223
+  eval_root: /tmp/phase1/eval-root-B
+  workspace: /tmp/validity-1c-fixtures/S2_gap
+  base_commit: 1f26cf0dc778dc0cb6371b794e8ac4328db1ea7d
+  head_commit: 882a0840c6e6daad18a4e2a687c5ba3c780d00ca
+  diff_sha256: 089321c1732374e6511f9f08aea0c987e48643eac368a2d61f47771443d5305a
+  prompt: prompts/S2.txt
+  prompt_sha256: baa6030309013f2efcdb6203c2f8ca3b380c87ef672294916b791af35142c098
+  input_sha256: d04984f3d3d8c09c5a3d96aacb3a00a97249fca31c7d92cf64d8dfa594d8e3f5
+  inputs: *id002
+  output: /tmp/phase1/out/S2-B.txt
+  driver_log: /tmp/phase1/out/S2-B.driver.log
+  web_log: /tmp/phase1/out/S2-B.web.log
+  max_tokens: 2000000
+  max_wall_s: 1200
+  retry: false
+- id: S3-A
+  order: 5
+  scenario: S3
+  scenario_name: S3_out_of_scope
+  gold_label: approve
+  arm: A
+  commit: 085c8fd
+  tarball_sha256: 106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784
+  plugin_dir: /tmp/phase1/plugins/A
+  dsh_home: /tmp/phase1/dsh/A
+  web_port: 59611
+  cdp_port: 9222
+  eval_root: /tmp/phase1/eval-root-A
+  workspace: /tmp/validity-1c-fixtures/S3_out_of_scope
+  base_commit: b24bdef18d7c1cbb0bf3439e19b98b6f14aa1a98
+  head_commit: a5cb7dc91402142c55657cfd5523954cd55a6def
+  diff_sha256: 089321c1732374e6511f9f08aea0c987e48643eac368a2d61f47771443d5305a
+  prompt: prompts/S3.txt
+  prompt_sha256: cdee2bd90241484a485d7084dd5a4e8418deb6bbc0167dc2f93b584ef5cbb93c
+  input_sha256: fb801141d9e25cfc4b027bc211ee935fce899d94ac45ae2dcde6e59352710454
+  inputs: &id003
+    intent_of_change: 'Deliver Source issue #132: fix only `parse_date()` for the
+      empty string to return None; do not change callers or the API. The complete
+      CLI rewrite is explicitly out of scope.'
+    criteria:
+    - 'AC-001: `parse_date('''')` returns None.'
+    - 'AC-002: Non-empty valid date parsing is unchanged.'
+    - 'AC-003: Existing date tests remain green.'
+    diff: git diff HEAD~1..HEAD
+    test_evidence: python3 -m unittest discover -s tests -v -> 2 tests OK; python3
+      -m unittest tests_external.test_full_cli -v -> failure from independent legacy
+      Settings.verbose bug; failure text does not mention parse_date
+    scope: Phase 1 fixture S3 only; judge this repository snapshot; no network.
+  output: /tmp/phase1/out/S3-A.txt
+  driver_log: /tmp/phase1/out/S3-A.driver.log
+  web_log: /tmp/phase1/out/S3-A.web.log
+  max_tokens: 2000000
+  max_wall_s: 1200
+  retry: false
+- id: S3-B
+  order: 6
+  scenario: S3
+  scenario_name: S3_out_of_scope
+  gold_label: approve
+  arm: B
+  commit: 5ee68cd
+  tarball_sha256: 8bb74f3a8bc20be10b2b2cd704cdf6f081e64fa70a812c6d124c4823faedb404
+  plugin_dir: /tmp/phase1/plugins/B
+  dsh_home: /tmp/phase1/dsh/B
+  web_port: 59612
+  cdp_port: 9223
+  eval_root: /tmp/phase1/eval-root-B
+  workspace: /tmp/validity-1c-fixtures/S3_out_of_scope
+  base_commit: b24bdef18d7c1cbb0bf3439e19b98b6f14aa1a98
+  head_commit: a5cb7dc91402142c55657cfd5523954cd55a6def
+  diff_sha256: 089321c1732374e6511f9f08aea0c987e48643eac368a2d61f47771443d5305a
+  prompt: prompts/S3.txt
+  prompt_sha256: cdee2bd90241484a485d7084dd5a4e8418deb6bbc0167dc2f93b584ef5cbb93c
+  input_sha256: fb801141d9e25cfc4b027bc211ee935fce899d94ac45ae2dcde6e59352710454
+  inputs: *id003
+  output: /tmp/phase1/out/S3-B.txt
+  driver_log: /tmp/phase1/out/S3-B.driver.log
+  web_log: /tmp/phase1/out/S3-B.web.log
+  max_tokens: 2000000
+  max_wall_s: 1200
+  retry: false

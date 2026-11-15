@@ -36,6 +36,20 @@ def check_dsh_text(name: str, text: str) -> list[str]:
     errs: list[str] = []
     if "dsh-home" in text:
         errs.append(f"{name}: 仍含不一致的 home 变量（与 dsh/A|B 约定不一致）")
+    if 'DSH_CLI="${DSH_CLI:' not in text:
+        errs.append(f"{name}: 缺少显式 DSH_CLI 前置（不得依赖 PATH）")
+    if '"$DSH_CLI" --profile web --dump-default-config' not in text:
+        errs.append(f"{name}: profile 安装未使用显式 $DSH_CLI")
+    if '"$DSH_CLI" web --no-open' not in text:
+        errs.append(f"{name}: web 启动未使用显式 $DSH_CLI")
+    if "--stage-prompts /tmp/phase1/prompts" not in text:
+        errs.append(f"{name}: 缺少冻结 prompt 的 stage/校验步骤")
+    if "MAX_TOKENS=2000000 MAX_WALL_S=1200" not in text:
+        errs.append(f"{name}: driver 示例缺少单次监控参数")
+    if "/tmp/phase1/out/S2-A.driver.log" not in text or "/tmp/phase1/out/S2-B.driver.log" not in text:
+        errs.append(f"{name}: driver log 路径未按调用约定")
+    if 'nohup dsh web' in text or 'dsh --profile web --dump-default-config' in text:
+        errs.append(f"{name}: 仍存在依赖 PATH 的裸 dsh 命令")
     for arm, meta in HOMES.items():
         home = f"/tmp/phase1/dsh/{arm}"
         plugin = f"/tmp/phase1/plugins/{arm}"
@@ -49,8 +63,8 @@ def check_dsh_text(name: str, text: str) -> list[str]:
             errs.append(f"{name}: 缺少 eval-root-{arm}/deepseek-harness 的 mkdir")
         if f"ln -sfn /tmp/validity-1c-fixtures/S2_gap {eval_root}/deepseek-harness/default-workspace" not in text:
             errs.append(f"{name}: 缺少 {arm} 的 ln -sfn workspace")
-        if f"> {home}/web.log" not in text:
-            errs.append(f"{name}: 缺少 {arm} 的 web.log 于 {home}")
+        if "/tmp/phase1/out/" not in text or ".web.log" not in text:
+            errs.append(f"{name}: 缺少按调用约定的 web log")
         if meta["sha"] not in text or meta["commit"] not in text:
             errs.append(f"{name}: 缺少 {arm} 的 commit/tarball hash 映射")
     for arm in ("A", "B"):

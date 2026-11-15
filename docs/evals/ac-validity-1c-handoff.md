@@ -129,7 +129,7 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 
 ## 6. Phase 1（付费；未批准）
 
-- 固定 S-01/02/03；每场景 A/B 两臂；共 **6 次 verifier 调用**。
+- 固定 S-01/02/03；每场景 A/B 两臂；共 **6 次 verifier 调用**。冻结清单/输入指纹/输出映射见 `tools/evals/featurebench/fixtures/ac-validity-1c/phase1/plan.yml`；gold label 见 `gold-labels.md`。
 - 锁死输入：同一场景的 Source、criteria、diff、test_evidence、scope、代码快照、环境与工具面完全一致；只替换 `A_phase1=085c8fd` / `B_phase1=5ee68cd` 的 verifier prompt。
 - 记录：run_id、verdict、findings、工具执行、Token、耗时；人工核对 finding 是否可复现。
 - 预算：≤8M Token / 2h；单次 ≤2M；超限停止，不重试。
@@ -145,6 +145,7 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 ```bash
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
+DSH_CLI="${DSH_CLI:?set DSH_CLI to the DSH 0.2.2-rc.3 CLI path; do not rely on PATH}"
 mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
   /tmp/phase1/eval-root-A/deepseek-harness \
   /tmp/phase1/eval-root-B/deepseek-harness \
@@ -152,7 +153,7 @@ mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
 
 install_profile() {
   local plugin_dir="$1" eval_root="$2"
-  dsh --profile web --dump-default-config >/dev/null
+  "$DSH_CLI" --profile web --dump-default-config >/dev/null
   local profile="$DSH_HOME/profiles/web"
   mkdir -p "$profile/node_modules/@ai-native-sdlc-plugin"
   rm -rf "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
@@ -196,30 +197,36 @@ install_profile /tmp/phase1/plugins/A /tmp/phase1/eval-root-A
 export DSH_HOME=/tmp/phase1/dsh/B
 install_profile /tmp/phase1/plugins/B /tmp/phase1/eval-root-B
 
+mkdir -p /tmp/phase1/prompts /tmp/phase1/out
+python3 "$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py" \
+  --stage-prompts /tmp/phase1/prompts
+
 # A：085c8fd
 export DSH_HOME=/tmp/phase1/dsh/A
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/out/S2-A.web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9222 \
   --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
-WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
-  9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt
+MAX_TOKENS=2000000 MAX_WALL_S=1200 WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt \
+  > /tmp/phase1/out/S2-A.driver.log 2>&1
 
 # B：5ee68cd
 export DSH_HOME=/tmp/phase1/dsh/B
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-B/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/out/S2-B.web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9223 \
   --user-data-dir=/tmp/phase1/chrome-B --no-first-run about:blank &
-WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
-  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt
+MAX_TOKENS=2000000 MAX_WALL_S=1200 WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt \
+  > /tmp/phase1/out/S2-B.driver.log 2>&1
 ```
 
-- 只有维护者明确批准后才运行；A/B 的 prompt 文件、`sdlc_verify` 参数逐字相同，只换插件构建。
+- 只有维护者明确批准后才运行；A/B 的 prompt 文件、`sdlc_verify` 参数逐字相同，只换插件构建。冻结 prompt 先由 `check_phase1_plan.py --stage-prompts /tmp/phase1/prompts` 复制并核对 SHA；6 次调用的 prompt/端口/输出/日志映射见 offline fixtures §4.2 表及 `phase1/plan.yml`。`MAX_TOKENS=2000000`/`MAX_WALL_S=1200` 是单次监控，总 8M/2h 为软目标；usage 不可读或 Stop 失效时终止后续调用并人工处置，不自动重试。
 
 ---
 

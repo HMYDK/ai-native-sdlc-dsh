@@ -1,0 +1,14 @@
+你是 Phase 1 的实验执行会话（场景 S1）。不要修改任何文件；只调用一次 sdlc_verify（standalone，不要传 task_id），参数使用下面 JSON 的逐字内容；拿到 verdict JSON 后原样输出并停止。
+
+```json
+{
+  "intent_of_change": "Deliver Source issue #130: `mycli export --format csv` writes a CSV with header id,amount,status and one row per order; an order missing amount exits 2 with an error naming the order id.",
+  "criteria": [
+    "AC-001: `python3 -m app.cli export --format csv --orders orders_ok.json --out out.csv` exits 0 and writes a 4-line file with header id,amount,status.",
+    "AC-002: `python3 -m app.cli export --format csv --orders orders_missing.json --out out.csv` exits 2 and the error contains `ord-3`."
+  ],
+  "diff": "git diff HEAD~1..HEAD",
+  "test_evidence": "python3 -m unittest discover -s tests -v -> 2 tests OK; export command -> exit 0; missing amount -> exit 2 with 'error: order ord-3 missing amount'",
+  "scope": "Phase 1 fixture S1 only; judge this repository snapshot; no network."
+}
+```
