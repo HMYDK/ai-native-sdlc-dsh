@@ -170,10 +170,14 @@ python3 tools/evals/featurebench/sanity_check.py --structural
 # 2) 两份 AC-VALIDITY-1C 清单：主 5x2=10、B1 3x1=3、身份/hash/预算/触发指针
 python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac1c/artifacts
 
-# 3) 负例自检：B1 放回主 manifest、删镜像映射、交换 hash、改预算等必须失败
+# 3) Phase 1 DSH 约定：A/B 安装与运行 home 一致、mkdir/ln/log、链接/锚点
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_phase1_docs.py --self-test
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_phase1_docs.py
+
+# 4) 负例自检：B1 放回主 manifest、删镜像映射、交换 hash、改预算等必须失败
 python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test
 
-# 4) 六类 fixture 物化 + 行为检查（git + unittest，不需要 pytest）
+# 5) 六类 fixture 物化 + 行为检查（git + unittest，不需要 pytest）
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
   --workdir /tmp/validity-1c-fixtures
@@ -188,7 +192,7 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
 /tmp/ac1c/artifacts/pkgs/{A,B2,B1}/ai-native-sdlc-plugin-dsh-sdlc-0.6.2.tgz
 ```
 
-`check_ac_validity_1c.py --self-test` 会断言以下负例均被拒绝：B1 加回主 arms、B1 任务/预算变化、主 image_map 缺 sphinx、A/B2 hash 相同、A commit 变化、B1 arm 删除、phase1 calls 变化、B1 含 sphinx、B1 hash 留 TBD。CI 的 `evals-check` 已加入这三条确定性检查（不调模型、不起容器）。
+`check_ac_validity_1c.py --self-test` 会断言以下负例均被拒绝：B1 加回主 arms、B1 任务/预算变化、主 image_map 缺 sphinx、A/B2 hash 相同、A commit 变化、B1 arm 删除、phase1 calls 变化、B1 含 sphinx、B1 hash 留 TBD。CI 的 `evals-check` 已加入这些确定性检查（不调模型、不起容器）。
 
 ---
 

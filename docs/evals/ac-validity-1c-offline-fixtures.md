@@ -64,6 +64,7 @@ Phase 1 要比较的是 **verifier prompt**（A=`085c8fd` / B=`5ee68cd`），不
 - 验证者仍会执行 shell（`bash`），所以它必须能跑真实入口；这是设计的一部分。
 - 6 次调用 = 3 场景 × 2 臂；主会话的 tool-call 包装不计为第二个 verifier 调用，但其 token 计入预算。
 
+<a id="s21-1"></a>
 ### 3.1 S1（positive）
 
 - repo：`/tmp/validity-1c-fixtures/S1_positive`（由第 1 节命令生成）。
@@ -91,6 +92,7 @@ python3 -m app.cli export --format csv --orders orders_ok.json --out /tmp/s1.csv
 python3 -m app.cli export --format csv --orders orders_missing.json --out /tmp/s1-bad.csv; echo "exit=$?"
 ```
 
+<a id="s21-2"></a>
 ### 3.2 S2（gap）
 
 - repo：`/tmp/validity-1c-fixtures/S2_gap`。
@@ -117,6 +119,7 @@ python3 -m unittest discover -s tests -v          # 2 tests OK
 python3 -m app.cli run --date ""; echo "exit=$?"  # 预期非零；不是 import error
 ```
 
+<a id="s21-3"></a>
 ### 3.3 S3（out-of-scope）
 
 - repo：`/tmp/validity-1c-fixtures/S3_out_of_scope`。
@@ -162,6 +165,7 @@ Phase 1 的 A 是 `085c8fd`（旧 verifier，已有 #20），B 是 `5ee68cd`（#
 
 ```bash
 set -euo pipefail
+REPO="$(git rev-parse --show-toplevel)"
 mkdir -p /tmp/phase1/{src,pkgs,plugins,home,prompts,out}
 git worktree add /tmp/phase1/src/A 085c8fd
 git worktree add /tmp/phase1/src/B 5ee68cd
@@ -173,45 +177,104 @@ for X in A B; do
   mkdir -p /tmp/phase1/plugins/$X
   tar -xzf /tmp/phase1/pkgs/$X/*.tgz -C /tmp/phase1/plugins/$X
   mv /tmp/phase1/plugins/$X/package /tmp/phase1/plugins/$X/dsh-sdlc
-  cp -r node_modules/js-yaml /tmp/phase1/plugins/$X/js-yaml
+  cp -r "$REPO/node_modules/js-yaml" /tmp/phase1/plugins/$X/js-yaml
 done
 shasum -a 256 /tmp/phase1/pkgs/*/*.tgz
 ```
 
 > 运行前必须核对 tarball sha256 与上表一致；不一致就停止，不能用 `--allow-version-mismatch` 绕过。
 
-### 4.2 隔离 DSH Web（复用 setup-web.sh / driver.mjs）
+### 4.2 隔离 DSH Web（A/B 两套固定 home）
 
-Phase 1 不新建 Runner；沿用 `tools/evals/featurebench/setup-web.sh` 的思路和 `driver.mjs`：
+**约定**：A/B 的插件安装、profile、`dsh web`、日志必须使用同一套 home；只换插件构建，不换案例输入。
+
+| arm | commit | tarball sha256 | DSH_HOME | plugin 目录 | workspace root | web / CDP |
+|---|---|---|---|---|---|---|
+| A | `085c8fd` | `106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784` | `/tmp/phase1/dsh/A` | `/tmp/phase1/plugins/A` | `/tmp/phase1/eval-root-A` | `59611` / `9222` |
+| B | `5ee68cd` | `8bb74f3a8bc20be10b2b2cd704cdf6f081e64fa70a812c6d124c4823faedb404` | `/tmp/phase1/dsh/B` | `/tmp/phase1/plugins/B` | `/tmp/phase1/eval-root-B` | `59612` / `9223` |
+
+以下命令需要 PATH 中有 `dsh 0.2.2-rc.3`（容器派生镜像或执行机安装）；**Phase 0 不执行**，也不声称已经启动成功。
 
 ```bash
-# 以下命令需要 PATH 中有 dsh 0.2.2-rc.3（容器派生镜像或执行机安装）
-for X in A B; do
-  export DSH_HOME=/tmp/phase1/home/$X
-  dsh --profile web --dump-default-config >/dev/null
-  # 按 setup-web.sh：复制 plugins/$X/dsh-sdlc 与 js-yaml 到 profile node_modules，
-  # 配置 model=deepseek-account/deepseek-flash、permission=danger-full-access、
-  # 关闭 session-log/otel，workspace-controller.documentsDirectory=/tmp/phase1/eval-root-$X
-done
+set -euo pipefail
+REPO="$(git rev-parse --show-toplevel)"
+mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
+  /tmp/phase1/eval-root-A/deepseek-harness \
+  /tmp/phase1/eval-root-B/deepseek-harness \
+  /tmp/phase1/prompts /tmp/phase1/out
 
-# 每个场景/臂：将默认工作区指向该 fixture repo，启动 web + Chrome，再用 driver.mjs
-export DSH_HOME=/tmp/phase1/dsh-home-A
-mkdir -p /tmp/phase1/eval-root-A/deepseek-harness
+install_profile() {
+  local plugin_dir="$1" eval_root="$2"
+  dsh --profile web --dump-default-config >/dev/null
+  local profile="$DSH_HOME/profiles/web"
+  mkdir -p "$profile/node_modules/@ai-native-sdlc-plugin"
+  rm -rf "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
+  cp -r "$plugin_dir/dsh-sdlc" "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
+  rm -rf "$profile/node_modules/js-yaml"
+  cp -r "$plugin_dir/js-yaml" "$profile/node_modules/js-yaml"
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    const d = JSON.parse(fs.readFileSync(p, "utf8"));
+    d.dependencies = d.dependencies || {};
+    d.dependencies["@ai-native-sdlc-plugin/dsh-sdlc"] = "0.6.2";
+    d.dsh = d.dsh || {}; d.dsh.profile = d.dsh.profile || {};
+    d.dsh.profile.bundles = d.dsh.profile.bundles || [];
+    if (!d.dsh.profile.bundles.includes("@ai-native-sdlc-plugin/dsh-sdlc"))
+      d.dsh.profile.bundles.push("@ai-native-sdlc-plugin/dsh-sdlc");
+    fs.writeFileSync(p, JSON.stringify(d, null, 2));
+  ' "$profile/package.json"
+  cat > "$profile/cordis.patch.yml" <<YAML
+- id: agent-default-model
+  config:
+    provider: deepseek-account
+    model: deepseek-flash
+    reasoningEffort: max
+- id: permission
+  config:
+    defaultPreset: danger-full-access
+- id: workspace-controller
+  config:
+    documentsDirectory: $eval_root
+- id: session-log-deepseek
+  disabled: true
+- id: otel
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+YAML
+}
+
+export DSH_HOME=/tmp/phase1/dsh/A
+install_profile /tmp/phase1/plugins/A /tmp/phase1/eval-root-A
+export DSH_HOME=/tmp/phase1/dsh/B
+install_profile /tmp/phase1/plugins/B /tmp/phase1/eval-root-B
+
+# --- A：085c8fd，旧 verifier ---
+export DSH_HOME=/tmp/phase1/dsh/A
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh-home-A/web.log 2>&1 &
-
+nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9222 \
   --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
-
-WEB_PORT=59611 node tools/evals/featurebench/driver.mjs \
+WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
   9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt
+
+# --- B：5ee68cd，#21 verifier ---
+export DSH_HOME=/tmp/phase1/dsh/B
+ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-B/deepseek-harness/default-workspace
+cd /tmp/validity-1c-fixtures/S2_gap
+nohup dsh web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --headless=new --remote-debugging-port=9223 \
+  --user-data-dir=/tmp/phase1/chrome-B --no-first-run about:blank &
+WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt
 ```
 
-`prompts/S2.txt` 只包含“不要改文件；用第 3.2 节参数调用一次 `sdlc_verify`；输出 verdict JSON 后停止”。A/B 使用同一个 prompt 文件、同一个 driver、同一个端口约定，只换 `DSH_HOME` 和 plugin 目录。
+`prompts/S2.txt` 只包含“不要改文件；用第 3.2 节参数调用一次 `sdlc_verify`；输出 verdict JSON 后停止”。S1/S3 复用同一 home/port/workspace 约定，只替换 repo、prompt 和 §3 的 `sdlc_verify` 参数；同一场景 A/B 的 Source、criteria、diff、test_evidence、scope 逐字相同，只换插件构建。
 
-> **本机宿主 PATH 没有 `dsh`，Phase 0 没有执行本节命令。** 这里记录的是 Phase 1 获批后的可复核步骤；真实模型调用仍需单独预算批准。
+> **本机宿主 PATH 没有 `dsh`，Phase 0 没有执行本节命令。** 这里记录的是 Phase 1 获批后的可复核步骤；真实 profile 加载、模型调用仍需单独预算批准。静态一致性检查：`check_phase1_docs.py --self-test`（见 §7）。
 
 ---
 
@@ -219,8 +282,17 @@ WEB_PORT=59611 node tools/evals/featurebench/driver.mjs \
 
 第 1 节的确定性命令已经物化并检查 S4/S5/S6；Phase 1 只用 S1/S2/S3。保留场景的预期裁决与可观察行为：
 
+<a id="s21-4"></a>
+### 5.1 S4（evidence missing）
+
 - **S4**：静态测试通过，真实入口因 `missing_native_dep` 无法运行 → `needs_human` + `unverified`；不把“无法执行”写成 `reject` 或 `approve`。
+<a id="s21-5"></a>
+### 5.2 S5（unrelated failure）
+
 - **S5**：目标测试通过，`tests_legacy.test_old` 在 head 与 base 都失败 → `approve` + `unverified`；不把无关旧失败当成本次缺陷。
+<a id="s21-6"></a>
+### 5.3 S6（ambiguity）
+
 - **S6**：四个接口测试通过，真实 builder 因 `app.versioning.add_uids` 缺失失败，Source 未承诺完整 builder → `needs_human` + `unverified`；不自行把 `add_uids` 加成 AC。
 
 后两例若在 Phase 2/后续使用，按第 3 节的 standalone 参数格式固定输入，并由审查者先确认预期裁决。
@@ -241,4 +313,5 @@ WEB_PORT=59611 node tools/evals/featurebench/driver.mjs \
 - **F3**：六类 fixture 已从文本变成可执行脚本；`python3 -m app.cli` 有 `__main__`，repo 由脚本创建；S1 补了订单 ID 断言。
 - **F4**：Phase 1 的插件 identity、DSH 启动与 driver 命令写清；Phase 2 的 manifest/image-map/preflight 见 [preregistration](ac-validity-1c-preregistration.md) 和 [handoff](ac-validity-1c-handoff.md)。
 - **F5**：S1 AC-002/复核命令包含 `ord-3`。
+- **DSH 命令一致性**：`check_phase1_docs.py --self-test` 会把运行 `DSH_HOME` 改回一个不一致的 home、删除 `eval-root` 的 `mkdir`、以及坏链接都必须拒绝；默认模式核对 A/B home、workspace、日志、hash 和链接/锚点。
 - 本文件不宣称 fixture 已经过真实模型验证；Phase 1 未运行。

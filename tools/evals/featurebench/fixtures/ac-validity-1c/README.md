@@ -32,8 +32,14 @@ the workdir, then runs their real entry points with the standard library
 
 The fixture source is embedded in `check_fixtures.py` (`S1_BASE`…`S6_HEAD`) so a
 change to the fixture is reviewable and cannot be replaced by a hand-written
-`/tmp` directory. See
-[`docs/evals/ac-validity-1c-offline-fixtures.md`](../../../../docs/evals/ac-validity-1c-offline-fixtures.md)
+`/tmp` directory.
+
+`check_phase1_docs.py` is a deterministic docs/config check: it verifies that
+A/B use the same install/run `DSH_HOME`, that `eval-root`/log parents are created,
+that the plugin hashes/commits match, and that markdown links/anchors resolve.
+Run `--self-test` to verify it rejects an inconsistent run home, a missing
+`mkdir`, and broken links. It never starts DSH/Chrome/Docker. See
+[`docs/evals/ac-validity-1c-offline-fixtures.md`](../../../../../docs/evals/ac-validity-1c-offline-fixtures.md)
 for the Phase 1 `sdlc_verify` parameters and DSH Web harness.
 
 This checker is wired into CI `evals-check` and runs without model cost.

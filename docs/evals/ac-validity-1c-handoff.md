@@ -3,7 +3,7 @@
 - **更新时间**：2026-11-15
 - **基线**：`HMYDK/ai-native-sdlc-dsh`，`dev@5ee68cd`
 - **交付分支**：`evals/ac-validity-1c-phase0`（从 `dev@5ee68cd` 建；Draft PR，不直接合入 `dev`）
-- **状态**：首次 `sdlc_verify` 为 **reject**（run `760afaff-1138-43ed-a80a-2436bcd7fc5b`）；按 [审核整改要求](https://github.com/HMYDK/ai-native-sdlc-dsh/issues/22#issuecomment-6895299706) 修复 F1–F7 后，第二次独立验证（用户批准的 1 call / ≤2M / ≤30min / 不重试）已运行并返回 **reject**（run `0553a496-8a5f-423d-9a23-a1e9a5140c1e`）：F1–F7 全部 resolved，但 AC-006 未 met，并发现 handoff 缺 F1–F7/Phase 1 命令、Phase 2 无 `--execute`、fixture 命令用 `python`、workdir 清理过宽、空 `--only-arm`、plugin dir 未绑定 tarball。上述已在本分支修复；**第三次验证未运行，需单独批准**。Phase 1/2/B1 仍未批准、未运行。
+- **状态**：三次 `sdlc_verify` 均为 **reject**。第三次（最终授权，run `c1904ac6-6e03-490b-a7fd-bf8af80898fa`，绑定代码 head `401f091`）AC-001..005/007 met、**AC-006 not_met**；F1/C6 unresolved，F2–F6 resolved。第三次 finding（Phase 1 DSH_HOME/mkdir、README 链接、case table 锚点）已按审核者裁决做**确定性修复**，**不再进行第四次模型验证**，等人工 Reviewer 逐项签字。Phase 1/2/B1 未批准、未运行。
 - **用途**：让审查者/下一台执行机器知道已经确认什么、环境有什么、Phase 0 产出了什么、Phase 1/2 怎么跑、哪些事不能做。
 
 ---
@@ -89,6 +89,8 @@
 ```bash
 python3 tools/evals/featurebench/sanity_check.py --structural
 python3 tools/evals/featurebench/check_ac_validity_1c.py --self-test
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_phase1_docs.py --self-test
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_phase1_docs.py
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --self-test
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py --workdir /tmp/validity-1c-fixtures
 ```
@@ -133,36 +135,88 @@ python3 tools/evals/featurebench/check_ac_validity_1c.py --artifact-root /tmp/ac
 - 预算：≤8M Token / 2h；单次 ≤2M；超限停止，不重试。
 - Fixture 的单一物化/行为检查命令、`sdlc_verify` 参数见 [offline fixtures](ac-validity-1c-offline-fixtures.md) §3；完整 DSH 命令见该文 §4。
 
-**Phase 1 关键启动/驱动命令（获批后；完整版见 offline fixtures §4）：**
+**Phase 1 关键启动/驱动命令（获批后；与 offline fixtures §4.2 使用同一 DSH_HOME 约定）：**
+
+| arm | commit | tarball sha256 | DSH_HOME | plugin 目录 | workspace root | web / CDP |
+|---|---|---|---|---|---|---|
+| A | `085c8fd` | `106247171248772794bd0ac99fa20ea9e2ff42d29d04a79e3032241158d27784` | `/tmp/phase1/dsh/A` | `/tmp/phase1/plugins/A` | `/tmp/phase1/eval-root-A` | `59611` / `9222` |
+| B | `5ee68cd` | `8bb74f3a8bc20be10b2b2cd704cdf6f081e64fa70a812c6d124c4823faedb404` | `/tmp/phase1/dsh/B` | `/tmp/phase1/plugins/B` | `/tmp/phase1/eval-root-B` | `59612` / `9223` |
 
 ```bash
-# 1) 物化六类 fixture（不调模型）
-python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
-  --workdir /tmp/validity-1c-fixtures
+set -euo pipefail
+REPO="$(git rev-parse --show-toplevel)"
+mkdir -p /tmp/phase1/dsh/A /tmp/phase1/dsh/B \
+  /tmp/phase1/eval-root-A/deepseek-harness \
+  /tmp/phase1/eval-root-B/deepseek-harness \
+  /tmp/phase1/prompts /tmp/phase1/out
 
-# 2) 两臂插件（A=085c8fd，B=5ee68cd；离线打包/核对 hash）
-git worktree add /tmp/phase1/src/A 085c8fd
-git worktree add /tmp/phase1/src/B 5ee68cd
-for X in A B; do
-  npm ci --prefix /tmp/phase1/src/$X
-  npm run build --prefix /tmp/phase1/src/$X/packages/sdlc
-  mkdir -p /tmp/phase1/pkgs/$X /tmp/phase1/plugins/$X
-  (cd /tmp/phase1/src/$X/packages/sdlc && npm pack --pack-destination /tmp/phase1/pkgs/$X)
-  tar -xzf /tmp/phase1/pkgs/$X/*.tgz -C /tmp/phase1/plugins/$X
-  mv /tmp/phase1/plugins/$X/package /tmp/phase1/plugins/$X/dsh-sdlc
-  cp -r node_modules/js-yaml /tmp/phase1/plugins/$X/js-yaml
-done
+install_profile() {
+  local plugin_dir="$1" eval_root="$2"
+  dsh --profile web --dump-default-config >/dev/null
+  local profile="$DSH_HOME/profiles/web"
+  mkdir -p "$profile/node_modules/@ai-native-sdlc-plugin"
+  rm -rf "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
+  cp -r "$plugin_dir/dsh-sdlc" "$profile/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
+  rm -rf "$profile/node_modules/js-yaml"
+  cp -r "$plugin_dir/js-yaml" "$profile/node_modules/js-yaml"
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    const d = JSON.parse(fs.readFileSync(p, "utf8"));
+    d.dependencies = d.dependencies || {};
+    d.dependencies["@ai-native-sdlc-plugin/dsh-sdlc"] = "0.6.2";
+    d.dsh = d.dsh || {}; d.dsh.profile = d.dsh.profile || {};
+    d.dsh.profile.bundles = d.dsh.profile.bundles || [];
+    if (!d.dsh.profile.bundles.includes("@ai-native-sdlc-plugin/dsh-sdlc"))
+      d.dsh.profile.bundles.push("@ai-native-sdlc-plugin/dsh-sdlc");
+    fs.writeFileSync(p, JSON.stringify(d, null, 2));
+  ' "$profile/package.json"
+  cat > "$profile/cordis.patch.yml" <<YAML
+- id: agent-default-model
+  config:
+    provider: deepseek-account
+    model: deepseek-flash
+    reasoningEffort: max
+- id: permission
+  config:
+    defaultPreset: danger-full-access
+- id: workspace-controller
+  config:
+    documentsDirectory: $eval_root
+- id: session-log-deepseek
+  disabled: true
+- id: otel
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+YAML
+}
 
-# 3) DSH web + 无头 Chrome + 现有 driver（示例 S2；A/B 各一次）
-export DSH_HOME=/tmp/phase1/dsh-home-A
+export DSH_HOME=/tmp/phase1/dsh/A
+install_profile /tmp/phase1/plugins/A /tmp/phase1/eval-root-A
+export DSH_HOME=/tmp/phase1/dsh/B
+install_profile /tmp/phase1/plugins/B /tmp/phase1/eval-root-B
+
+# A：085c8fd
+export DSH_HOME=/tmp/phase1/dsh/A
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh-home-A/web.log 2>&1 &
+nohup dsh web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9222 \
   --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
-WEB_PORT=59611 node tools/evals/featurebench/driver.mjs \
+WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
   9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt
+
+# B：5ee68cd
+export DSH_HOME=/tmp/phase1/dsh/B
+ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-B/deepseek-harness/default-workspace
+cd /tmp/validity-1c-fixtures/S2_gap
+nohup dsh web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --headless=new --remote-debugging-port=9223 \
+  --user-data-dir=/tmp/phase1/chrome-B --no-first-run about:blank &
+WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt
 ```
 
 - 只有维护者明确批准后才运行；A/B 的 prompt 文件、`sdlc_verify` 参数逐字相同，只换插件构建。
@@ -232,18 +286,30 @@ python3 tools/evals/featurebench/run_matrix.py \
 
 ## 9. 审批边界
 
-- Phase 0 首次验证已发生（reject）；第二次独立验证已由用户单独批准：**1 call / ≤2M / ≤30min / 不重试**。
+- Phase 0 三次验证均为 reject；第三次是最终授权，**不再批准第四次模型调用**。剩余三项按审核者裁决做确定性修复 + 人工验收。
 - Phase 1 / Phase 2 / B1 未批准；分别申请。
 - 不拉 sympy 镜像、不启动 Docker、不调用 FeatureBench，直到 Phase 1/2 获批。
 - 不得按结果挑任务/样本/阈值；预注册后修改需单独提交并说明。
 - 不得把官方 `resolved` 当用户目标；不得把结构合规率当质量收益；不得把 `needs_human` 增加当成功。
 - 历史 8 个官方 FP 只能 provisional/conflict，3 个 FN 只能 censored；不能写“已证实 FP=0/FN=0”。
 
+### 9.1 第三次 reject 后的确定性修复（不再跑模型）
+
+第三次验证绑定代码 head：`401f0911797c2d1235fee015200e72e72aad437f`。之后只做以下文档/命令修复；真实 DSH 启动仍留 Phase 1 前置检查。
+
+| 第三次 finding | 文件/位置 | 检查命令 | 结果 |
+|---|---|---|---|
+| Phase 1 安装/运行 DSH_HOME 不一致、`ln` 缺父目录 | `docs/evals/ac-validity-1c-offline-fixtures.md` §4.2；本文件 §6 | `check_phase1_docs.py --self-test` + 默认模式 | `PHASE1 DOCS SELF-TEST OK`；`PHASE1 DOCS OK`；A/B 安装/运行 home 一致、eval-root/log 父目录在 `ln` 前创建；负例改回不一致 home / 删 mkdir 被拒 |
+| README 链接层级错误 | `tools/evals/featurebench/fixtures/ac-validity-1c/README.md` | 同一 checker 的链接检查 | 链接解析到真实文件；坏链接自测被拒 |
+| case table S-01..S-06 锚点悬空 | `docs/evals/ac-validity-1c-case-table.md`；fixtures 文档 §3.1/3.2/3.3、§5.1/5.2/5.3 | 同一 checker 的锚点检查 | 六个 `#s21-1..6` 全部解析到显式 `<a id>`；缺锚点自测被拒 |
+
+确定性回归：`check_phase1_docs.py`、`check_ac_validity_1c.py --self-test` / `--artifact-root`、`check_fixtures.py --self-test` 两遍 + 六类 fixture 两遍、`check_redaction.py`、`sanity_check.py --structural`、`npm run verify`（285+45、12 smoke）全部通过；CI 见 PR #26。**未执行** `dsh web` / Chrome / driver，也未进行第四次模型验证。
+
 ---
 
 ## 10. 已知限制 / 风险
 
-- 两次 `sdlc_verify` 均为 reject：首次的 F1–F7 已 resolved；第二次新增 AC-006 与 6 条 findings 已修复，但**未复验**；第三次验证需单独批准，不能宣称 DONE。
+- 三次 `sdlc_verify` 均为 reject：第三次 AC-006 `not_met`，其后只做确定性修复；**第四次模型验证不批准**，需人工 Reviewer 逐项签字。不能宣称 DONE。
 - 历史 8 个官方 FP 只有 2 个任务；V1/V2 不能混算；全部 conflict，Source 层 FP 0 confirmed。
 - 3 个 FN 是 censored（timeout），不能当 FN 基线。
 - A vs B2 同时改变 Actor 写作与 Verifier 判断；只能报联合效果；B1 才隔离 Verifier。
@@ -264,7 +330,9 @@ python3 tools/evals/featurebench/run_matrix.py \
 - [x] 三份插件 tarball sha256 + per-arm plugin dir/hash 校验。
 - [x] `npm run verify`、`sanity_check --structural`、fixture/preflight 全过。
 - [x] 第二次独立 `sdlc_verify` 已运行（reject；run `0553a496…`）；新 findings 已修复。
-- [ ] 第三次独立 `sdlc_verify`（未批准；需单独授权）。
+- [x] 第三次、也是最终授权的 `sdlc_verify` 已运行（reject；run `c1904ac6…`；绑定 `401f091`）。
+- [x] 第三次三项 finding 已做确定性修复；无第四次模型验证。
+- [ ] 人工 Reviewer 对三项 finding 逐项签字；之后才讨论 PR 转 Ready/合并。
 - [ ] 审查者核对 8 个官方 FP 的 provisional Source 层标签。
 - [ ] Phase 1 / Phase 2 / B1 预算批准。
 
@@ -273,6 +341,6 @@ python3 tools/evals/featurebench/run_matrix.py \
 ## 12. 需要维护者/审查者决定的问题
 
 1. 8 个官方 FP 的 Source 层标签：approve（接受 Source 排除句）/ needs_human（排除句不足）/ reject（缺失符号属于承诺路径）。
-2. 第二次 `sdlc_verify` 已 reject；是否批准第三次验证（超出当前两次 verify 预算），或接受剩余未复验项。
+2. 第三次 `sdlc_verify` 已 reject；三项 finding 已确定性修复。请人工 Reviewer 逐项签字；**不再申请第四次模型验证**。
 3. Phase 1（8M/2h/6 calls/2M）与 Phase 2 主实验（120M/8h）、B1（30M/2h）的最终授权。
 4. sympy 镜像 rebake / Phase 2 环境准备是否批准。

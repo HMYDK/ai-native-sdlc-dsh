@@ -143,6 +143,7 @@ FEATUREBENCH_IMAGE_PREFIX=docker.io fb eval \
 | `check_ac_validity_1c.py --self-test` | 主实验 5 任务 × A/B2 = 10、B1 3 任务 × B1 = 3；三臂 commit/tarball hash/预算/触发指针；负例（B1 回主 arms、缺 image-map、同 hash、改预算等）必须 fail closed |
 | `check_ac_validity_1c.py --artifact-root <root>` | 核对 `plugins/<arm>/dsh-sdlc/package.json` 版本与 `pkgs/<arm>/*.tgz` sha256 是否与 manifest 绑定 |
 | `fixtures/ac-validity-1c/check_fixtures.py --workdir <tmp>` | 物化六类离线 git repo，用标准库 `unittest` 检查真实入口；六例行为对照 |
+| `fixtures/ac-validity-1c/check_phase1_docs.py [--self-test]` | Phase 1 的 A/B DSH_HOME/mkdir/log/hash 与文档链接/锚点一致性；负例应非 0 |
 
 Runner 新增（旧用法兼容）：
 
