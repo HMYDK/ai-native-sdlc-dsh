@@ -27,11 +27,13 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_WORKDIR = "/tmp/ac-validity-1c-fixtures"
+WORKDIR_MARKER = ".ac-validity-1c-fixtures-owner"
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "AC1C Fixture",
     "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
@@ -97,33 +99,117 @@ def _build(name: str, base: dict[str, str], head: dict[str, str]) -> tuple[Path,
     return repo, base_sha, head_sha
 
 
+def _temp_roots() -> set[Path]:
+    roots = {Path(tempfile.gettempdir()).resolve()}
+    tmp = Path("/tmp")
+    if tmp.exists():
+        roots.add(tmp.resolve())
+    return roots
+
+
 def _workdir_allowed(path: Path) -> bool:
-    """Only a dedicated AC-VALIDITY-1C fixture workdir may be created/deleted."""
-    name = path.resolve().name
-    return name in {"ac-validity-1c-fixtures", "validity-1c-fixtures"}         or name.startswith("ac-validity-1c-fixtures-")
+    """Only a dedicated AC-VALIDITY-1C dir directly under a temp root is allowed."""
+    if path.is_symlink():
+        return False
+    resolved = path.resolve()
+    if not any(resolved.parent == root for root in _temp_roots()):
+        return False
+    name = resolved.name
+    return name in {"ac-validity-1c-fixtures", "validity-1c-fixtures"} \
+        or name.startswith("ac-validity-1c-fixtures-")
 
 
 def _clean_workdir(path: Path) -> None:
-    """Refuse to delete anything that is not our dedicated fixture workdir."""
+    """Create/clean only a script-owned fixture workdir.
+
+    A same-named existing dir without our marker is refused and left intact:
+    naming alone is not proof of ownership.
+    """
     resolved = path.resolve()
-    if not _workdir_allowed(resolved):
+    if not _workdir_allowed(path):
         raise SystemExit(f"refusing to clean unexpected workdir: {resolved}")
     if resolved.exists():
+        if not (resolved / WORKDIR_MARKER).is_file():
+            raise SystemExit(
+                f"refusing to delete existing workdir without ownership marker: {resolved}; "
+                f"remove it manually if you are sure it is disposable")
         shutil.rmtree(resolved)
     resolved.mkdir(parents=True)
+    (resolved / WORKDIR_MARKER).write_text("created by check_fixtures.py\n", encoding="utf-8")
 
 
 def _workdir_guard_selftest() -> int:
-    if _workdir_allowed(Path("/tmp/mydata")):
-        print("FAIL: /tmp/mydata incorrectly allowed", file=sys.stderr)
+    import os
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    suffix = f"selftest-{os.getpid()}"
+    if _workdir_allowed(temp_root / "mydata"):
+        print("FAIL: arbitrary temp name incorrectly allowed", file=sys.stderr)
         return 1
-    if not _workdir_allowed(Path("/tmp/ac-validity-1c-fixtures")):
+    if not _workdir_allowed(temp_root / "ac-validity-1c-fixtures"):
         print("FAIL: dedicated workdir incorrectly rejected", file=sys.stderr)
         return 1
-    if not _workdir_allowed(Path("/tmp/validity-1c-fixtures")):
-        print("FAIL: legacy dedicated workdir incorrectly rejected", file=sys.stderr)
-        return 1
-    print("WORKDIR GUARD OK: only dedicated AC-VALIDITY-1C fixture workdirs may be cleaned")
+
+    # 1) Same name outside the temp roots must not be deleted.
+    outside = Path.cwd() / "ac-validity-1c-fixtures-outside"
+    try:
+        if outside.exists():
+            shutil.rmtree(outside)
+        outside.mkdir()
+        (outside / "keep.txt").write_text("keep", encoding="utf-8")
+        if _workdir_allowed(outside):
+            print("FAIL: outside-temp same-name dir incorrectly allowed", file=sys.stderr)
+            return 1
+        try:
+            _clean_workdir(outside)
+        except SystemExit:
+            pass
+        else:
+            print("FAIL: outside-temp same-name dir was not refused", file=sys.stderr)
+            return 1
+        if not (outside / "keep.txt").is_file():
+            print("FAIL: outside-temp dir was modified", file=sys.stderr)
+            return 1
+    finally:
+        if outside.exists():
+            shutil.rmtree(outside)
+
+    # 2) Same name under temp root but without marker must not be deleted.
+    unmarked = temp_root / f"ac-validity-1c-fixtures-unmarked-{suffix}"
+    try:
+        if unmarked.exists():
+            shutil.rmtree(unmarked)
+        unmarked.mkdir()
+        (unmarked / "keep.txt").write_text("keep", encoding="utf-8")
+        try:
+            _clean_workdir(unmarked)
+        except SystemExit:
+            pass
+        else:
+            print("FAIL: unmarked existing workdir was not refused", file=sys.stderr)
+            return 1
+        if not (unmarked / "keep.txt").is_file():
+            print("FAIL: unmarked workdir was modified", file=sys.stderr)
+            return 1
+    finally:
+        if unmarked.exists():
+            shutil.rmtree(unmarked)
+
+    # 3) A marked dir is repeatable: clean deletes and recreates it with marker.
+    owned = temp_root / f"ac-validity-1c-fixtures-owned-{suffix}"
+    try:
+        if owned.exists():
+            shutil.rmtree(owned)
+        owned.mkdir()
+        (owned / WORKDIR_MARKER).write_text("owned", encoding="utf-8")
+        (owned / "old.txt").write_text("old", encoding="utf-8")
+        _clean_workdir(owned)
+        if not (owned / WORKDIR_MARKER).is_file() or (owned / "old.txt").exists():
+            print("FAIL: marked workdir was not cleaned/recreated correctly", file=sys.stderr)
+            return 1
+    finally:
+        if owned.exists():
+            shutil.rmtree(owned)
+    print("WORKDIR GUARD OK: outside-temp/unmarked refused; marked workdir repeatable")
     return 0
 
 

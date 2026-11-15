@@ -11,7 +11,10 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
 ```
 
 `--self-test` checks the workdir guard: only a dedicated `ac-validity-1c-fixtures` /
-`validity-1c-fixtures` directory may be cleaned; arbitrary `/tmp` paths are refused.
+`validity-1c-fixtures` directory directly under a temp root may be cleaned; arbitrary
+`/tmp` paths are refused; an existing same-named directory without the
+`.ac-validity-1c-fixtures-owner` marker is refused and left intact; a marked
+directory is repeatable.
 
 The script creates six git repos (fixed author/date; base and head commits) under
 the workdir, then runs their real entry points with the standard library

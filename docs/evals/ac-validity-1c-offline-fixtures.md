@@ -23,6 +23,8 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/check_fixtures.py \
 
 它不调用模型、Docker、网络或 FeatureBench；`/tmp/validity-1c-fixtures` 由脚本自己创建，不是文档里凭空出现的路径。
 
+**目录所有权**：脚本会在 workdir 写一个 `.ac-validity-1c-fixtures-owner` marker。下次复跑时，只有带 marker 的既有目录才会被清理；同名但缺 marker 的目录（或不在临时根下的同名目录）会被拒绝并原样保留。首次使用前若机器上已有旧的无 marker 目录，请人工确认后自行移除。`--self-test` 覆盖：临时根之外的同名目录不删、缺 marker 的既有目录不删、带 marker 的目录可重复清理。
+
 预期最后一行：`FIXTURES OK: six scenarios materialized and their observable behavior matches`。
 
 脚本同时是 fixture 的**最小源码**：`check_fixtures.py` 内的 `S1_BASE/S1_HEAD` … `S6_BASE/S6_HEAD` 就是六个 repo 的固定文件与变更。改 fixture 必须改脚本并重跑；不接受手写 `/tmp` 目录当证据。
