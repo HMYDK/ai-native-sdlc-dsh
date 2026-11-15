@@ -1,0 +1,14 @@
+task: AC-VALIDITY-1C
+title: "用独立反例与 FeatureBench A/B 判定验收有效性提升及成本（Phase 0）"
+status: INTENT
+created: 2026-11-15T10:29:43.836Z
+updated: 2026-11-15T10:30:15.824Z
+artifacts:
+  intent: "intent.md"
+  plan: "plan.md"
+  spec: "spec.md"
+history:
+  - at: "2026-11-15T10:29:43.836Z"
+    from: ""
+    to: "INTENT"
+    reason: "任务创建"
