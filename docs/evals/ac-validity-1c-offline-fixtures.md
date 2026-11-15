@@ -251,30 +251,47 @@ install_profile /tmp/phase1/plugins/A /tmp/phase1/eval-root-A
 export DSH_HOME=/tmp/phase1/dsh/B
 install_profile /tmp/phase1/plugins/B /tmp/phase1/eval-root-B
 
+mkdir -p /tmp/phase1/prompts /tmp/phase1/out
+python3 "$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py" \
+  --stage-prompts /tmp/phase1/prompts
+
 # --- A：085c8fd，旧 verifier ---
 export DSH_HOME=/tmp/phase1/dsh/A
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-A/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup "$DSH_CLI" web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/dsh/A/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59611 --host 127.0.0.1 > /tmp/phase1/out/S2-A.web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9222 \
   --user-data-dir=/tmp/phase1/chrome-A --no-first-run about:blank &
-WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
-  9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt
+MAX_TOKENS=2000000 MAX_WALL_S=1200 WEB_PORT=59611 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9222 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-A.txt \
+  > /tmp/phase1/out/S2-A.driver.log 2>&1
 
 # --- B：5ee68cd，#21 verifier ---
 export DSH_HOME=/tmp/phase1/dsh/B
 ln -sfn /tmp/validity-1c-fixtures/S2_gap /tmp/phase1/eval-root-B/deepseek-harness/default-workspace
 cd /tmp/validity-1c-fixtures/S2_gap
-nohup "$DSH_CLI" web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/dsh/B/web.log 2>&1 &
+nohup "$DSH_CLI" web --no-open --port 59612 --host 127.0.0.1 > /tmp/phase1/out/S2-B.web.log 2>&1 &
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --headless=new --remote-debugging-port=9223 \
   --user-data-dir=/tmp/phase1/chrome-B --no-first-run about:blank &
-WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
-  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt
+MAX_TOKENS=2000000 MAX_WALL_S=1200 WEB_PORT=59612 node "$REPO/tools/evals/featurebench/driver.mjs" \
+  9223 "AI 原生 SDLC" /tmp/phase1/prompts/S2.txt /tmp/phase1/out/S2-B.txt \
+  > /tmp/phase1/out/S2-B.driver.log 2>&1
 ```
 
-`prompts/S2.txt` 只包含“不要改文件；用第 3.2 节参数调用一次 `sdlc_verify`；输出 verdict JSON 后停止”。S1/S3 复用同一 home/port/workspace 约定，只替换 repo、prompt 和 §3 的 `sdlc_verify` 参数；同一场景 A/B 的 Source、criteria、diff、test_evidence、scope 逐字相同，只换插件构建。
+`--stage-prompts` 会把仓库冻结的 `phase1/prompts/S1.txt`、`S2.txt`、`S3.txt` 复制到 `/tmp/phase1/prompts/`，并逐份核对 `plan.yml` 中的 SHA256；不得重新手写或生成另一份 prompt。S1/S2/S3 的 A/B 两臂都读取同一份对应文件；执行前由 `check_phase1_plan.py` 校验 workspace/base/head/diff 与 plan 一致。
+
+| # | 调用 | 冻结 prompt | web / CDP | output | driver log | web log |
+|---|---|---|---|---|---|---|
+| 1 | S1-A | `/tmp/phase1/prompts/S1.txt` | 59611 / 9222 | `/tmp/phase1/out/S1-A.txt` | `S1-A.driver.log` | `S1-A.web.log` |
+| 2 | S1-B | `/tmp/phase1/prompts/S1.txt` | 59612 / 9223 | `/tmp/phase1/out/S1-B.txt` | `S1-B.driver.log` | `S1-B.web.log` |
+| 3 | S2-A | `/tmp/phase1/prompts/S2.txt` | 59611 / 9222 | `/tmp/phase1/out/S2-A.txt` | `S2-A.driver.log` | `S2-A.web.log` |
+| 4 | S2-B | `/tmp/phase1/prompts/S2.txt` | 59612 / 9223 | `/tmp/phase1/out/S2-B.txt` | `S2-B.driver.log` | `S2-B.web.log` |
+| 5 | S3-A | `/tmp/phase1/prompts/S3.txt` | 59611 / 9222 | `/tmp/phase1/out/S3-A.txt` | `S3-A.driver.log` | `S3-A.web.log` |
+| 6 | S3-B | `/tmp/phase1/prompts/S3.txt` | 59612 / 9223 | `/tmp/phase1/out/S3-B.txt` | `S3-B.driver.log` | `S3-B.web.log` |
+
+S1/S3 复用上面的 A/B 命令模板，只按表中替换 workspace、prompt、端口/输出/日志；同一场景 A/B 的 Source、criteria、diff、test_evidence、scope 逐字相同，只换插件构建。`MAX_TOKENS=2000000` / `MAX_WALL_S=1200` 是**单次监控/软停止**，不是硬预算；总 8M/2h 是软目标。UI usage 不可读或 Stop 失效时，执行者必须终止后续调用并人工处置；失败/超时保留在 6 次 ITT 分母，不自动重试。
 
 > **本机宿主 PATH 没有 `dsh`，Phase 0 没有执行本节命令。** 这里记录的是 Phase 1 获批后的可复核步骤；真实 profile 加载、模型调用仍需单独预算批准。静态一致性检查：`check_phase1_docs.py --self-test`（见 §7）。
 

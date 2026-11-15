@@ -182,6 +182,26 @@ def validate(plan: dict, fixtures_root: Path | None = None) -> list[str]:
     return errs
 
 
+def stage_prompts(target: Path) -> int:
+    plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
+    target.mkdir(parents=True, exist_ok=True)
+    for scenario in ("S1", "S2", "S3"):
+        src = HERE / "prompts" / f"{scenario}.txt"
+        if not src.is_file():
+            print(f"ERROR missing frozen prompt {src}", file=sys.stderr)
+            return 1
+        data = src.read_bytes()
+        expected = next(c["prompt_sha256"] for c in plan["calls"] if c["scenario"] == scenario)
+        actual = sha(data)
+        if actual != expected:
+            print(f"ERROR prompt SHA mismatch for {scenario}: {actual} != {expected}", file=sys.stderr)
+            return 1
+        (target / f"{scenario}.txt").write_bytes(data)
+        print(f"staged {scenario} -> {target / (scenario + '.txt')} sha256={actual}")
+    print("PHASE1 PROMPTS STAGED OK: S1/S2/S3 match plan.yml")
+    return 0
+
+
 def self_test() -> int:
     plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
     base = validate(plan, fixtures_root=None)
@@ -210,9 +230,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fixtures-root", type=Path, default=Path("/tmp/ac-validity-1c-fixtures"))
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--stage-prompts", type=Path)
     args = ap.parse_args()
     if args.self_test:
         return self_test()
+    if args.stage_prompts:
+        return stage_prompts(args.stage_prompts)
     plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
     errs = validate(plan, args.fixtures_root)
     if errs:
