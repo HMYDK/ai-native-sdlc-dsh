@@ -1,7 +1,18 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 const [cdpPort, presetLabel, promptFile, outFile] = process.argv.slice(2);
 const webPort = process.env.WEB_PORT || '3113';
-const text = readFileSync(promptFile, 'utf8');
+const promptBytes = readFileSync(promptFile);
+const expectedPromptSha = process.env.PHASE1_EXPECTED_PROMPT_SHA256 || '';
+if (expectedPromptSha) {
+  const actualPromptSha = createHash('sha256').update(promptBytes).digest('hex');
+  if (actualPromptSha !== expectedPromptSha) {
+    console.error('PROMPT_SHA_MISMATCH expected=' + expectedPromptSha + ' actual=' + actualPromptSha);
+    process.exit(8);
+  }
+}
+const text = promptBytes.toString('utf8');
 const list = await (await fetch(`http://127.0.0.1:${cdpPort}/json/list`)).json();
 const target = list.find(t => t.type === 'page' && t.url.includes('127.0.0.1:' + webPort));
 if (!target) { console.error('NO TARGET'); process.exit(1); }
@@ -127,6 +138,27 @@ if (insertedLen < Math.min(10, text.length)) {
   const body = await evalJS(`document.body.innerText.slice(0,1200)`);
   console.error('INSERT FAILED body:', JSON.stringify(body));
   process.exit(2);
+}
+// 6.5 Phase 1 isolation gate: let the caller verify the actual DSH workspace
+// *before* Enter is sent. Default off, so Phase 2/FeatureBench behavior is unchanged.
+const gateDir = process.env.PHASE1_GATE_DIR;
+if (gateDir) {
+  mkdirSync(gateDir, { recursive: true });
+  const gateSessionId = await evalJS(`document.querySelector('[data-conversation-session]')?.dataset.conversationSession || null`);
+  writeFileSync(join(gateDir, 'ready.json'), JSON.stringify({
+    webPort, cdpPort: process.argv[2], preset: presetLabel,
+    sessionId: gateSessionId, insertedLen, wantLen: text.length,
+  }, null, 2));
+  const proceed = join(gateDir, 'proceed');
+  let gateOk = false;
+  for (let i = 0; i < 600; i++) {
+    if (existsSync(proceed)) { gateOk = true; break; }
+    await sleep(1000);
+  }
+  if (!gateOk) {
+    console.error('PREPARE_GATE_TIMEOUT');
+    process.exit(6);
+  }
 }
 // 7. 发送
 await call('Input.dispatchKeyEvent', {type:'rawKeyDown', key:'Enter', code:'Enter', windowsVirtualKeyCode:13, nativeVirtualKeyCode:13});

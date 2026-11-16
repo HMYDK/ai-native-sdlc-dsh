@@ -1,0 +1,242 @@
+#!/bin/bash
+# Targeted Phase 1 execution isolation for one frozen call.
+# Default is --prepare-only: start a fresh per-call DSH_HOME/Web/Chrome, let the
+# driver insert the frozen prompt, then STOP at the pre-Enter gate. The live DSH
+# workspace is checked through /api/sdlc-ui.tasks before any prompt is sent.
+# --execute additionally requires PHASE1_EXECUTION_AUTHORIZED=YES; it is not for
+# zero-model validation.
+set -u
+# Archive plugin RSI evidence into a per-invocation destination. This is used
+# both by the normal EXIT trap (all paths after a driver started) and by the
+# zero-model --archive-rsi-only test hook.
+archive_rsi_dir() {
+  local ws="$1" dest="$2"
+  [ -d "$ws/.ai/rsi" ] || return 0
+  mkdir -p "$dest"
+  mv "$ws/.ai/rsi" "$dest/rsi"
+  rmdir "$ws/.ai" 2>/dev/null || true
+}
+
+# Zero-model test hook: archive a residue exactly as the EXIT trap would.
+if [ "${1:-}" = "--archive-rsi-only" ]; then
+  WS="${2:?usage: run_isolated.sh --archive-rsi-only WORKSPACE OUTDIR}"
+  OUTDIR="${3:?usage: run_isolated.sh --archive-rsi-only WORKSPACE OUTDIR}"
+  mkdir -p "$OUTDIR"
+  archive_rsi_dir "$WS" "$OUTDIR/rsi-archive"
+  exit 0
+fi
+
+# Zero-model test hook: exercise the same classifier/exit/status path as a real
+# run without starting DSH, Chrome, or a driver.
+if [ "${1:-}" = "--classify-only" ]; then
+  RESULT="${2:?usage: run_isolated.sh --classify-only DRIVER_RESULT OUTDIR}"
+  OUTDIR="${3:?usage: run_isolated.sh --classify-only DRIVER_RESULT OUTDIR [RSI_ROOT]}"
+  RSI_ROOT="${4:-}"
+  REPO="$(cd "$(dirname "$0")/../../../../../.." && pwd)"
+  CLASSIFY="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py"
+  mkdir -p "$OUTDIR"
+  if [ -n "$RSI_ROOT" ]; then
+    python3 "$CLASSIFY" --result "$RESULT" --rsi-root "$RSI_ROOT" --status "$OUTDIR/driver-classification.json" > "$OUTDIR/driver-classification.log" 2>&1
+  else
+    python3 "$CLASSIFY" --result "$RESULT" --status "$OUTDIR/driver-classification.json" > "$OUTDIR/driver-classification.log" 2>&1
+  fi
+  RC=$?
+  cat "$OUTDIR/driver-classification.log"
+  exit "$RC"
+fi
+CALL="${1:?usage: run_isolated.sh CALL --prepare-only|--execute WEB_PORT CDP_PORT}"
+MODE="${2:?mode required}"
+WEB_PORT="${3:?web port required}"
+CDP_PORT="${4:?cdp port required}"
+ROOT="${PHASE1_ROOT:-/tmp/phase1}"
+REPO="$(cd "$(dirname "$0")/../../../../../.." && pwd)"
+PLAN="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/plan.yml"
+CHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_workspace_session.py"
+PRECHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py"
+CLASSIFY="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py"
+DRIVER="$REPO/tools/evals/featurebench/driver.mjs"
+DSH_CLI="${DSH_CLI:?set DSH_CLI to the DSH 0.2.2-rc.3 executable}"
+FIXTURES="${PHASE1_FIXTURES:-/tmp/validity-1c-fixtures}"
+OUT="$ROOT/out/$CALL-isolated"
+# Never reuse gate state across invocations: a stale proceed/ready must not leak.
+GATE="$OUT/gate-$(date +%s%N)-$$"
+ARCHIVE="$OUT/ai-rsi-$(basename "$GATE")"
+DRIVER_STARTED=0
+CHROME_DIR="$ROOT/isolated/$CALL/chrome-$(date +%s%N)-$$"
+HOME_DIR="$ROOT/isolated/$CALL/home-$(date +%s%N)-$$"
+EVAL_ROOT="$ROOT/isolated/$CALL/eval-root-$(date +%s%N)-$$"
+case "$MODE" in
+  --prepare-only) ;;
+  --execute)
+    if [ "${PHASE1_EXECUTION_AUTHORIZED:-}" != "YES" ]; then
+      echo "ERROR --execute requires PHASE1_EXECUTION_AUTHORIZED=YES" >&2
+      exit 37
+    fi ;;
+  *) echo "ERROR unknown mode $MODE" >&2; exit 36 ;;
+esac
+mkdir -p "$OUT" "$HOME_DIR" "$EVAL_ROOT/deepseek-harness" "$CHROME_DIR" "$GATE"
+
+read -r SCEN ARM WS PROMPT_REL PROMPT_SHA < <(python3 - "$PLAN" "$CALL" <<'PY'
+import sys,yaml
+p=sys.argv[1]; cid=sys.argv[2]
+d=yaml.safe_load(open(p))
+c=next(c for c in d["calls"] if c["id"]==cid)
+print(c["scenario"],c["arm"],c["workspace"],c["prompt"],c["prompt_sha256"])
+PY
+)
+EFFECTIVE_WS="${PHASE1_WORKSPACE_OVERRIDE:-$WS}"
+# Use the repository frozen prompt by default; the driver re-hashes the exact
+# file it reads immediately before any CDP/prompt action. The override is a
+# negative-test hook only.
+PROMPT_FILE="${PHASE1_PROMPT_OVERRIDE:-$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/$PROMPT_REL}"
+[ -f "$PROMPT_FILE" ] || { echo "ERROR prompt file missing: $PROMPT_FILE" >&2; exit 39; }
+PLUGIN="$ROOT/plugins/$ARM"
+[ -d "$PLUGIN/dsh-sdlc" ] || { echo "ERROR missing plugin $PLUGIN" >&2; exit 30; }
+
+# Fail closed before starting a driver if any frozen workspace is dirty/has
+# residual RSI. A failure before DRIVER_STARTED=1 must not archive/clear it.
+python3 "$PRECHECK" --fixtures-root "$FIXTURES" > "$OUT/precheck.log" 2>&1
+PRECHECK_RC=$?
+cat "$OUT/precheck.log"
+if [ "$PRECHECK_RC" -ne 0 ]; then
+  echo "PRECHECK_FAIL: frozen workspace is dirty/incomplete; no driver started" >&2
+  exit 38
+fi
+
+cleanup() {
+  [ -n "${DRIVER_PID:-}" ] && kill "$DRIVER_PID" 2>/dev/null || true
+  [ -n "${CHROME_PID:-}" ] && kill "$CHROME_PID" 2>/dev/null || true
+  [ -n "${WEB_PID:-}" ] && kill "$WEB_PID" 2>/dev/null || true
+  wait 2>/dev/null || true
+}
+archive_rsi() {
+  local rc="$1"
+  [ "${DRIVER_STARTED:-0}" = "1" ] || return 0
+  [ -d "$EFFECTIVE_WS/.ai/rsi" ] || return 0
+  archive_rsi_dir "$EFFECTIVE_WS" "$ARCHIVE"
+  cp "$OUT/driver-result.json" "$ARCHIVE/driver-result.json" 2>/dev/null || true
+  cp "$OUT/driver-classification.json" "$ARCHIVE/driver-classification.json" 2>/dev/null || true
+  printf '%s\n' "$rc" > "$ARCHIVE/exit_code.txt"
+}
+cleanup_and_archive() {
+  local rc=$?
+  trap - EXIT
+  cleanup
+  archive_rsi "$rc"
+  exit "$rc"
+}
+trap cleanup_and_archive EXIT
+
+DSH_HOME_NAME=DSH_HOME
+export "$DSH_HOME_NAME=$HOME_DIR"
+"$DSH_CLI" --profile web --dump-default-config >/dev/null
+PROFILE="$DSH_HOME/profiles/web"
+mkdir -p "$PROFILE/node_modules/@ai-native-sdlc-plugin"
+cp -R "$PLUGIN/dsh-sdlc" "$PROFILE/node_modules/@ai-native-sdlc-plugin/dsh-sdlc"
+cp -R "$PLUGIN/js-yaml" "$PROFILE/node_modules/js-yaml"
+node -e '
+ const fs=require("fs");const p=process.argv[1];const d=JSON.parse(fs.readFileSync(p,"utf8"));
+ d.dependencies=d.dependencies||{};d.dependencies["@ai-native-sdlc-plugin/dsh-sdlc"]="0.6.2";
+ d.dsh=d.dsh||{};d.dsh.profile=d.dsh.profile||{};d.dsh.profile.bundles=d.dsh.profile.bundles||[];
+ if(!d.dsh.profile.bundles.includes("@ai-native-sdlc-plugin/dsh-sdlc"))d.dsh.profile.bundles.push("@ai-native-sdlc-plugin/dsh-sdlc");
+ fs.writeFileSync(p,JSON.stringify(d,null,2));' "$PROFILE/package.json"
+cat > "$PROFILE/cordis.patch.yml" <<YAML
+- id: agent-default-model
+  config:
+    provider: deepseek-account
+    model: deepseek-flash
+    reasoningEffort: max
+- id: permission
+  config:
+    defaultPreset: danger-full-access
+- id: workspace-controller
+  config:
+    documentsDirectory: $EVAL_ROOT
+- id: session-log-deepseek
+  disabled: true
+- id: otel
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+YAML
+cp "$HOME/.dsh/.credentials.yaml" "$DSH_HOME/.credentials.yaml"
+chmod 600 "$DSH_HOME/.credentials.yaml"
+ln -sfn "$FIXTURES/$(basename "$EFFECTIVE_WS")" "$EVAL_ROOT/deepseek-harness/default-workspace"
+
+for p in "$WEB_PORT" "$CDP_PORT"; do lsof -ti tcp:$p 2>/dev/null | xargs -r kill 2>/dev/null || true; done
+cd "$EFFECTIVE_WS" || exit 31
+nohup "$DSH_CLI" web --no-open --port "$WEB_PORT" --host 127.0.0.1 > "$OUT/web.log" 2>&1 &
+WEB_PID=$!
+TOKEN=""
+for i in $(seq 1 60); do
+  TOKEN=$(grep -o 'token=[A-Za-z0-9_-]*' "$OUT/web.log" 2>/dev/null | head -1 | cut -d= -f2)
+  [ -n "$TOKEN" ] && break
+  sleep 1
+done
+[ -n "$TOKEN" ] || { echo "ERROR no web token; see $OUT/web.log" >&2; exit 32; }
+'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new \
+  --remote-debugging-port="$CDP_PORT" --user-data-dir="$CHROME_DIR" --no-first-run \
+  "http://127.0.0.1:$WEB_PORT/?token=$TOKEN" > "$OUT/chrome.log" 2>&1 &
+CHROME_PID=$!
+for i in $(seq 1 30); do
+  curl -sS --max-time 1 "http://127.0.0.1:$CDP_PORT/json/list" > "$OUT/targets.json" 2>/dev/null || true
+  grep -q "127.0.0.1:$WEB_PORT" "$OUT/targets.json" 2>/dev/null && break
+  sleep 1
+done
+grep -q "127.0.0.1:$WEB_PORT" "$OUT/targets.json" 2>/dev/null || { echo "ERROR no Chrome target" >&2; exit 33; }
+
+DRIVER_STARTED=1
+PHASE1_GATE_DIR="$GATE" PHASE1_EXPECTED_PROMPT_SHA256="$PROMPT_SHA" WEB_PORT="$WEB_PORT" MAX_TOKENS=2000000 MAX_WALL_S=1200 \
+  node "$DRIVER" "$CDP_PORT" "AI 原生 SDLC" "$PROMPT_FILE" "$OUT/driver-result.json" \
+  > "$OUT/driver.log" 2>&1 &
+DRIVER_PID=$!
+for i in $(seq 1 120); do
+  [ -f "$GATE/ready.json" ] && break
+  kill -0 "$DRIVER_PID" 2>/dev/null || break
+  sleep 1
+done
+[ -f "$GATE/ready.json" ] || { echo "ERROR driver did not reach pre-prompt gate (see $OUT/driver.log); no prompt sent" >&2; exit 34; }
+SESSION_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sessionId") or "")' "$GATE/ready.json")
+[ -n "$SESSION_ID" ] || { echo "ERROR gate ready.json has no active sessionId" >&2; exit 34; }
+
+if [ -n "${PHASE1_EXPECTED_OVERRIDE:-}" ]; then
+  python3 "$CHECK" --dsh-home "$DSH_HOME" --session-id "$SESSION_ID" --call "$CALL" --expected "$PHASE1_EXPECTED_OVERRIDE" > "$OUT/workspace-check.log" 2>&1
+else
+  python3 "$CHECK" --dsh-home "$DSH_HOME" --session-id "$SESSION_ID" --call "$CALL" > "$OUT/workspace-check.log" 2>&1
+fi
+CHECK_RC=$?
+cat "$OUT/workspace-check.log"
+if [ "$CHECK_RC" -ne 0 ]; then
+  echo "FAIL_CLOSED: workspace check failed; no prompt sent" >&2
+  exit 35
+fi
+if [ "$MODE" = "--prepare-only" ]; then
+  echo "PREPARE_ONLY_OK: workspace verified; prompt not sent; call=$CALL"
+  exit 0
+fi
+touch "$GATE/proceed"
+wait "$DRIVER_PID"
+DRIVER_RC=$?
+python3 "$CLASSIFY" --result "$OUT/driver-result.json" --rsi-root "$EFFECTIVE_WS/.ai/rsi" --status "$OUT/driver-classification.json" > "$OUT/driver-classification.log" 2>&1
+CLASS_RC=$?
+cat "$OUT/driver-classification.log"
+SNAP_CHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py"
+python3 "$SNAP_CHECK" --call "$CALL" --workspace "$EFFECTIVE_WS" --plan "$PLAN" > "$OUT/postcheck.log" 2>&1
+POST_RC=$?
+cat "$OUT/postcheck.log"
+if [ "$POST_RC" -ne 0 ]; then
+  echo "POSTCHECK_FAIL: call marked invalid; evidence preserved in $EFFECTIVE_WS/.ai/rsi" >&2
+  exit 40
+fi
+if [ "$DRIVER_RC" -ne 0 ]; then
+  echo "DRIVER_EXIT_NONZERO: rc=$DRIVER_RC; evidence preserved" >&2
+  exit "$DRIVER_RC"
+fi
+if [ "$CLASS_RC" -ne 0 ]; then
+  echo "DRIVER_RESULT_NOT_SUCCESS: rc=$CLASS_RC; see $OUT/driver-classification.json" >&2
+  exit "$CLASS_RC"
+fi
+# EXIT trap archives RSI evidence for success and all failure paths after the
+# driver has started; a precheck failure before driver start deliberately does
+# not archive a pre-existing residue (it must fail closed).
+exit 0
