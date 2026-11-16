@@ -82,6 +82,8 @@ jobs:
           python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --fixtures-root /tmp/validity-1c-fixtures
           python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --dirty-workspace-test --fixtures-root /tmp/validity-1c-fixtures
           python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py --stage-prompts /tmp/validity-1c-prompts
+          bash -n tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh
+          python3 -m py_compile tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_workspace_session.py
 
       - name: Baseline index check
         run: python3 tools/evals/featurebench/sanity_check.py --index

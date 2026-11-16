@@ -14,6 +14,15 @@ It does not authorize or start any paid call.
 - `prompts/S*.txt` — the exact prompt passed to the main DSH web session for each
   scenario; the JSON is embedded verbatim. The main session calls
   `sdlc_verify` once (standalone, no `task_id`).
+- `run_isolated.sh` — targeted per-call execution isolation (no new general
+  Runner): fresh `DSH_HOME`, Web/Chrome session and per-call ports; starts the
+  existing driver with `PHASE1_GATE_DIR`, which inserts the frozen prompt and
+  **stops before Enter**. `check_workspace_session.py` queries the live
+  authenticated `/api/sdlc-ui.tasks` and requires the selected workspace to be
+  the frozen scenario with matching Git base/head/diff. `--prepare-only` kills
+  the driver before any prompt; `--execute` also requires
+  `PHASE1_EXECUTION_AUTHORIZED=YES`. `PHASE1_EXPECTED_OVERRIDE` is only a
+  negative-test hook; it must fail closed.
 - `check_phase1_plan.py` — offline validator: order/uniqueness, A/B identity,
   same-scenario input identity, input/prompt/diff hashes, gold labels, paths,
   per-call monitor settings, and the **actual `calls[].workspace`**. It rejects
@@ -46,4 +55,7 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_pla
   --dirty-workspace-test --fixtures-root /tmp/validity-1c-fixtures
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
   --stage-prompts /tmp/phase1/prompts
+# zero-model isolation check (per-call home; no prompt sent)
+DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \
+  S2-A --prepare-only 61001 9301
 ```
