@@ -28,9 +28,12 @@ It does not authorize or start any paid call.
   stale `ready.json`/`proceed` cannot leak. `PHASE1_EXPECTED_OVERRIDE` and
   `PHASE1_WORKSPACE_OVERRIDE` are negative-test hooks only.
 - `check_verifier_snapshot.py` — post-call: finds the actual
-  `.ai/rsi/runs/*/code.json`, requires its `head` to equal the plan call head and
-  re-checks workspace Git HEAD/base/diff. Missing/wrong code.json exits non-zero;
-  the runner then marks the call invalid (exit 40), not success.
+  `.ai/rsi/runs/*/code.json` and requires `complete=true`, `issues=[]`,
+  `diff=""` (no tracked working-tree changes), no unexpected untracked
+  source/test files (only `out.csv`/Python caches allowed), `head` equal to the
+  plan call head, and matching workspace Git base/head/diff. Missing/incomplete/
+  wrong snapshots exit non-zero; the runner marks the call invalid (exit 40), not
+  success.
 - `check_phase1_plan.py` — offline validator: order/uniqueness, A/B identity,
   same-scenario input identity, input/prompt/diff hashes, gold labels, paths,
   per-call monitor settings, and the **actual `calls[].workspace`**. It rejects
