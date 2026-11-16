@@ -6,6 +6,26 @@
 # --execute additionally requires PHASE1_EXECUTION_AUTHORIZED=YES; it is not for
 # zero-model validation.
 set -u
+# Archive plugin RSI evidence into a per-invocation destination. This is used
+# both by the normal EXIT trap (all paths after a driver started) and by the
+# zero-model --archive-rsi-only test hook.
+archive_rsi_dir() {
+  local ws="$1" dest="$2"
+  [ -d "$ws/.ai/rsi" ] || return 0
+  mkdir -p "$dest"
+  mv "$ws/.ai/rsi" "$dest/rsi"
+  rmdir "$ws/.ai" 2>/dev/null || true
+}
+
+# Zero-model test hook: archive a residue exactly as the EXIT trap would.
+if [ "${1:-}" = "--archive-rsi-only" ]; then
+  WS="${2:?usage: run_isolated.sh --archive-rsi-only WORKSPACE OUTDIR}"
+  OUTDIR="${3:?usage: run_isolated.sh --archive-rsi-only WORKSPACE OUTDIR}"
+  mkdir -p "$OUTDIR"
+  archive_rsi_dir "$WS" "$OUTDIR/rsi-archive"
+  exit 0
+fi
+
 # Zero-model test hook: exercise the same classifier/exit/status path as a real
 # run without starting DSH, Chrome, or a driver.
 if [ "${1:-}" = "--classify-only" ]; then
@@ -32,6 +52,7 @@ ROOT="${PHASE1_ROOT:-/tmp/phase1}"
 REPO="$(cd "$(dirname "$0")/../../../../../.." && pwd)"
 PLAN="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/plan.yml"
 CHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_workspace_session.py"
+PRECHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py"
 CLASSIFY="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py"
 DRIVER="$REPO/tools/evals/featurebench/driver.mjs"
 DSH_CLI="${DSH_CLI:?set DSH_CLI to the DSH 0.2.2-rc.3 executable}"
@@ -39,6 +60,8 @@ FIXTURES="${PHASE1_FIXTURES:-/tmp/validity-1c-fixtures}"
 OUT="$ROOT/out/$CALL-isolated"
 # Never reuse gate state across invocations: a stale proceed/ready must not leak.
 GATE="$OUT/gate-$(date +%s%N)-$$"
+ARCHIVE="$OUT/ai-rsi-$(basename "$GATE")"
+DRIVER_STARTED=0
 CHROME_DIR="$ROOT/isolated/$CALL/chrome-$(date +%s%N)-$$"
 HOME_DIR="$ROOT/isolated/$CALL/home-$(date +%s%N)-$$"
 EVAL_ROOT="$ROOT/isolated/$CALL/eval-root-$(date +%s%N)-$$"
@@ -65,13 +88,39 @@ EFFECTIVE_WS="${PHASE1_WORKSPACE_OVERRIDE:-$WS}"
 PLUGIN="$ROOT/plugins/$ARM"
 [ -d "$PLUGIN/dsh-sdlc" ] || { echo "ERROR missing plugin $PLUGIN" >&2; exit 30; }
 
+# Fail closed before starting a driver if any frozen workspace is dirty/has
+# residual RSI. A failure before DRIVER_STARTED=1 must not archive/clear it.
+python3 "$PRECHECK" --fixtures-root "$FIXTURES" > "$OUT/precheck.log" 2>&1
+PRECHECK_RC=$?
+cat "$OUT/precheck.log"
+if [ "$PRECHECK_RC" -ne 0 ]; then
+  echo "PRECHECK_FAIL: frozen workspace is dirty/incomplete; no driver started" >&2
+  exit 38
+fi
+
 cleanup() {
   [ -n "${DRIVER_PID:-}" ] && kill "$DRIVER_PID" 2>/dev/null || true
   [ -n "${CHROME_PID:-}" ] && kill "$CHROME_PID" 2>/dev/null || true
   [ -n "${WEB_PID:-}" ] && kill "$WEB_PID" 2>/dev/null || true
   wait 2>/dev/null || true
 }
-trap cleanup EXIT
+archive_rsi() {
+  local rc="$1"
+  [ "${DRIVER_STARTED:-0}" = "1" ] || return 0
+  [ -d "$EFFECTIVE_WS/.ai/rsi" ] || return 0
+  archive_rsi_dir "$EFFECTIVE_WS" "$ARCHIVE"
+  cp "$OUT/driver-result.json" "$ARCHIVE/driver-result.json" 2>/dev/null || true
+  cp "$OUT/driver-classification.json" "$ARCHIVE/driver-classification.json" 2>/dev/null || true
+  printf '%s\n' "$rc" > "$ARCHIVE/exit_code.txt"
+}
+cleanup_and_archive() {
+  local rc=$?
+  trap - EXIT
+  cleanup
+  archive_rsi "$rc"
+  exit "$rc"
+}
+trap cleanup_and_archive EXIT
 
 DSH_HOME_NAME=DSH_HOME
 export "$DSH_HOME_NAME=$HOME_DIR"
@@ -131,6 +180,7 @@ for i in $(seq 1 30); do
 done
 grep -q "127.0.0.1:$WEB_PORT" "$OUT/targets.json" 2>/dev/null || { echo "ERROR no Chrome target" >&2; exit 33; }
 
+DRIVER_STARTED=1
 PHASE1_GATE_DIR="$GATE" WEB_PORT="$WEB_PORT" MAX_TOKENS=2000000 MAX_WALL_S=1200 \
   node "$DRIVER" "$CDP_PORT" "AI 原生 SDLC" "$ROOT/prompts/$SCEN.txt" "$OUT/driver-result.json" \
   > "$OUT/driver.log" 2>&1 &
@@ -180,8 +230,7 @@ if [ "$CLASS_RC" -ne 0 ]; then
   echo "DRIVER_RESULT_NOT_SUCCESS: rc=$CLASS_RC; see $OUT/driver-classification.json" >&2
   exit "$CLASS_RC"
 fi
-if [ -d "$EFFECTIVE_WS/.ai/rsi" ]; then
-  mv "$EFFECTIVE_WS/.ai/rsi" "$OUT/ai-rsi-rsi"
-  rmdir "$EFFECTIVE_WS/.ai" 2>/dev/null || true
-fi
+# EXIT trap archives RSI evidence for success and all failure paths after the
+# driver has started; a precheck failure before driver start deliberately does
+# not archive a pre-existing residue (it must fail closed).
 exit 0

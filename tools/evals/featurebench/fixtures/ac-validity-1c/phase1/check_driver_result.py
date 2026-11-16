@@ -26,13 +26,15 @@ STATUSES = {"approve", "reject", "needs_human"}
 
 
 def load_verifier_result(rsi_root: Path | None) -> dict | None:
-    if rsi_root is None or not rsi_root.is_dir():
+    if rsi_root is None or not (rsi_root / "runs").is_dir():
         return None
-    candidates = sorted((rsi_root / "runs").glob("*/000005.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    # Fall back to any finished record if a version names the file differently.
-    if not candidates:
-        candidates = sorted((rsi_root / "runs").glob("*/*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for path in candidates:
+    run_dirs = [d for d in (rsi_root / "runs").iterdir() if d.is_dir()]
+    if not run_dirs:
+        return None
+    # The current call is the most recently created run. Do not fall back to an
+    # older run if this one produced only a fallback: that would cross calls.
+    latest = max(run_dirs, key=lambda d: d.stat().st_mtime_ns)
+    for path in sorted(latest.glob("*.json")):
         try:
             d = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
@@ -73,28 +75,32 @@ def classify(path: Path, rsi_root: Path | None) -> tuple[int, str, dict]:
         "verification_complete": None,
         "verification_run_id": None,
     }
+    # Preserve a real Verifier-only result even when the Driver turn failed:
+    # these are separate facts (dual-dimension accounting), while the exit code
+    # still reports the Driver/generation failure.
+    result = load_verifier_result(rsi_root)
+    if result is not None:
+        info.update(
+            verdict=result.get("status"),
+            verification_complete=result.get("verification_complete"),
+            verification_run_id=result.get("verification_run_id"),
+            verifier_session=result.get("verifier_session"),
+            verifier_record=result.get("_record_path"),
+            verifier_summary_head=(result.get("summary") or "")[:160],
+        )
     if d.get("aborted") not in (None, ""):
         return 12, "aborted", info
     if d.get("turn_error") is True:
         return 13, "turn_error", info
     if d.get("done") is not True:
         return 11, "incomplete", info
-    result = load_verifier_result(rsi_root)
     if result is None:
         return 10, "no_verdict", info
-    info.update(
-        verdict=result.get("status"),
-        verification_complete=result.get("verification_complete"),
-        verification_run_id=result.get("verification_run_id"),
-        verifier_session=result.get("verifier_session"),
-        verifier_record=result.get("_record_path"),
-        verifier_summary_head=(result.get("summary") or "")[:160],
-    )
     return 0, "completed", info
 
 
-def _write_finished(root: Path, result: dict) -> Path:
-    p = root / "runs" / "run" / "000005.json"
+def _write_finished(root: Path, result: dict, run: str = "run", name: str = "000008.json") -> Path:
+    p = root / "runs" / run / name
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps({"kind": "finished", "data": {"outcome": "completed", "result": result}}), encoding="utf-8")
     return p
@@ -126,10 +132,39 @@ def self_test() -> int:
             if (rc, status, info.get("verdict")) != (want_rc, want_status, want_verdict):
                 print(f"SELF-TEST FAIL {name}: {(rc,status,info.get('verdict'))}", file=sys.stderr)
                 return 1
+        # A successful second attempt may be at 000008; do not require 000005.
+        retry_rsi = root / "retry" / ".ai" / "rsi"
+        (retry_rsi / "runs" / "run").mkdir(parents=True)
+        (retry_rsi / "runs" / "run" / "000005.json").write_text(
+            json.dumps({"kind": "attempt_started", "data": {}}), encoding="utf-8")
+        _write_finished(retry_rsi, real, run="run", name="000008.json")
+        rc, status, info = classify(driver_complete, retry_rsi)
+        if (rc, status, info.get("verdict")) != (0, "completed", "needs_human"):
+            print(f"SELF-TEST FAIL retry event: {(rc,status,info.get('verdict'))}", file=sys.stderr)
+            return 1
+        # Old run with real result must not leak into the latest failed run.
+        old_rsi = root / "old-real" / ".ai" / "rsi"
+        _write_finished(old_rsi, real, run="old", name="000005.json")
+        _write_finished(old_rsi, fallback, run="new", name="000005.json")
+        rc, status, _ = classify(driver_complete, old_rsi)
+        if (rc, status) != (10, "no_verdict"):
+            print(f"SELF-TEST FAIL old-run leak: {(rc,status)}", file=sys.stderr)
+            return 1
         # Body-only status with no real recording must not count.
         rc, status, info = classify(driver_complete, root / "empty" / ".ai" / "rsi")
         if (rc, status) != (10, "no_verdict"):
             print(f"SELF-TEST FAIL body-only: {(rc,status)}", file=sys.stderr)
+            return 1
+        # turn_error keeps the real Verifier verdict as a separate fact.
+        rsi_turn_error = root / "turn-error-real" / ".ai" / "rsi"
+        _write_finished(rsi_turn_error, {"status": "approve", "verification_complete": True,
+                                         "raw_status": "approve", "verification_run_id": "r-t",
+                                         "verifier_session": "s-t"})
+        p_turn = root / "turn-error-real.json"
+        p_turn.write_text(json.dumps({"done": True, "aborted": None, "turn_error": True}), encoding="utf-8")
+        rc, status, info = classify(p_turn, rsi_turn_error)
+        if (rc, status, info.get("verdict")) != (13, "turn_error", "approve"):
+            print(f"SELF-TEST FAIL turn_error dual: {(rc,status,info.get('verdict'))}", file=sys.stderr)
             return 1
         for name, payload, want_rc, want_status in [
             ("incomplete", {"done": False, "aborted": None, "turn_error": False}, 11, "incomplete"),

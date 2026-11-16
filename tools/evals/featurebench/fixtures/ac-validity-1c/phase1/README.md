@@ -41,8 +41,11 @@ It does not authorize or start any paid call.
   plugin's generation-failure fallback `needs_human` (or body-only `status`)
   is `no_verdict`. Exit codes: normal+real verdict=0; complete but no real
   verdict=10; missing/incomplete=11; aborted (timeout/over_budget)=12;
-  turn_error=13. `run_isolated.sh --classify-only RESULT OUTDIR [RSI_ROOT]`
-  exercises the same classification/exit/status path without DSH/Chrome/model.
+  turn_error=13. A real Verifier verdict found on a turn_error/aborted attempt
+  is still preserved in `driver-classification.json` as a separate fact, while
+  the exit/status reports the Driver failure (dual-dimension accounting).
+  `run_isolated.sh --classify-only RESULT OUTDIR [RSI_ROOT]` exercises the same
+  classification/exit/status path without DSH/Chrome/model.
 - `check_phase1_plan.py` — offline validator: order/uniqueness, A/B identity,
   same-scenario input identity, input/prompt/diff hashes, gold labels, paths,
   per-call monitor settings, and the **actual `calls[].workspace`**. It rejects
