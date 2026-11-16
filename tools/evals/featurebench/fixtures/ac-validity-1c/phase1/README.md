@@ -34,11 +34,15 @@ It does not authorize or start any paid call.
   plan call head, and matching workspace Git base/head/diff. Missing/incomplete/
   wrong snapshots exit non-zero; the runner marks the call invalid (exit 40), not
   success.
-- `check_driver_result.py` — reads `driver-result.json` and separates
-  **driver completion** from **verdict presence**: normal+verdict=0; complete but
-  no verdict=10 `no_verdict`; missing/incomplete=11; aborted (timeout/over_budget)=12;
-  turn_error=13. `run_isolated.sh --classify-only RESULT OUTDIR` exercises the
-  same classification/exit/status path without DSH/Chrome/model.
+- `check_driver_result.py` — reads `driver-result.json` **and the real
+  `.ai/rsi/runs/*/000005.json` recording**; the main Agent body is not proof.
+  A real verdict requires `verification_complete:true`, `raw_status`, and
+  `verification_run_id`; a real `needs_human` counts as completed, while the
+  plugin's generation-failure fallback `needs_human` (or body-only `status`)
+  is `no_verdict`. Exit codes: normal+real verdict=0; complete but no real
+  verdict=10; missing/incomplete=11; aborted (timeout/over_budget)=12;
+  turn_error=13. `run_isolated.sh --classify-only RESULT OUTDIR [RSI_ROOT]`
+  exercises the same classification/exit/status path without DSH/Chrome/model.
 - `check_phase1_plan.py` — offline validator: order/uniqueness, A/B identity,
   same-scenario input identity, input/prompt/diff hashes, gold labels, paths,
   per-call monitor settings, and the **actual `calls[].workspace`**. It rejects

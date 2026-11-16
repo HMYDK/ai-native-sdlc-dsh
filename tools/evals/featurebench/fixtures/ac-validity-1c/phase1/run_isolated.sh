@@ -10,11 +10,16 @@ set -u
 # run without starting DSH, Chrome, or a driver.
 if [ "${1:-}" = "--classify-only" ]; then
   RESULT="${2:?usage: run_isolated.sh --classify-only DRIVER_RESULT OUTDIR}"
-  OUTDIR="${3:?usage: run_isolated.sh --classify-only DRIVER_RESULT OUTDIR}"
+  OUTDIR="${3:?usage: run_isolated.sh --classify-only DRIVER_RESULT OUTDIR [RSI_ROOT]}"
+  RSI_ROOT="${4:-}"
   REPO="$(cd "$(dirname "$0")/../../../../../.." && pwd)"
   CLASSIFY="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py"
   mkdir -p "$OUTDIR"
-  python3 "$CLASSIFY" --result "$RESULT" --status "$OUTDIR/driver-classification.json" > "$OUTDIR/driver-classification.log" 2>&1
+  if [ -n "$RSI_ROOT" ]; then
+    python3 "$CLASSIFY" --result "$RESULT" --rsi-root "$RSI_ROOT" --status "$OUTDIR/driver-classification.json" > "$OUTDIR/driver-classification.log" 2>&1
+  else
+    python3 "$CLASSIFY" --result "$RESULT" --status "$OUTDIR/driver-classification.json" > "$OUTDIR/driver-classification.log" 2>&1
+  fi
   RC=$?
   cat "$OUTDIR/driver-classification.log"
   exit "$RC"
@@ -156,7 +161,7 @@ fi
 touch "$GATE/proceed"
 wait "$DRIVER_PID"
 DRIVER_RC=$?
-python3 "$CLASSIFY" --result "$OUT/driver-result.json" --status "$OUT/driver-classification.json" > "$OUT/driver-classification.log" 2>&1
+python3 "$CLASSIFY" --result "$OUT/driver-result.json" --rsi-root "$EFFECTIVE_WS/.ai/rsi" --status "$OUT/driver-classification.json" > "$OUT/driver-classification.log" 2>&1
 CLASS_RC=$?
 cat "$OUT/driver-classification.log"
 SNAP_CHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py"
