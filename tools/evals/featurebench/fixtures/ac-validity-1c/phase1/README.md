@@ -15,14 +15,22 @@ It does not authorize or start any paid call.
   scenario; the JSON is embedded verbatim. The main session calls
   `sdlc_verify` once (standalone, no `task_id`).
 - `run_isolated.sh` — targeted per-call execution isolation (no new general
-  Runner): fresh `DSH_HOME`, Web/Chrome session and per-call ports; starts the
-  existing driver with `PHASE1_GATE_DIR`, which inserts the frozen prompt and
-  **stops before Enter**. `check_workspace_session.py` queries the live
-  authenticated `/api/sdlc-ui.tasks` and requires the selected workspace to be
-  the frozen scenario with matching Git base/head/diff. `--prepare-only` kills
-  the driver before any prompt; `--execute` also requires
-  `PHASE1_EXECUTION_AUTHORIZED=YES`. `PHASE1_EXPECTED_OVERRIDE` is only a
-  negative-test hook; it must fail closed.
+  Runner): fresh `DSH_HOME`, Web/Chrome session, unique per-invocation gate
+  directory and per-call ports; starts the existing driver with
+  `PHASE1_GATE_DIR`, which inserts the frozen prompt and **stops before Enter**.
+  `check_workspace_session.py` reads the active composer session ID from the
+  gate, then the persisted `session.header.identity.cwd` from
+  `DSH_HOME/storages/session_projcache`; it requires that actual cwd to be the
+  frozen scenario and checks Git base/head/diff. It does **not** use Dashboard
+  candidate roots. `--prepare-only` kills the driver before any prompt;
+  `--execute` is rejected before any setup unless
+  `PHASE1_EXECUTION_AUTHORIZED=YES`; each invocation has a new gate directory so
+  stale `ready.json`/`proceed` cannot leak. `PHASE1_EXPECTED_OVERRIDE` and
+  `PHASE1_WORKSPACE_OVERRIDE` are negative-test hooks only.
+- `check_verifier_snapshot.py` — post-call: finds the actual
+  `.ai/rsi/runs/*/code.json`, requires its `head` to equal the plan call head and
+  re-checks workspace Git HEAD/base/diff. Missing/wrong code.json exits non-zero;
+  the runner then marks the call invalid (exit 40), not success.
 - `check_phase1_plan.py` — offline validator: order/uniqueness, A/B identity,
   same-scenario input identity, input/prompt/diff hashes, gold labels, paths,
   per-call monitor settings, and the **actual `calls[].workspace`**. It rejects
@@ -55,7 +63,17 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_pla
   --dirty-workspace-test --fixtures-root /tmp/validity-1c-fixtures
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
   --stage-prompts /tmp/phase1/prompts
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py --self-test
 # zero-model isolation check (per-call home; no prompt sent)
 DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \
   S2-A --prepare-only 61001 9301
+# negative hooks (all must be fail-closed / no prompt):
+PHASE1_EXPECTED_OVERRIDE=/tmp/validity-1c-fixtures/S3_out_of_scope \
+  DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \
+  S2-A --prepare-only 61002 9302          # exit 35, no prompt
+PHASE1_WORKSPACE_OVERRIDE=/tmp/validity-1c-fixtures/S3_out_of_scope \
+  DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \
+  S2-A --prepare-only 61003 9303          # exit 35, no prompt
+DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \
+  S2-A --execute 61004 9304               # exit 37 before setup
 ```

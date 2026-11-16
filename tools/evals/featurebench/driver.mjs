@@ -134,9 +134,10 @@ if (insertedLen < Math.min(10, text.length)) {
 const gateDir = process.env.PHASE1_GATE_DIR;
 if (gateDir) {
   mkdirSync(gateDir, { recursive: true });
+  const gateSessionId = await evalJS(`document.querySelector('[data-conversation-session]')?.dataset.conversationSession || null`);
   writeFileSync(join(gateDir, 'ready.json'), JSON.stringify({
     webPort, cdpPort: process.argv[2], preset: presetLabel,
-    insertedLen, wantLen: text.length,
+    sessionId: gateSessionId, insertedLen, wantLen: text.length,
   }, null, 2));
   const proceed = join(gateDir, 'proceed');
   let gateOk = false;
