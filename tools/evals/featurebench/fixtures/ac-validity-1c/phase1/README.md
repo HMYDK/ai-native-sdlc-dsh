@@ -28,12 +28,17 @@ It does not authorize or start any paid call.
   stale `ready.json`/`proceed` cannot leak. `PHASE1_EXPECTED_OVERRIDE` and
   `PHASE1_WORKSPACE_OVERRIDE` are negative-test hooks only.
 - `check_verifier_snapshot.py` — post-call: finds the actual
-  `.ai/rsi/runs/*/code.json` and requires `complete=true`, `issues=[]`,
-  `diff=""` (no tracked working-tree changes), no unexpected untracked
+  `.ai/rsi/runs/*/code.json` and requires `complete=true`, `issues==[]`,
+  `diff==""` (no tracked working-tree changes), no unexpected untracked
   source/test files (only `out.csv`/Python caches allowed), `head` equal to the
   plan call head, and matching workspace Git base/head/diff. Missing/incomplete/
   wrong snapshots exit non-zero; the runner marks the call invalid (exit 40), not
   success.
+- `check_driver_result.py` — reads `driver-result.json` and separates
+  **driver completion** from **verdict presence**: normal+verdict=0; complete but
+  no verdict=10 `no_verdict`; missing/incomplete=11; aborted (timeout/over_budget)=12;
+  turn_error=13. `run_isolated.sh --classify-only RESULT OUTDIR` exercises the
+  same classification/exit/status path without DSH/Chrome/model.
 - `check_phase1_plan.py` — offline validator: order/uniqueness, A/B identity,
   same-scenario input identity, input/prompt/diff hashes, gold labels, paths,
   per-call monitor settings, and the **actual `calls[].workspace`**. It rejects
@@ -67,6 +72,7 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_pla
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_phase1_plan.py \
   --stage-prompts /tmp/phase1/prompts
 python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py --self-test
+python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py --self-test
 # zero-model isolation check (per-call home; no prompt sent)
 DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \
   S2-A --prepare-only 61001 9301

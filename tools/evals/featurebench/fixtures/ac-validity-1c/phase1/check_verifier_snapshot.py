@@ -54,10 +54,10 @@ def code_snapshot_errors(code: Path | None, expected_head: str) -> list[str]:
     if d.get("complete") is not True:
         errs.append("code.json complete is not true")
     issues = d.get("issues")
-    if issues not in ([], None):
-        errs.append(f"code.json issues is not empty: {issues!r}")
-    if d.get("diff") not in ("", None):
-        errs.append("code.json diff is non-empty (tracked working-tree changes)")
+    if issues != []:
+        errs.append(f"code.json issues is not explicitly []: {issues!r}")
+    if d.get("diff") != "":
+        errs.append("code.json diff is not explicitly empty string")
     for item in d.get("untracked") or []:
         path = item.get("path") if isinstance(item, dict) else None
         if not isinstance(path, str) or not allowed_untracked(path):
@@ -107,11 +107,13 @@ def self_test() -> int:
             return 1
         cases = {
             "missing": (root / "missing" / "code.json", "missing code.json"),
-            "diff": (None, "diff is non-empty"),
+            "diff": (None, "diff is not explicitly empty string"),
             "untracked": (None, "unexpected untracked"),
             "incomplete": (None, "complete is not true"),
-            "issues": (None, "issues is not empty"),
+            "issues": (None, "issues is not explicitly []"),
             "head": (None, "verifier head def"),
+            "issues_none": (None, "issues is not explicitly []"),
+            "diff_none": (None, "diff is not explicitly empty string"),
         }
         for name, (_, needle) in cases.items():
             p = root / name / "code.json"
@@ -124,6 +126,8 @@ def self_test() -> int:
                 if name == "untracked": d["untracked"] = [{"path": "app/evil.py"}]
                 if name == "incomplete": d["complete"] = False
                 if name == "issues": d["issues"] = ["capture failed"]
+                if name == "issues_none": d["issues"] = None
+                if name == "diff_none": d["diff"] = None
                 if name == "head": d["head"] = "def"
                 p.write_text(json.dumps(d), encoding="utf-8")
             errs = code_snapshot_errors(p if name != "missing" else p, "abc")

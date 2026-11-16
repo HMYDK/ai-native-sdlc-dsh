@@ -86,6 +86,7 @@ jobs:
           python3 -m py_compile tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_workspace_session.py
           python3 -m py_compile tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py
           python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py --self-test
+          python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py --self-test
 
       - name: Baseline index check
         run: python3 tools/evals/featurebench/sanity_check.py --index

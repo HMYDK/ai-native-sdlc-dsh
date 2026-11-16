@@ -6,6 +6,19 @@
 # --execute additionally requires PHASE1_EXECUTION_AUTHORIZED=YES; it is not for
 # zero-model validation.
 set -u
+# Zero-model test hook: exercise the same classifier/exit/status path as a real
+# run without starting DSH, Chrome, or a driver.
+if [ "${1:-}" = "--classify-only" ]; then
+  RESULT="${2:?usage: run_isolated.sh --classify-only DRIVER_RESULT OUTDIR}"
+  OUTDIR="${3:?usage: run_isolated.sh --classify-only DRIVER_RESULT OUTDIR}"
+  REPO="$(cd "$(dirname "$0")/../../../../../.." && pwd)"
+  CLASSIFY="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py"
+  mkdir -p "$OUTDIR"
+  python3 "$CLASSIFY" --result "$RESULT" --status "$OUTDIR/driver-classification.json" > "$OUTDIR/driver-classification.log" 2>&1
+  RC=$?
+  cat "$OUTDIR/driver-classification.log"
+  exit "$RC"
+fi
 CALL="${1:?usage: run_isolated.sh CALL --prepare-only|--execute WEB_PORT CDP_PORT}"
 MODE="${2:?mode required}"
 WEB_PORT="${3:?web port required}"
@@ -14,6 +27,7 @@ ROOT="${PHASE1_ROOT:-/tmp/phase1}"
 REPO="$(cd "$(dirname "$0")/../../../../../.." && pwd)"
 PLAN="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/plan.yml"
 CHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_workspace_session.py"
+CLASSIFY="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py"
 DRIVER="$REPO/tools/evals/featurebench/driver.mjs"
 DSH_CLI="${DSH_CLI:?set DSH_CLI to the DSH 0.2.2-rc.3 executable}"
 FIXTURES="${PHASE1_FIXTURES:-/tmp/validity-1c-fixtures}"
@@ -142,6 +156,9 @@ fi
 touch "$GATE/proceed"
 wait "$DRIVER_PID"
 DRIVER_RC=$?
+python3 "$CLASSIFY" --result "$OUT/driver-result.json" --status "$OUT/driver-classification.json" > "$OUT/driver-classification.log" 2>&1
+CLASS_RC=$?
+cat "$OUT/driver-classification.log"
 SNAP_CHECK="$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py"
 python3 "$SNAP_CHECK" --call "$CALL" --workspace "$EFFECTIVE_WS" --plan "$PLAN" > "$OUT/postcheck.log" 2>&1
 POST_RC=$?
@@ -150,8 +167,16 @@ if [ "$POST_RC" -ne 0 ]; then
   echo "POSTCHECK_FAIL: call marked invalid; evidence preserved in $EFFECTIVE_WS/.ai/rsi" >&2
   exit 40
 fi
+if [ "$DRIVER_RC" -ne 0 ]; then
+  echo "DRIVER_EXIT_NONZERO: rc=$DRIVER_RC; evidence preserved" >&2
+  exit "$DRIVER_RC"
+fi
+if [ "$CLASS_RC" -ne 0 ]; then
+  echo "DRIVER_RESULT_NOT_SUCCESS: rc=$CLASS_RC; see $OUT/driver-classification.json" >&2
+  exit "$CLASS_RC"
+fi
 if [ -d "$EFFECTIVE_WS/.ai/rsi" ]; then
   mv "$EFFECTIVE_WS/.ai/rsi" "$OUT/ai-rsi-rsi"
   rmdir "$EFFECTIVE_WS/.ai" 2>/dev/null || true
 fi
-exit "$DRIVER_RC"
+exit 0
