@@ -43,7 +43,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-export DSH_HOME="$HOME_DIR"
+DSH_HOME_NAME=DSH_HOME
+export "$DSH_HOME_NAME=$HOME_DIR"
 "$DSH_CLI" --profile web --dump-default-config >/dev/null
 PROFILE="$DSH_HOME/profiles/web"
 mkdir -p "$PROFILE/node_modules/@ai-native-sdlc-plugin"
