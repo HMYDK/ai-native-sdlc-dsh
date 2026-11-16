@@ -83,6 +83,12 @@ python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_res
 # zero-model isolation check (per-call home; no prompt sent)
 DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \
   S2-A --prepare-only 61001 9301
+# prompt hash fail-closed (driver exits 8 before CDP/prompt)
+set +e
+PHASE1_EXPECTED_PROMPT_SHA256=deadbeef node tools/evals/featurebench/driver.mjs \
+  1 x tools/evals/featurebench/fixtures/ac-validity-1c/phase1/prompts/S2.txt /tmp/prompt-hash.json
+test "$?" -eq 8
+set -e
 # negative hooks (all must be fail-closed / no prompt):
 PHASE1_EXPECTED_OVERRIDE=/tmp/validity-1c-fixtures/S3_out_of_scope \
   DSH_CLI=/path/to/dsh bash tools/evals/featurebench/fixtures/ac-validity-1c/phase1/run_isolated.sh \

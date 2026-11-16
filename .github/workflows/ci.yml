@@ -87,6 +87,11 @@ jobs:
           python3 -m py_compile tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py
           python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_verifier_snapshot.py --self-test
           python3 tools/evals/featurebench/fixtures/ac-validity-1c/phase1/check_driver_result.py --self-test
+          set +e
+          PHASE1_EXPECTED_PROMPT_SHA256=deadbeef node tools/evals/featurebench/driver.mjs 1 x tools/evals/featurebench/fixtures/ac-validity-1c/phase1/prompts/S2.txt /tmp/phase1-prompt-hash.json >/tmp/phase1-prompt-hash.log 2>&1
+          rc=$?
+          cat /tmp/phase1-prompt-hash.log
+          test "$rc" -eq 8
 
       - name: Baseline index check
         run: python3 tools/evals/featurebench/sanity_check.py --index

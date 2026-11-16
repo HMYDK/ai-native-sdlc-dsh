@@ -76,15 +76,20 @@ case "$MODE" in
 esac
 mkdir -p "$OUT" "$HOME_DIR" "$EVAL_ROOT/deepseek-harness" "$CHROME_DIR" "$GATE"
 
-read -r SCEN ARM WS < <(python3 - "$PLAN" "$CALL" <<'PY'
+read -r SCEN ARM WS PROMPT_REL PROMPT_SHA < <(python3 - "$PLAN" "$CALL" <<'PY'
 import sys,yaml
 p=sys.argv[1]; cid=sys.argv[2]
 d=yaml.safe_load(open(p))
 c=next(c for c in d["calls"] if c["id"]==cid)
-print(c["scenario"],c["arm"],c["workspace"])
+print(c["scenario"],c["arm"],c["workspace"],c["prompt"],c["prompt_sha256"])
 PY
 )
 EFFECTIVE_WS="${PHASE1_WORKSPACE_OVERRIDE:-$WS}"
+# Use the repository frozen prompt by default; the driver re-hashes the exact
+# file it reads immediately before any CDP/prompt action. The override is a
+# negative-test hook only.
+PROMPT_FILE="${PHASE1_PROMPT_OVERRIDE:-$REPO/tools/evals/featurebench/fixtures/ac-validity-1c/phase1/$PROMPT_REL}"
+[ -f "$PROMPT_FILE" ] || { echo "ERROR prompt file missing: $PROMPT_FILE" >&2; exit 39; }
 PLUGIN="$ROOT/plugins/$ARM"
 [ -d "$PLUGIN/dsh-sdlc" ] || { echo "ERROR missing plugin $PLUGIN" >&2; exit 30; }
 
@@ -181,15 +186,16 @@ done
 grep -q "127.0.0.1:$WEB_PORT" "$OUT/targets.json" 2>/dev/null || { echo "ERROR no Chrome target" >&2; exit 33; }
 
 DRIVER_STARTED=1
-PHASE1_GATE_DIR="$GATE" WEB_PORT="$WEB_PORT" MAX_TOKENS=2000000 MAX_WALL_S=1200 \
-  node "$DRIVER" "$CDP_PORT" "AI 原生 SDLC" "$ROOT/prompts/$SCEN.txt" "$OUT/driver-result.json" \
+PHASE1_GATE_DIR="$GATE" PHASE1_EXPECTED_PROMPT_SHA256="$PROMPT_SHA" WEB_PORT="$WEB_PORT" MAX_TOKENS=2000000 MAX_WALL_S=1200 \
+  node "$DRIVER" "$CDP_PORT" "AI 原生 SDLC" "$PROMPT_FILE" "$OUT/driver-result.json" \
   > "$OUT/driver.log" 2>&1 &
 DRIVER_PID=$!
 for i in $(seq 1 120); do
   [ -f "$GATE/ready.json" ] && break
+  kill -0 "$DRIVER_PID" 2>/dev/null || break
   sleep 1
 done
-[ -f "$GATE/ready.json" ] || { echo "ERROR driver did not reach pre-prompt gate" >&2; exit 34; }
+[ -f "$GATE/ready.json" ] || { echo "ERROR driver did not reach pre-prompt gate (see $OUT/driver.log); no prompt sent" >&2; exit 34; }
 SESSION_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sessionId") or "")' "$GATE/ready.json")
 [ -n "$SESSION_ID" ] || { echo "ERROR gate ready.json has no active sessionId" >&2; exit 34; }
 

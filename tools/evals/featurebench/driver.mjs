@@ -1,8 +1,18 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 const [cdpPort, presetLabel, promptFile, outFile] = process.argv.slice(2);
 const webPort = process.env.WEB_PORT || '3113';
-const text = readFileSync(promptFile, 'utf8');
+const promptBytes = readFileSync(promptFile);
+const expectedPromptSha = process.env.PHASE1_EXPECTED_PROMPT_SHA256 || '';
+if (expectedPromptSha) {
+  const actualPromptSha = createHash('sha256').update(promptBytes).digest('hex');
+  if (actualPromptSha !== expectedPromptSha) {
+    console.error('PROMPT_SHA_MISMATCH expected=' + expectedPromptSha + ' actual=' + actualPromptSha);
+    process.exit(8);
+  }
+}
+const text = promptBytes.toString('utf8');
 const list = await (await fetch(`http://127.0.0.1:${cdpPort}/json/list`)).json();
 const target = list.find(t => t.type === 'page' && t.url.includes('127.0.0.1:' + webPort));
 if (!target) { console.error('NO TARGET'); process.exit(1); }
