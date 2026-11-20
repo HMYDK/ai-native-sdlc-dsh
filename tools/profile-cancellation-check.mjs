@@ -33,7 +33,6 @@ const {ctx} = await runProfile({environment: loadLayeredEnv('dsh'), profile: 'we
 async function checkSpawnCancellation() {
   const {LlmAdapter} = require('@deepseek-ai/dsh-llm');
   const {load, JSON_SCHEMA} = require('js-yaml');
-  const {registerAcceptance} = await import(pathToFileURL(path.join(lib, 'shared/acceptance.js')));
   const workspace = await fs.mkdtemp(path.join(checkHome, 'cancel-probe-'));
   const task = 'RUNTIME-CANCEL';
   const dir = path.join(workspace, '.ai/tasks', task);
@@ -41,20 +40,20 @@ async function checkSpawnCancellation() {
   const spec = '# Spec\n\n## Acceptance Criteria\n- AC-001: Keep the cancelled run from completing delivery.\n';
   const stateFile = path.join(dir, 'state.yaml');
   const state = {
-    task, title: 'Controlled cancellation probe', status: 'VERIFYING', created: at, updated: at, history: [],
-    artifacts: {intent: 'intent.md', spec: 'spec.md', plan: 'plan.md'},
-    acceptance: registerAcceptance('spec.md', spec, randomUUID(), at, 'runtime-probe'),
+    task, title: 'Controlled cancellation probe', status: 'SPEC', created: at, updated: at, history: [],
+    artifacts: {intent: 'intent.md', spec: 'spec.md', plan: 'plan.md', source: 'source.md'},
   };
   const controller = new AbortController();
   const parentId = `cancel-tool-${randomUUID()}`;
   const route = 'sdlc-cancel-fixture';
   const {promise: published, resolve: announcePublication} = Promise.withResolvers();
   let adapterCalls = 0, modelRequests = 0, aborts = 0, actor, releaseAdapter;
+  let preparingSpec = true;
   const stopRecording = ctx.on('sdlc-verify/record', record => {
     if (record.kind === 'attempt_session') announcePublication();
   });
   const stopObserving = ctx.on('session/event', (session, event) => {
-    if (session.id === parentId) return;
+    if (preparingSpec || session.id === parentId) return;
     if (event.type === 'request/header') modelRequests++;
     if (event.type === 'assistant/message' && event.data.usage?.totalTokens === 11) {
       aborts++;
@@ -72,10 +71,18 @@ async function checkSpawnCancellation() {
       fs.writeFile(stateFile, JSON.stringify(state)),
       fs.writeFile(path.join(dir, 'intent.md'), 'Check cancellation after the verifier starts.\n'),
       fs.writeFile(path.join(dir, 'spec.md'), spec),
+      fs.writeFile(path.join(dir, 'source.md'), 'The task must stop promptly when verification is cancelled.\n'),
       fs.writeFile(path.join(dir, 'plan.md'), 'Abort at the first assistant response requiring another step.\n'),
     ]);
     releaseAdapter = ctx.llm.registerAdapter([route], new class extends LlmAdapter {
       async *stream() {
+        if (preparingSpec) {
+          yield {type: 'block-start', index: 0, blockType: 'tool-call'};
+          yield {type: 'block-end', index: 0, block: {type: 'tool-call', id: 'probe-spec-result', name: 'structured_output',
+            arguments: JSON.stringify({summary: 'Controlled cancellation fixture.', findings: [], follow_up: [], limitations: []})}};
+          yield {type: 'finish', reason: {kind: 'tool-calls'}};
+          return;
+        }
         adapterCalls++;
         // The first request cannot respond until the tool records the published activation.
         await published;
@@ -93,6 +100,17 @@ async function checkSpawnCancellation() {
     actor = await ctx.agents.create({sessionId: parentId, meta: {cwd: workspace, agentPreset: 'sdlc'},
       agentOptions: {provider: route, model: 'controlled-cancellation'},
       setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'sdlc'); }});
+    const setup = async (name, args) => {
+      const result = await ctx.tools.execute({agent: actor.agent, signal: controller.signal, calls: [{
+        id: name, name, arguments: JSON.stringify({task_id: task, ...args}),
+      }]});
+      const value = result.results[0].result;
+      assert.equal(value.isError, false, JSON.stringify(value));
+      return value.value;
+    };
+    assert.equal((await setup('sdlc_spec_review', {})).review_complete, true);
+    await setup('sdlc_task_advance', {to: 'VERIFYING', reason: 'Controlled prerequisite for cancellation probe'});
+    preparingSpec = false;
     const batch = await ctx.tools.execute({agent: actor.agent, signal: controller.signal, calls: [{
       id: 'verify-cancel', name: 'sdlc_verify', arguments: JSON.stringify({task_id: task, intent_of_change: 'Controlled cancellation probe.'}),
     }]});

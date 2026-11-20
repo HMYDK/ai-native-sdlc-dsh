@@ -29,7 +29,8 @@ export const ARTIFACT_POLICY_TEXT = [
   '  - hidden tests / 外部 Grader 不是用户承诺，除非 Source 明确引用；范围冲突写进 Areas of concern，不要偷偷扩 AC。',
   '  - Source 承诺真实行为/构建时，不能因为某个依赖没被点名就把它当成 out-of-scope；范围冲突要写清并请求澄清。',
   '  - 首次进入 PLANNED 或更后续阶段登记整个 Spec；登记后包括说明文字的修改都要回到 SPEC 重新登记。',
-  '  - SPEC 草稿写完后，建议调用 `sdlc_spec_review`，以可读取的用户原文独立检查遗漏、范围偏移和验收反例。它不是结构检查或推进许可。',
+  '  - 进入 SPEC 时登记用户原文 source。涉及多份原文或确认澄清时，还要登记完整 spec_sources 清单。',
+  '  - 调用 `sdlc_spec_review(task_id)` 检查当前草稿的遗漏、范围偏移和验收反例。现有审核记录必须匹配登记的资料，且发现全部收口，才能向前进入 PLANNED 或之后阶段。',
   '  - 根据发现修改草稿或提供反证；复审带 previous_review 与逐项 responses。涉及需求解释权时提出具体问题请用户确认。',
   '- `plan.md`：Files that change / Order of work / Risks / **Proof**',
   '  - `Proof` 是验证阶段对账的依据——“计划里承诺的证据”要能对得上。',
@@ -37,5 +38,5 @@ export const ARTIFACT_POLICY_TEXT = [
   '用 `sdlc_artifact_write` 写、`sdlc_artifact_check` 先查草稿（不写盘）。',
   '',
   '⚠️ 这两个工具**只查结构，不查质量**：章节和五个子节在不在、是否各自唯一、是不是空/占位符会被检查；但 Source 是否真实、Outcome 是否充分、AC mapping 是否完整，程序不判断。结构合规的废话照样通过。',
-  '⚠️ 这不是状态推进硬门禁：`checkAdvance` 不调用 `checkArtifact`；直接写 `spec.md` 仍可绕过。语义和证据由独立验证者（#21）与人核对。',
+  '`sdlc_artifact_check` 只检查文档结构。推进还要核对独立 SPEC 审查、当前输入版本和未解决发现。',
 ].join('\n');

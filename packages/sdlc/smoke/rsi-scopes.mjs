@@ -1,4 +1,5 @@
 import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
+import {controlledSpecActivation, reviewFixture} from './helpers/spec-review.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
@@ -51,6 +52,8 @@ try {
   }});
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture verifier'})});
   ctx.provide('subagents',{startActivation:async(spec)=>{
+    const specReview = controlledSpecActivation(spec,'rsi-spec-reviewer');
+    if (specReview) return specReview;
     const criterion_id=(spec.prompt??[]).map(p=>p.text??'').join(' ').match(/AC-[A-Za-z0-9-]+/)?.[0];
     const id=`child-${++childCounter}`,session={id,header:{cwd:root,parentSession:'author',origin:'subagent'}};
     const child={},scope=createScope(ctx,child,{parent:verifierKey}),events=[];
@@ -96,7 +99,12 @@ try {
     const yaml=require('js-yaml');const setup=yaml.load(await fs.readFile(setupFile,'utf8'),{schema:yaml.JSON_SCHEMA});
     for(const kind of ['intent','spec','plan']) {setup.artifacts[kind]=`${kind}.md`;await fs.writeFile(path.join(root,'.ai/tasks/SCOPE-1',`${kind}.md`),'# fixture');}
     await fs.writeFile(path.join(root,'.ai/tasks/SCOPE-1/spec.md'),'## Acceptance Criteria\n- AC-001: fixture passes\n');
+    await fs.writeFile(path.join(root,'.ai/tasks/SCOPE-1/source.md'),'Controlled original requirement.\n');
+    setup.artifacts.source='source.md';
     await fs.writeFile(setupFile,yaml.dump(setup,{schema:yaml.JSON_SCHEMA}));
+    const specStage=await call('sdlc_task_advance',{task_id:'SCOPE-1',to:'SPEC',reason:'review fixture Spec'});
+    assert.ok(!specStage.isError,JSON.stringify(specStage));
+    await reviewFixture(call,'SCOPE-1');
     const setupAdvance=await call('sdlc_task_advance',{task_id:'SCOPE-1',to:'VERIFYING',reason:'register fixture Spec'});
     assert.ok(!setupAdvance.isError,JSON.stringify(setupAdvance));
     const verified=await call('sdlc_verify',{task_id:'SCOPE-1',intent_of_change:'fixture',criteria:['fixture passes']});

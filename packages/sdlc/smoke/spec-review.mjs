@@ -1,123 +1,292 @@
-/** Real Cordis + ToolRuntime + LocalFileSystem; model replies are controlled, NOT semantic quality evidence. */
+/** Real tools + filesystem with controlled responses. SDLC_TEST_LIB can point at the advisory baseline. */
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
+import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {pathToFileURL} from 'node:url';
 import {installNativeExecutor, executeTool} from './helpers/executor.mjs';
-const require=createRequire(path.join(process.env.DSH_APP??'/Applications/DeepSeek Harness.app','Contents/Resources/app.asar/dsh/node_modules/noop.js'));
-const {Context}=require('@deepseek-ai/cordis'),{ToolRuntime}=require('@deepseek-ai/dsh-tools'),{LocalFileSystem}=require('@deepseek-ai/dsh-fs-local');
-const task=await import('../lib/task/index.js'),artifact=await import('../lib/artifact/index.js'),verify=await import('../lib/verify/index.js');
-const root=await fs.mkdtemp(path.join(os.tmpdir(),'sdlc-spec-review-')),ctx=new Context();
-const agent={id:'author',session:{id:'author',header:{cwd:root}}};
-let seq=0,checks=0,starts=0,releases=0,disposes=0,active=0,during,throwProvider=false,lastRequest;
-const check=(condition,label)=>{assert.ok(condition,label);checks++;console.log('  ✓ '+label);};
-const empty=()=>({summary:'Controlled review; not semantic evidence.',findings:[],follow_up:[],limitations:[]});
-const finding={kind:'omission',source_id:'S1',source_quote:'Export every order.',spec_reference:'AC-001',problem:'Headers alone permit missing rows.',counterexample:'Only the first page is exported.',suggestion:'Verify every source order ID across pages.'};
-let structured={...empty(),findings:[finding]},stopReason='completed';
-const call=(name,args,signal=new AbortController().signal)=>executeTool(ctx,{callId:`spec-review-${++seq}`,name,arguments:args,agent,signal});
-const success=async(name,args,signal)=>{const r=await call(name,args,signal);assert.ok(!r.isError,JSON.stringify(r));return r.value;};
-const source={path:'source.md',origin:'Controlled user requirement fixture',kind:'original'};
-const review=(extra={},signal)=>success('sdlc_spec_review',{task_id:'SPEC-1',sources:[source],...extra},signal);
-const readRecord=r=>fs.readFile(path.join(root,r.review_file),'utf8').then(JSON.parse);
-const taskDir=path.join(root,'.ai/tasks/SPEC-1');
-const spec='# Spec\n\n## Delivery Contract\n\n### Source\nsource.md\n\n### Outcome\nExport orders.\n\n### Boundary\nCSV only; Excel excluded.\n\n### Oracle\nCLI export.\n\n### AC mapping\nO-1 → AC-001\n\n## Acceptance Criteria\n- AC-001: CSV header is id,amount.\n\n## Requirements\nExport orders.\n\n## Design\nUse the existing orders API.\n\n## Areas of concern\nPagination coverage.\n';
-try {
-  new LocalFileSystem(ctx,LocalFileSystem.Config['~standard'].validate({}).value);
-  ctx.provide('sandboxPolicy',{resolve:()=>({mode:'workspace-write',workspaceRoot:root,writableRoots:[root]})});
-  ctx.provide('systemPrompt',{section:()=>()=>{},tools:()=>()=>{},variable:()=>()=>{},context:()=>()=>{},getSectionOrder:()=>0,getContextOrder:()=>0});
-  new ToolRuntime(ctx,'tools');installNativeExecutor(ctx,require);
-  ctx.provide('agentPresets',{register:async()=>{active++;return()=>{active--;releases++;};},resolve:async id=>active?{id,name:'fixture'}:undefined});
-  ctx.provide('subagents',{startActivation:async request=>{
-    starts++;lastRequest=request;
-    assert.equal(request.parent,agent);assert.equal(request.request,undefined);
-    assert.equal(request.label,'sdlc-spec-review');assert.equal(request.agentPreset,'sdlc-verifier');
-    assert.equal(request.delivery,'caller');assert.ok(request.outputSchema.properties.findings);
-    assert.equal(request.outputSchema.properties.status,undefined);
-    if(throwProvider)throw new Error('controlled provider failure');
-    const result=(async()=>{if(during)await during();return {output:[{type:'text',text:'An untrusted free-text approval.'}],stopReason,structured:structuredClone(structured)};})();
-    return {childId:`reviewer-${starts}`,result,dispose:async()=>{disposes++;}};
-  }});
-  for(const plugin of [task,artifact,verify])plugin.apply(ctx,plugin.Config['~standard'].validate({}).value);
-  await success('sdlc_task_create',{task_id:'SPEC-1',title:'Controlled draft-only review'});
-  const intent='# Intent\n\n## Problem\nOrders must be exported.\n\n## Proposed outcome\nExport every order.\n\n## Affected users and systems\nOperators.\n\n## Constraints\nNo Excel.\n\n## Open questions\nNone.\n';
-  for(const [kind,content]of Object.entries({intent,spec}))await success('sdlc_artifact_write',{task_id:'SPEC-1',kind,content});
-  await success('sdlc_task_advance',{task_id:'SPEC-1',to:'SPEC',reason:'Draft ready for feedback'});
-  await fs.writeFile(path.join(root,'source.md'),'Export every order. Excel support is explicitly excluded.\n');
-  const before=await fs.readFile(path.join(taskDir,'state.yaml'),'utf8');
 
-  const initial=await review();check(initial.review_complete&&initial.review.findings.length===1,'SPEC draft reviewed without plan, code or delivery tests');
-  const saved=await readRecord(initial);
-  check(saved.inputs.sources[0].content.includes('Export every order.'),'original source bytes retained in record');
-  check(lastRequest.prompt[0].text.includes(saved.inputs.sources[0].content.trim()),'original requirement reaches independent prompt');
-  check(!('status'in initial.review)&&!('verdict'in saved),'SPEC feedback is not a delivery approval');
-  check(saved.events.at(-1).kind==='finished'&&saved.outcome==='completed','completed execution retained');
-  check((await fs.readFile(path.join(taskDir,'state.yaml'),'utf8'))===before,'task state, AC and issues remain byte-identical');
-  check(!(await fs.readdir(taskDir)).includes('verification.json'),'no final verification artifact is written');
-  const id=initial.active_findings[0].id;
-  const response=[{finding_id:id,response:'Added AC-002 to compare all exported order IDs across pages.'}];
-  await fs.appendFile(path.join(taskDir,'spec.md'),'\nRevision: AC-002 will check all source order IDs across pages.\n');
-  structured={...empty(),follow_up:[{finding_id:id,result:'addressed',evidence:'Current Spec revision explicitly compares all order IDs.'}]};
-  const fixed=await review({previous_review:initial.review_id,responses:response,sources:undefined});
-  check(fixed.review_complete&&fixed.active_findings.length===0,'follow-up confirms a revision and inherits original sources');
-  const fixedRecord=await readRecord(fixed);
-  check(fixedRecord.inputs.previous_review===initial.review_id&&fixedRecord.inputs.spec.sha256!==saved.inputs.spec.sha256,'follow-up binds its parent and the revised Spec');
-  check(lastRequest.prompt[0].text.includes('previousSpec')&&lastRequest.prompt[0].text.includes('previousSources'),'reviewer sees prior material and current draft');
-
-  structured={...empty(),follow_up:[{finding_id:id,result:'withdrawn',evidence:'Controlled counterevidence: the original claim was mistaken.'}]};
-  const withdrawn=await review({previous_review:initial.review_id,responses:[{finding_id:id,response:'Here is counterevidence for the claim.'}]});
-  check(withdrawn.review_complete&&withdrawn.active_findings.length===0,'independent follow-up can withdraw a mistaken finding');
-  structured={...empty(),follow_up:[{finding_id:id,result:'needs_clarification',evidence:'Ask the user whether archived orders are included.'}]};
-  const disputed=await review({previous_review:initial.review_id,responses:response});
-  check(disputed.review_complete&&disputed.active_findings[0].id===id,'a dispute retains its original identity without a new issue');
-
-  let count=starts;
-  const missingResponse=await review({previous_review:initial.review_id});
-  check(!missingResponse.review_complete&&starts===count,'missing author responses stop before model dispatch');
-  structured=empty();
-  const missingFollowUp=await review({previous_review:initial.review_id,responses:response});
-  check(!missingFollowUp.review_complete&&/遗漏/.test(missingFollowUp.diagnostic),'model cannot silently omit earlier findings');
-  structured={...empty(),findings:[{...finding,source_quote:'Export an Excel file.'}]};
-  const invented=await review();check(!invented.review_complete&&/原文/.test(invented.diagnostic),'fabricated source quote cannot complete a review');
-  structured=undefined;count=starts;
-  const malformed=await review();check(!malformed.review_complete&&starts===count+1,'missing structured result has no automatic retry or free-text fallback');
-  check((await readRecord(malformed)).outcome==='incomplete','generation failure is saved as incomplete');
-  structured=empty();
-  for(const file of ['spec.md','../../source.md','/etc/passwd']) {
-    count=starts;const failed=await review({sources:[{...source,path:file}]});
-    check(!failed.review_complete&&starts===count,`missing/outside source ${file} stops before dispatch`);
+const app = process.env.DSH_APP ?? '/Applications/DeepSeek Harness.app';
+const require = createRequire(path.join(app, 'Contents/Resources/app.asar/dsh/node_modules/noop.js'));
+const {Context} = require('@deepseek-ai/cordis');
+const {ToolRuntime} = require('@deepseek-ai/dsh-tools');
+const {LocalFileSystem} = require('@deepseek-ai/dsh-fs-local');
+const {load, JSON_SCHEMA} = require('js-yaml');
+const lib = path.resolve(process.env.SDLC_TEST_LIB ?? path.join(import.meta.dirname, '../lib'));
+const [task, artifact, verify, {registerAcceptance}] = await Promise.all([
+  'task/index.js', 'artifact/index.js', 'verify/index.js', 'shared/acceptance.js',
+].map(file => import(pathToFileURL(path.join(lib, file)))));
+const ctx = new Context();
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'sdlc-spec-review-'));
+const tasksDir = process.env.SDLC_SPEC_TASKS_DIR ?? '.ai/tasks';
+const agent = {id: 'author', session: {id: 'author', header: {cwd: root}}};
+const primary = 'SPEC-1';
+const dir = id => path.join(root, tasksDir, id);
+const read = (id, file) => fs.readFile(path.join(dir(id), file), 'utf8');
+const write = (id, file, body) => fs.writeFile(path.join(dir(id), file), body);
+const state = id => read(id, 'state.yaml').then(body => load(body, {schema: JSON_SCHEMA}));
+const setState = (id, state) => write(id, 'state.yaml', JSON.stringify(state));
+const hash = body => createHash('sha256').update(body).digest('hex');
+let seq = 0, checks = 0, starts = 0, releases = 0, disposes = 0, leases = 0, during, providerError = false;
+let stopReason = 'completed';
+const empty = () => ({summary: 'Controlled review response.', findings: [], follow_up: [], limitations: []});
+const finding = {kind: 'omission', source_id: 'S1', source_quote: 'Export every order.', spec_reference: 'AC-001',
+  problem: 'Headers allow missing rows.', counterexample: 'Only export the first page.', suggestion: 'Compare all source IDs.'};
+let structured = empty();
+const check = (value, label) => { assert.ok(value, label); checks++; console.log('  ✓ ' + label); };
+const call = (name, args, signal = new AbortController().signal) => executeTool(ctx, {
+  callId: `spec-gate-${++seq}`, name, arguments: args, agent, signal,
+});
+const success = async (name, args) => {
+  const result = await call(name, args);
+  assert.ok(!result.isError, JSON.stringify(result));
+  return result.value;
+};
+const review = (id = primary, extra = {}) => success('sdlc_spec_review', {task_id: id, ...extra});
+const advance = (id, to, extra = {}) => call('sdlc_task_advance', {task_id: id, to, reason: 'Controlled stage transition', ...extra});
+const rejectAdvance = async (id, to, reason, extra) => {
+  const before = await read(id, 'state.yaml');
+  const result = await advance(id, to, extra);
+  check(result.isError && reason.test(result.error.message), `${id} → ${to} rejected: ${result.error?.message ?? 'unexpected success'}`);
+  check(await read(id, 'state.yaml') === before, 'failure leaves state, history and acceptance bytes unchanged');
+};
+const passAdvance = async (id, to, extra) => {
+  const result = await advance(id, to, extra);
+  check(!result.isError && result.value.to === to, `${id} → ${to}: ${result.error?.message ?? 'allowed'}`);
+};
+const source = 'Export every order. Excel support is excluded.\n';
+const spec = '# Spec\n\n## Acceptance Criteria\n- AC-001: CSV header is id,amount.\n';
+const historyRecord = args => fs.readFile(path.join(root, args.review_file), 'utf8').then(JSON.parse);
+async function create(id, {registered = true, stage = 'SPEC', manifest = false} = {}) {
+  await success('sdlc_task_create', {task_id: id, title: 'Controlled draft review'});
+  const artifacts = {intent: 'intent.md', spec: 'spec.md', plan: 'plan.md', review: 'review.json'};
+  if (registered) artifacts.source = 'source.md';
+  for (const [file, body] of Object.entries({'intent.md': '# Intent\n', 'spec.md': spec, 'plan.md': '# Plan\n', 'review.json': '{}\n', 'source.md': source})) {
+    await write(id, file, body);
   }
-  count=starts;const absent=await review({sources:undefined});
-  check(!absent.review_complete&&starts===count,'missing original source cannot masquerade as no findings');
-  count=starts;const inferred=await review({sources:[{...source,kind:'author_inference'}]});
-  check(!inferred.review_complete&&starts===count,'author inference cannot replace original source');
+  if (manifest) {
+    await write(id, 'clarification.md', 'Archived orders are included.\n');
+    const base = `${tasksDir}/${id}`;
+    await write(id, 'sources.json', JSON.stringify([
+      {path: `${base}/source.md`, origin: 'fixture original', kind: 'original'},
+      {path: `${base}/clarification.md`, origin: 'fixture confirmed clarification', kind: 'clarification'},
+    ]));
+    artifacts.spec_sources = 'sources.json';
+  }
+  if (stage === 'SPEC') await passAdvance(id, 'SPEC', {artifacts});
+  return artifacts;
+}
+const followUp = (id, result) => ({...empty(), follow_up: [{finding_id: id, result, evidence: 'Controlled reread of current material.'}]});
+const response = id => [{finding_id: id, response: 'Inspect current Spec and Source.'}];
+const finalVerify = id => call('sdlc_verify', {task_id: id, intent_of_change: 'Controlled delivery verification'});
 
-  during=()=>fs.appendFile(path.join(root,'source.md'),'Clarification during review.\n');
-  const changedSource=await review();check(!changedSource.review_complete&&/输入发生变化/.test(changedSource.diagnostic),'source edit during review invalidates the observation');
-  during=()=>fs.appendFile(path.join(taskDir,'spec.md'),'Changed during review.\n');
-  const changedSpec=await review();check(!changedSpec.review_complete,'Spec edit during review cannot produce completed feedback');
-  during=undefined;
-  throwProvider=true;const providerFailed=await review();throwProvider=false;
-  check(!providerFailed.review_complete&&/provider failure/.test(providerFailed.diagnostic),'provider rejection is recorded without a verdict');
-  const priorFiles=new Set(await fs.readdir(path.join(taskDir,'spec-reviews')));
-  const controller=new AbortController();during=()=>controller.abort();stopReason='aborted';
-  const cancelled=await call('sdlc_spec_review',{task_id:'SPEC-1',sources:[source]},controller.signal);during=undefined;stopReason='completed';
-  check(cancelled.isError,'ToolRuntime preserves cancellation as an aborted tool call');
-  const cancelledFile=(await fs.readdir(path.join(taskDir,'spec-reviews'))).find(file=>!priorFiles.has(file));
-  const cancelledRecord=JSON.parse(await fs.readFile(path.join(taskDir,'spec-reviews',cancelledFile),'utf8'));
-  check(!cancelledRecord.review_complete&&cancelledRecord.outcome==='cancelled','cancellation retains an incomplete record');
-  check(cancelledRecord.events.at(-1).kind==='finished','cancelled signal does not erase final execution evidence');
-  check(active===0&&releases===starts&&disposes===starts-1,'preset leases and every created activation are disposed, including failures');
+try {
+  execFileSync('git', ['init', '-q', root]);
+  await fs.writeFile(path.join(root, 'fixture.txt'), 'delivery fixture\n');
+  new LocalFileSystem(ctx, LocalFileSystem.Config['~standard'].validate({}).value);
+  ctx.provide('sandboxPolicy', {resolve: () => ({mode: 'workspace-write', workspaceRoot: root, writableRoots: [root]})});
+  ctx.provide('systemPrompt', {section: () => () => {}, tools: () => () => {}, variable: () => () => {}, context: () => () => {}, getSectionOrder: () => 0, getContextOrder: () => 0});
+  new ToolRuntime(ctx, 'tools');
+  installNativeExecutor(ctx, require);
+  ctx.provide('agentPresets', {register: async () => { leases++; return () => { leases--; releases++; }; },
+    resolve: async id => leases ? {id, name: 'fixture'} : undefined});
+  ctx.provide('subagents', {startActivation: async request => {
+    starts++;
+    assert.equal(request.parent, agent);
+    assert.equal(request.request, undefined);
+    assert.equal(request.agentPreset, 'sdlc-verifier');
+    assert.equal(request.delivery, 'caller');
+    const isSpec = request.label === 'sdlc-spec-review';
+    assert.ok(request.outputSchema.properties[isSpec ? 'follow_up' : 'status']);
+    if (providerError) throw new Error('controlled provider failure');
+    const result = (async () => {
+      if (during) await during();
+      const answer = isSpec ? structured : {status: 'approve', summary: 'Controlled delivery verdict', findings: [],
+        criteria_results: [...request.prompt[0].text.matchAll(/^(AC-\d+): /gm)].map(([,criterion_id]) => ({criterion_id, result: 'met', evidence: 'fixture evidence'}))};
+      return {output: [{type: 'text', text: 'Untrusted free text'}], stopReason, structured: structuredClone(answer)};
+    })();
+    return {childId: `reviewer-${starts}`, result, dispose: async () => { disposes++; }};
+  }});
+  for (const plugin of [task, artifact, verify]) plugin.apply(ctx, plugin.Config['~standard'].validate(
+    process.env.SDLC_SPEC_TASKS_DIR ? {tasksDir} : {},
+  ).value);
 
-  // The failed reviews must not become an implicit gate.
-  const plan='# Plan\n\n## Files that change\napp.js\n\n## Order of work\nImplement CSV export.\n\n## Risks\nPagination.\n\n## Proof\nCompare source and exported IDs.\n';
-  await success('sdlc_artifact_write',{task_id:'SPEC-1',kind:'plan',content:plan});
-  await success('sdlc_task_advance',{task_id:'SPEC-1',to:'PLANNED',reason:'Continue under existing rules; SPEC review is advisory'});
-  check(true,'ordinary progression remains possible after incomplete SPEC reviews');
-  const outside=await call('sdlc_spec_review',{task_id:'SPEC-1',sources:[source]});
-  check(outside.isError,'later-stage task must return to SPEC before draft review');
-  console.log(`SPEC REVIEW SMOKE: ${checks} checks passed (controlled model; no paid calls).`);
+  // The advisory baseline accepts the first advance. This catches the original gap.
+  await create(primary, {manifest: true});
+  for (const to of ['PLANNED', 'IMPLEMENTING', 'VERIFYING', 'REVIEWING', 'DONE']) await rejectAdvance(primary, to, /SPEC 审查/);
+  const intentArtifacts = await create('INTENT-JUMP', {stage: 'INTENT'});
+  await rejectAdvance('INTENT-JUMP', 'IMPLEMENTING', /SPEC 审查/, {artifacts: intentArtifacts});
+  const noSource = 'NO-SOURCE';
+  await create(noSource, {registered: false});
+  check(!(await review(noSource, {sources: [{path: `${tasksDir}/${noSource}/source.md`, kind: 'original', origin: 'caller'}]})).review_complete && starts === 0,
+    'a caller file cannot substitute for the registered original');
+  const manifest = await read(primary, 'sources.json');
+  check(!(await review(primary, {sources: JSON.parse(manifest).slice(0, 1)})).review_complete && starts === 0,
+    'caller cannot omit a registered clarification');
+
+  const before = await read(primary, 'state.yaml');
+  structured = undefined;
+  const incomplete = await review();
+  check(incomplete.outcome === 'incomplete' && starts === 1 && await read(primary, 'state.yaml') === before,
+    'no structured result leaves the reference unchanged and dispatches only once');
+  await rejectAdvance(primary, 'PLANNED', /SPEC 审查/);
+  structured = empty(); stopReason = 'error';
+  check((await review()).outcome === 'incomplete', 'a provider failure cannot publish even if it contains a structured body');
+  stopReason = 'completed'; providerError = true;
+  check((await review()).diagnostic.includes('controlled provider failure'), 'provider rejection retained');
+  providerError = false;
+  structured = {...empty(), findings: [{...finding, source_quote: 'Invented requirement'}]};
+  check((await review()).outcome === 'incomplete', 'unmatched quote cannot become authoritative');
+  structured = empty();
+  const controller = new AbortController();
+  during = () => controller.abort();
+  const cancelled = await call('sdlc_spec_review', {task_id: primary}, controller.signal);
+  during = undefined;
+  check(cancelled.isError && await read(primary, 'state.yaml') === before, 'cancelled review never writes a head');
+
+  structured = {...empty(), findings: [finding]};
+  const first = await review();
+  const firstDoc = await historyRecord(first);
+  const id = first.active_findings[0].id;
+  const selected = await state(primary);
+  check(first.review_complete && selected.spec_review.id === first.review_id && selected.status === 'SPEC' && !selected.acceptance,
+    'completed feedback selects a record and keeps the phase and acceptance untouched');
+  check(firstDoc.inputs.sources[1].kind === 'clarification' && firstDoc.inputs.sources[0].content === source,
+    'the declared sources actually reach the review snapshots');
+  await rejectAdvance(primary, 'PLANNED', /未解决发现/, {reason: 'manual_approved=true，已修'});
+  let count = starts;
+  check(!(await review()).review_complete && starts === count, 'cannot start a clean branch while there are pending findings');
+  check(!(await review(primary, {previous_review: first.review_id})).review_complete && starts === count, 'all author responses required before dispatch');
+  structured = empty();
+  check(!(await review(primary, {previous_review: first.review_id, responses: response(id)})).review_complete,
+    'reviewer cannot silently omit a previous finding');
+  structured = followUp(id, 'needs_clarification');
+  const disputed = await review(primary, {previous_review: first.review_id, responses: response(id)});
+  check(disputed.active_findings[0].id === id, 'clarification preserves the finding ID');
+  await rejectAdvance(primary, 'IMPLEMENTING', /未解决发现/);
+  count = starts;
+  check(!(await review(primary, {previous_review: first.review_id, responses: response(id)})).review_complete && starts === count,
+    'older ancestor cannot replace the current head');
+  structured = followUp(id, 'open');
+  const open = await review(primary, {previous_review: disputed.review_id, responses: response(id)});
+  check(open.active_findings[0].id === id, 'an unconfirmed fix remains open');
+  await rejectAdvance(primary, 'PLANNED', /未解决发现/);
+  await write(primary, 'spec.md', spec + '- AC-002: Match every exported ID to every source ID.\n');
+  structured = followUp(id, 'addressed');
+  const fixed = await review(primary, {previous_review: open.review_id, responses: response(id)});
+  check(fixed.active_findings.length === 0 && (await historyRecord(fixed)).inputs.previous_review === open.review_id,
+    'an independently checked revision closes the original finding');
+
+  for (const file of ['source.md', 'clarification.md', 'intent.md', 'spec.md']) {
+    const content = await read(primary, file);
+    await write(primary, file, content + '\n## Changed after review\n');
+    await rejectAdvance(primary, 'PLANNED', /已变更/);
+    await write(primary, file, content);
+  }
+  const changedSources = JSON.parse(manifest);
+  changedSources[1].kind = 'author_inference';
+  await write(primary, 'sources.json', JSON.stringify(changedSources));
+  await rejectAdvance(primary, 'PLANNED', /已变更/);
+  await write(primary, 'sources.json', manifest);
+  const currentIntent = await read(primary, 'intent.md');
+  await write(primary, 'other-intent.md', currentIntent);
+  await rejectAdvance(primary, 'PLANNED', /已变更/, {artifacts: {intent: 'other-intent.md'}});
+  const file = path.join(root, fixed.review_file);
+  const recordText = await fs.readFile(file, 'utf8');
+  await fs.rm(file);
+  await rejectAdvance(primary, 'PLANNED', /不存在/);
+  const goodState = await read(primary, 'state.yaml');
+  for (const bad of [
+    '{ invalid',
+    ...['running', 'incomplete', 'cancelled'].map(outcome => JSON.stringify({...JSON.parse(recordText), outcome, review_complete: false})),
+    JSON.stringify({...JSON.parse(recordText), task: 'OTHER'}),
+  ]) {
+    await fs.writeFile(file, bad);
+    const tampered = await state(primary);
+    tampered.spec_review.sha256 = hash(bad);
+    await setState(primary, tampered);
+    await rejectAdvance(primary, 'PLANNED', /JSON|position|独立 SPEC 审查|Unexpected/);
+  }
+  await fs.writeFile(file, recordText + '\n');
+  await write(primary, 'state.yaml', goodState);
+  await rejectAdvance(primary, 'PLANNED', /记录指纹/);
+  await fs.writeFile(file, recordText);
+
+  // Changing status alone cannot grant a task-mode delivery verdict.
+  const forged = await state(noSource);
+  forged.status = 'VERIFYING';
+  forged.acceptance = registerAcceptance('spec.md', spec, 'forged-fixture', new Date().toISOString(), 'author');
+  await setState(noSource, forged);
+  const forgedBytes = await read(noSource, 'state.yaml');
+  count = starts;
+  const rejected = await finalVerify(noSource);
+  check(rejected.isError && /SPEC 审查/.test(rejected.error.message) && starts === count && await read(noSource, 'state.yaml') === forgedBytes,
+    'hand-edited stage is refused before starting a task verifier or touching task state');
+  await passAdvance(noSource, 'SPEC', {artifacts: {source: 'source.md'}});
+  structured = empty();
+  check((await review(noSource)).review_complete, 'legacy task can explicitly return, register source and receive a new review');
+  await passAdvance(noSource, 'VERIFYING');
+
+  count = starts;
+  await passAdvance(primary, 'PLANNED');
+  await passAdvance(primary, 'IMPLEMENTING');
+  await passAdvance(primary, 'VERIFYING');
+  check(starts === count, 'all forward steps reuse the same evidence without dispatching a reviewer');
+  check((await finalVerify(primary)).value?.status === 'approve', 'ordinary task delivery verification still works');
+  await passAdvance(primary, 'REVIEWING');
+  await passAdvance(primary, 'DONE');
+  await passAdvance(primary, 'SPEC');
+  const stable = await read(primary, 'state.yaml');
+  during = () => write(primary, 'source.md', source + 'Changed during review.\n');
+  check((await review()).outcome === 'incomplete' && await read(primary, 'state.yaml') === stable,
+    'drift during dispatch preserves the reference and verification history');
+  during = undefined;
+  await rejectAdvance(primary, 'PLANNED', /已变更/);
+  check((await review()).review_complete, 'updated Source requires a new review of the current material');
+  await passAdvance(primary, 'IMPLEMENTING');
+
+  const rebuttal = 'REBUTTAL';
+  await create(rebuttal);
+  structured = {...empty(), findings: [finding]};
+  const earlier = await review(rebuttal);
+  // Reproduce the old advisory record layout during adoption. The data still came from a real tool call.
+  const earlierFile = path.join(root, earlier.review_file);
+  const legacy = JSON.parse(await fs.readFile(earlierFile, 'utf8'));
+  legacy.schema_version = 1;
+  await fs.writeFile(earlierFile, JSON.stringify(legacy));
+  const legacyState = await state(rebuttal);
+  delete legacyState.spec_review;
+  await setState(rebuttal, legacyState);
+  await rejectAdvance(rebuttal, 'PLANNED', /SPEC 审查/);
+  count = starts;
+  check((await review(rebuttal)).outcome === 'incomplete' && starts === count, 'legacy single chain must be continued rather than restarted');
+  const earlierFinding = earlier.active_findings[0].id;
+  structured = followUp(earlierFinding, 'withdrawn');
+  const withdrawn = await review(rebuttal, {previous_review: earlier.review_id, responses: response(earlierFinding)});
+  check(withdrawn.review_complete && withdrawn.active_findings.length === 0, 'an independently checked rebuttal closes a preserved legacy finding');
+  await passAdvance(rebuttal, 'PLANNED');
+  await create('LEGACY-FORK');
+  structured = empty();
+  const legacySiblings = [await review('LEGACY-FORK'), await review('LEGACY-FORK')];
+  for (const sibling of legacySiblings) {
+    const doc = await historyRecord(sibling);
+    doc.schema_version = 1;
+    delete doc.inputs.previous_review;
+    delete doc.inputs.previous_review_sha256;
+    await fs.writeFile(path.join(root, sibling.review_file), JSON.stringify(doc));
+  }
+  const forked = await state('LEGACY-FORK');
+  delete forked.spec_review;
+  await setState('LEGACY-FORK', forked);
+  count = starts;
+  check(/分叉/.test((await review('LEGACY-FORK', {previous_review: legacySiblings[1].review_id})).diagnostic)
+    && starts === count, 'ambiguous legacy history demands repair rather than choosing a branch');
+  check(leases === 0 && disposes === starts - 1 && releases >= starts, 'completed, failed and cancelled dispatches release activation and preset');
+  console.log(`SPEC REVIEW SMOKE: ${checks} checks passed (controlled responses).`);
 } finally {
   await ctx.fiber.dispose();
-  await fs.rm(root,{recursive:true,force:true});
+  await fs.rm(root, {recursive: true, force: true});
 }

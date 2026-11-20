@@ -155,12 +155,27 @@ try {
     calls: [{id: `spec-eval-${slot}`, name: tool, arguments: JSON.stringify(args)}]});
   report.tool_result = result.results[0].result;
   report.outcome = report.tool_result.isError ? 'tool_error' : (report.tool_result.value?.[delivery ? 'status' : 'outcome'] ?? 'missing_result');
-  report.state_unchanged = (await fs.readFile(stateFile, 'utf8')) === initial;
+  const finalState = await fs.readFile(stateFile, 'utf8');
+  report.state_unchanged = finalState === initial;
   report.no_delivery_verdict = !(await fs.readdir(path.dirname(stateFile))).includes('verification.json');
   report.preset_released = !(await ctx.agentPresets.list()).some(p => p.id === 'sdlc-verifier');
   assert.equal(report.parent_model_calls, 0);
   if (!delivery) {
-    assert.equal(report.state_unchanged, true);
+    const gated = await fs.access(path.join(profileDir, 'node_modules/@ai-native-sdlc-plugin/dsh-sdlc/lib/task/spec-review.js')).then(() => true, () => false);
+    if (gated && report.outcome === 'completed') {
+      const {load, JSON_SCHEMA} = require('js-yaml');
+      const before = load(initial, {schema: JSON_SCHEMA});
+      const after = load(finalState, {schema: JSON_SCHEMA});
+      const {spec_review: ref, updated: _at, ...stableAfter} = after;
+      const {spec_review: _previous, updated: _before, ...stableBefore} = before;
+      assert.deepEqual(stableAfter, stableBefore);
+      const {review_id, review_file} = report.tool_result.value;
+      assert.equal(ref.id, review_id);
+      assert.equal(ref.sha256, createHash('sha256').update(await fs.readFile(path.join(workspace, review_file))).digest('hex'));
+      report.only_review_reference_updated = true;
+    } else {
+      assert.equal(report.state_unchanged, true);
+    }
     assert.equal(report.no_delivery_verdict, true);
   }
   assert.equal(report.preset_released, true);

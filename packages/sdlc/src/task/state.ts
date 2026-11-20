@@ -11,6 +11,7 @@
 
 import {parseWorkflow, type TaskWorkflow} from './flow.js';
 import {parseAcceptanceRegistration, requireAcceptance, type AcceptanceRegistration} from '../shared/acceptance.js';
+import {parseSpecReviewRef, type SpecReviewRef} from '../shared/spec-review-record.js';
 
 /** 任务目录相对仓库根的路径。 */
 export const TASKS_DIR = '.ai/tasks';
@@ -35,6 +36,8 @@ export type TaskStatus = (typeof STATUSES)[number];
 /** 已知制品键 → 期望文件名。未知键允许出现（组织可能有自己的制品）。 */
 export const KNOWN_ARTIFACTS: Record<string, string> = {
   intent: 'intent.md',
+  source: 'source.md',
+  spec_sources: 'spec-sources.json',
   spec: 'spec.md',
   plan: 'plan.md',
   verification: 'verification.json',
@@ -101,6 +104,7 @@ export interface TaskState {
   history: HistoryEntry[];
   workflow?: TaskWorkflow;
   acceptance?: AcceptanceRegistration;
+  spec_review?: SpecReviewRef;
 }
 
 /** 任务 ID 的形状：大写字母/数字/连字符，且必须以字母数字开头结尾。 */
@@ -231,6 +235,7 @@ export function parseTaskState(taskId: string, raw: unknown): TaskState {
     history,
     ...(o.workflow === undefined ? {} : {workflow: parseWorkflow(o.workflow)}),
     ...(o.acceptance === undefined ? {} : {acceptance: parseAcceptanceRegistration(o.acceptance)}),
+    ...(o.spec_review === undefined ? {} : {spec_review: parseSpecReviewRef(o.spec_review)}),
   };
 }
 
@@ -293,6 +298,7 @@ export function serializeTaskState(state: TaskState): string {
   }
   if (state.workflow) lines.push('workflow: ' + JSON.stringify(state.workflow));
   if (state.acceptance) lines.push('acceptance: ' + JSON.stringify(state.acceptance));
+  if (state.spec_review) lines.push('spec_review: ' + JSON.stringify(state.spec_review));
   return lines.join('\n') + '\n';
 }
 
@@ -456,6 +462,7 @@ export function checkAdvance(
   exists: (relativePath: string) => boolean,
   reason: string,
   specText?: string,
+  review?: {ok: true} | {ok: false; problem: string},
 ): AdvanceCheck {
   const dir = direction(from, to);
   const problems: string[] = [];
@@ -472,6 +479,9 @@ export function checkAdvance(
   if (statusOrder(to) >= statusOrder('PLANNED')) {
     try {requireAcceptance(state.acceptance,state.artifacts.spec,specText);}
     catch (e) {problems.push((e as Error).message);}
+  }
+  if (requiresSpecReview(from, to) && review?.ok !== true) {
+    problems.push(review?.problem ?? '缺少有效 SPEC 审查。请退回 SPEC 登记来源并审查当前草稿');
   }
 
   // 无论前进还是回退，**目标状态**的门槛都必须满足
@@ -494,6 +504,10 @@ export function checkAdvance(
   }
 
   return { ok: problems.length === 0, direction: dir, problems };
+}
+
+export function requiresSpecReview(from: TaskStatus, to: TaskStatus): boolean {
+  return direction(from, to) === 'forward' && statusOrder(to) >= statusOrder('PLANNED');
 }
 
 /** 生成一条 history 记录并更新状态。 */

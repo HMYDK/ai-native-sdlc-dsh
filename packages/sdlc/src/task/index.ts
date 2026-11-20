@@ -40,6 +40,7 @@ import {
   normalizeTaskId,
   parseTaskState,
   REQUIRED_ARTIFACTS,
+  requiresSpecReview,
   serializeTaskState,
   STATUSES,
   TASKS_DIR,
@@ -144,7 +145,7 @@ async function writeState(
 ): Promise<void> {
   const policy = await writePolicy(ctx, exec);
   const target = await ctx.fs.resolve(paths.stateFile, resolveOptions(exec, policy?.workspaceRoot));
-  await ctx.fs.writeText(target, serializeTaskState(state), undefined, exec.signal, policy);
+  await ctx.fs.writeText(target, serializeTaskState(state), {kind:'createIfAbsent'}, exec.signal, policy);
 }
 
 /**
@@ -197,6 +198,7 @@ import {mutateTask} from './io.js';
 import {checkSubmission, requireIdle} from './flow.js';
 import {checkApproval} from './approval.js';
 import {registerIssueTool} from './issues.js';
+import {requireCurrentSpecReview} from './spec-review.js';
 
 export function apply(ctx: Context, config: SdlcTaskConfig): void {
   const cfg = config;
@@ -324,6 +326,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             missing_for_status: { type: 'array', required: true, items: { type: 'string' } },
             missing_on_disk: { type: 'array', required: true, items: { type: 'string' } },
             next_required: { type: 'array', required: true, items: { type: 'string' } },
+            spec_review_id: { type: 'string' },
             workflow: {type: 'json'},
             history: { type: 'array', required: true, items: { type: 'string' } },
           },
@@ -338,6 +341,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
             missing_for_status?: unknown;
             missing_on_disk?: unknown;
             next_required?: unknown;
+            spec_review_id?: string;
             workflow?: {issues?: {id:string;status:string;description:string}[]};
           };
           const list = (x: unknown) => (Array.isArray(x) && x.length ? x.join(', ') : '（无）');
@@ -351,6 +355,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
                 `当前状态缺失：${list(o.missing_for_status)}`,
                 `磁盘上找不到：${list(o.missing_on_disk)}`,
                 `下一状态所需：${list(o.next_required)}`,
+                ...(o.spec_review_id ? [`登记的 SPEC 审查：${o.spec_review_id}`] : []),
                 ...(o.workflow?.issues ?? []).filter(i => i.status !== 'resolved').map(i => `${i.id} [${i.status}] ${i.description}`),
               ].join('\n'),
             },
@@ -383,6 +388,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           missing_for_status: report.missingForStatus,
           missing_on_disk: report.missingOnDisk,
           next_required: nextRequired,
+          ...(state.spec_review ? {spec_review_id: state.spec_review.id} : {}),
           ...(state.workflow ? {workflow: JSON.parse(JSON.stringify(state.workflow))} : {}),
           history: state.history.map((h) => `${h.at} ${h.from}→${h.to}: ${h.reason}`),
         };
@@ -396,7 +402,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
       name: 'sdlc_task_advance',
       description:
         'Move a task to a new status. Refuses unless the target status\'s required artifacts are registered in ' +
-        'state.yaml. Entering PLANNED or any later stage from INTENT/SPEC registers the full Spec acceptance list and whole-file fingerprint, even when stages are skipped. Later transitions must match that baseline; changed Spec requires a recorded return to SPEC. ' +
+        'state.yaml. Moving forward to PLANNED or any later stage requires a current independent SPEC review with all findings closed, including stage skips. Entering PLANNED or later from INTENT/SPEC also registers the full Spec acceptance list and whole-file fingerprint. Later transitions must match that baseline; changed inputs require a recorded return to SPEC. ' +
         'Required artifacts must also be present on disk, and you must supply a reason. Backward moves are allowed on purpose — ' +
         'discovering a better approach and being unable to revise the plan is the real failure mode.',
       parameters: {
@@ -475,6 +481,12 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
         const prepared = await prepareStageAcceptance(ctx,exec,paths.taskDir,state,to);
         state = prepared.state;
         const presence = await probeArtifacts(ctx, paths, state, exec);
+        const review = requiresSpecReview(state.status, to)
+          ? await requireCurrentSpecReview(ctx, exec, paths.taskDir, state).then(
+              () => ({ok:true} as const),
+              (error: unknown) => ({ok:false, problem:error instanceof Error ? error.message : String(error)} as const),
+            )
+          : undefined;
         const verdict = checkAdvance(
           state.status,
           to,
@@ -482,6 +494,7 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
           (rel) => presence.get(rel) === true,
           args.reason,
           prepared.spec,
+          review,
         );
         if (!verdict.ok) {
           throw new Error(
@@ -517,6 +530,8 @@ export function apply(ctx: Context, config: SdlcTaskConfig): void {
 
         if ((to === 'REVIEWING' || to === 'DONE') && verdict.direction === 'forward') {
           await checkApproval(ctx, exec, paths.taskDir, state, to === 'DONE');
+          // The final approval check snapshots the repo and can outlive a draft edit.
+          await requireCurrentSpecReview(ctx, exec, paths.taskDir, state);
         }
         const updated = applyAdvance(state, to, args.reason);
         return {state: updated, value: {updated, from: state.status, direction: verdict.direction}};

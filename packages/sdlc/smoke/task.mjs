@@ -16,6 +16,7 @@
  */
 
 import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
+import {controlledSpecActivation, reviewFixture} from './helpers/spec-review.mjs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -82,13 +83,17 @@ ctx.provide('fs', {
   },
   async stat(target) {
     if (files.has(target.displayPath)) return { type: 'file', version: 'v1' };
-    if (target.displayPath.endsWith('/')) return { type: 'directory', version: 'v1' };
+    if ([...files.keys()].some(p => p.startsWith(target.displayPath + '/'))) return { type: 'directory', version: 'v1' };
     return undefined;
   },
   async readText(target) {
     const v = files.get(target.displayPath);
     if (v === undefined) throw new Error(`ENOENT: ${target.displayPath}`);
     return v;
+  },
+  async listDir(target) {
+    const prefix = target.displayPath + '/';
+    return [...files.keys()].filter(p => p.startsWith(prefix)).map(p => ({name:p.slice(prefix.length)}));
   },
   async writeText(target, content, _intent, _signal, policy) {
     writeCalls.push({ path: target.displayPath, policy });
@@ -125,6 +130,7 @@ try {
   bad(`apply() 抛错: ${e.message}`);
   process.exit(1);
 }
+
 
 console.log('\n== 3. 工具注册 ==');
 for (const n of ['sdlc_task_create', 'sdlc_task_status', 'sdlc_task_advance']) {
@@ -285,16 +291,22 @@ else bad('空 reason 的迁移被放行');
 // **两次**，因为作者修的是"相关的地方"而不是判据说的那个点，
 // 代价是两次分钟级的换层验证（实测每轮 ~21 分钟、100+ 次工具调用）。
 {
+  const verify = await import('../lib/verify/index.js');
+  ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id})});
+  ctx.provide('subagents',{startActivation:async request=>controlledSpecActivation(request,'task-smoke-reviewer')});
+  verify.apply(ctx,verify.Config['~standard'].validate({}).value);
   const { load, dump, JSON_SCHEMA } = require('js-yaml');
   const dir = '/repo/.ai/tasks/PROJ-7';
   const stateFile = `${dir}/state.yaml`;
   const doc = load(files.get(stateFile), { schema: JSON_SCHEMA });
   doc.status = 'SPEC';
-  doc.artifacts = { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md' };
+  doc.artifacts = { intent: 'intent.md', spec: 'spec.md', plan: 'plan.md', source: 'source.md' };
   files.set(stateFile, dump(doc, { schema: JSON_SCHEMA, noRefs: true }));
   files.set(`${dir}/intent.md`, '# Intent\n');
   files.set(`${dir}/spec.md`, '## Acceptance Criteria\n- AC-001: fixture passes\n');
   files.set(`${dir}/plan.md`, '# Plan\n');
+  files.set(`${dir}/source.md`, 'Controlled original requirement.\n');
+  await reviewFixture(dispatch,'PROJ-7');
   const registered = await dispatch('sdlc_task_advance',{task_id:'PROJ-7',to:'IMPLEMENTING',reason:'登记验收清单后开始实现'});
   if (registered.isError) bad(`验收登记失败: ${JSON.stringify(registered.error)}`);
 

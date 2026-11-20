@@ -2,7 +2,7 @@
 
 `run.mjs` 在已安装插件 tarball 的隔离 web profile 中创建真实父代理，通过 ToolRuntime 调用一次 `sdlc_spec_review`。父代理不发送模型消息；新工具自行派发真实审查者。它不是无人值守批量 benchmark，也不生成语义正确性标签。
 
-运行前准备独立工作区，放置处于 SPEC 的任务 state.yaml、登记的 intent.md / spec.md，以及本地原始需求。标签、修订预案、调用参数和输出放工作区外。按使用说明编写 args.json，首次使用 task_id / sources，复审使用实际上一轮 review_id 与逐项 responses。
+运行前准备独立工作区，放置处于 SPEC 的任务 state.yaml，登记 intent、spec 与 source。多份资料用 spec_sources 登记。标签、修订预案、调用参数和输出放工作区外。按使用说明编写 args.json，首次使用 task_id（显式 sources 须与登记内容一致），复审使用当前已登记 review_id 与逐项 responses。通过门禁版的完成审查仅更新审查引用和更新时间，失败轮次保留任务原字节。
 
 ```bash
 DSH_HOME=/path/to/isolated-home \

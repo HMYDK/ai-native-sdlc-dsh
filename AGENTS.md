@@ -93,6 +93,8 @@ tools/                      # bench / mutation / activation / time-travel / comp
 
 ## 验证纪律
 
+**Issue #29：向前进入 PLANNED 或之后阶段及任务模式验证，必须核对当前 SPEC 审查。** 输入以已登记的 `source`、可选 `spec_sources` 清单、Intent 和整个 Spec 为准。完成审查更新任务指向的审查链，未解决发现只能经关联复审收口。输入未变时直接复用，同一审查不重复派发。预存任务下一次前进前需显式回到 SPEC 补审，旧裁决和历史保留。门禁约束工具，任意文件写权限及分支发布由外部边界负责。迁移与证据见 [SPEC 审查](docs/spec-review.md)。
+
 **0.6.0：任务验收范围来自已登记 Spec。** `spec.md` 必须包含一个 `## Acceptance Criteria`（或 `## 验收标准`）章节，每项为 `- AC-001: 要求`。首次进入 PLANNED 或任何后续阶段时登记清单与整个 Spec 指纹，跳阶段也检查；第一次验证前修改 Spec 同样需要记录退回 SPEC 后重新登记。任务验证省略 `criteria` 自动使用完整清单，额外项用 `additional_criteria`；推进检查独立核对同一登记。`src/shared/acceptance.ts` 是解析、版本和覆盖规则的唯一实现；不要在验证入口、状态机或看板各写一份。v3 裁决采用显式 ID；旧裁决仍按原内容哈希 ID 读取，不能重新解释或补造完整验收。
 
 **跑 `npm run verify`（= build + test + smoke），不要只看其中一项。**

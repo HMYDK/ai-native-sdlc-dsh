@@ -97,16 +97,14 @@ Spec 在 `## Acceptance Criteria` 之前必须有一个唯一的 `## Delivery Co
 
 - `## Acceptance Criteria` 仍是**唯一权威** AC 清单；`AC mapping` 只引用它的 AC ID，不复制第二份清单。
 - `sdlc_artifact_check` 检查 Delivery Contract 唯一且位于 AC 之前、五个子节各自唯一且缺失/空正文/占位符（含段首与骨架注释）；**不检查语义**。Source 是否真实、Outcome 是否充分、AC mapping 是否完整，由独立验证者（#21）和人核对。
-- **不是状态推进硬门禁**：`sdlc_task_advance` 不调用 `checkArtifact`；Actor 直接写 `spec.md` 仍可绕过。
+- 结构检查提供文档写作反馈。状态推进另外核对当前 SPEC 审查及验收登记。
 - hidden tests / 外部 Grader 不是用户承诺，除非 Source 明确引用；范围冲突写进 `Areas of concern`，不要偷偷扩 AC。
 - 旧任务不自动重写；旧 Spec 在 `sdlc_artifact_check` 下会报缺章。更新在途 Spec 需 `overwrite: true`，并因 Spec 指纹变化记录退回 SPEC、重新登记 AC。旧骨架不再匹配 `isUnmodifiedSkeleton`，同样需要显式 overwrite。
 - 示例（含 Source 只承诺接口 / Source 承诺真实构建两种对照）见 [`docs/artifact-delivery-contract.md`](../../docs/artifact-delivery-contract.md)。
 
 ## 0.6.0：完整验收范围从 Spec 登记
 
-SPEC 草稿可先调用 `sdlc_spec_review`，以用户原文独立检查任务定义，再修订/回应并复审。
-每轮记录在任务目录的 `spec-reviews/<review_id>.json`；不改状态、AC 登记、现有问题生命周期或最终 `verification.json`。
-这不是进入 PLANNED 的新增门禁；下面的登记与退回规则保持不变。用法见 [SPEC 审查](../../docs/spec-review.md)。
+进入 SPEC 时登记原始 `source`，用 `sdlc_spec_review` 独立检查任务定义。作者修订或提供反证后，在同一条审查链逐项复审。所有向前推进到 PLANNED 或更后阶段的操作与任务模式验证，都核对当前输入、审查引用和未解决发现。变更 Source、澄清、Intent 或 Spec/AC 时须回到 SPEC 再审，输入不变可复用。旧任务需在下一次前进或任务验证前补审，既有记录保留。见 [SPEC 审查与迁移](../../docs/spec-review.md)。
 
 Spec 必须有且只有一个 `## Acceptance Criteria`（也接受 `## 验收标准`）章节。所有条目都是必选项，每项单独一行，使用明确的 ID 和正文：
 

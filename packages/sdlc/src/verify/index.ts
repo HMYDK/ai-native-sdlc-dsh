@@ -37,6 +37,7 @@ import { judgeTestMutation } from './test-freeze.js';
 import { VERIFIER_PRESET_ID } from './preset.js';
 import { assertVerifierPreset, withVerifierPreset, dispatchVerifier, type VerifierRequest, type VerifierAttempt } from './runtime.js';
 import { registerSpecReviewTool } from './spec-review-tool.js';
+import { normalizeTaskId, TASKS_DIR } from '../task/state.js';
 import { errorMessages, recordVerificationRun, VERIFIER_FINGERPRINT } from './recording.js';
 import type { Finding, Verdict } from './verdict.js';
 import {
@@ -83,6 +84,8 @@ export const inject = ['tools', 'subagents', 'systemPrompt', 'fs', 'sandboxPolic
  */
 
 export interface SdlcVerifyConfig {
+  /** 与任务组件使用同一个工作区内的任务目录。 */
+  tasksDir: string;
   /** 承载验证的 subagent provider 名。默认使用内置 in-process spawn。 */
   verifierProvider: string;
   /** 验证者的模型覆盖。留空 = 继承父级。 */
@@ -112,6 +115,7 @@ export interface SdlcVerifyConfig {
  * schemastery 与 zod 都实现 Standard Schema；官方包用 schemastery。
  */
 export const Config = z.object({
+  tasksDir: z.string().default(TASKS_DIR),
   verifierProvider: z.string().default('spawn'),
   verifierModel: z.string().default(''),
   verifierMaxTokens: z.number().default(0),
@@ -194,6 +198,7 @@ async function resolveTask(
   ctx: Context,
   exec: { agent?: unknown },
   taskId: unknown,
+  tasksDir: string,
   signal?: AbortSignal,
 ): Promise<ResolvedTask | undefined> {
   if (typeof taskId !== 'string' || taskId.trim() === '') return undefined;
@@ -207,8 +212,8 @@ async function resolveTask(
     );
   }
   const repoRoot = cwdRaw.replace(/\/+$/, '');
-  const id = taskId.trim().toUpperCase();
-  const dir = `${repoRoot}/.ai/tasks/${id}`;
+  const id = normalizeTaskId(taskId);
+  const dir = `${repoRoot}/${tasksDir.replace(/\/+$/, '')}/${id}`;
 
   let raw: unknown;
   try {
@@ -378,7 +383,7 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
             // 任务身份（可选）：给了就从 state.yaml 解析已登记的制品，
             // 显式传入的 artifacts 优先级更高（允许针对单次验证覆盖）。
             const explicit = coerceArtifactMap(args.artifacts);
-            const task = await resolveTask(ctx, exec, args.task_id, exec.signal);
+            const task = await resolveTask(ctx, exec, args.task_id, cfg.tasksDir, exec.signal);
             const artifacts = task === undefined ? explicit : { ...task.artifacts, ...explicit };
             if (task) {
               for (const key of ['intent','spec','plan']) if (explicit[key] && explicit[key] !== task.artifacts[key]) throw new Error('任务验证不能用其他文件覆盖已登记的需求/计划制品');
@@ -664,11 +669,11 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
     text: [
       '## 验证（AI 原生 SDLC）',
       '',
-      'SPEC 草稿完成后，建议先调用 `sdlc_spec_review(task_id, sources)` 做独立需求/验收审查，再进入计划。',
-      'sources 提供工作区内原始需求文件、出处与 original/clarification/author_inference 标识；不要只提交作者摘要。',
+      '进入或退回 SPEC 时登记原文 source，需要多份材料时同时登记 spec_sources。调用 `sdlc_spec_review(task_id)` 独立核对当前需求和验收范围。',
+      'spec_sources 清单的文件须在工作区内，分别声明出处与 original/clarification/author_inference。传入 sources 时必须与登记清单一致。',
       '明确遗漏由作者修订 Spec；有反证就逐项回应；需求取舍或实质争议才请用户澄清。',
       '复审传 previous_review 与全部未解决发现的 responses；检查 review_complete，失败不能当作无发现。',
-      'SPEC 审查是建议流程，不是强制推进门禁，也不产生最终交付 approve。',
+      '向前进入 PLANNED 或后续阶段需要有效审查且没有未解决发现。输入不变可以继续使用登记的审查，交付裁决仍由 sdlc_verify 负责。',
       '',
       '不要自己宣布任务完成。在报告完成之前，先调用 `sdlc_verify` 取得独立裁决。',
       '',
