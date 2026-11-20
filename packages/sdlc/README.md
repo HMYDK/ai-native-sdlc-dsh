@@ -46,14 +46,18 @@ preset 内的六行仍是各自独立的 Cordis 行（各有 `inject` / `Config`
 |---|---|---|
 | `sdlc-task` | `@ai-native-sdlc-plugin/dsh-sdlc/task` | 任务状态机 + 制品链（`state.yaml` 在 git） |
 | `sdlc-artifact` | `@ai-native-sdlc-plugin/dsh-sdlc/artifact` | 制品撰写 + 结构检查（只查结构） |
-| `sdlc-verify` | `@ai-native-sdlc-plugin/dsh-sdlc/verify` | 非 Actor 的独立验证 + 测试冻结 |
+| `sdlc-verify` | `@ai-native-sdlc-plugin/dsh-sdlc/verify` | SPEC 独立审查 + 交付独立验证 + 测试冻结 |
 | `sdlc-status` | `@ai-native-sdlc-plugin/dsh-sdlc/status` | 任务看板（一次盘出全部任务状态/缺失/裁决） |
 | `sdlc-workflow` | `@ai-native-sdlc-plugin/dsh-sdlc/workflow` | 工作流 Skill：给验证者的判据清单 |
 | `sdlc-rsi` | `@ai-native-sdlc-plugin/dsh-sdlc/rsi` | 任务全过程证据、插件改进任务、版本对照与后续反馈 |
 
-验证者 preset（`sdlc-verifier`）是内部实现细节：它只在 `sdlc_verify` 运行期间
+验证者 preset（`sdlc-verifier`）是内部实现细节：它只在 `sdlc_verify` 或 `sdlc_spec_review` 运行期间
 临时注册、跑完归还，**不会**作为可选模式出现在新会话/设置页的选择器里。
 该 preset 内部还挂了一行 `@ai-native-sdlc-plugin/dsh-sdlc/verify/preset-filter`。
+
+SPEC 草稿完成后，建议用 `sdlc_spec_review(task_id, sources)` 对照用户原文检查遗漏、范围偏移和验收反例。
+作者修订或提供反证后，用 `previous_review` 与逐项 `responses` 复审；审查者可以确认修订、撤回错误发现或提出需求澄清。
+它不新增推进门禁、不写最终裁决。详见 [SPEC 审查用法与限制](../../docs/spec-review.md)。
 
 ⚠️ `sdlc-ui` 行的 name 必须是**精确包名**：写成 `./ui` 子路径会让浏览器半
 **静默消失**（host 端点照常工作、只有面板不出现）。`smoke/ui.mjs` 有回归断言。

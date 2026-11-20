@@ -1,0 +1,16 @@
+{
+  "review_activations": 4,
+  "completed": 2,
+  "incomplete": 2,
+  "model_responses": 12,
+  "duration_ms": 640388,
+  "usage_totals": {
+    "inputTokens": 39222,
+    "outputTokens": 52788,
+    "cacheReadTokens": 100864,
+    "cacheWriteTokens": 0,
+    "totalTokens": 192874
+  },
+  "currency_cost": null,
+  "cost_note": "No billing statement available. Cached input is included in totalTokens, not priced as uncached input."
+}

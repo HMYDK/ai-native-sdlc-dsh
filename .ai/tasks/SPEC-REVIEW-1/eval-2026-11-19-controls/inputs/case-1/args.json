@@ -1,0 +1,10 @@
+{
+  "task_id": "SR-LOCAL-V2",
+  "sources": [
+    {
+      "path": ".ai/tasks/SR-LOCAL-V2/source.md",
+      "origin": "本地受控任务说明，非真实业务需求",
+      "kind": "original"
+    }
+  ]
+}

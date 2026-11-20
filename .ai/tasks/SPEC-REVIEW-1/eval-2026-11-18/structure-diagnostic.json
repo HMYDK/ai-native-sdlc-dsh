@@ -1,0 +1,84 @@
+{
+  "observed_at": "2026-11-19",
+  "note": "Post-run diagnostic. Frozen model inputs are preserved; no completed workflow/acceptance-registration claim.",
+  "results": [
+    {
+      "file": "build-before.md",
+      "actual": {
+        "kind": "spec",
+        "ok": false,
+        "found": [
+          "Delivery Contract",
+          "Acceptance Criteria",
+          "Requirements",
+          "Design",
+          "Areas of concern"
+        ],
+        "findings": [
+          {
+            "kind": "invalid",
+            "section": "Acceptance Criteria",
+            "detail": "验收章节第 23 行格式不合法；每项单独一行：- AC-001: 明确的验收要求"
+          }
+        ]
+      },
+      "notation_only_control": {
+        "replacement": "Literal angle-bracket expected strings expressed using codepoints; not sent to a model.",
+        "ok": true,
+        "findings": []
+      }
+    },
+    {
+      "file": "build-after.md",
+      "actual": {
+        "kind": "spec",
+        "ok": false,
+        "found": [
+          "Delivery Contract",
+          "Acceptance Criteria",
+          "Requirements",
+          "Design",
+          "Areas of concern"
+        ],
+        "findings": [
+          {
+            "kind": "invalid",
+            "section": "Acceptance Criteria",
+            "detail": "验收章节第 26 行格式不合法；每项单独一行：- AC-001: 明确的验收要求"
+          }
+        ]
+      },
+      "notation_only_control": {
+        "replacement": "Literal angle-bracket expected strings expressed using codepoints; not sent to a model.",
+        "ok": true,
+        "findings": []
+      }
+    },
+    {
+      "file": "local-spec.md",
+      "actual": {
+        "kind": "spec",
+        "ok": false,
+        "found": [
+          "Delivery Contract",
+          "Acceptance Criteria",
+          "Requirements",
+          "Design",
+          "Areas of concern"
+        ],
+        "findings": [
+          {
+            "kind": "invalid",
+            "section": "Acceptance Criteria",
+            "detail": "验收章节第 23 行格式不合法；每项单独一行：- AC-001: 明确的验收要求"
+          }
+        ]
+      },
+      "notation_only_control": {
+        "replacement": "Literal angle-bracket expected strings expressed using codepoints; not sent to a model.",
+        "ok": true,
+        "findings": []
+      }
+    }
+  ]
+}

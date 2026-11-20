@@ -1,0 +1,72 @@
+{
+  "reviewer_session": "1a5d1220-595f-4d7d-b95c-2c6046f79544",
+  "run_id": "818b54d2-ecf4-47fc-8f2b-213178477b8c",
+  "outcome": "cancelled",
+  "cancellation": "manual process termination after observer budget did not stop the published child",
+  "delivery_verdict_exists": false,
+  "activation_count": 1,
+  "host_version": "0.2.2-rc.3",
+  "profile": {
+    "composition_rows": 29,
+    "verifierRetryOnMalformed": false
+  },
+  "limits": {
+    "review_activations": 1,
+    "wall_ms": 900000,
+    "output_tokens_per_request": 16384,
+    "observed_tokens": 400000,
+    "steps": 40
+  },
+  "resolved_configs": [
+    {
+      "provider": "deepseek-account",
+      "model": "deepseek-v4-pro",
+      "reasoningEffort": "low",
+      "maxTokens": 16384
+    }
+  ],
+  "model_steps": 24,
+  "reported_responses": 23,
+  "request_header_events": 1,
+  "failed_or_interrupted_attempts": 1,
+  "reported_token_totals": {
+    "inputTokens": 62631,
+    "outputTokens": 11018,
+    "cacheReadTokens": 1078528,
+    "cacheWriteTokens": 0,
+    "totalTokens": 1152177
+  },
+  "response_total_tokens": [
+    13966,
+    14873,
+    17622,
+    21607,
+    25677,
+    33087,
+    37381,
+    42333,
+    48123,
+    51089,
+    53374,
+    55518,
+    61437,
+    62074,
+    62596,
+    63213,
+    63448,
+    69387,
+    69939,
+    70522,
+    71256,
+    71670,
+    71985
+  ],
+  "first_threshold_crossing": {
+    "response": 12,
+    "reported_tokens": 414650
+  },
+  "usage_complete": false,
+  "currency_cost": null,
+  "driver_sha256": "b6d6500af35cf73d140d107e8dededf089ffd03bbe7c4efc6dbae1263666389b",
+  "tarball_sha256": "027ed965e0dc5c43fcdf519a6e20ed962771e02b5be23dedfdb109ea2d27f622"
+}

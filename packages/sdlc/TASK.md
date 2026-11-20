@@ -104,6 +104,10 @@ Spec 在 `## Acceptance Criteria` 之前必须有一个唯一的 `## Delivery Co
 
 ## 0.6.0：完整验收范围从 Spec 登记
 
+SPEC 草稿可先调用 `sdlc_spec_review`，以用户原文独立检查任务定义，再修订/回应并复审。
+每轮记录在任务目录的 `spec-reviews/<review_id>.json`；不改状态、AC 登记、现有问题生命周期或最终 `verification.json`。
+这不是进入 PLANNED 的新增门禁；下面的登记与退回规则保持不变。用法见 [SPEC 审查](../../docs/spec-review.md)。
+
 Spec 必须有且只有一个 `## Acceptance Criteria`（也接受 `## 验收标准`）章节。所有条目都是必选项，每项单独一行，使用明确的 ID 和正文：
 
 ```markdown

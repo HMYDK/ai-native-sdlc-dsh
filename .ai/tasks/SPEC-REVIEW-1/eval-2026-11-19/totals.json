@@ -1,0 +1,18 @@
+{
+  "review_activations": 4,
+  "completed": 2,
+  "incomplete": 1,
+  "tool_error": 1,
+  "model_responses": 13,
+  "failed_attempts": 1,
+  "duration_ms": 349021,
+  "reported_usage_totals": {
+    "inputTokens": 33712,
+    "outputTokens": 40789,
+    "cacheReadTokens": 153088,
+    "cacheWriteTokens": 0,
+    "totalTokens": 227589
+  },
+  "usage_complete": false,
+  "currency_cost": null
+}

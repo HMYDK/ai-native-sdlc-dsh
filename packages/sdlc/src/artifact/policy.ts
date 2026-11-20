@@ -29,6 +29,8 @@ export const ARTIFACT_POLICY_TEXT = [
   '  - hidden tests / 外部 Grader 不是用户承诺，除非 Source 明确引用；范围冲突写进 Areas of concern，不要偷偷扩 AC。',
   '  - Source 承诺真实行为/构建时，不能因为某个依赖没被点名就把它当成 out-of-scope；范围冲突要写清并请求澄清。',
   '  - 首次进入 PLANNED 或更后续阶段登记整个 Spec；登记后包括说明文字的修改都要回到 SPEC 重新登记。',
+  '  - SPEC 草稿写完后，建议调用 `sdlc_spec_review`，以可读取的用户原文独立检查遗漏、范围偏移和验收反例。它不是结构检查或推进许可。',
+  '  - 根据发现修改草稿或提供反证；复审带 previous_review 与逐项 responses。涉及需求解释权时提出具体问题请用户确认。',
   '- `plan.md`：Files that change / Order of work / Risks / **Proof**',
   '  - `Proof` 是验证阶段对账的依据——“计划里承诺的证据”要能对得上。',
   '',

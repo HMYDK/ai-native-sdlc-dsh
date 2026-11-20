@@ -1,0 +1,14 @@
+{
+  "case-3/.ai/tasks/SR-LOCAL-V2/state.yaml": "2dc06b3bd4c7bdeb693384e25ef876855cc52b3576f9b06b5aebba4aaa19e7e0",
+  "case-3/.ai/tasks/SR-LOCAL-V2/source.md": "f87eff20a9ea69667a7ef8fe31ec7a6330208f3788d5e912238987fc485ed951",
+  "case-3/.ai/tasks/SR-LOCAL-V2/rsi.json": "8adad6c4aa45a5d33a3cef34b5bc100f9fd3a6d8234c9dab59869f1adf56274e",
+  "case-3/.ai/tasks/SR-LOCAL-V2/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+  "case-3/.ai/tasks/SR-LOCAL-V2/spec.md": "e667f3b23fb19a182933152e168693f8dc8d4d7bea65ade8a023c417ac4bd827",
+  "case-3/.ai/rsi/tasks/SR-LOCAL-V2/evidence.json": "97896e4b41b8c95f8f50fd027bbdafa045ec43c918c51d292f3a6d0e3aaae02e",
+  "case-3/.ai/rsi/tasks/SR-LOCAL-V2/task.json": "fc5d46528e6708cf48ea3f8c7ed3986adc7076430419d9a43db7bc79aee004f3",
+  "case-3/.ai/rsi/tasks/SR-LOCAL-V2/sessions/60b17f98-f72a-4c44-85b4-3f2c2f44c0bd.json": "a0389dc4576fa74fae534cbce1ca59a69ea9d7e81904b275da1206b353e6c157",
+  "case-3/.ai/rsi/tasks/SR-LOCAL-V2/sessions/spec-eval-8e5245ab-44e4-4361-849d-52ed61b1c1ca.view.json": "0ab10c43985ed8ba8cd274784eafb4dee925417a2e0cea20abb782849cde7087",
+  "case-3/.ai/rsi/tasks/SR-LOCAL-V2/sessions/spec-eval-8e5245ab-44e4-4361-849d-52ed61b1c1ca.json": "e076886783ddf946361c8990e216103cdacabe7342bd8512846c07acffba65d5",
+  "case-3/.ai/rsi/tasks/SR-LOCAL-V2/sessions/60b17f98-f72a-4c44-85b4-3f2c2f44c0bd.view.json": "d930f6a42d1e8a3337588bb34b17beef8f7ad22e427ead2b43c74463fb079d3c",
+  "case-3/.ai/rsi/operations/spec-eval-8e5245ab-44e4-4361-849d-52ed61b1c1ca/9e1d3be3c8bb1d6eaa88caa95876d89577461abacd615d3863e9d180f19ba9b7.json": "f479a5ad10ac82b7647347822621bde364cf73e5240349e2b63e3348c5cd4624"
+}

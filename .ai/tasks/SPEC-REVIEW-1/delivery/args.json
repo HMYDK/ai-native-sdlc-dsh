@@ -1,0 +1,11 @@
+{
+  "task_id": "SPEC-REVIEW-1",
+  "intent_of_change": "在 SPEC 阶段对照原始需求独立审查遗漏、误解、范围偏移与验收反例；作者修订或反证后逐项复审，并保留失败证据。该建议流程不改变任务推进、验收登记或最终交付裁决。",
+  "diff": "运行 git diff HEAD -- packages/sdlc tools/profile-runtime-check.mjs，并读取尚未跟踪的新文件 packages/sdlc/src/verify/{runtime,spec-review,spec-review-tool,spec-review.test}.ts、packages/sdlc/smoke/spec-review.mjs、docs/spec-review.md、docs/evals/spec-review-cases.md、tools/evals/spec-review/。git diff 不显示未跟踪文件，不能漏读。",
+  "scope": "依据已登记的全部 AC 核验本次 SPEC 审查交付。工作区另有既存的 .ai/tasks/AC-VALIDITY-1C/rsi.json 修改，不属于本次变更。历史验证数字和本次读数按日期区分。",
+  "test_evidence": "2026-11-19 在当前产品提示词修改后执行 DSH_APP=\"/Applications/DeepSeek Harness.app\" npm run verify --workspace=@ai-native-sdlc-plugin/dsh-sdlc，退出 0，291 库单测 + 45 客户端单测、13 组冒烟全部通过。SPEC 新冒烟 31 项。原始日志 $RAW_VERIFY_LOG。评测器预算回归 node --test tools/evals/spec-review/budget.test.mjs 为 3/3。新 tarball 75 文件及真实运行时接线记录在 proof.md；本轮受控模型正反例在 eval-2026-11-19-controls/report.md。请独立核对证据，必要时运行有针对性的测试。",
+  "experimental_guidance": "反馈请保持紧凑：每条 AC 使用显式 criterion_id，evidence 引用具体文件和行为；无新依据不要重复长篇论证。结构化裁决提交完整 JSON，不抄写整份 AC 或源码。核验的是调用前已存在的实现与证据，不要求本次调用之后才写出的 verification.json 已经存在。",
+  "code_roots": [
+    "."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "task": "SR-LOCAL-V2",
+  "title": "有限输入域的四个接口",
+  "status": "SPEC",
+  "created": "2026-11-18T15:55:47.212839+00:00",
+  "updated": "2026-11-18T15:55:47.212839+00:00",
+  "artifacts": {
+    "intent": "intent.md",
+    "spec": "spec.md",
+    "source": "source.md"
+  },
+  "history": []
+}

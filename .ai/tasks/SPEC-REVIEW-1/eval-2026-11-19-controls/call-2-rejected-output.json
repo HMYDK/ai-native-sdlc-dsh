@@ -1,0 +1,33 @@
+{
+  "review_complete": false,
+  "outcome": "incomplete",
+  "diagnostic": "Error: 发现引用的原文无法核对",
+  "rejected_structured_output": {
+    "summary": "F1（最小构建验收缺失）仍然存在：作者声称已补齐 O-2/AC-005/AC-006 与构建 Oracle，但磁盘 spec.md 与待审 spec 字段完全一致（sha256 c0f67d67…），仍只有 O-1 与 AC-001–AC-004，Boundary 仍排除构建，故判 open。另新增一项 weak_oracle：extract/normalize 的“无参数 split/strip 语义”在 AC 中只测空格与制表符，Oracle 无法区分只按空格/制表符处理的实现。",
+    "findings": [
+      {
+        "kind": "weak_oracle",
+        "source_id": "S1",
+        "source_quote": "extract(message)：按 Python str.split() 的无参数语义拆词 … normalize(value)：按 Python str.strip() 的无参数语义去首尾空白",
+        "spec_reference": "AC-003 只断言 extract(\"a b\")、extract(\"  a\\tb  \")、extract(\"\")；AC-004 只断言 normalize(\"  x  \")、normalize(\"  \")。Oracle 仅对 AC-001–AC-004 的这组输入做 assertEqual，未覆盖换行等其他空白。",
+        "problem": "source.md 以“按 Python str.split()/str.strip() 的无参数语义”为行为约定，该语义覆盖全部 Unicode 空白（含 \\n、\\r 等），而不仅是空格与制表符。AC-003/AC-004 只测空格与制表符，Oracle 的 assertEqual 无法区分真正遵循无参数语义的实现与只按空格/制表符拆分或去除的实现；换行等空白输入仍属字符串这一同一输入类型，不被“非上述输入类型的错误处理不属于本次承诺”排除。",
+        "counterexample": "extract 用只按 [ \\t]+ 拆分、normalize 用只 strip(' ') 的实现，可令 AC-003/AC-004 全部通过（\"a b\"→[\"a\",\"b\"]，\"  a\\tb  \"→[\"a\",\"b\"]，\"\"→[]；\"  x  \"→\"x\"，\"  \"→\"\"），但 extract(\"a\\nb\") 返回 [\"a\\nb\"] 而非 [\"a\",\"b\"]、normalize(\"\\nx\\n\") 返回 \"\\nx\\n\" 而非 \"x\"。该交付满足当前 Spec/AC/Oracle 全部条款，却违背 source.md 约定的无参数 split/strip 语义。",
+        "suggestion": "在 AC-003/AC-004 增加含换行（或其他空白）的输入用例，或在 Requirements/Design 明确“无参数语义”限定为空格与制表符（若如此，请用户确认这一缩小，因为 source.md 写的是完整的 Python 无参数语义）。"
+      }
+    ],
+    "follow_up": [
+      {
+        "finding_id": "4e456259-3ba0-4994-a45d-3c01bc3431e8:F1",
+        "result": "open",
+        "evidence": "当前 spec.md（磁盘与待审 spec 字段一致，sha256 c0f67d67…）仍只有 O-1 与 AC-001–AC-004，Oracle 仍仅对四接口做 unittest assertEqual，Boundary 仍写“排除完整 gettext 构建、add_uids、extract_messages 及其他符号修复”。作者回应所称的 O-2、AC-005/AC-006、构建 Oracle 及移除必要依赖排除，在可核对的任何 spec 文本中都未出现，故最小构建验收仍整体缺失。"
+      }
+    ],
+    "limitations": [
+      "S1 的 origin/kind 由调用方声明（“受控评测任务原文”），sha256 仅固定输入版本，不证明来源真实；本会话无法独立核实其是否确为用户原始任务。",
+      "作者回应声称已修改 Spec，但磁盘 spec.md 与本次待审 spec 字段均未反映该修改；我只能据所给材料判定 F1 仍存在，无法确认是否存在另一份未被提交的更新版本。"
+    ]
+  },
+  "quoted_text_found_in_snapshot": false,
+  "source_sha256": "6ee2a0c4e9aae5d089c8b601bb32ea18cd7b459961cf8c89417a9ace8d7360f9",
+  "interpretation": "Rejected output is not a valid review. Its provisional open field is not counted as a successful negative control."
+}

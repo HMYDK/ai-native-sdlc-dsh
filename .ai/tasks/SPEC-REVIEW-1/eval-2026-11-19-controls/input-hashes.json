@@ -1,0 +1,13 @@
+{
+  "case-2/.ai/tasks/SR-BUILD/state.yaml": "41c11da1b6187c30274562b9d5961e21d3ef2a6d531666412a72ddbce42a36f9",
+  "case-2/.ai/tasks/SR-BUILD/source.md": "6ee2a0c4e9aae5d089c8b601bb32ea18cd7b459961cf8c89417a9ace8d7360f9",
+  "case-2/.ai/tasks/SR-BUILD/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+  "case-2/.ai/tasks/SR-BUILD/spec.md": "c0f67d67dea13e638ac6486d6d9cac7a220115ffcf436ef1a9c622b505f134be",
+  "case-2/.ai/tasks/SR-BUILD/spec-reviews/4e456259-3ba0-4994-a45d-3c01bc3431e8.json": "8135b64695551ef6731d05aba343662b3249b292b0d5565390599a0cc96ff2de",
+  "args/call-2.json": "1271109feab474986f8b1c1aae084e8699bd3ec2bd7972d2f84c5d369c55acee",
+  "args/call-1.json": "de579713277c08c44a15d3d594ace7735cb3fa2891055518fcd05b5b7dcc2cae",
+  "case-1/.ai/tasks/SR-LOCAL-V2/state.yaml": "2dc06b3bd4c7bdeb693384e25ef876855cc52b3576f9b06b5aebba4aaa19e7e0",
+  "case-1/.ai/tasks/SR-LOCAL-V2/source.md": "705feb47b28b43f73355c72525409e3dc968784e82965ef380063ae3026bf1b7",
+  "case-1/.ai/tasks/SR-LOCAL-V2/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+  "case-1/.ai/tasks/SR-LOCAL-V2/spec.md": "274eac89a5f4e70766cee57a7405fa4add366a86118328a3bfc4ae719f63dfde"
+}
