@@ -1,9 +1,11 @@
 import type {Context} from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-session';
+import type {ToolExecution, ToolExecutionResult} from '@deepseek-ai/dsh-tools';
+import {resolve} from 'node:path';
 import type {VerificationRecord} from '../verify/recording.js';
 import {Store,cwdOf,message,safeSegment,type Execution} from './store.js';
 import {object} from './analysis.js';
-import {captureWorkspace,type CodeSnapshot} from './snapshot.js';
+import {captureWorkspace,hash,type CodeSnapshot} from './snapshot.js';
 import {Trace,readSession} from './trace.js';
 import {LOADED_SUITE} from './runtime.js';
 
@@ -11,8 +13,12 @@ interface Capture {
   store:Store; parent:string; queue:Promise<void>; errors:string[];
   sessions:Map<string,Trace>; exec:Execution;
   enqueued:Map<string,number>;
+  taskRun:boolean; oracleExecutions:OracleExecution[]; oracleTruncated:boolean;
 }
 export interface CaptureInfo {sessions:ReturnType<Trace['summary']>[];errors:string[]}
+export interface OracleExecution {
+  session_id:string; call_id:string; tool:'bash'|'pwsh'; command_sha256:string; exit_code:number;
+}
 
 /** Per-run queues own all writes; session notifications never leak rejected promises. */
 export class Collector {
@@ -41,7 +47,8 @@ export class Collector {
     if(record.kind==='started') {
       if(state)throw new Error('同一运行重复开始');
       const writeExec={agent:exec.agent};
-      state={store:new Store(this.ctx,writeExec,this.root),parent:String(record.data.parent_session_id??object(exec.agent).id??''),queue:Promise.resolve(),errors:[],sessions:new Map(),exec:writeExec,enqueued:new Map()};
+      state={store:new Store(this.ctx,writeExec,this.root),parent:String(record.data.parent_session_id??object(exec.agent).id??''),queue:Promise.resolve(),errors:[],sessions:new Map(),exec:writeExec,enqueued:new Map(),
+        taskRun:typeof object(record.data.inputs).task_id==='string',oracleExecutions:[],oracleTruncated:false};
       this.active.set(record.run_id,state);
     }
     if(!state)throw new Error(`没有运行开始记录: ${record.run_id}`);
@@ -72,6 +79,13 @@ export class Collector {
         await durable.write(`runs/${record.run_id}/capture.json`,{
           sessions:[...current.sessions.values()].map(trace=>trace.summary()),errors:current.errors,
         } satisfies CaptureInfo);
+        const executions=current.oracleExecutions.filter(result=>current.sessions.has(result.session_id));
+        const refs=object(record.data.result).oracle_refs;
+        if(Array.isArray(refs)&&refs.length&&(executions.length||current.oracleTruncated)) {
+          await durable.write(`runs/${record.run_id}/oracles.json`,{
+            schema_version:1,run_id:record.run_id,executions,truncated:current.oracleTruncated,
+          });
+        }
         if(current.errors.length)throw new Error(`部分运行证据写入失败: ${current.errors.join('; ')}`);
         const health=(await durable.run(record.run_id)).evidence;
         if(!health.complete)throw new Error(`RSI 执行证据不完整: ${health.issues.join('; ')}`);
@@ -82,6 +96,27 @@ export class Collector {
         this.active.delete(record.run_id);
         for(const [id,trace] of this.pending)if(![...this.active.values()].some(c=>c.parent===trace.parent))this.pending.delete(id);
       }
+    }
+  }
+
+  /** Preserve the typed exit value omitted from DSH's durable session events. */
+  observeOracle(exec:Readonly<ToolExecution>,result:Readonly<ToolExecutionResult>):void {
+    if((exec.name!=='bash'&&exec.name!=='pwsh')||result.isError||!this.active.size)return;
+    const session=object(object(exec.agent).session),header=object(session.header);
+    if(typeof session.id!=='string'||!session.id||header.origin!=='subagent'
+        ||typeof header.parentSession!=='string'||header.parentSession===session.id)return;
+    const args=object(exec.arguments),value=object(result.value),sandbox=object(value.sandbox);
+    if(typeof args.command!=='string'||args.run_in_background===true||value.kind!=='foreground'
+        ||typeof value.cwd!=='string'||value.aborted!==false||value.timedOut!==false||value.signal!==null
+        ||value.stopped!==undefined||sandbox.denied===true||sandbox.runnerFailed===true
+        ||!Number.isSafeInteger(value.exitCode))return;
+    for(const capture of this.active.values()) {
+      if(!capture.taskRun||capture.parent!==header.parentSession||resolve(value.cwd)!==resolve(cwdOf(capture.exec)))continue;
+      // A child can finish a command before the attempt publishes its session ID.
+      // Persist only observations from published children at run settlement.
+      if(capture.oracleExecutions.length>=128) {capture.oracleTruncated=true;continue;}
+      capture.oracleExecutions.push({session_id:session.id,call_id:exec.callId,tool:exec.name,
+        command_sha256:hash(args.command),exit_code:value.exitCode as number});
     }
   }
 

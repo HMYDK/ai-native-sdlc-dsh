@@ -103,6 +103,8 @@ export interface Verdict {
   /** Observer failures are diagnostics, never a replacement verdict. */
   recording_errors?: string[];
   issue_results?: {issue_id: string; result: 'resolved'|'unresolved'|'cannot_tell'; evidence: string}[];
+  /** Delivery Contract Oracle IDs selected and independently executed in this attempt. */
+  oracle_refs?: string[];
   issue_errors?: string[];
   snapshot_error?: string;
   raw_status?: VerdictStatus;
@@ -259,6 +261,7 @@ export const VERDICT_SCHEMA: ObjectJsonSchema = {
       },
     },
     issue_results: { type: 'array', items: {type: 'object', additionalProperties: false, required: ['issue_id','result','evidence'], properties: {issue_id: {type:'string'}, result: {type:'string', enum:['resolved','unresolved','cannot_tell']}, evidence: {type:'string'}}}},
+    oracle_refs: {type: 'array', items: {type: 'string'}},
     unverified: {
       type: 'array',
       items: { type: 'string' },
@@ -317,6 +320,7 @@ export const TOOL_OUTPUT_SCHEMA = {
       },
     },
     issue_results: {type: 'array', items: {type:'object', additionalProperties:false, properties: {issue_id:{type:'string',required:true},result:{type:'string',required:true,enum:['resolved','unresolved','cannot_tell']},evidence:{type:'string',required:true}}}},
+    oracle_refs: {type: 'array', items: {type: 'string'}},
     issue_errors: {type:'array',items:{type:'string'}},
     snapshot_error: {type:'string'},
     unverified: { type: 'array', items: { type: 'string' } },

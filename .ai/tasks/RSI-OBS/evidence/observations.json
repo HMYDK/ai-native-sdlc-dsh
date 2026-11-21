@@ -1,0 +1,441 @@
+{
+  "fixture": "Controlled responses and real order-export assertion",
+  "checks": 36,
+  "baseline_exit_code": 1,
+  "addressed_finding": {
+    "kind": "omission",
+    "source_id": "S1",
+    "source_quote": "Export every order in CSV.",
+    "spec_reference": "AC-001",
+    "problem": "Headers do not prove all orders exported.",
+    "counterexample": "The first page is the only page emitted.",
+    "suggestion": "Compare all source order IDs.",
+    "finding_id": "1b88fd03-3808-4b0d-8dab-62fac2b2c7f5:F1",
+    "introduced": {
+      "review_id": "1b88fd03-3808-4b0d-8dab-62fac2b2c7f5",
+      "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/1b88fd03-3808-4b0d-8dab-62fac2b2c7f5.json",
+      "record_sha256": "924cd5cd24968622b946382f886ee703732842f513946d6f8454d05860fe94e5",
+      "source_path": ".ai/tasks/OBS-EXPORT/source.md",
+      "source_sha256": "4c8b3ef092c5895dae51cc5e095c83185f2cffd98d7598890a4784eb43436b28",
+      "spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+      "criterion_id": "AC-001"
+    },
+    "status": "addressed",
+    "follow_ups": [
+      {
+        "review_id": "eefc3342-6eab-4629-9b62-2f855fa9f8e9",
+        "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/eefc3342-6eab-4629-9b62-2f855fa9f8e9.json",
+        "record_sha256": "c431b2bbc85d8707aa7d7f230a2228e841fd85fd6b8d1faf1bc8c385bf9741a7",
+        "outcome": "completed",
+        "author_response": "Replace header check with complete ID assertions.",
+        "follow_up": {
+          "finding_id": "1b88fd03-3808-4b0d-8dab-62fac2b2c7f5:F1",
+          "result": "open",
+          "evidence": "The Spec still checks only headers."
+        },
+        "spec_revision": {
+          "before_spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+          "after_spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+          "changed_line_span": null,
+          "acceptance": {
+            "before_sha256": "c50b147e0fb46ca89be9f053574e9fc9957f41b6e0c20a02b8a65588bae2d18b",
+            "after_sha256": "c50b147e0fb46ca89be9f053574e9fc9957f41b6e0c20a02b8a65588bae2d18b",
+            "added": [],
+            "removed": [],
+            "changed": []
+          }
+        }
+      },
+      {
+        "review_id": "a8cf2a9c-3522-4ec3-bbb9-a136f97ee987",
+        "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/a8cf2a9c-3522-4ec3-bbb9-a136f97ee987.json",
+        "record_sha256": "a89c1d22ef388e5178cfd10ebc9d5841a80147fcf02af8a192fe5b4c54f7d112",
+        "outcome": "cancelled",
+        "author_response": "Replace header check with complete ID assertions.",
+        "follow_up": null,
+        "spec_revision": {
+          "before_spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+          "after_spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+          "changed_line_span": null,
+          "acceptance": {
+            "before_sha256": "c50b147e0fb46ca89be9f053574e9fc9957f41b6e0c20a02b8a65588bae2d18b",
+            "after_sha256": "c50b147e0fb46ca89be9f053574e9fc9957f41b6e0c20a02b8a65588bae2d18b",
+            "added": [],
+            "removed": [],
+            "changed": []
+          }
+        }
+      },
+      {
+        "review_id": "27f15145-01fa-49b6-8048-f6e02643c934",
+        "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/27f15145-01fa-49b6-8048-f6e02643c934.json",
+        "record_sha256": "0183d4770dcb9ae001555f2fba530e66507c77401ab9c5b177f451e8a1b2e909",
+        "outcome": "completed",
+        "author_response": "Replace header check with complete ID assertions.",
+        "follow_up": {
+          "finding_id": "1b88fd03-3808-4b0d-8dab-62fac2b2c7f5:F1",
+          "result": "addressed",
+          "evidence": "AC-001 now compares all order IDs."
+        },
+        "spec_revision": {
+          "before_spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+          "after_spec_sha256": "3709ab77ed05f7046562d1922332c6a91b0029850673b0ae7e3ae6f46073e6e4",
+          "changed_line_span": {
+            "start_line": 13,
+            "before_lines": 1,
+            "after_lines": 1
+          },
+          "acceptance": {
+            "before_sha256": "c50b147e0fb46ca89be9f053574e9fc9957f41b6e0c20a02b8a65588bae2d18b",
+            "after_sha256": "61135ac06af14255df4ae92c7a61112ca114fc6c92e3091ccda412a0cf9bd507",
+            "added": [],
+            "removed": [],
+            "changed": [
+              "AC-001"
+            ]
+          }
+        }
+      }
+    ],
+    "delivery": {
+      "status": "linked",
+      "criterion_id": "AC-001",
+      "linkage": "explicit_criterion_id_and_version",
+      "verification_run_id": "34e1b510-c97d-42af-9234-bac6bc4a7d8d",
+      "verification_path": ".ai/tasks/OBS-EXPORT/verifications/34e1b510-c97d-42af-9234-bac6bc4a7d8d.json",
+      "outcome_link": "linked",
+      "criterion_result": {
+        "criterion_id": "AC-001",
+        "result": "met",
+        "evidence": "Controlled criterion verdict"
+      },
+      "outcomes": [
+        {
+          "outcome_ref": "OUT-001",
+          "oracle_refs": [
+            "ORACLE-001"
+          ],
+          "status": "proven"
+        }
+      ]
+    }
+  },
+  "withdrawn_status": "withdrawn",
+  "rounds": [
+    {
+      "review_id": "1b88fd03-3808-4b0d-8dab-62fac2b2c7f5",
+      "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/1b88fd03-3808-4b0d-8dab-62fac2b2c7f5.json",
+      "outcome": "completed",
+      "previous_review": null,
+      "spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+      "reviewer_session": "child-1"
+    },
+    {
+      "review_id": "eefc3342-6eab-4629-9b62-2f855fa9f8e9",
+      "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/eefc3342-6eab-4629-9b62-2f855fa9f8e9.json",
+      "outcome": "completed",
+      "previous_review": "1b88fd03-3808-4b0d-8dab-62fac2b2c7f5",
+      "spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+      "reviewer_session": "child-2"
+    },
+    {
+      "review_id": "a8cf2a9c-3522-4ec3-bbb9-a136f97ee987",
+      "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/a8cf2a9c-3522-4ec3-bbb9-a136f97ee987.json",
+      "outcome": "cancelled",
+      "previous_review": "eefc3342-6eab-4629-9b62-2f855fa9f8e9",
+      "spec_sha256": "af6ddedc46677cd5e1c1cfe27e0e973dd5a0b4e0c17a4bc2a176748973e9244d",
+      "reviewer_session": "child-3"
+    },
+    {
+      "review_id": "27f15145-01fa-49b6-8048-f6e02643c934",
+      "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/27f15145-01fa-49b6-8048-f6e02643c934.json",
+      "outcome": "completed",
+      "previous_review": "eefc3342-6eab-4629-9b62-2f855fa9f8e9",
+      "spec_sha256": "3709ab77ed05f7046562d1922332c6a91b0029850673b0ae7e3ae6f46073e6e4",
+      "reviewer_session": "child-4"
+    },
+    {
+      "review_id": "27356af6-ffc3-4c6e-b7cf-273c46aa26da",
+      "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/27356af6-ffc3-4c6e-b7cf-273c46aa26da.json",
+      "outcome": "incomplete",
+      "previous_review": "27f15145-01fa-49b6-8048-f6e02643c934",
+      "spec_sha256": "3709ab77ed05f7046562d1922332c6a91b0029850673b0ae7e3ae6f46073e6e4",
+      "reviewer_session": "child-5"
+    },
+    {
+      "review_id": "64675686-6fa7-45a5-8c79-e3c93dcac737",
+      "record_path": ".ai/tasks/OBS-EXPORT/spec-reviews/64675686-6fa7-45a5-8c79-e3c93dcac737.json",
+      "outcome": "completed",
+      "previous_review": "27f15145-01fa-49b6-8048-f6e02643c934",
+      "spec_sha256": "3709ab77ed05f7046562d1922332c6a91b0029850673b0ae7e3ae6f46073e6e4",
+      "reviewer_session": "child-6"
+    }
+  ],
+  "delivery_evidence": {
+    "task_state": {
+      "path": ".ai/tasks/OBS-EXPORT/state.yaml",
+      "sha256": "231caff738247952b778917a276cf5c8c4bfffc47b1bf34b33029b419ef5a99c",
+      "status": "DONE"
+    },
+    "verification": {
+      "run_id": "34e1b510-c97d-42af-9234-bac6bc4a7d8d",
+      "outcome": "approve",
+      "started_at": "2026-11-21T02:40:30.637Z",
+      "finished_at": "2026-11-21T02:40:30.966Z",
+      "record_path": ".ai/tasks/OBS-EXPORT/verifications/34e1b510-c97d-42af-9234-bac6bc4a7d8d.json",
+      "record_sha256": "c44e5ea36c06710e99fcbd2cf049a7b6a1ccd756f3bd2dd5c2714049dcd26dd3",
+      "verdict": "approve",
+      "verification_complete": true,
+      "verifier_session": "child-7",
+      "spec_review": {
+        "version": 1,
+        "id": "64675686-6fa7-45a5-8c79-e3c93dcac737",
+        "sha256": "80356f8ce61c78179758f2dbe4108eb41e8c67b30a1d540ab2d7019768582298"
+      },
+      "acceptance": {
+        "id": "792e5df2-3cc4-488f-871d-f420dfe3e065",
+        "spec_path": "spec.md",
+        "spec_sha256": "3709ab77ed05f7046562d1922332c6a91b0029850673b0ae7e3ae6f46073e6e4"
+      },
+      "code_fingerprint": "524107a6379c1b2c16ec81283ffa11f94bb2b6c0f14f830bce5c920b9eb02d30",
+      "binding_fingerprint": "72ba664ba8d52e4d960f9eb774716469b6289a21835abaab1bf11acfe0a42f26",
+      "criteria_results": [
+        {
+          "criterion_id": "AC-001",
+          "result": "met",
+          "evidence": "Controlled criterion verdict"
+        }
+      ]
+    },
+    "outcomes": [
+      {
+        "outcome_ref": "OUT-001",
+        "description": "Export every order in CSV.",
+        "criterion_ids": [
+          "AC-001"
+        ],
+        "spec_path": ".ai/tasks/OBS-EXPORT/spec.md",
+        "spec_sha256": "3709ab77ed05f7046562d1922332c6a91b0029850673b0ae7e3ae6f46073e6e4",
+        "status": "proven",
+        "oracles": [
+          {
+            "oracle_ref": "ORACLE-001",
+            "command": "node assert-export.mjs",
+            "status": "proven",
+            "expected_exit_code": 0,
+            "run_id": "34e1b510-c97d-42af-9234-bac6bc4a7d8d",
+            "executions": [
+              {
+                "call_id": "call-15",
+                "tool": "bash",
+                "exit_code": 0,
+                "call_seq": 1,
+                "result_seq": 2
+              }
+            ],
+            "session_id": "child-7",
+            "working_directory": ".",
+            "evidence_path": ".ai/rsi/runs/34e1b510-c97d-42af-9234-bac6bc4a7d8d/oracles.json",
+            "session_path": ".ai/rsi/runs/34e1b510-c97d-42af-9234-bac6bc4a7d8d/sessions/child-7.json"
+          }
+        ]
+      }
+    ],
+    "checkpoints": [
+      {
+        "path": ".ai/rsi/tasks/OBS-EXPORT/checkpoints/c5df6801-c2a6-45d1-9359-83b60ab13a6a.json",
+        "stage": "VERIFYING",
+        "at": "2026-11-21T02:40:30.983Z",
+        "code_snapshot_fingerprint": "388206c7193831203ab6305f34dfacba8a7341ee46da37b48eb11cb9174bbbbd",
+        "git_head": "27e73a37410a387c4e79931df58ddbee5d7cf05f"
+      },
+      {
+        "path": ".ai/rsi/tasks/OBS-EXPORT/checkpoints/65d4e081-1a19-4862-9cef-8150b8aaa9f0.json",
+        "stage": "REVIEWING",
+        "at": "2026-11-21T02:40:31.429Z",
+        "code_snapshot_fingerprint": "388206c7193831203ab6305f34dfacba8a7341ee46da37b48eb11cb9174bbbbd",
+        "git_head": "27e73a37410a387c4e79931df58ddbee5d7cf05f"
+      },
+      {
+        "path": ".ai/rsi/tasks/OBS-EXPORT/checkpoints/442e423c-4191-49b9-9d95-df142a68c8d5.json",
+        "stage": "DONE",
+        "at": "2026-11-21T02:40:31.735Z",
+        "code_snapshot_fingerprint": "388206c7193831203ab6305f34dfacba8a7341ee46da37b48eb11cb9174bbbbd",
+        "git_head": "27e73a37410a387c4e79931df58ddbee5d7cf05f"
+      }
+    ],
+    "evidence_complete": true
+  },
+  "no_oracle": {
+    "status": "unverified",
+    "verification": "approve"
+  },
+  "failed_oracle": {
+    "oracle_ref": "ORACLE-001",
+    "command": "node assert-export.mjs",
+    "status": "failed",
+    "expected_exit_code": 0,
+    "run_id": "af0a86c9-ec95-401c-9ce3-2b3bc8a5a616",
+    "executions": [
+      {
+        "call_id": "call-41",
+        "tool": "bash",
+        "exit_code": 1,
+        "call_seq": 1,
+        "result_seq": 2
+      }
+    ],
+    "session_id": "child-11",
+    "working_directory": ".",
+    "evidence_path": ".ai/rsi/runs/af0a86c9-ec95-401c-9ce3-2b3bc8a5a616/oracles.json",
+    "session_path": ".ai/rsi/runs/af0a86c9-ec95-401c-9ce3-2b3bc8a5a616/sessions/child-11.json"
+  },
+  "observed_cost": {
+    "spec_review_rounds": 6,
+    "spec_follow_up_rounds": 5,
+    "verification_rounds": 1,
+    "spec_reviews": [
+      {
+        "review_id": "1b88fd03-3808-4b0d-8dab-62fac2b2c7f5",
+        "duration_ms": 38,
+        "reviewer_sessions": [
+          "child-1"
+        ]
+      },
+      {
+        "review_id": "eefc3342-6eab-4629-9b62-2f855fa9f8e9",
+        "duration_ms": 43,
+        "reviewer_sessions": [
+          "child-2"
+        ]
+      },
+      {
+        "review_id": "a8cf2a9c-3522-4ec3-bbb9-a136f97ee987",
+        "duration_ms": 100,
+        "reviewer_sessions": [
+          "child-3"
+        ]
+      },
+      {
+        "review_id": "27f15145-01fa-49b6-8048-f6e02643c934",
+        "duration_ms": 46,
+        "reviewer_sessions": [
+          "child-4"
+        ]
+      },
+      {
+        "review_id": "27356af6-ffc3-4c6e-b7cf-273c46aa26da",
+        "duration_ms": 42,
+        "reviewer_sessions": [
+          "child-5"
+        ]
+      },
+      {
+        "review_id": "64675686-6fa7-45a5-8c79-e3c93dcac737",
+        "duration_ms": 49,
+        "reviewer_sessions": [
+          "child-6"
+        ]
+      }
+    ],
+    "verifications": [
+      {
+        "run_id": "34e1b510-c97d-42af-9234-bac6bc4a7d8d",
+        "duration_ms": 329
+      }
+    ],
+    "task_recorded_elapsed_ms": 3083,
+    "sessions": [
+      {
+        "session_id": "author",
+        "role": "author",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 10,
+        "output_tokens_observed": 2,
+        "total_tokens_observed": 12,
+        "total_tokens": 12
+      },
+      {
+        "session_id": "child-1",
+        "role": "spec_reviewer",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 20,
+        "output_tokens_observed": 5,
+        "total_tokens_observed": 25,
+        "total_tokens": 25
+      },
+      {
+        "session_id": "child-2",
+        "role": "spec_reviewer",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 20,
+        "output_tokens_observed": 5,
+        "total_tokens_observed": 25,
+        "total_tokens": 25
+      },
+      {
+        "session_id": "child-3",
+        "role": "spec_reviewer",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 20,
+        "output_tokens_observed": 5,
+        "total_tokens_observed": 25,
+        "total_tokens": 25
+      },
+      {
+        "session_id": "child-4",
+        "role": "spec_reviewer",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 20,
+        "output_tokens_observed": 5,
+        "total_tokens_observed": 25,
+        "total_tokens": 25
+      },
+      {
+        "session_id": "child-5",
+        "role": "spec_reviewer",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 20,
+        "output_tokens_observed": 5,
+        "total_tokens_observed": 25,
+        "total_tokens": 25
+      },
+      {
+        "session_id": "child-6",
+        "role": "spec_reviewer",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 20,
+        "output_tokens_observed": 5,
+        "total_tokens_observed": 25,
+        "total_tokens": 25
+      },
+      {
+        "session_id": "child-7",
+        "role": "verifier",
+        "calls_observed": 1,
+        "calls_without_usage": 0,
+        "input_tokens_observed": 20,
+        "output_tokens_observed": 5,
+        "total_tokens_observed": 25,
+        "total_tokens": 25
+      }
+    ],
+    "observed_total_tokens": 187,
+    "total_tokens": 187,
+    "monetary_cost": null
+  },
+  "evidence_gaps": [],
+  "negative_evidence_gap_kinds": [
+    "invalid_review_record",
+    "review_chain",
+    "verification_evidence",
+    "oracle_execution"
+  ]
+}

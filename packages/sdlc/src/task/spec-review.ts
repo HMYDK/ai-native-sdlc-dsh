@@ -3,7 +3,8 @@ import path from 'node:path';
 import type {Context} from '@deepseek-ai/cordis';
 import {requireSessionCwd, resolveOptions} from '../shared/helpers.js';
 import {
-  parseCompletedReview, REVIEW_ID, REVIEW_INPUT_BYTES, REVIEW_RECORD_BYTES, reviewFilename, sameJSON,
+  assertReviewPredecessor, parseCompletedReview, REVIEW_HISTORY_BYTES, REVIEW_HISTORY_FILES, REVIEW_ID,
+  REVIEW_INPUT_BYTES, REVIEW_RECORD_BYTES, reviewFilename, reviewInputIdentity, sameJSON,
   sourceDescriptor, sourceInputs, workspacePath, type CompletedReview, type Snapshot, type SpecReviewRef,
 } from '../shared/spec-review-record.js';
 import {textHash, type ReviewSource} from '../verify/spec-review.js';
@@ -76,21 +77,13 @@ function parseReviewFile(snapshot: Snapshot, task: string, id: string): LoadedRe
   }
 }
 
-function verifyFollowUp(current: CompletedReview, previous: LoadedReview | undefined): void {
-  if (current.inputs.previous_review !== previous?.record.review_id
-      || !sameJSON(current.inputs.previous_findings, previous?.record.active_findings ?? [])
-      || (current.schema_version === 2 && current.inputs.previous_review_sha256 !== previous?.snapshot.sha256)) {
-    throw new Error('复审链与前轮记录或未解决发现不一致');
-  }
-}
-
 async function loadAnchoredReview(read: ReadTaskFile, state: TaskState, ref: SpecReviewRef): Promise<LoadedReview> {
   const file = await read(reviewFilename(ref.id), REVIEW_RECORD_BYTES);
   if (file.sha256 !== ref.sha256) throw new Error('当前 SPEC 审查记录指纹与任务引用不符，请恢复记录');
   const loaded = parseReviewFile(file, state.task, ref.id);
   if (loaded.record.schema_version !== 2) throw new Error('旧版审查尚未补审，需回到 SPEC');
   const previous = loaded.record.inputs.previous_review;
-  verifyFollowUp(loaded.record, previous
+  assertReviewPredecessor(loaded.record, previous
     ? parseReviewFile(await read(reviewFilename(previous), REVIEW_RECORD_BYTES), state.task, previous)
     : undefined);
   return loaded;
@@ -104,7 +97,7 @@ async function readLegacyHead(ctx: Context, exec: TaskExec, dir: string, task: s
   if (info.type !== 'directory') throw new Error('spec-reviews 不是目录，请恢复历史审查记录');
   const files = (await ctx.fs.listDir(folder, exec.signal)).map(entry => entry.name)
     .filter(name => name.endsWith('.json') && REVIEW_ID.test(name.slice(0, -5)));
-  if (files.length > 128) throw new Error('历史审查过多，需人工核对并迁移审查链');
+  if (files.length > REVIEW_HISTORY_FILES) throw new Error('历史审查过多，需人工核对并迁移审查链');
   const {task: read} = reviewWorkspace(ctx, exec, dir);
   const entries = new Map<string, LoadedReview>();
   let bytes = 0;
@@ -112,7 +105,7 @@ async function readLegacyHead(ctx: Context, exec: TaskExec, dir: string, task: s
     const id = name.slice(0, -5);
     const snapshot = await read(reviewFilename(id), REVIEW_RECORD_BYTES);
     bytes += Buffer.byteLength(snapshot.content);
-    if (bytes > 16 * 1024 * 1024) throw new Error('历史审查超过 16 MiB，需人工核对并迁移审查链');
+    if (bytes > REVIEW_HISTORY_BYTES) throw new Error('历史审查超过 16 MiB，需人工核对并迁移审查链');
     const raw = JSON.parse(snapshot.content);
     if (raw?.task !== task || raw?.review_id !== id) throw new Error('历史审查与任务身份不一致，请恢复原记录');
     if (raw.review_complete === false && ['running', 'incomplete', 'cancelled'].includes(raw.outcome)) continue;
@@ -124,7 +117,7 @@ async function readLegacyHead(ctx: Context, exec: TaskExec, dir: string, task: s
   const predecessors = new Set<string>();
   for (const entry of entries.values()) {
     const previous = entry.record.inputs.previous_review;
-    verifyFollowUp(entry.record, previous ? entries.get(previous) : undefined);
+    assertReviewPredecessor(entry.record, previous ? entries.get(previous) : undefined);
     if (previous) predecessors.add(previous);
   }
   const heads = [...entries].filter(([id]) => !predecessors.has(id));
@@ -155,14 +148,7 @@ export async function requireCurrentSpecReview(ctx: Context, exec: TaskExec, dir
   if (state.acceptance && state.acceptance.spec_sha256 !== current.spec.sha256) {
     throw new Error('AC 登记与当前 Spec 的版本不同。请退回 SPEC 完成审查，再重新登记验收清单');
   }
-  const snapshotIdentity = ({path, sha256}: Snapshot) => ({path, sha256});
-  const identity = (inputs: typeof current) => ({
-    intent: snapshotIdentity(inputs.intent),
-    spec: snapshotIdentity(inputs.spec),
-    manifest: inputs.source_manifest && snapshotIdentity(inputs.source_manifest),
-    sources: inputs.sources.map(source => ({...sourceDescriptor(source), sha256: source.sha256})),
-  });
-  if (!sameJSON(identity(current), identity(record.inputs))) {
+  if (!sameJSON(reviewInputIdentity(current), reviewInputIdentity(record.inputs))) {
     throw new Error('Source、来源清单、Intent 或 Spec/AC 已变更。请退回 SPEC，按当前登记的资料重新审查');
   }
   if (record.active_findings.length) {

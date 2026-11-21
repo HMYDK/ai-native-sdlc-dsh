@@ -35,7 +35,11 @@ export class Store {
     const policy=this.ctx.sandboxPolicy.resolve({session:session as never});
     await this.ctx.fs.writeText(await this.target(relative),JSON.stringify(value,null,2)+'\n',replace?undefined:{kind:'createIfAbsent'},this.exec.signal,policy);
   }
-  async read(relative:string):Promise<unknown> {return JSON.parse(await this.ctx.fs.readText(await this.target(relative),this.exec.signal));}
+  async read(relative:string,maxBytes?:number):Promise<unknown> {
+    const target=await this.target(relative);
+    if(maxBytes===undefined)return JSON.parse(await this.ctx.fs.readText(target,this.exec.signal));
+    return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await this.ctx.fs.readBytes(target,this.exec.signal,maxBytes)));
+  }
   async optional(relative:string):Promise<unknown|undefined> {
     if (!await this.ctx.fs.stat(await this.target(relative),this.exec.signal)) return undefined;
     return this.read(relative);
