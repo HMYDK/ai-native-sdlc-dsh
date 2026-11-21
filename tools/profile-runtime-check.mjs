@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import {execFileSync} from 'node:child_process';
+import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -53,10 +54,34 @@ try {
   await ctx.agentPresets.mount(scope.ctx,'sdlc');
   const names=ctx.tools.definitions(agent).map(t=>t.name);
   console.log('SDLC_TOOLS',JSON.stringify({total:names.length,sdlc:names.filter(n=>n.startsWith('sdlc_')).length}));
-  for(const n of ['read','bash','skill','sdlc_task_create','sdlc_verify','sdlc_status'])assert.ok(names.includes(n),n);
+  for(const n of ['read','bash','skill','sdlc_task_create','sdlc_spec_review','sdlc_verify','sdlc_status'])assert.ok(names.includes(n),n);
   const batch=await ctx.tools.execute({agent,signal:new AbortController().signal,calls:[{id:'status-probe',name:'sdlc_status',arguments:'{}'}]});
   console.log('SDLC_STATUS',JSON.stringify(batch.results.map(r=>({isError:r.result.isError,error:r.result.error}))));
   assert.equal(batch.results[0].result.isError,false);
+  // Call the new entry point, not a hand-written approximation of its activation spec.
+  // This parent is intentionally NOT an AgentManager-owned live agent. rc.3 rejects it
+  // before creating a child or contacting a model; never replace it with a real agent here.
+  assert.notEqual(ctx.agents.get(agent.id),agent,'probe must not have a live model-calling parent');
+  const fixture=path.join(checkHome,'.ai/tasks/RUNTIME-SPEC');
+  await fs.mkdir(fixture,{recursive:true});
+  const at=new Date().toISOString();
+  const initial=JSON.stringify({task:'RUNTIME-SPEC',title:'Unpaid SPEC service-contract probe',status:'SPEC',created:at,updated:at,
+    artifacts:{intent:'intent.md',spec:'spec.md',source:'source.md'},history:[]});
+  await fs.writeFile(path.join(fixture,'state.yaml'),initial);
+  await fs.writeFile(path.join(fixture,'intent.md'),'Check the original requirement before implementation.');
+  await fs.writeFile(path.join(fixture,'spec.md'),'# Spec\n\n## Acceptance Criteria\n- AC-001: Export all source orders.\n');
+  await fs.writeFile(path.join(fixture,'source.md'),'Controlled original requirement: export all source orders; Excel is excluded.');
+  const specBatch=await ctx.tools.execute({agent,signal:new AbortController().signal,calls:[{id:'spec-service-probe',name:'sdlc_spec_review',arguments:JSON.stringify({task_id:'RUNTIME-SPEC'})}]});
+  const specResult=specBatch.results[0].result;
+  assert.equal(specResult.isError,false,JSON.stringify(specResult));
+  const feedback=specResult.value;
+  assert.equal(feedback.review_complete,false);
+  assert.match(feedback.diagnostic,/exact live parent agent/);
+  assert.doesNotMatch(feedback.diagnostic,/Cannot read properties of undefined/);
+  assert.equal(await fs.readFile(path.join(fixture,'state.yaml'),'utf8'),initial);
+  assert.ok(!(await fs.readdir(fixture)).includes('verification.json'));
+  assert.ok(!(await ctx.agentPresets.list()).some(p=>p.id==='sdlc-verifier'));
+  console.log('SPEC_REVIEW_REAL_SERVICE','expected parent rejection; no model, unchanged task, lease released');
  }finally{await scope.dispose();}
  const standard={},standardScope=createScope(ctx,standard);standard.ctx=standardScope.ctx;
  try{await ctx.agentPresets.mount(standardScope.ctx,'standard');assert.ok(!ctx.tools.definitions(standard).some(t=>t.name.startsWith('sdlc_')));console.log('STANDARD_ISOLATION','pass');}finally{await standardScope.dispose();}

@@ -38,9 +38,10 @@ test('caller subsets, same-size replacements and duplicates cannot choose task v
 test('all target stages at and after PLANNED require the contract, including jumps and backwards moves',()=>{
   const state:TaskState={task:'T-1',title:'fixture',status:'INTENT',created:'x',updated:'x',history:[],artifacts:{intent:'intent.md',spec:'spec.md',plan:'plan.md',verification:'verification.json',review:'review.json'}};
   for (const to of ['PLANNED','IMPLEMENTING','VERIFYING','REVIEWING','DONE'] as const) {
-    assert.equal(checkAdvance('INTENT',to,state,()=>true,'jump',spec).ok,false);
-    assert.equal(checkAdvance('INTENT',to,{...state,acceptance:registration()},()=>true,'jump',spec).ok,true);
-    assert.equal(checkAdvance('INTENT',to,{...state,acceptance:registration()},()=>true,'jump',spec+'edited').ok,false);
+    assert.equal(checkAdvance('INTENT',to,state,()=>true,'jump',spec,{ok:true}).ok,false);
+    assert.equal(checkAdvance('INTENT',to,{...state,acceptance:registration()},()=>true,'jump',spec).ok,false);
+    assert.equal(checkAdvance('INTENT',to,{...state,acceptance:registration()},()=>true,'jump',spec,{ok:true}).ok,true);
+    assert.equal(checkAdvance('INTENT',to,{...state,acceptance:registration()},()=>true,'jump',spec+'edited',{ok:true}).ok,false);
   }
   assert.equal(checkAdvance('VERIFYING','PLANNED',state,()=>true,'return',spec).ok,false);
   assert.equal(checkAdvance('VERIFYING','SPEC',state,()=>true,'repair missing baseline').ok,true);

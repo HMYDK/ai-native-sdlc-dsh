@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-19",
+  "plugin": "0.6.2 (local, unpublished)",
+  "host": "0.2.2-rc.3",
+  "product_tarball_sha256": "027ed965e0dc5c43fcdf519a6e20ed962771e02b5be23dedfdb109ea2d27f622",
+  "verification_log_sha256": "b2700f7996770a4ab47f9670bccf3e55a86c491cd3931ef006828c3dce9b0f74",
+  "library_tests": 291,
+  "client_tests": 45,
+  "smoke_groups": 13,
+  "spec_review_smoke_checks": 31,
+  "evaluation_budget_tests": 3,
+  "product_changed_since_full_verify": false
+}

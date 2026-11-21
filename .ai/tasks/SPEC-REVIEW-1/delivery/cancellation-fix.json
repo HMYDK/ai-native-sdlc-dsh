@@ -1,0 +1,45 @@
+{
+  "full_verify_date": "2026-11-19",
+  "packaged_runtime_checks_date": "2026-11-20",
+  "plugin": "0.6.2 local, unpublished",
+  "host_version": "0.2.2-rc.3",
+  "tarball_sha256": "3fc6524cfa70b8e615eb0e380a6685bbea05e22bfb9befad59e7bd91242b1b1d",
+  "pack_files": 75,
+  "library_tests_passed": 294,
+  "client_tests_passed": 45,
+  "smoke_groups_passed": 13,
+  "cancellation_unit_test_controls": {
+    "old_runtime": {
+      "passed": 1,
+      "failed": 2
+    },
+    "fixed_runtime": {
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "published_cancellation_real_host": {
+    "old_runtime": "fails before disposal while result is pending",
+    "fixed_runtime": "passes with one disposal (controlled external provider)"
+  },
+  "spawn_cancellation_real_host": {
+    "model_provider": "scripted local stream",
+    "model_requests": 1,
+    "request_after_cancellation": false,
+    "task_status": "VERIFYING",
+    "run_outcome": "cancelled",
+    "active_run_released": true,
+    "delivery_verdict_exists": false,
+    "preset_released": true
+  },
+  "compat_peers": 9,
+  "preset_composition_rows": 29,
+  "runtime_tools_total": 58,
+  "runtime_sdlc_tools": 18,
+  "board_status": 200,
+  "validation_logs_sha256": {
+    "full_verify": "cf9b5a421e998ee3f09eb83c8cd50090574bf7e5ed799a8e0b975c9e3c2d11f2",
+    "runtime_probe": "b5a685f0b42033bb62bb62a0ca66e40be65d8e421558b48b411a18b119defa9a",
+    "cancellation_probe": "b20dd2e6e49544b314b0794d34ecf0bc2adf3bd10476189ebaf9edc991fe0b32"
+  }
+}

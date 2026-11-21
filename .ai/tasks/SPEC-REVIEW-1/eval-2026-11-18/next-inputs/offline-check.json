@@ -1,0 +1,34 @@
+{
+  "date": "2026-11-19",
+  "model_called": false,
+  "structure": {
+    "kind": "spec",
+    "ok": true,
+    "found": [
+      "Delivery Contract",
+      "Acceptance Criteria",
+      "Requirements",
+      "Design",
+      "Areas of concern"
+    ],
+    "findings": []
+  },
+  "criteria": [
+    {
+      "id": "AC-001",
+      "text": "add(2, 3) == 5 且 add(-2, 3) == 1。"
+    },
+    {
+      "id": "AC-002",
+      "text": "render(\"x\") 返回由 U+003C、x、U+003E 组成的字符串，render(\"\") 返回由 U+003C、U+003E 组成的字符串。"
+    },
+    {
+      "id": "AC-003",
+      "text": "extract(\"a b\") == [\"a\", \"b\"]，extract(\"  a\\tb  \") == [\"a\", \"b\"]，extract(\"\") == []。"
+    },
+    {
+      "id": "AC-004",
+      "text": "normalize(\"  x  \") == \"x\" 且 normalize(\"  \") == \"\"。"
+    }
+  ]
+}

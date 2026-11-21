@@ -1,0 +1,29 @@
+{
+  "SR-BUILD": {
+    ".ai/tasks/SR-BUILD/state.yaml": "41c11da1b6187c30274562b9d5961e21d3ef2a6d531666412a72ddbce42a36f9",
+    ".ai/tasks/SR-BUILD/source.md": "6ee2a0c4e9aae5d089c8b601bb32ea18cd7b459961cf8c89417a9ace8d7360f9",
+    ".ai/tasks/SR-BUILD/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+    ".ai/tasks/SR-BUILD/spec.md": "98e98383b0ed57a352f4ffc82f57b850ba9fc3e8d94524f91d91fe6c04176bf7",
+    ".ai/tasks/SR-BUILD/spec-reviews/4e456259-3ba0-4994-a45d-3c01bc3431e8.json": "8135b64695551ef6731d05aba343662b3249b292b0d5565390599a0cc96ff2de"
+  },
+  "SR-LOCAL": {
+    ".ai/tasks/SR-LOCAL/state.yaml": "c239a5a26516593845850a0af4e61470a2301bdfe330b9b3fb67570b25c5465a",
+    ".ai/tasks/SR-LOCAL/source.md": "ac64e1934894a601136010e620148f8691b4c6190d3968c3d1d145e92461a3d8",
+    ".ai/tasks/SR-LOCAL/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+    ".ai/tasks/SR-LOCAL/spec.md": "c0f67d67dea13e638ac6486d6d9cac7a220115ffcf436ef1a9c622b505f134be",
+    ".ai/tasks/SR-LOCAL/spec-reviews/e9c0a3ab-1ebf-4a34-b330-4218939c1f1a.json": "c264d7b8e54db54d42ee763e4687235697598ed7d5a0ae72005ee7a518be8d12"
+  },
+  "SR-LOCAL-V2": {
+    ".ai/tasks/SR-LOCAL-V2/state.yaml": "fea8650d520a72a250f3ee1eb6bac779473816e96f4c478e90070b39264caba1",
+    ".ai/tasks/SR-LOCAL-V2/source.md": "84f4acd09f384d75aeab7c24693635c9e035b25416cc76862c1c307b8140d0b6",
+    ".ai/tasks/SR-LOCAL-V2/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+    ".ai/tasks/SR-LOCAL-V2/spec.md": "274eac89a5f4e70766cee57a7405fa4add366a86118328a3bfc4ae719f63dfde"
+  },
+  "SR-NOFIX": {
+    ".ai/tasks/SR-BUILD/state.yaml": "41c11da1b6187c30274562b9d5961e21d3ef2a6d531666412a72ddbce42a36f9",
+    ".ai/tasks/SR-BUILD/source.md": "6ee2a0c4e9aae5d089c8b601bb32ea18cd7b459961cf8c89417a9ace8d7360f9",
+    ".ai/tasks/SR-BUILD/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+    ".ai/tasks/SR-BUILD/spec.md": "c0f67d67dea13e638ac6486d6d9cac7a220115ffcf436ef1a9c622b505f134be",
+    ".ai/tasks/SR-BUILD/spec-reviews/4e456259-3ba0-4994-a45d-3c01bc3431e8.json": "8135b64695551ef6731d05aba343662b3249b292b0d5565390599a0cc96ff2de"
+  }
+}

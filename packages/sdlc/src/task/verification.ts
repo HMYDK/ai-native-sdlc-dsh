@@ -11,15 +11,20 @@ import {createHash} from 'node:crypto';
 import type {TaskState} from './state.js';
 import type {TaskVerification} from './approval.js';
 import {requireTaskAcceptance} from './acceptance.js';
+import {requireCurrentSpecReview} from './spec-review.js';
+import type {SpecReviewRef} from '../shared/spec-review-record.js';
 import {additionalCriteria, checkSubmittedCriteria, criterionText, verificationAcceptance, type AcceptanceRegistration, type AcceptanceCriterion} from '../shared/acceptance.js';
 export interface TaskVerificationContext {
   id: string; dir: string; run: string; binding: VerificationBinding; pending: FlowIssue[];
   acceptance: AcceptanceRegistration; criteria: AcceptanceCriterion[]; additional_criteria: string[];
+  specReview: SpecReviewRef;
 }
 export async function startTaskVerification(ctx: Context, exec: TaskExec, task: {id:string;dir:string}, run: string, roots?: string[], criteria?: string[], additional: string[] = []): Promise<TaskVerificationContext> {
   // Adoption is a separate durable write: a refused retry must still show the old findings.
   await mutateTask(ctx,exec,task.dir,task.id,async state => {
     if (state.workflow?.latest_run || !state.artifacts.verification) return {state,value:undefined};
+    if (state.status !== 'VERIFYING') throw new Error('先把任务推进到 VERIFYING');
+    await requireCurrentSpecReview(ctx,exec,task.dir,state);
     const body = await ctx.fs.readText(await taskFile(ctx,exec,task.dir,state.artifacts.verification),exec.signal);
     let old: TaskVerification;
     try { old = JSON.parse(body); } catch { throw new Error('旧验证文件损坏，请先恢复原记录，不能当作没有发现过问题'); }
@@ -43,6 +48,7 @@ export async function startTaskVerification(ctx: Context, exec: TaskExec, task: 
   return mutateTask(ctx,exec,task.dir,task.id,async state => {
     const next = beginRun(state,run,new Date().toISOString());
     const acceptance = await requireTaskAcceptance(ctx,exec,task.dir,state);
+    const specReview = await requireCurrentSpecReview(ctx,exec,task.dir,state);
     checkSubmittedCriteria(acceptance.criteria,criteria);
     const entries = [...acceptance.criteria,...additionalCriteria(additional)];
     const artifacts = Object.fromEntries(Object.entries(state.artifacts).map(([k,v])=>[k,`${task.dir}/${v}`]));
@@ -52,7 +58,7 @@ export async function startTaskVerification(ctx: Context, exec: TaskExec, task: 
     // Historical hash IDs stay in issue history. An old/removed criterion still needs an
     // explicit issue_result, but is not silently reinterpreted as a different current AC.
     const pending = pendingIssues(state).map(issue => entries.some(c=>c.id===issue.criterion_id) ? issue : {...issue,criterion_id:undefined});
-    return {state:next,value:{...task,run,binding,pending,acceptance,criteria:entries,additional_criteria:additional}};
+    return {state:next,value:{...task,run,binding,pending,acceptance,specReview,criteria:entries,additional_criteria:additional}};
   });
 }
 async function checkRecordedReturn(ctx: Context, exec: TaskExec, dir: string, state: TaskState, current: VerificationBinding, acceptance: AcceptanceRegistration): Promise<void> {
@@ -88,6 +94,8 @@ export async function completeTaskVerification(ctx: Context, exec: TaskExec, tas
   const state = await mutateTask(ctx,exec,task.dir,task.id,async state => {
     const current = await requireTaskAcceptance(ctx,exec,task.dir,state);
     if (current.id !== task.acceptance.id) throw new Error('验证期间验收登记已改变，本轮结果不能完成任务');
+    const review = await requireCurrentSpecReview(ctx,exec,task.dir,state);
+    if (review.id !== task.specReview.id || review.sha256 !== task.specReview.sha256) throw new Error('验证期间 SPEC 审查引用已改变，请重新验证');
     // Check ownership before ANY verdict write; a cancelled result cannot overwrite the latest cache.
     const next = finishRun(state,task.run,verdict,task.criteria,verdict.verifier_session ?? 'independent-verifier',at,file);
     await ctx.fs.writeText(await taskFile(ctx,exec,task.dir,file),body,{kind:'createIfAbsent'},exec.signal,policy);

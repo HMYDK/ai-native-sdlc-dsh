@@ -1,5 +1,6 @@
 /** Issue #2, both sides: SDLC_TEST_LIB=<old lib> SDLC_ACCEPTANCE_EXPECT=vulnerable also exercises the defective version. */
 import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
+import {controlledSpecActivation, reviewFixture} from './helpers/spec-review.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
@@ -11,6 +12,7 @@ const require=createRequire(path.join(process.env.DSH_APP??'/Applications/DeepSe
 const {Context}=require('@deepseek-ai/cordis'),{ToolRuntime}=require('@deepseek-ai/dsh-tools'),{LocalFileSystem}=require('@deepseek-ai/dsh-fs-local');
 const lib=path.resolve(process.env.SDLC_TEST_LIB??path.join(import.meta.dirname,'../lib'));
 const vulnerable=process.env.SDLC_ACCEPTANCE_EXPECT==='vulnerable';
+const gated=await fs.access(path.join(lib,'task/spec-review.js')).then(()=>true,()=>false);
 const task=await import(pathToFileURL(path.join(lib,'task/index.js'))),verify=await import(pathToFileURL(path.join(lib,'verify/index.js'))),artifact=await import(pathToFileURL(path.join(lib,'artifact/index.js')));
 const {load,JSON_SCHEMA}=require('js-yaml');
 const root=await fs.mkdtemp(path.join(os.tmpdir(),'sdlc-acceptance-')),ctx=new Context();
@@ -47,13 +49,21 @@ const dir=id=>path.join(root,'.ai/tasks',id);
 const state=async id=>load(await fs.readFile(path.join(dir(id),'state.yaml'),'utf8'),{schema:JSON_SCHEMA});
 const advance=(id,to,artifacts)=>call('sdlc_task_advance',{task_id:id,to,reason:'Issue 2 controlled fixture',...(artifacts?{artifacts}:{})});
 const verifyTask=(id,extra={})=>call('sdlc_verify',{task_id:id,intent_of_change:'Fulfill all three Spec requirements',criteria,...extra});
+const enterReviewedSpec = async id => {
+  const stage = await advance(id,'SPEC',{source:'source.md'});
+  assert.ok(!stage.isError,JSON.stringify(stage));
+  await reviewFixture(call,id);
+};
 const create=async(id,content=spec,stage='VERIFYING')=>{
   await success('sdlc_task_create',{task_id:id,title:'Acceptance fixture '+id});
   for(const [kind,contentValue] of Object.entries({intent,spec:content,plan})) {
     const r=await success('sdlc_artifact_write',{task_id:id,kind,content:contentValue});
     assert.equal(r.structure_ok,true);
   }
+  if(gated) await fs.writeFile(path.join(dir(id),'source.md'),'Controlled original coupon requirements.\n');
   if(stage!=='INTENT') {
+    if(gated) await enterReviewedSpec(id);
+    if(stage==='SPEC'&&gated) return;
     const r=await advance(id,stage);assert.ok(!r.isError,JSON.stringify(r));
   }
 };
@@ -74,6 +84,8 @@ try {
   installNativeExecutor(ctx, require);
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture'})});
   ctx.provide('subagents',{startActivation:async(spec)=>{
+    const specReview = controlledSpecActivation(spec,'acceptance-spec-reviewer');
+    if (specReview) return specReview;
     starts++;
     const prompt=spec.prompt.map(p=>p.text??'').join('\n');
     seenIds=[...prompt.matchAll(/^((?:AC|EXTRA)-[A-Za-z0-9-]+): /gm)].map(m=>m[1]);
@@ -118,7 +130,7 @@ try {
   if(!vulnerable) {
     for(const stage of ['PLANNED','IMPLEMENTING','VERIFYING']) {
       const id='JUMP-'+stage;await create(id,spec,stage);
-      const s=await state(id);check(s.acceptance.criteria.length===3&&s.history.length===2,'INTENT -> '+stage+' registers acceptance despite skipping SPEC');
+      const s=await state(id);check(s.acceptance.criteria.length===3&&s.history.length===(gated?3:2),'advancing to '+stage+' registers the whole acceptance list');
     }
     await create('NO-BASELINE',spec,'INTENT');
     const bad=await state('NO-BASELINE');bad.status='VERIFYING';
@@ -151,6 +163,7 @@ try {
     await success('sdlc_task_issue',{task_id:'PRE-FIRST',action:'start',issue_id,to:'SPEC',reason:'record Spec rework'});
     await success('sdlc_task_issue',{task_id:'PRE-FIRST',action:'submit',issue_id,reason:'Spec change reviewed',evidence:'Updated Spec narrative'});
     const prior=(await state('PRE-FIRST')).acceptance.id;
+    if(gated) await reviewFixture(call,'PRE-FIRST');
     check(!(await advance('PRE-FIRST','VERIFYING')).isError,'recorded return permits new registration');
     check((await state('PRE-FIRST')).acceptance.id!==prior,'re-registration has a new version even when AC IDs are unchanged');
 
@@ -160,12 +173,13 @@ try {
     const legacy=await state('LEGACY');legacy.status='VERIFYING';legacy.artifacts.verification='verification.json';
     await fs.writeFile(path.join(dir('LEGACY'),'state.yaml'),JSON.stringify(legacy));
     check((await verifyTask('LEGACY')).isError,'legacy task cannot invent a confirmed baseline from current files');
+    if(gated) await enterReviewedSpec('LEGACY');
+    else check(!(await advance('LEGACY','SPEC')).isError,'legacy task can explicitly return to SPEC');
+    check(!(await advance('LEGACY','VERIFYING')).isError,'legacy task registers current Spec after recorded return');
+    r=await verifyTask('LEGACY',{criteria:undefined});check(!r.isError&&r.value.status==='approve','migrated task verifies explicit IDs in a new round');
     const migrated=await state('LEGACY');
     const archive=path.join(dir('LEGACY'),migrated.workflow.runs[0].file);
     check(await fs.readFile(archive,'utf8')===oldText,'legacy verdict is archived verbatim');
-    check(!(await advance('LEGACY','SPEC')).isError,'legacy task can explicitly return to SPEC');
-    check(!(await advance('LEGACY','VERIFYING')).isError,'legacy task registers current Spec after recorded return');
-    r=await verifyTask('LEGACY',{criteria:undefined});check(!r.isError&&r.value.status==='approve','migrated task verifies explicit IDs in a new round');
     await complete('LEGACY',true);check(await fs.readFile(archive,'utf8')===oldText,'new verification never rewrites historical IDs');
 
     await create('LEGACY-FAIL',spec,'INTENT');
@@ -175,6 +189,13 @@ try {
     await fs.writeFile(path.join(dir('LEGACY-FAIL'),'verification.json'),rejected);
     const lf=await state('LEGACY-FAIL');lf.status='VERIFYING';lf.artifacts.verification='verification.json';
     await fs.writeFile(path.join(dir('LEGACY-FAIL'),'state.yaml'),JSON.stringify(lf));
+    if(gated) {
+      const unchanged = await fs.readFile(path.join(dir('LEGACY-FAIL'),'state.yaml'),'utf8');
+      check((await verifyTask('LEGACY-FAIL')).isError,'unreviewed legacy task is refused before adoption');
+      check(await fs.readFile(path.join(dir('LEGACY-FAIL'),'state.yaml'),'utf8')===unchanged,'legacy refusal preserves state bytes');
+      await enterReviewedSpec('LEGACY-FAIL');
+      check(!(await advance('LEGACY-FAIL','VERIFYING')).isError,'legacy task explicitly registers the reviewed Spec');
+    }
     check((await verifyTask('LEGACY-FAIL')).isError,'legacy failure is imported without being erased by migration');
     const oldIssue=(await state('LEGACY-FAIL')).workflow.issues.find(i=>i.criterion_id===historicalId);
     assert.ok(oldIssue);

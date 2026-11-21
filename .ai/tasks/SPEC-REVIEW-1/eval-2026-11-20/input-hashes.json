@@ -1,0 +1,16 @@
+{
+  "args/call-1.json": "1271109feab474986f8b1c1aae084e8699bd3ec2bd7972d2f84c5d369c55acee",
+  "case-1/.ai/tasks/SR-BUILD/state.yaml": "41c11da1b6187c30274562b9d5961e21d3ef2a6d531666412a72ddbce42a36f9",
+  "case-1/.ai/tasks/SR-BUILD/source.md": "6ee2a0c4e9aae5d089c8b601bb32ea18cd7b459961cf8c89417a9ace8d7360f9",
+  "case-1/.ai/tasks/SR-BUILD/rsi.json": "ce35a0aa75f0413066b6c128a97eb95fedcf3b7e8b0b8d2e0b8d2016f8e400a6",
+  "case-1/.ai/tasks/SR-BUILD/intent.md": "9e4818648c99a305a96772a8403ef9d072f4ed4544032f4fd0a02249bc0ae731",
+  "case-1/.ai/tasks/SR-BUILD/spec.md": "c0f67d67dea13e638ac6486d6d9cac7a220115ffcf436ef1a9c622b505f134be",
+  "case-1/.ai/tasks/SR-BUILD/spec-reviews/4e456259-3ba0-4994-a45d-3c01bc3431e8.json": "8135b64695551ef6731d05aba343662b3249b292b0d5565390599a0cc96ff2de",
+  "case-1/.ai/rsi/tasks/SR-BUILD/evidence.json": "7ae70e55f2e0c392681f1bd78f481c27bddf7258dbf70e72e0b57bec9e2cce47",
+  "case-1/.ai/rsi/tasks/SR-BUILD/task.json": "81d39bec448ddca552c286e3c9f67441d6e0738edb6278e1a9b3c305e22d4faa",
+  "case-1/.ai/rsi/tasks/SR-BUILD/sessions/spec-eval-d0f95a41-d854-4b52-8a06-7c844aff4f58.json": "54c4140eec62c47c92fc073522dc565b4ebca4e61d905c5471387a74238be610",
+  "case-1/.ai/rsi/tasks/SR-BUILD/sessions/d96231db-9ea4-45c5-87a0-c33901238240.json": "a422eea108e7469b32cf1648bf051f38c3919d4043c8dae9d90068b5b66e4674",
+  "case-1/.ai/rsi/tasks/SR-BUILD/sessions/d96231db-9ea4-45c5-87a0-c33901238240.view.json": "13b25c213c6224ad32942a1342f67101ad9bc903bfa6aa8020d1336d82233898",
+  "case-1/.ai/rsi/tasks/SR-BUILD/sessions/spec-eval-d0f95a41-d854-4b52-8a06-7c844aff4f58.view.json": "cae775de4361ba28f36088ffdaea5159454371042fae09af73bb13c354fb483f",
+  "case-1/.ai/rsi/operations/spec-eval-d0f95a41-d854-4b52-8a06-7c844aff4f58/20af804b55027c2c9e926b8f20db44899696724a6cbd828e44506c4fb9372eb0.json": "e8c8a65f6bd0f5b8ec106a6fb681691cb47576de2916844ab8039df522ec9b05"
+}

@@ -1,5 +1,6 @@
 /** Real tools + real local filesystem + disposable Git repo, with deterministic verifier answers. */
 import { installNativeExecutor, executeTool } from './helpers/executor.mjs';
+import {controlledSpecActivation, reviewFixture} from './helpers/spec-review.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
@@ -34,16 +35,20 @@ try {
   new ToolRuntime(ctx,'tools');
   installNativeExecutor(ctx, require);
   ctx.provide('agentPresets',{register:async()=>()=>{},resolve:async id=>({id,name:'fixture'})});
-  ctx.provide('subagents',{startActivation:async()=>{
+  ctx.provide('subagents',{startActivation:async request=>{
+    const specReview = controlledSpecActivation(request,'flow-spec-reviewer');
+    if (specReview) return specReview;
     if(cancelDuring)await success('sdlc_task_issue',{task_id:'FLOW-TEST',action:'cancel_verification',reason:'abandon interrupted run'});
     if(mutateDuring)await fs.writeFile(path.join(root,'app.js'),'export const value = 3;\n');
     return {childId:'verifier-'+seq,result:Promise.resolve({output:[],stopReason:'completed',...(noVerdict?{}:{structured:structuredClone(answer)})}),dispose:()=>{}};
   }});
   task.apply(ctx,task.Config['~standard'].validate({}).value);verify.apply(ctx,verify.Config['~standard'].validate({}).value);
   await success('sdlc_task_create',{task_id:'FLOW-TEST',title:'historical workflow regression'});
-  for(const file of ['intent.md','spec.md','plan.md','review.json'])await fs.writeFile(path.join(dir,file),file.endsWith('.json')?'{}':'# fixture');
+  for(const file of ['intent.md','spec.md','plan.md','review.json','source.md'])await fs.writeFile(path.join(dir,file),file.endsWith('.json')?'{}':'# fixture');
   await fs.writeFile(path.join(dir,'spec.md'),'# Spec\n\n## Acceptance Criteria\n- AC-001: 非目标场景保持原行为\n');
-  let s=await state();s.artifacts={intent:'intent.md',spec:'spec.md',plan:'plan.md',review:'review.json'};await save(s);
+  let s=await state();s.artifacts={intent:'intent.md',spec:'spec.md',plan:'plan.md',review:'review.json',source:'source.md'};await save(s);
+  await success('sdlc_task_advance',{task_id:'FLOW-TEST',to:'SPEC',reason:'review the fixture before implementation'});
+  await reviewFixture(call,'FLOW-TEST');
   await success('sdlc_task_advance',{task_id:'FLOW-TEST',to:'VERIFYING',reason:'register fixture acceptance and enter verification'});
   for(const content of ['{bad',JSON.stringify({task:'FLOW-TEST',verdict:{status:'reject',findings:[]}}),JSON.stringify({task:'FLOW-TEST',verdict:{status:'approve',findings:[]}})]) {
     await fs.writeFile(path.join(dir,'verification.json'),content);s=await state();s.artifacts.verification='verification.json';await save(s);

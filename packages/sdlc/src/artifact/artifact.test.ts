@@ -301,7 +301,7 @@ test('写作指导覆盖交付契约五个子节与保证边界', () => {
   assert.match(ARTIFACT_POLICY_TEXT, /待确认/, '必须允许标记待确认而不是编造');
   assert.match(ARTIFACT_POLICY_TEXT, /hidden tests/, '必须写明外部隐藏测试不是用户承诺');
   assert.match(ARTIFACT_POLICY_TEXT, /只查结构/, '必须写明只查结构');
-  assert.match(ARTIFACT_POLICY_TEXT, /checkAdvance/, '必须写明不是状态推进硬门禁');
+  assert.match(ARTIFACT_POLICY_TEXT, /只检查文档结构。推进还要核对独立 SPEC 审查/, '必须区分结构检查与独立审查的推进要求');
 });
 
 test('骨架自检：skeletonFor 生成的东西**故意**判为不合格', () => {
