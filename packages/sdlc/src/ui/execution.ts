@@ -7,6 +7,7 @@ import {parseWorkflow, type TaskWorkflow, type FlowIssue, type IssueStatus} from
 import {sessionView} from '../shared/session-view.js';
 import {enforceCriteriaPolicy, criterionEntries, type Verdict, type CriteriaInput} from '../verify/verdict.js';
 import {additionalCriteria, parseAcceptanceRegistration, verificationAcceptance} from '../shared/acceptance.js';
+import {readBoardObservations, type DeliverySummary, type SpecReviewSummary} from './observations.js';
 
 type FileSystem = Pick<Context['fs'], 'resolve' | 'contains' | 'stat' | 'readBytes' | 'listDir'>;
 type ObjectValue = Record<string, unknown>;
@@ -19,6 +20,7 @@ export interface ExecutionRound {
   unverified: string[];
   testEvidence: string | null; changesSummary: string | null;
   toolEvents: {id: string; name: string; at: string | null; status: 'completed' | 'error' | 'unknown'; summary: string}[];
+  delivery?: DeliverySummary;
 }
 export interface ExecutionRepair {
   id: string; at: string | null; kind: 'fix_start' | 'fix_end' | 'backtrack'; summary: string; source: string;
@@ -30,6 +32,7 @@ export interface TaskExecution {
   findingCounts: Record<IssueStatus, number> | null; findingFilteredTotal: number; findingFilter: string;
   flowLinks: {historyIndex: number; issueId: string; description: string; status: IssueStatus; findingOffset: number}[];
   activities: {id:string;at:string|null;summary:string}[];
+  specReview?: SpecReviewSummary;
 }
 interface ReadOptions {repoRoot: string; taskId: string; tasksDir?: string; rsiDir?: string; signal?: AbortSignal; findingOffset?: number; findingFilter?: string}
 interface RecordEvent {seq: number; kind: string; at: string | null; data: ObjectValue}
@@ -68,8 +71,8 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     if (!fs.contains(workspace, base) || !fs.contains(base, value)) throw new Error('路径越出记录目录');
     return value;
   };
-  const read = async (base: FsTarget, prefix: string, name: string, max = MAX_FILE): Promise<string | undefined> => {
-    const value = await target(base, prefix, name), info = await fs.stat(value, signal);
+  const readTarget = async (value: FsTarget, max: number): Promise<string | undefined> => {
+    const info = await fs.stat(value, signal);
     if (!info) return undefined;
     if (info.type !== 'file') throw new Error('记录不是普通文件');
     const cap = Math.min(max, remaining);
@@ -78,6 +81,7 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     remaining -= bytes.byteLength;
     return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
   };
+  const read = async (base: FsTarget, prefix: string, name: string, max = MAX_FILE) => readTarget(await target(base, prefix, name), max);
   const json = async (name: string, max = MAX_FILE): Promise<unknown> => {
     const raw = await read(rsiRoot, rsiDir, name, max);
     return raw === undefined ? undefined : JSON.parse(raw);
@@ -119,11 +123,13 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
     changesSummary: text(inputs.intent_of_change, 800) || null,
   });
   let workflow: TaskWorkflow | undefined;
+  let rawState: ObjectValue;
   try {
     const raw = await read(taskRoot, taskDir, 'state.yaml', 2 * 1024 * 1024);
     if (raw === undefined) throw new Error('任务状态缺失');
     const state = object(parseYaml(raw, {schema: JSON_SCHEMA}));
     if (state.task !== taskId) throw new Error('任务状态归属不符');
+    rawState = state;
     if (state.workflow) workflow = parseWorkflow(state.workflow);
     if (workflow) {
       output.findingCounts = {open: 0, working: 0, submitted: 0, deferred: 0, resolved: 0};
@@ -347,6 +353,38 @@ export async function readExecution(fs: FileSystem, options: ReadOptions): Promi
   output.rounds.sort((a, b) => (a.startedAt ?? a.finishedAt ?? '').localeCompare(b.startedAt ?? b.finishedAt ?? '') || a.id.localeCompare(b.id));
   output.rounds.forEach((round, i) => { round.number = Math.max(0, registeredRuns.length - MAX_ROUNDS) + i + 1; });
   output.repairs.sort((a, b) => (a.at ?? '').localeCompare(b.at ?? '') || a.id.localeCompare(b.id));
+  try {
+    const {specReview, delivery} = await readBoardObservations({fs: {
+      resolve: fs.resolve.bind(fs),
+      contains: fs.contains.bind(fs),
+      stat: fs.stat.bind(fs),
+      listDir: fs.listDir.bind(fs),
+      async readText(file) {
+        const value = await readTarget(file, 4 * 1024 * 1024);
+        if (value === undefined) throw new Error('记录缺失');
+        return value;
+      },
+    }}, {repoRoot, taskId, taskDir, signal}, rawState, {
+      root: rsiDir,
+      async read(name, limit) {
+        const value = await json(name, limit);
+        if (value === undefined) throw new Error('记录缺失');
+        return value;
+      },
+      async list(name) {
+        const folder = await target(rsiRoot, rsiDir, name);
+        if (!await fs.stat(folder, signal)) return [];
+        const files = await fs.listDir(folder, signal);
+        if (files.length > MAX_RECORDS) throw new Error('运行记录超过读取上限');
+        return files.map(file => file.name).sort();
+      },
+    });
+    output.specReview = specReview;
+    const boundRound = delivery && output.rounds.find(round => round.id === delivery.run);
+    if (boundRound) boundRound.delivery = delivery.summary;
+  } catch {
+    output.specReview = {status: 'unavailable', unresolved: null, recordPath: null, incompleteHistory: true};
+  }
   // 用登记的完整问题数（findingTotal），不用当前筛选页的 findings：筛选零命中不能把有记录的任务降为 unavailable。
   output.status = output.rounds.length || output.repairs.length || output.findingTotal || output.activities.length ? output.issues.length ? 'partial' : 'recorded' : 'unavailable';
   return output;

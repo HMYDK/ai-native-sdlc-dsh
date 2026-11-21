@@ -328,6 +328,7 @@ window.__ModuleLoader__.load({
 .sdlc-detail-tabs button{border:0;border-bottom:2px solid transparent;background:none;padding:10px 1px 14px;font-size:14px;color:var(--s-muted);white-space:nowrap}
 .sdlc-detail-tabs button[aria-selected=true]{border-color:var(--s-accent);color:var(--s-accent);font-weight:650}
 .sdlc-overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.sdlc-spec-review{margin-top:12px}
 .sdlc-overview-card{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:9px;border:1px solid var(--s-line);border-radius:10px;background:var(--s-surface);padding:19px 20px}
 .sdlc-overview-value{font-size:21px;line-height:1.45;font-weight:650;overflow-wrap:anywhere}
 .sdlc-overview-card>.sdlc-link{margin-top:auto;padding-top:5px;min-height:30px}
@@ -507,6 +508,63 @@ window.__ModuleLoader__.load({
         h(Icon, { key: 'arrow', name: 'chevron-right', size: 13 }),
       ]))) : h('p', { className: 'sdlc-caption' }, '暂无已登记的交付物。');
     }
+    const SPEC_REVIEW_LABELS = {
+      not_observed: ['未记录', 'muted'],
+      needs_inputs: ['待登记审查材料', 'warning'],
+      pending: ['待独立审查', 'warning'],
+      legacy: ['历史审查待补审', 'warning'],
+      open: ['待逐项收口', 'warning'],
+      stale: ['输入已变化，需重审', 'warning'],
+      closed: ['审查已收口', 'success'],
+      unavailable: ['审查记录待核对', 'warning'],
+    };
+    const ORACLE_LABELS = {
+      proven: ['已证明', 'success'],
+      failed: ['执行失败', 'error'],
+      unverified: ['未验证', 'warning'],
+    };
+    function SpecReviewNotice({review, loading, taskId}) {
+      const status = review?.status;
+      const [label,tone] = SPEC_REVIEW_LABELS[status] || [loading ? '正在读取…' : '暂时无法核对', 'muted'];
+      const guidance = {
+        needs_inputs: '先登记原始需求、Intent 和 Spec。',
+        pending: '在 SDLC 会话中发起独立 SPEC 审查。',
+        legacy: '回到 SPEC 补审当前需求与验收范围。',
+        stale: '登记的来源、Intent、Spec 或 AC 已变化，返回 SPEC 后按当前版本复审。',
+        unavailable: '检查登记的审查引用、记录文件及来源。',
+      }[status];
+      return h('section',{className:'sdlc-overview-card sdlc-spec-review','aria-label':'SPEC 审查'},[
+        h('span',{key:'label',className:'sdlc-caption'},'SPEC 审查'),
+        h('strong',{key:'value',className:'sdlc-overview-value sdlc-tone-'+tone},label),
+        Number.isInteger(review?.unresolved) && review.unresolved > 0 ? h('span',{key:'count',className:'sdlc-caption'},review.unresolved+' 项发现未收口') : null,
+        guidance ? h('span',{key:'guidance',className:'sdlc-caption'},guidance) : null,
+        review?.incompleteHistory ? h('span',{key:'partial',className:'sdlc-caption'},'部分审查历史无法核对。') : null,
+        review?.recordPath ? h('details',{key:'record',className:'sdlc-record-detail'},[
+          h('summary',{key:'label'},'查看 SPEC 审查依据'),
+          h('p',{key:'path',className:'sdlc-acceptance-compact'},h('code',{},review.recordPath)),
+          h('p',{key:'query',className:'sdlc-caption'},['在 SDLC 会话查询完整审查链 ',h('code',{key:'tool'},'sdlc_rsi_analyze({task_id: '+JSON.stringify(taskId)+'})')]),
+        ]) : null,
+      ]);
+    }
+    function OracleStatus({status}) {
+      const [label,tone] = ORACLE_LABELS[status] || ORACLE_LABELS.unverified;
+      return h('strong',{className:'sdlc-tone-'+tone},label);
+    }
+    function OracleEvidence({delivery}) {
+      const outcomes = delivery?.outcomes || [];
+      return h('section',{className:'sdlc-record-detail','aria-label':'独立交付证据'},[
+        h('h3',{key:'title'},['Oracle 交付结果 · ',h(OracleStatus,{key:'status',status:delivery?.status})]),
+        outcomes.length ? h('ul',{key:'outcomes'},outcomes.map((item,index)=>h('li',{key:item.id+':'+index,className:'sdlc-acceptance-compact'},[
+          h('code',{key:'outcome'},item.id), ' · ',h(OracleStatus,{key:'status',status:item.status}),
+          item.oracles.length ? h('ul',{key:'oracles'},item.oracles.map(oracle=>h('li',{key:oracle.id},[
+            h('code',{key:'id'},oracle.id),' · ',h(OracleStatus,{key:'status',status:oracle.status}),
+            oracle.exitCodes.length ? ' · 退出码 '+oracle.exitCodes.join(' / ') : null,
+            oracle.evidencePath ? h('div',{key:'path'},h('code',{},oracle.evidencePath)) : null,
+          ]))) : null,
+        ]))) : h('p',{key:'unknown',className:'sdlc-caption'},'此轮尚无可展示的独立 Oracle 执行证据。'),
+        delivery?.truncated ? h('p',{key:'limit',className:'sdlc-caption'},'部分条目超出看板展示范围，可在 SDLC 会话查询完整证据。') : null,
+      ]);
+    }
     function TaskOverview({task, execution, loading, error, onView, onEvidence}) {
       const rounds = execution && execution.rounds || [], latest = rounds[rounds.length - 1];
       const outcome = latest ? outcomeOf(latest) : null;
@@ -537,6 +595,7 @@ window.__ModuleLoader__.load({
           ]),
         ]),
         error ? h('p',{key:'error',className:'sdlc-notice',role:'alert'},'执行记录读取失败，'+(execution ? '下方保留上次读取的结果：' : '请刷新重试：')+error) : null,
+        h(SpecReviewNotice,{key:'spec-review',review:execution?.specReview,loading,taskId:task.id}),
         h('section',{key:'attention',className:'sdlc-attention','aria-label':'仍需留意'},[
           h('div',{key:'heading',className:'sdlc-section-head'},[h('h3',{key:'title'},'仍需留意'),h('span',{key:'scope',className:'sdlc-caption'},'延期事项与未复核范围分别列出')]),
           counts && counts.deferred ? h('button',{key:'deferred',className:'sdlc-attention-row',onClick:()=>onView('issues','deferred')},[
@@ -633,7 +692,7 @@ window.__ModuleLoader__.load({
         h('section',{key:'history',id:'sdlc-view-history',className:'sdlc-view',role:'tabpanel','aria-labelledby':'sdlc-tab-history',hidden:view!=='history'},
           h(FlowWorkbench,{task:t,execution:executionState.data,loading:executionState.loading,error:executionState.error,theme,onOpen,onOpenIssue:showIssue,onSelectStage:stage=>setPanel({kind:'stage',stage}),onShowAll:()=>setPanel({kind:'artifacts'})})),
         panel ? h(TaskPanel, { key: 'panel:' + panel.kind + (panel.stage || ''), panel, task: t, theme, onClose: () => setPanel(null), onOpen }) : null,
-        evidence ? h(RoundEvidence,{key:'overview-evidence',round:evidence,theme,onClose:()=>setEvidence(null)}) : null,
+        evidence ? h(RoundEvidence,{key:'overview-evidence',round:executionState.data?.rounds.find(round=>round.id===evidence.id) || evidence,theme,onClose:()=>setEvidence(null)}) : null,
       ]);
     }
     function IssueFlow({ execution, loading, error, onPage, theme, filter = 'all', onFilter, selectedId, onSelect }) {
@@ -856,6 +915,7 @@ window.__ModuleLoader__.load({
               h('span',{key:'attempts',className:'sdlc-caption'},round ? (round.attemptCount ? round.attemptCount+' 次尝试' : '尝试次数未记录')+' · '+shortTime(round.finishedAt||round.startedAt) : '尚无独立验证'),
             ]),
             round ? [
+              h('p',{key:'delivery',className:'sdlc-caption','aria-label':'Oracle 交付结果'},['Oracle 交付结果 · ',h(OracleStatus,{key:'status',status:round.delivery?.status})]),
               h(LongText,{key:'summary',text:round.summary}),
               round.unverified && round.unverified.length ? h('div',{key:'unverified',className:'sdlc-unverified'},[
                 h('strong',{key:'label'},round.unverified.length+' 项未复核'),
@@ -935,6 +995,7 @@ window.__ModuleLoader__.load({
       return h(DialogFrame,{id:'sdlc-round-evidence',title:roundName(round)+'证据',subtitle:result.label,theme,onClose},[
         h('h3',{key:'title'},hasVerdict(round) ? '独立裁决' : '执行记录 · 尚无可用裁决'),h(LongText,{key:'summary',text:round.summary}),
         h('p',{key:'time',className:'sdlc-caption'},shortTime(round.finishedAt||round.startedAt)),
+        h(OracleEvidence,{key:'delivery',delivery:round.delivery}),
         round.unverified && round.unverified.length ? h('section',{key:'unverified',className:'sdlc-unverified'},[h('h3',{key:'title'},'验证者未复核的事项'),h('ul',{key:'items'},round.unverified.map((item,i)=>h('li',{key:i},item)))]) : null,
         h('h3',{key:'criteria-title'},'验收标准'),
         h('div',{key:'filter',className:'sdlc-report-controls'},[

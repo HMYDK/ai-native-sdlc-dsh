@@ -1,4 +1,3 @@
-import type {Context} from '@deepseek-ai/cordis';
 import {parseSpecAcceptance, specHash} from '../shared/acceptance.js';
 import {
   assertReviewPredecessor, parseReviewAttempt, REVIEW_HISTORY_BYTES, REVIEW_HISTORY_FILES,
@@ -6,7 +5,7 @@ import {
   type CompletedReview, type ReviewRecord, type Snapshot,
 } from '../shared/spec-review-record.js';
 import {taskFile} from '../task/io.js';
-import {readRegisteredReviewInputs, reviewWorkspace} from '../task/spec-review.js';
+import {readRegisteredReviewInputs, reviewWorkspace, type ReviewFileContext} from '../task/spec-review.js';
 import type {TaskState} from '../task/state.js';
 import type {SpecFinding, SpecFollowUp} from '../verify/spec-review.js';
 import {object} from './analysis.js';
@@ -134,7 +133,7 @@ export type FindingObservation = Omit<SpecFinding, 'id'> & {
   follow_ups: FollowUpObservation[];
 };
 
-export async function observeReviews(ctx: Context, exec: Execution, dir: string, state: TaskState, gap: ReportGap) {
+export async function observeReviews(ctx: ReviewFileContext, exec: Execution, dir: string, state: TaskState, gap: ReportGap) {
   const workspace = reviewWorkspace(ctx, exec, dir);
   const relative = workspace.prefix + '/spec-reviews';
   const entries: Entry[] = [], completed = new Map<string, CompletedEntry>();

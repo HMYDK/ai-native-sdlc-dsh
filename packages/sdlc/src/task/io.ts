@@ -36,7 +36,7 @@ export function actorOf(exec: TaskExec): string {
   const agent = exec.agent as {id?: string; session?: {id?: string}} | undefined;
   return agent?.session?.id ?? agent?.id ?? 'unknown-session';
 }
-export async function taskFile(ctx: Context, exec: TaskExec, dir: string, file: string) {
+export async function taskFile(ctx: {fs: Pick<Context['fs'], 'resolve' | 'contains'>}, exec: TaskExec, dir: string, file: string) {
   if (!file || file.startsWith('/') || file.split(/[\\/]/).some(s => s === '..' || !s)) throw new Error('任务文件必须位于任务目录内');
   const base = await ctx.fs.resolve(dir, resolveOptions(exec));
   const target = await ctx.fs.resolve(`${dir}/${file}`, resolveOptions(exec));

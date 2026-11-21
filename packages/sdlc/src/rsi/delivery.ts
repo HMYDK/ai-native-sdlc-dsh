@@ -6,13 +6,15 @@ import type {reviewWorkspace} from '../task/spec-review.js';
 import type {TaskState} from '../task/state.js';
 import {object} from './analysis.js';
 import type {observeReviews, ReportGap} from './reviews.js';
-import {message, safeSegment, type Store} from './store.js';
+import {message, readRunRecords, safeSegment, type RecordReader} from './store.js';
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const EXECUTION_LIMIT = 256 * 1024;
 export const SESSION_BYTES = 32 * 1024 * 1024;
 type Reviews = Awaited<ReturnType<typeof observeReviews>>;
 type Workspace = ReturnType<typeof reviewWorkspace>;
+export type DeliveryEvidenceReader = RecordReader & {root: string};
+export type OracleStatus = 'proven' | 'failed' | 'unverified';
 interface Oracle {oracle_ref: string; command: string}
 interface Outcome {outcome_ref: string; description: string; oracles: Oracle[]; criterion_ids: string[]}
 
@@ -84,9 +86,9 @@ function deliveryContract(spec: string, gap: ReportGap, path: string): Outcome[]
   return invalidReferences ? outcomes.map(outcome => ({...outcome, oracles: []})) : outcomes;
 }
 
-async function executionEvidence(store: Store, doc: TaskVerification, runId: string) {
+async function executionEvidence(store: DeliveryEvidenceReader, doc: TaskVerification, runId: string) {
   const id = safeSegment(doc.verdict.verifier_session ?? '');
-  const run = await store.run(runId);
+  const run = await readRunRecords(store, runId);
   const started = run.records.find(r => r.kind === 'started');
   const finished = run.records.find(r => r.kind === 'finished');
   const attempt = run.records.find(r => r.kind === 'attempt_session' && r.data.session_id === id);
@@ -139,12 +141,12 @@ function oracleExecution(oracle: Oracle, evidence: Evidence) {
     return [{call_id: call.callId, tool: call.name, exit_code: rows[0].exit_code as number,
       call_seq: event.seq, result_seq: terminal[0].seq}];
   });
-  const status = executions.some(result => result.exit_code !== 0) ? 'failed'
+  const status: OracleStatus = executions.some(result => result.exit_code !== 0) ? 'failed'
     : executions.length && executions.length === calls.length ? 'proven' : 'unverified';
   return {status, executions, complete: calls.length > 0 && executions.length === calls.length};
 }
 
-export async function observeDelivery(workspace: Workspace, state: TaskState, reviews: Reviews, store: Store, gap: ReportGap) {
+export async function observeDelivery(workspace: Workspace, state: TaskState, reviews: Reviews, store: DeliveryEvidenceReader, gap: ReportGap) {
   const run = state.workflow?.runs.find(r => r.id === state.workflow?.latest_run);
   const statePath = workspace.prefix + '/state.yaml';
   let record: TaskVerification | undefined, reviewIndex = -1;
@@ -202,7 +204,7 @@ export async function observeDelivery(workspace: Workspace, state: TaskState, re
       };
     });
     if (!oracleResults.length) gap('oracle_reference', spec!.path, 'Outcome 缺少可核对的 Oracle 声明：' + outcome.outcome_ref);
-    const status = oracleResults.some(o => o.status === 'failed') ? 'failed'
+    const status: OracleStatus = oracleResults.some(o => o.status === 'failed') ? 'failed'
       : oracleResults.length && oracleResults.every(o => o.status === 'proven') ? 'proven' : 'unverified';
     return {outcome_ref: outcome.outcome_ref, description: outcome.description, criterion_ids: outcome.criterion_ids,
       spec_path: spec!.path, spec_sha256: spec!.sha256, status, oracles: oracleResults};
