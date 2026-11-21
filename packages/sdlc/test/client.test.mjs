@@ -374,6 +374,21 @@ test('历史轮次的证据入口打开该轮快照，而不是最新版文件',
   assert.equal(modal.props.round.id, 'run-1');
   assert.ok(text(modal).includes('第 1 轮测试输出'));
 });
+test('独立裁决和 Oracle 执行并列，历史轮次不借用最新证据', () => {
+  const ex = execution();
+  ex.rounds[2].delivery = {status: 'failed', outcomes: [{id: 'OUT-001', status: 'failed', oracles: [
+    {id: 'ORACLE-001', status: 'failed', exitCodes: [1], evidencePath: '.ai/rsi/runs/run-3/oracles.json'},
+  ]}], truncated: false};
+  const ui = loopMount(ex);
+  const inspector = () => ui.find(n => n.props['aria-label'] === '所选轮次详情')[0];
+  assert.match(text(inspector()), /验证通过.*Oracle 交付结果 · 执行失败/s);
+  ui.click(ui.find(n => n.type === 'button' && text(n) === '查看本轮证据', inspector())[0]);
+  const modal = () => ui.find(n => n.component === 'RoundEvidence')[0];
+  assert.match(text(modal()), /ORACLE-001.*退出码 1.*oracles\.json/s);
+  ui.click(ui.find(n => n.type === 'button' && n.props['data-run-id'] === 'run-1')[0]);
+  assert.match(text(inspector()), /Oracle 交付结果 · 未验证/);
+  assert.doesNotMatch(text(inspector()), /ORACLE-001|执行失败/);
+});
 test('验证内部重试显示为尝试次数，不新增验证轮次', () => {
   const ui = loopMount();
   ui.click(ui.find(n => n.type === 'button' && n.props['data-run-id'] === 'run-1')[0]);

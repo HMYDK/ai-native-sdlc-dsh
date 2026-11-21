@@ -15,7 +15,9 @@ export const DEFAULT_SOURCE_ORIGIN = '任务登记的 source 文件。出处与�
 type LoadedReview = {record: CompletedReview; snapshot: Snapshot};
 type ReadTaskFile = (relative: string, limit?: number) => Promise<Snapshot>;
 
-export function reviewWorkspace(ctx: Context, exec: TaskExec, dir: string) {
+export type ReviewFileContext = {fs: Pick<Context['fs'], 'resolve' | 'contains' | 'stat' | 'readText' | 'listDir'>};
+
+export function reviewWorkspace(ctx: ReviewFileContext, exec: TaskExec, dir: string) {
   const root = requireSessionCwd(exec, 'SPEC 审查');
   const prefix = workspacePath(path.relative(root, dir).split(path.sep).join('/'));
   const read = async (file: string, limit = REVIEW_INPUT_BYTES): Promise<Snapshot> => {
@@ -41,7 +43,7 @@ export function reviewWorkspace(ctx: Context, exec: TaskExec, dir: string) {
 }
 
 /** A manifest augments the registered original. A tool argument cannot replace this list. */
-export async function readRegisteredReviewInputs(ctx: Context, exec: TaskExec, dir: string, state: TaskState) {
+export async function readRegisteredReviewInputs(ctx: ReviewFileContext, exec: TaskExec, dir: string, state: TaskState) {
   const workspace = reviewWorkspace(ctx, exec, dir);
   const {source, intent, spec, spec_sources: manifest} = state.artifacts;
   if (!source) throw new Error('任务未登记原始 source 文件。请在进入 SPEC 时登记 source，再执行独立审查');

@@ -17,6 +17,7 @@ const {ToolRuntime} = require('@deepseek-ai/dsh-tools');
 const {SkillRegistry} = require('@deepseek-ai/dsh-skill');
 const bash = require('@deepseek-ai/dsh-tool-bash');
 const plugins = await Promise.all(['task', 'artifact', 'verify', 'rsi'].map(name => import('../lib/' + name + '/index.js')));
+const {readExecution} = await import('../lib/ui/execution.js');
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'sdlc-rsi-obs-'));
 const tasksDir = process.env.SDLC_SPEC_TASKS_DIR ?? '.ai/tasks';
 const ctx = new Context();
@@ -75,6 +76,7 @@ async function call(name, args, caller = author) {
 }
 const advance = (task, to, artifacts) => call('sdlc_task_advance', {task_id: task, to, reason: 'Controlled task transition', artifacts});
 const analyze = task => call('sdlc_rsi_analyze', {task_id: task});
+const board = taskId => readExecution(ctx.fs, {repoRoot: root, taskId, tasksDir});
 const review = (task, args = {}) => call('sdlc_spec_review', {task_id: task, ...args});
 const verify = task => call('sdlc_verify', {task_id: task, intent_of_change: 'Export all source order IDs.'});
 const reported = result => result.delivery_evidence.outcomes[0];
@@ -180,6 +182,8 @@ try {
     {finding_id: f2, result: 'needs_clarification', evidence: 'Inspect the original scope statement.'}]};
   const second = await review(success, {previous_review: first.review_id, responses});
   const ongoing = await analyze(success);
+  const openReview = (await board(success)).specReview;
+  checked(openReview.status === 'open' && openReview.unresolved === 2, 'Dashboard reports the registered review and unresolved findings');
   checked(ongoing.spec_review_observations.unresolved_finding_ids.length === 2, 'open and needs_clarification remain unresolved');
   checked(ongoing.finding_lifecycle.some(f => f.finding_id === f2 && f.status === 'needs_clarification'), 'follow-up result is not collapsed to open');
 
@@ -210,6 +214,10 @@ try {
   await goToDone(success);
   const before = await read(success, 'state.yaml');
   const green = await analyze(success), repeat = await analyze(success);
+  const completedBoard = await board(success);
+  checked(completedBoard.specReview.status === 'closed'
+    && completedBoard.rounds.find(round => round.id === green.delivery_evidence.verification.run_id)?.delivery?.status === 'proven',
+  'Dashboard displays a closed review and links proven Oracle execution to the verified round');
   const finding = green.finding_lifecycle.find(f => f.finding_id === f1);
   const oracle = reported(green).oracles[0];
   checked(await read(success, 'state.yaml') === before, 'analysis preserves task state bytes');
@@ -244,6 +252,9 @@ try {
   await verify(work);
   await goToDone(work);
   const noOracle = await analyze(work);
+  const unverifiedRound = (await board(work)).rounds.find(round => round.id === noOracle.delivery_evidence.verification.run_id);
+  checked(unverifiedRound?.outcome === 'approve' && unverifiedRound.delivery?.status === 'unverified',
+    'Dashboard distinguishes the approve verdict from unverified delivery');
   checked(noOracle.delivery_evidence.task_state.status === 'DONE' && noOracle.delivery_evidence.verification.verdict === 'approve'
     && reported(noOracle).status === 'unverified' && !noOracle.delivery_evidence.evidence_complete,
   'author-only execution, DONE, and all AC met remain unverified');
@@ -283,6 +294,11 @@ try {
   executeOracle = true;
   await verify(red);
   const failed = await analyze(red);
+  const failedBoard = (await board(red)).rounds.find(round => round.id === failed.delivery_evidence.verification.run_id);
+  const boardOracle = failedBoard?.delivery?.outcomes[0].oracles[0];
+  checked(failedBoard?.outcome === 'approve' && failedBoard.delivery?.status === 'failed'
+    && boardOracle?.exitCodes[0] === 1 && boardOracle.evidencePath
+    && !JSON.stringify(boardOracle).includes(command), 'Dashboard exposes the Oracle exit and path through a summary');
   checked(failed.delivery_evidence.verification.verdict === 'approve' && reported(failed).status === 'failed'
     && reported(failed).oracles[0].executions[0].exit_code === 1, 'actual Oracle failure survives an approve verdict');
 
@@ -295,6 +311,7 @@ try {
   await fs.writeFile(proofPath, JSON.stringify(proof));
   await write(red, 'source.md', source + 'Version drift.\n');
   checked((await analyze(red)).evidence_gaps.some(g => g.kind === 'review_input_drift'), 'changed Source is an evidence gap');
+  checked((await board(red)).specReview.status === 'stale', 'Dashboard calls for re-review after a Source version change');
 
   const wrong = randomUUID();
   const copied = JSON.parse(await fs.readFile(path.join(root, closed.review_file), 'utf8'));

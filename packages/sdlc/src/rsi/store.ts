@@ -50,18 +50,7 @@ export class Store {
     return (await this.ctx.fs.listDir(target,this.exec.signal)).map(e=>e.name).sort();
   }
   async run(id:string) {
-    safeSegment(id);
-    const records:RecordEvent[]=[]; const issues:string[]=[];
-    for(const file of await this.list(`runs/${id}`)) {
-      if(!/^\d{6}\.json$/.test(file)) continue;
-      try {
-        const data=object(await this.read(`runs/${id}/${file}`));
-        if(typeof data.seq!=='number'||typeof data.kind!=='string'||typeof data.at!=='string'||!data.data||typeof data.data!=='object') throw new Error('事件形状不合法');
-        records.push(data as unknown as RecordEvent);
-      } catch(e) {issues.push(`${file}: ${message(e)}`);}
-    }
-    const summary=summarizeRun(id,records);summary.issues.push(...issues);
-    if(issues.length) summary.complete=false;
+    const {records,summary}=await readRunRecords(this,id);
     let capture:unknown,code:unknown;
     const errors:string[]=[];
     for(const kind of ['capture','code'] as const) {
@@ -76,4 +65,24 @@ export class Store {
     return {summary,records,evidence};
   }
 }
+
+export type RecordReader = Pick<Store, 'read' | 'list'>;
+
+/** A run's durable event sequence can be checked without loading its replay snapshots. */
+export async function readRunRecords(reader:RecordReader,id:string) {
+  safeSegment(id);
+  const records:RecordEvent[]=[]; const issues:string[]=[];
+  for(const file of await reader.list(`runs/${id}`)) {
+    if(!/^\d{6}\.json$/.test(file)) continue;
+    try {
+      const data=object(await reader.read(`runs/${id}/${file}`));
+      if(typeof data.seq!=='number'||typeof data.kind!=='string'||typeof data.at!=='string'||!data.data||typeof data.data!=='object') throw new Error('事件形状不合法');
+      records.push(data as unknown as RecordEvent);
+    } catch(error) {issues.push(`${file}: ${message(error)}`);}
+  }
+  const summary=summarizeRun(id,records);summary.issues.push(...issues);
+  if(issues.length) summary.complete=false;
+  return {records,summary};
+}
+
 export function message(error:unknown):string {return error instanceof Error?error.message:String(error);}

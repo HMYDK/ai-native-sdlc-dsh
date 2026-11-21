@@ -19,13 +19,13 @@ DSH_BIN="$DSH_CONTENTS/MacOS/DeepSeek Harness"
 DSH_CLI="$DSH_CONTENTS/Resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js"
 
 ELECTRON_RUN_AS_NODE=1 "$DSH_BIN" --expose-internals "$DSH_CLI" \
-  plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.1
+  plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.2
 ```
 
 如果终端已配置与 App 同版的 `dsh` 命令，也可以直接运行：
 
 ```sh
-dsh plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.1
+dsh plugin --profile desktop add @ai-native-sdlc-plugin/dsh-sdlc@0.6.2
 ```
 
 ## 确认安装并开始任务
@@ -86,9 +86,12 @@ ELECTRON_RUN_AS_NODE=1 "$DSH_BIN" --expose-internals "$DSH_CLI" \
 
 ## 从源码构建
 
+从 `dev` 构建可体验当前开发分支上的 SPEC 审查与交付证据功能。
+
 ```sh
 git clone https://github.com/HMYDK/ai-native-sdlc-dsh.git
 cd ai-native-sdlc-dsh
+git switch dev
 npm ci
 
 export DSH_APP="/Applications/DeepSeek Harness.app"
