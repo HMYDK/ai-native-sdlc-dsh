@@ -5,12 +5,12 @@
 运行前准备独立工作区，放置处于 SPEC 的任务 state.yaml，登记 intent、spec 与 source。多份资料用 spec_sources 登记。标签、修订预案、调用参数和输出放工作区外。按使用说明编写 args.json，首次使用 task_id（显式 sources 须与登记内容一致），复审使用当前已登记 review_id 与逐项 responses。通过门禁版的完成审查仅更新审查引用和更新时间，失败轮次保留任务原字节。
 
 ```bash
-DSH_HOME=/path/to/isolated-home \
+DSH_HOME=/tmp/spec-review-isolated-home \
 DSH_TELEMETRY_DISABLED=1 \
 ELECTRON_RUN_AS_NODE=1 \
 "/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness" \
   --expose-internals tools/evals/spec-review/run.mjs \
-  /path/to/isolated-home/profiles/web \
+  /tmp/spec-review-isolated-home/profiles/web \
   /path/to/review-workspace TASK-ID \
   /path/to/args.json /path/to/batch-results 1
 ```
