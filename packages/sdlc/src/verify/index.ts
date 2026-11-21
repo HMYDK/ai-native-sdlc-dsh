@@ -400,8 +400,9 @@ export function apply(ctx: Context, config: SdlcVerifyConfig): void {
               criteria,
             });
             const issuePrompt = taskRun?.pending.length ? '\n## 必须独立复验的旧问题\n作者的证据不是结论。issue_results 必须逐项给出 issue_id、resolved/unresolved/cannot_tell、独立证据；不得省略或自造编号。\n' + JSON.stringify(taskRun.pending.map(i => ({issue_id:i.id,description:i.description,author_submission:i.actions.at(-1)}))) : '';
+            const oraclePrompt = taskRun ? '\n若 Delivery Contract 的 Oracle 有 `ORACLE-* [OUT-*]` 编号，仅在本会话已用原样命令执行该真实消费入口、退出码对应实际断言时，在 oracle_refs 列出相应的 ORACLE ID。执行失败也可引用。证据不足则省略。\n' : '';
             const prompt = args.experimental_guidance?.trim()
-              ? `${basePrompt}${issuePrompt}\n\n## 实验附加指导\n\n${args.experimental_guidance}` : basePrompt + issuePrompt;
+              ? `${basePrompt}${issuePrompt}${oraclePrompt}\n\n## 实验附加指导\n\n${args.experimental_guidance}` : basePrompt + issuePrompt + oraclePrompt;
             const artifactSnapshots: Record<string, unknown> = {};
             for (const [name, artifactPath] of Object.entries(artifacts)) {
               try {

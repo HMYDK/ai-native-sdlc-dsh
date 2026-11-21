@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import type { FsVersion } from '@deepseek-ai/dsh-fs';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { mutateTask, readTask, taskFile } from '../task/io.js';
+import { actorOf, mutateTask, readTask, taskFile } from '../task/io.js';
 import { requireIdle } from '../task/flow.js';
 import { previousSpecReview, readRegisteredReviewInputs, reviewWorkspace } from '../task/spec-review.js';
 import { REVIEW_INPUT_BYTES, REVIEW_RECORD_BYTES, reviewFilename, sameJSON, sourceDescriptor, sourceInputs, type ReviewRecord } from '../shared/spec-review-record.js';
@@ -77,7 +77,7 @@ export function registerSpecReviewTool(ctx: Context, cfg: SdlcVerifyConfig): voi
         await recording.record('finished', {outcome: doc.outcome, review_complete: doc.review_complete, diagnostic: doc.diagnostic ?? null});
       };
       try {
-        await recording.record('started', { task: id, inputs: args, author_session: (exec.agent as { id?: string } | undefined)?.id ?? null });
+        await recording.record('started', { task: id, inputs: args, author_session: actorOf(exec) });
         const stateSnapshot = await workspace.task('state.yaml');
         if (!sameJSON(await readTask(ctx, exec, dir, id), state)) throw new Error('准备审查期间任务登记发生变化');
         const registered = await readRegisteredReviewInputs(ctx, exec, dir, state);

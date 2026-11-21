@@ -17,6 +17,7 @@ import {JSON_SCHEMA,load as parseYaml} from 'js-yaml';
 import {parseTaskState,normalizeTaskId} from '../task/state.js';
 import {cwdOf} from './store.js';
 import {object} from './analysis.js';
+import {observeTask} from './observations.js';
 export const name='sdlc-rsi';
 export const inject=['tools','fs','sandboxPolicy','skills'];
 export const Config=z.object({root:z.string().default('.ai/rsi')});
@@ -47,6 +48,7 @@ export function apply(ctx:Context,config:{root:string}):void {
     if(failure!==undefined)throw failure;
   });
   // Presets are sibling scopes. Collector admits only explicitly associated sessions.
+  ctx.on('tools/result',(exec,result)=>{collector.observeOracle(exec,result);return undefined;},{global:true});
   ctx.on('session/event',(session,event)=>{collector.observe(session,event);tasks.observe(session,event);},{global:true});
   ctx.on('session/flush',async()=>{await collector.flush();await tasks.flush();},{global:true});
   ctx.effect(()=>async()=>{await collector.flush();await tasks.flush();});
@@ -82,7 +84,8 @@ export function apply(ctx:Context,config:{root:string}):void {
     for(const id of ids)try{runs.push(await store.run(safeSegment(id)));}catch(error){errors.push({run_id:id,error:message(error)});}
     const result=analyzeRuns(runs);const feedback=[];
     for(const file of await store.list('feedback'))try{feedback.push(await store.read(`feedback/${file}`));}catch(error){errors.push({run_id:file,error:message(error)});}
-    return json({...result,errors,feedback,...(task?{task,
+    const observations=task?await observeTask(ctx,exec,task.task,task.evidence,store):undefined;
+    return json({...result,errors,feedback,...(task?{task,...observations,
       analysis_brief:'根据任务与会话证据区分业务缺陷、插件机制缺陷、环境故障和未知原因。每个改进必须引用来源、说明尚未排除的解释、给出可证伪的验收标准。多次 reject 本身不是插件故障；证据不完整时只提出有现存证据支持的采集修复。候选应进入插件仓库的正常开发任务。',
       evidence_paths:[`tasks/${task.task.task_id}/task.json`,`tasks/${task.task.task_id}/evidence.json`,...task.task.checkpoints.map(id=>`tasks/${task.task.task_id}/checkpoints/${id}.json`),...task.task.sessions.map(s=>`tasks/${task.task.task_id}/sessions/${s.id}.json`)],
     }:{})});

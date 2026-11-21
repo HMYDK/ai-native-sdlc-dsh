@@ -1,0 +1,20 @@
+task: RSI-OBS
+title: "关联 SPEC 审查、修订和独立交付证据"
+status: SPEC
+created: 2026-11-21T02:31:41Z
+updated: 2026-11-21T02:31:41Z
+artifacts:
+  intent: "intent.md"
+  source: "source.md"
+  spec: "spec.md"
+  plan: "plan.md"
+  proof: "proof.md"
+history:
+  - at: "2026-11-21T02:31:41Z"
+    from: ""
+    to: "INTENT"
+    reason: "登记用户授权执行的 Issue #31。"
+  - at: "2026-11-21T02:31:41Z"
+    from: "INTENT"
+    to: "SPEC"
+    reason: "登记来源、验收和受控验证方案。执行证据见 proof.md，DSH 独立审查尚未登记。"

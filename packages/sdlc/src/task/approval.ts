@@ -6,9 +6,10 @@ import {enforceCriteriaPolicy, type Verdict} from '../verify/verdict.js';
 import {requireIdle} from './flow.js';
 import {requireTaskAcceptance} from './acceptance.js';
 import {verificationAcceptance, type AcceptanceRegistration} from '../shared/acceptance.js';
+import type {SpecReviewRef} from '../shared/spec-review-record.js';
 export interface TaskVerification {
   schema_version: 2 | 3; task: string; at: string; criteria: string[];
-  acceptance?: AcceptanceRegistration; additional_criteria?: string[];
+  acceptance?: AcceptanceRegistration; additional_criteria?: string[]; spec_review?: SpecReviewRef;
   verdict: Verdict; raw_verdict: Verdict; binding: VerificationBinding;
   intent_of_change: string; test_evidence?: string;
 }

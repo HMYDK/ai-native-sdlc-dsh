@@ -89,7 +89,7 @@ export async function completeTaskVerification(ctx: Context, exec: TaskExec, tas
   }
   verdict = {...verdict,verification_run_id:task.run};
   const at = new Date().toISOString(), file = `verifications/${task.run}.json`;
-  const doc = {schema_version:3,task:task.id,at,...inputs,criteria:task.criteria.map(criterionText),acceptance:task.acceptance,additional_criteria:task.additional_criteria,verdict,raw_verdict:raw,binding:task.binding};
+  const doc: TaskVerification = {schema_version:3,task:task.id,at,...inputs,criteria:task.criteria.map(criterionText),acceptance:task.acceptance,additional_criteria:task.additional_criteria,spec_review:task.specReview,verdict,raw_verdict:raw,binding:task.binding};
   const body = JSON.stringify(doc,null,2)+'\n', policy = await writePolicy(ctx,exec);
   const state = await mutateTask(ctx,exec,task.dir,task.id,async state => {
     const current = await requireTaskAcceptance(ctx,exec,task.dir,state);

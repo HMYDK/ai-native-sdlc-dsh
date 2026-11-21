@@ -59,6 +59,29 @@
 
 记录失败会保存缺口并更新看板摘要；查询还会重读 state.yaml/history，与已有阶段快照对账。即使失败信息当时也没能落盘，重启后仍能发现状态已前进但阶段记录缺失。手改状态文件不产生任务记录事件，也不能因此自动变成“记录完整”。
 
+## SPEC 审查与交付证据
+
+`sdlc_rsi_analyze({task_id})` 返回任务级结构化证据。`spec_review_observations` 按轮列出审查路径、输入指纹和结果，包含取消、失败与运行中的尝试。`finding_lifecycle` 保留发现、作者回应、复审证据和审查版本之间的改动。改动以变更行跨度和 AC 新增、删除、改写的编号呈现，原文与完整版本可从审查记录路径复核。来源标注 `caller_supplied`，指纹用于核对文件版本。
+
+复审以任务登记的链尾和前轮指纹为准。`addressed` 表示复审确认了规格修订，`withdrawn` 保留原发现被撤回的事实。只有明确指向同一个 AC ID、复审确有该 AC 的修改、最终验证使用的条文一致，才关联逐 AC 裁决。缺乏明确关联时显示 `unlinked`。
+
+`delivery_evidence` 提供最终验证 ID、登记 Spec、代码指纹及同轮次阶段快照。要让 RSI 核对 Oracle，在现有 Delivery Contract 的三个小节登记 Outcome、命令和 AC 编号。
+
+```markdown
+### Outcome
+- OUT-001: CSV 包含全部原始订单。
+### Oracle
+- ORACLE-001 [OUT-001]: `node assert-export.mjs`
+### AC mapping
+- OUT-001: AC-001
+```
+
+Oracle 命令在工作区根目录以 Bash 或 PowerShell 前台执行，由命令本身调用真实消费入口并执行断言，退出码 0 表示断言通过。验证者引用本轮亲自执行的 Oracle ID，RSI 将实际退出码与同轮验证者会话中的命令和调用 ID 对账。逐 Outcome 返回 `proven`（声明的 Oracle 均通过）、`failed`（有可核查的执行失败）或 `unverified`（缺少可靠执行或版本证据）。散文契约仍能显示 Outcome，历史任务的未采集证据显示缺口。裁决与任务状态作为流程事实一并展示。
+
+`evidence_gaps` 提供缺失、截断、错链及版本漂移的记录路径。`observed_cost` 从各轮起止时间取墙钟时长，从登记范围内的会话事件按会话 ID 和事件序号去重统计 Token。`observed_total_tokens` 是 DSH 已报告总量的和。`total_tokens` 依赖已对账的范围和每次模型调用的完整报告，缺数用 `null` 表示。未采集货币成本。任务时长是 state.yaml 的创建到最后一次更新时间，轮次可重叠。
+
+这些是可复核的观察。错误交付率和审查带来的因果收益需要独立标签与对照实验。可复跑示例及已检查的字段样例见 [RSI-OBS](../../.ai/tasks/RSI-OBS/proof.md)。
+
 ## 本地保存
 
 ```text
@@ -72,6 +95,7 @@
   runs/<UUID>/000000.json ...        # 验证生命周期，不覆盖上一轮
   runs/<UUID>/code.json              # Git HEAD、binary diff、新文件及指纹
   runs/<UUID>/capture.json           # 实际模型配置、计数、缺失与截断
+  runs/<UUID>/oracles.json           # 任务验证中的前台 shell 调用 ID、命令哈希及退出码
   runs/<UUID>/sessions/<ID>.json
   proposals/<UUID>.json              # 经检查的摘要与来源内容指纹
   imports/<TASK>.json

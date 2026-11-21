@@ -82,6 +82,17 @@ try {
   assert.ok(!(await fs.readdir(fixture)).includes('verification.json'));
   assert.ok(!(await ctx.agentPresets.list()).some(p=>p.id==='sdlc-verifier'));
   console.log('SPEC_REVIEW_REAL_SERVICE','expected parent rejection; no model, unchanged task, lease released');
+  const analysisBatch=await ctx.tools.execute({agent,signal:new AbortController().signal,calls:[{
+   id:'rsi-observation-probe',name:'sdlc_rsi_analyze',arguments:JSON.stringify({task_id:'RUNTIME-SPEC'}),
+  }]});
+  const analysis=analysisBatch.results[0].result;
+  assert.equal(analysis.isError,false,JSON.stringify(analysis));
+  const rounds=analysis.value.spec_review_observations.rounds;
+  assert.equal(rounds.length,1);
+  assert.equal(rounds[0].outcome,'incomplete');
+  assert.equal(rounds[0].record_path,feedback.review_file);
+  assert.equal(analysis.value.delivery_evidence.evidence_complete,false);
+  console.log('RSI_SPEC_OBSERVATION','installed task analysis reads the recorded incomplete review');
  }finally{await scope.dispose();}
  const standard={},standardScope=createScope(ctx,standard);standard.ctx=standardScope.ctx;
  try{await ctx.agentPresets.mount(standardScope.ctx,'standard');assert.ok(!ctx.tools.definitions(standard).some(t=>t.name.startsWith('sdlc_')));console.log('STANDARD_ISOLATION','pass');}finally{await standardScope.dispose();}

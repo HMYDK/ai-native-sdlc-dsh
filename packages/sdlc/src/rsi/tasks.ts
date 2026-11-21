@@ -259,6 +259,7 @@ export class TaskCollector {
     const execution_suites:{source:string;suite:unknown}[]=[];
     for(const session of task.manifest.sessions) {
       const trace=new Trace(session.id,session.parent??'');
+      let inheritedEventCount:number|null=null;
       try {
         const operations:Record<string,unknown>[]=[];
         for(const file of await task.store.list(`operations/${session.id}`)) {
@@ -273,6 +274,7 @@ export class TaskCollector {
           }
         }
         const source=await readSession(this.ctx,session.id,task.manifest.workspace,session.parent);
+        inheritedEventCount=source.inherited;
         for(const window of session.windows) {
           if(window.from===null)window.from=startOfTurn(source.events,window.registered);
           if(session.role!=='author'&&source.events.length&&object(source.events.at(-1)).type==='turn/end')window.to=source.events.length;
@@ -296,7 +298,7 @@ export class TaskCollector {
       if(trace.truncated)trace.issue('会话内容被截断');
       if(!trace.summary().observed_events)trace.issue('会话执行事件为空');
       issues.push(...trace.issues.map(issue=>`${session.id}: ${issue}`));
-      const snapshot={...trace.snapshot(),role:session.role,windows:session.windows};snapshots.push(snapshot);
+      const snapshot={...trace.snapshot(),role:session.role,windows:session.windows,inherited_event_count:inheritedEventCount};snapshots.push(snapshot);
       await task.store.write(`tasks/${task.manifest.task_id}/sessions/${session.id}.json`,snapshot,true);
       await task.store.write(`tasks/${task.manifest.task_id}/sessions/${session.id}.view.json`,sessionView(snapshot),true);
     }
